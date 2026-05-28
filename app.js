@@ -1,4 +1,4 @@
-{const supabase = window.supabase.createClient("https://welleqrjtlullhbdhive.supabase.co", "sb_publishable_e_Pu1JLmyXBKJnMvR5guXQ_GzvFcdK-");}
+{const supabase1 = window.supabase.createClient("https://welleqrjtlullhbdhive.supabase.co", "sb_publishable_e_Pu1JLmyXBKJnMvR5guXQ_GzvFcdK-");}
 
 const STORAGE_KEY = "aba_phase1_data";
 
