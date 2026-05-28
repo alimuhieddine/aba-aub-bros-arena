@@ -1,5 +1,14 @@
-{const supabase1 = window.supabase.createClient("https://welleqrjtlullhbdhive.supabase.co", "sb_publishable_e_Pu1JLmyXBKJnMvR5guXQ_GzvFcdK-");}
+{const supabaseClient= window.supabase.createClient("https://welleqrjtlullhbdhive.supabase.co", "sb_publishable_e_Pu1JLmyXBKJnMvR5guXQ_GzvFcdK-");}
+async function testConnection() {
+  const { data, error } = await supabaseClient
+    .from('sports')
+    .select('*');
 
+  console.log("DATA:", data);
+  console.log("ERROR:", error);
+}
+
+testConnection();
 const STORAGE_KEY = "aba_phase1_data";
 
 const demoData = {
