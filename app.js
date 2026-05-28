@@ -1,4 +1,4 @@
-{const supabaseClient= window.supabase.createClient("https://welleqrjtlullhbdhive.supabase.co", "sb_publishable_e_Pu1JLmyXBKJnMvR5guXQ_GzvFcdK-");}
+const supabaseClient= window.supabase.createClient("https://welleqrjtlullhbdhive.supabase.co", "sb_publishable_e_Pu1JLmyXBKJnMvR5guXQ_GzvFcdK-");
 async function testConnection() {
   const { data, error } = await supabaseClient
     .from('sports')
