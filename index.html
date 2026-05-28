@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#07111f" />
+  <title>ABA | AUB Bros Arena</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">AUB Bros Arena</p>
+        <h1>ABA</h1>
+        <p class="tagline">Prove it. Earn it. Climb.</p>
+      </div>
+      <button id="seedBtn" class="ghost-btn">Reset demo</button>
+    </header>
+
+    <nav class="tabs" aria-label="Main navigation">
+      <button class="tab active" data-view="dashboard">Home</button>
+      <button class="tab" data-view="leagues">Leagues</button>
+      <button class="tab" data-view="matches">Matches</button>
+      <button class="tab" data-view="activities">Proof</button>
+      <button class="tab" data-view="rankings">Ranks</button>
+    </nav>
+
+    <main>
+      <section id="dashboard" class="view active-view">
+        <div class="section-head">
+          <h2>Arena Feed</h2>
+          <span id="todayLabel"></span>
+        </div>
+        <div class="grid two">
+          <article class="card stat-card">
+            <span>Verified Activities</span>
+            <strong id="verifiedCount">0</strong>
+          </article>
+          <article class="card stat-card">
+            <span>Pending Proofs</span>
+            <strong id="pendingCount">0</strong>
+          </article>
+        </div>
+        <div id="feedList" class="stack"></div>
+      </section>
+
+      <section id="leagues" class="view">
+        <div class="section-head">
+          <h2>Leagues</h2>
+          <button class="primary-btn" data-open="leagueModal">+ League</button>
+        </div>
+        <div id="leagueList" class="stack"></div>
+      </section>
+
+      <section id="matches" class="view">
+        <div class="section-head">
+          <h2>Friendly & League Matches</h2>
+          <button class="primary-btn" data-open="matchModal">+ Match</button>
+        </div>
+        <div id="matchList" class="stack"></div>
+      </section>
+
+      <section id="activities" class="view">
+        <div class="section-head">
+          <h2>Activity Proof</h2>
+          <button class="primary-btn" data-open="activityModal">+ Submit</button>
+        </div>
+        <p class="hint">Activities need 2 committee approvals before points are added.</p>
+        <div id="activityList" class="stack"></div>
+      </section>
+
+      <section id="rankings" class="view">
+        <div class="section-head">
+          <h2>ABA Rankings</h2>
+          <span class="pill">Weekly form</span>
+        </div>
+        <div id="rankingList" class="stack"></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="leagueModal" class="modal">
+    <form method="dialog" id="leagueForm" class="modal-card">
+      <button class="close" value="cancel">×</button>
+      <h3>Create League</h3>
+      <label>League name <input name="name" required placeholder="ABA Padel League" /></label>
+      <label>Sport
+        <select name="sport">
+          <option>Padel</option><option>Soccer</option><option>Basketball</option><option>Gym</option><option>Running</option>
+        </select>
+      </label>
+      <label>Format <input name="format" placeholder="Doubles, 5v5, solo challenge..." /></label>
+      <button class="primary-btn full">Create</button>
+    </form>
+  </dialog>
+
+  <dialog id="matchModal" class="modal">
+    <form method="dialog" id="matchForm" class="modal-card">
+      <button class="close" value="cancel">×</button>
+      <h3>Create Match</h3>
+      <label>Sport
+        <select name="sport"><option>Padel</option><option>Soccer</option><option>Basketball</option></select>
+      </label>
+      <label>Title <input name="title" required placeholder="Fox & Wolf vs Pigs" /></label>
+      <label>Date & time <input name="date" type="datetime-local" required /></label>
+      <label>Court / Field <input name="venue" required placeholder="The Padict Club" /></label>
+      <label>Address <input name="address" placeholder="Google Maps address" /></label>
+      <label>Type
+        <select name="type"><option>Friendly</option><option>League</option></select>
+      </label>
+      <button class="primary-btn full">Add Match</button>
+    </form>
+  </dialog>
+
+  <dialog id="activityModal" class="modal">
+    <form method="dialog" id="activityForm" class="modal-card">
+      <button class="close" value="cancel">×</button>
+      <h3>Submit Activity Proof</h3>
+      <label>Player <input name="player" required placeholder="Ali" /></label>
+      <label>Sport
+        <select name="sport"><option>Padel</option><option>Soccer</option><option>Gym</option><option>Running</option><option>Cycling</option></select>
+      </label>
+      <label>Activity <input name="activity" required placeholder="90 min padel session" /></label>
+      <label>Proof link / note <input name="proof" placeholder="Photo, watch screenshot, GPS link..." /></label>
+      <label>Points <input name="points" type="number" min="1" value="10" /></label>
+      <button class="primary-btn full">Submit for Approval</button>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
