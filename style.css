@@ -79,3 +79,18 @@ input, select { width: 100%; border: 1px solid var(--line); border-radius: 14px;
   .grid.two { grid-template-columns: 1fr 1fr; }
   .row { flex-direction: column; }
 }
+.auth-card{
+    max-width:450px;
+    margin:40px auto;
+}
+
+.auth-card input{
+    width:100%;
+    margin-bottom:12px;
+}
+
+.primary-btn,
+.secondary-btn{
+    width:100%;
+    margin-top:10px;
+}
