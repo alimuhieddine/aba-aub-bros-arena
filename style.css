@@ -100,6 +100,7 @@ h1 {
   justify-content: center;
   align-items: center;
   gap: 10px;
+  margin-left: auto; margin-right: auto;
 }
 
 .primary-btn,
@@ -491,6 +492,7 @@ textarea {
   }
 
   .auth-actions {
+    margin-left: auto; margin-right: auto;
     gap: 10px;
   }
 
@@ -501,12 +503,4 @@ textarea {
     height: 26px;
     font-size: 11px;
   }
-}
-.hero-auth {
-    align-items: center;
-}
-
-.auth-actions {
-    margin-left: auto;
-    margin-right: auto;
 }
