@@ -504,3 +504,25 @@ textarea {
     font-size: 11px;
   }
 }
+@media (max-width: 800px) {
+  .hero-auth {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .auth-actions {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .auth-actions button {
+    width: 78px !important;
+    min-width: 78px !important;
+    max-width: 78px !important;
+    flex: 0 0 78px !important;
+  }
+}
