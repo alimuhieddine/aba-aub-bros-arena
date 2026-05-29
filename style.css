@@ -437,18 +437,22 @@ textarea {
 
   .auth-actions {
     width: 100%;
+
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 14px;
-    margin-top: 0;
+
+    gap: 10px;
+
+    margin-top: 2px;
+
     padding-top: 0;
   }
 
   .auth-actions button,
   .hero-auth button {
-    width: 96px;
-    min-width: 96px;
+    width: 76px;
+    min-width: 76px;
     height: 28px;
     flex: 0 0 auto;
     padding: 0;
