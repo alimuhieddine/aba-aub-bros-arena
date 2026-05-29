@@ -1,16 +1,20 @@
 const SUPABASE_URL = "https://welleqrjtlullhbdhive.supabase.co";
 const SUPABASE_KEY = "sb_publishable_e_Pu1JLmyXBKJnMvR5guXQ_GzvFcdK-";
 const supabaseClient= window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 async function testConnection() {
   const { data, error } = await supabaseClient
     .from('sports')
     .select('*');
 
+  console.log("URL:", SUPABASE_URL);
   console.log("DATA:", data);
   console.log("ERROR:", error);
 }
-
 testConnection();
+
+
+
 const STORAGE_KEY = "aba_phase1_data";
 
 const demoData = {
