@@ -83,7 +83,7 @@ h1 {
 
 .hero-auth input {
   width: 160px;
-  height: 42px;
+  height: 36px;
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.12);
   background: rgba(2, 12, 28, 0.75);
@@ -112,7 +112,7 @@ h1 {
 
 .primary-btn,
 .secondary-btn {
-  height: 42px;
+  height: 36px;
   padding: 0 16px;
   border-radius: 12px;
   font-weight: 800;
