@@ -476,7 +476,7 @@ textarea {
   }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 500px) {
   h1 {
     font-size: 50px;
   }
@@ -507,42 +507,51 @@ textarea {
 @media (max-width: 800px) {
 
     #auth-logged-in {
-        width: 100%;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 6px;
+        align-items: flex-end;
+        justify-content: flex-start;
     }
 
     .logged-user {
-        text-align: center;
+        align-items: flex-end;
+        text-align: right;
     }
 
     .logged-label {
-        font-size: 9px;
+        font-size: 8px;
     }
 
     #current-user {
         font-size: 10px;
 
-        max-width: 140px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        white-space: nowrap;   /* no ... */
+        overflow: visible;
+        text-overflow: unset;
+        max-width: none;
     }
 
     #logout-btn {
-        width: 90px;
-        height: 28px;
+        width: 60px;
+        min-width: 60px;
+        height: 24px;
+        font-size: 10px;
     }
 }
 
+#auth-logged-in {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: flex-start;
 
+    height: 100%;
+}
 
 .logged-user {
     display: flex;
     flex-direction: column;
-    text-align: right;
+    align-items: flex-end;
+
+    margin-bottom: 8px;
 }
 
 .logged-label {
@@ -555,7 +564,16 @@ textarea {
     font-size: 12px;
     font-weight: 600;
     color: white;
-    line-height: 1.2;
+
+    white-space: nowrap;   /* show full email */
 }
 
+#logout-btn {
+    width: 70px;
+    min-width: 70px;
+    height: 26px;
 
+    align-self: flex-end;
+
+    font-size: 11px;
+}
