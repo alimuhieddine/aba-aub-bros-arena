@@ -88,6 +88,44 @@ input, select { width: 100%; border: 1px solid var(--line); border-radius: 14px;
     width:100%;
     margin-bottom:12px;
 }
+.auth-actions{
+    display:flex;
+    gap:12px;
+    margin-top:16px;
+}
+
+.auth-actions button{
+    flex:1;
+}
+
+.primary-btn{
+    height:52px;
+    border:none;
+    border-radius:18px;
+    font-size:1.1rem;
+    font-weight:700;
+    cursor:pointer;
+
+    background:linear-gradient(
+        90deg,
+        #2fd28b,
+        #3ba7f0
+    );
+
+    color:white;
+}
+
+.secondary-btn{
+    height:52px;
+    border-radius:18px;
+    font-size:1.1rem;
+    font-weight:700;
+    cursor:pointer;
+
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.15);
+    color:white;
+}
 
 .primary-btn,
 .secondary-btn{
