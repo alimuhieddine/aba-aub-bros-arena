@@ -21,6 +21,7 @@
     </header>
 
     <nav class="tabs" aria-label="Main navigation">
+      <button class="nav-btn" data-tab="account">Account</button>
       <button class="tab active" data-view="dashboard">Home</button>
       <button class="tab" data-view="leagues">Leagues</button>
       <button class="tab" data-view="matches">Matches</button>
@@ -29,6 +30,45 @@
     </nav>
 
     <main>
+      <section id="account-tab" class="tab-content">
+
+  <h2>Account</h2>
+
+  <div id="auth-logged-out">
+
+    <input id="signup-email" type="email" placeholder="Email">
+
+    <input id="signup-password" type="password" placeholder="Password">
+
+    <button id="signup-btn">
+      Sign Up
+    </button>
+
+    <hr>
+
+    <input id="login-email" type="email" placeholder="Email">
+
+    <input id="login-password" type="password" placeholder="Password">
+
+    <button id="login-btn">
+      Login
+    </button>
+
+  </div>
+
+  <div id="auth-logged-in" style="display:none">
+
+    <p id="current-user"></p>
+
+    <button id="logout-btn">
+      Logout
+    </button>
+
+  </div>
+
+</section>
+
+      
       <section id="dashboard" class="view active-view">
         <div class="section-head">
           <h2>Arena Feed</h2>
