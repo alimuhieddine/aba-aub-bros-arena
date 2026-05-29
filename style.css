@@ -132,3 +132,66 @@ input, select { width: 100%; border: 1px solid var(--line); border-radius: 14px;
     width:100%;
     margin-top:10px;
 }
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.hero-auth {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hero-auth input {
+  width: 230px;
+  height: 46px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(2, 12, 28, 0.75);
+  color: white;
+  padding: 0 14px;
+}
+
+.hero-auth input::placeholder {
+  color: rgba(255,255,255,0.55);
+}
+
+.primary-btn,
+.secondary-btn {
+  height: 46px;
+  padding: 0 28px;
+  border-radius: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.primary-btn {
+  border: none;
+  background: linear-gradient(90deg, #2fd28b, #36a8f5);
+  color: white;
+}
+
+.secondary-btn {
+  background: rgba(255,255,255,0.06);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.18);
+}
+@media (max-width: 800px) {
+  .hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .hero-auth {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .hero-auth input,
+  .hero-auth button {
+    width: 100%;
+  }
+}
