@@ -134,4 +134,110 @@ $("activityForm").addEventListener("submit", e => {
   state.activities.unshift({ id: crypto.randomUUID(), player: fd.get("player"), sport: fd.get("sport"), activity: fd.get("activity"), proof: fd.get("proof"), points: Number(fd.get("points")), approvals: [], createdAt: Date.now() });
   saveData(); e.target.reset(); render();
 });
+
+async function signUp(email, password) {
+
+  const { data, error } =
+    await supabaseClient.auth.signUp({
+      email,
+      password
+    });
+
+  console.log(data);
+  console.log(error);
+
+  if (!error) {
+    alert(
+      "Check your email and confirm your account."
+    );
+  }
+}
+
+async function login(email, password) {
+
+  const { data, error } =
+    await supabaseClient.auth.signInWithPassword({
+      email,
+      password
+    });
+
+  console.log(data);
+  console.log(error);
+}
+
+async function logout() {
+
+  await supabaseClient.auth.signOut();
+}
+
+
+document
+.getElementById("signup-btn")
+.addEventListener("click", () => {
+
+  signUp(
+    document.getElementById("signup-email").value,
+    document.getElementById("signup-password").value
+  );
+
+});
+
+
+
+
+
+document
+.getElementById("login-btn")
+.addEventListener("click", () => {
+
+  login(
+    document.getElementById("login-email").value,
+    document.getElementById("login-password").value
+  );
+
+});
+
+
+
+document
+.getElementById("logout-btn")
+.addEventListener("click", logout);
 render();
+
+
+async function refreshAuthUI() {
+
+  const {
+    data: { session }
+  } = await supabaseClient.auth.getSession();
+
+  if (session) {
+
+    document.getElementById(
+      "auth-logged-out"
+    ).style.display = "none";
+
+    document.getElementById(
+      "auth-logged-in"
+    ).style.display = "block";
+
+    document.getElementById(
+      "current-user"
+    ).textContent =
+      session.user.email;
+
+  } else {
+
+    document.getElementById(
+      "auth-logged-out"
+    ).style.display = "block";
+
+    document.getElementById(
+      "auth-logged-in"
+    ).style.display = "none";
+  }
+}
+
+
+
+refreshAuthUI();
