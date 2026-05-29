@@ -569,11 +569,11 @@ textarea {
 }
 
 #logout-btn {
-    width: 70px;
-    min-width: 70px;
-    height: 26px;
+    width: 60px;
+    min-width: 60px;
+    height: 24px;
+    font-size: 10px;
 
-    align-self: flex-end;
-
-    font-size: 11px;
+    margin-left: auto;
+    display: block;
 }
