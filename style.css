@@ -512,7 +512,8 @@ textarea {
 .auth-actions {
   display: flex;
   justify-content: center;
-  gap: 18px;
+  align-items: center;
+  gap: 10px;
   margin-top: 4px;
   padding-top: 0;
 }
