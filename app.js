@@ -135,8 +135,24 @@ $("activityForm").addEventListener("submit", e => {
   saveData(); e.target.reset(); render();
 });
 
-async function signUp(email, password) {
+async function login(email, password) {
+  const { data, error } =
+    await supabaseClient.auth.signInWithPassword({ email, password });
 
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  await refreshAuthUI();
+}
+
+async function logout() {
+  await supabaseClient.auth.signOut();
+  await refreshAuthUI();
+}
+
+async function signUp(email, password) {
   const { data, error } =
     await supabaseClient.auth.signUp({
       email,
@@ -147,28 +163,20 @@ async function signUp(email, password) {
       }
     });
 
-  console.log(data);
-  console.log(error);
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  alert("Check your email and confirm your account.");
+  await refreshAuthUI();
 }
 
+supabaseClient.auth.onAuthStateChange(() => {
+  refreshAuthUI();
+});
 
 
-async function login(email, password) {
-
-  const { data, error } =
-    await supabaseClient.auth.signInWithPassword({
-      email,
-      password
-    });
-
-  console.log(data);
-  console.log(error);
-}
-
-async function logout() {
-
-  await supabaseClient.auth.signOut();
-}
 
 
 document
