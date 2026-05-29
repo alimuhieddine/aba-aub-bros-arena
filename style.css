@@ -93,7 +93,9 @@ h1 {
   font-size: 14px;
   outline: none;
 }
-
+.hero-auth input:last-of-type {
+    margin-bottom: 10px;
+}
 .hero-auth input::placeholder {
   color: rgba(255,255,255,0.55);
 }
