@@ -77,19 +77,20 @@ h1 {
 .hero-auth {
   display: flex;
   align-items: center;
-  gap: 8px;
+ gap: 18px;
+  
   flex-shrink: 0;
 }
 
 .hero-auth input {
-  width: 160px;
-  height: 36px;
+  width: 140px;
+  height: 26px;
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.12);
   background: rgba(2, 12, 28, 0.75);
   color: white;
   padding: 0 12px;
-  font-size: 16px;
+  font-size: 14px;
   outline: none;
 }
 
@@ -99,7 +100,8 @@ h1 {
 
 .auth-actions {
   display: flex;
-  gap: 18px;
+  
+  padding-top: 12px;
 }
 
 .primary-btn,
@@ -112,10 +114,10 @@ h1 {
 
 .primary-btn,
 .secondary-btn {
-  height: 30px;
+  height: 26px;
   padding: 0 16px;
   border-radius: 12px;
-  font-weight: 800;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -135,7 +137,7 @@ h1 {
   border: 0;
   border-radius: 14px;
   padding: 10px 14px;
-  font-weight: 800;
+  font-weight: 500;
   background: rgba(255,255,255,.08);
   color: var(--text);
 }
