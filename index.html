@@ -21,53 +21,63 @@
     </header>
 
     <nav class="tabs" aria-label="Main navigation">
-      <button class="nav-btn" data-tab="account">Account</button>
+      
       <button class="tab active" data-view="dashboard">Home</button>
       <button class="tab" data-view="leagues">Leagues</button>
       <button class="tab" data-view="matches">Matches</button>
       <button class="tab" data-view="activities">Proof</button>
       <button class="tab" data-view="rankings">Ranks</button>
+      <button class="tab" data-tab="account">Account</button>
     </nav>
 
     <main>
-      <section id="account-tab" class="tab-content">
 
-  <h2>Account</h2>
+<div id="auth-logged-out" class="auth-card">
 
-  <div id="auth-logged-out">
+  <input
+    id="auth-email"
+    type="email"
+    placeholder="Email"
+  >
 
-    <input id="signup-email" type="email" placeholder="Email">
+  <input
+    id="auth-password"
+    type="password"
+    placeholder="Password"
+  >
 
-    <input id="signup-password" type="password" placeholder="Password">
+  <button
+    id="login-btn"
+    class="primary-btn"
+  >
+    Login
+  </button>
 
-    <button id="signup-btn">
-      Sign Up
-    </button>
+  <button
+    id="signup-btn"
+    class="secondary-btn"
+  >
+    Sign Up
+  </button>
 
-    <hr>
+</div>
 
-    <input id="login-email" type="email" placeholder="Email">
+      <div
+  id="auth-logged-in"
+  class="auth-card"
+  style="display:none;"
+>
 
-    <input id="login-password" type="password" placeholder="Password">
+  <p id="current-user"></p>
 
-    <button id="login-btn">
-      Login
-    </button>
+  <button
+    id="logout-btn"
+    class="primary-btn"
+  >
+    Logout
+  </button>
 
-  </div>
-
-  <div id="auth-logged-in" style="display:none">
-
-    <p id="current-user"></p>
-
-    <button id="logout-btn">
-      Logout
-    </button>
-
-  </div>
-
-</section>
-
+</div>
       
       <section id="dashboard" class="view active-view">
         <div class="section-head">
