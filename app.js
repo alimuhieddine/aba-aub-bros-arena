@@ -118,7 +118,7 @@ document.querySelectorAll(".tab").forEach(btn => btn.addEventListener("click", (
   btn.classList.add("active"); $(btn.dataset.view).classList.add("active-view");
 }));
 document.querySelectorAll("[data-open]").forEach(btn => btn.addEventListener("click", () => $(btn.dataset.open).showModal()));
-$("seedBtn").addEventListener("click", () => { localStorage.removeItem(STORAGE_KEY); state = structuredClone(demoData); saveData(); render(); });
+
 $("leagueForm").addEventListener("submit", e => {
   const fd = new FormData(e.target);
   state.leagues.unshift({ id: crypto.randomUUID(), name: fd.get("name"), sport: fd.get("sport"), format: fd.get("format"), createdAt: Date.now() });
