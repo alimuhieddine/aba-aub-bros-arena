@@ -135,16 +135,13 @@ $("activityForm").addEventListener("submit", e => {
   saveData(); e.target.reset(); render();
 });
 
-async function signUp(email, password) {
-
-  const { data, error } =
-    await supabaseClient.auth.signUp({
-      email,
-      password
-      options: {
+const { data, error } = await supabaseClient.auth.signUp({
+  email: email,
+  password: password,
+  options: {
     emailRedirectTo: "https://alimuhieddine.github.io/aba-aub-bros-arena/"
   }
-    });
+});
 
   console.log(data);
   console.log(error);
