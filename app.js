@@ -141,6 +141,9 @@ async function signUp(email, password) {
     await supabaseClient.auth.signUp({
       email,
       password
+      options: {
+    emailRedirectTo: "https://alimuhieddine.github.io/aba-aub-bros-arena/"
+  }
     });
 
   console.log(data);
