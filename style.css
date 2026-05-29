@@ -505,24 +505,32 @@ textarea {
   }
 }
 @media (max-width: 800px) {
+
   .hero-auth {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+  }
+
+  .hero-auth input {
+      width: 100%;
+      height: 32px;
   }
 
   .auth-actions {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      margin-top: 10px;
   }
 
   .auth-actions button {
-    width: 78px !important;
-    min-width: 78px !important;
-    max-width: 78px !important;
-    flex: 0 0 78px !important;
+      width: 80px;
+      height: 28px;
+      flex: 0 0 auto;
   }
 }
