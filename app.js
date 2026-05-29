@@ -178,14 +178,12 @@ supabaseClient.auth.onAuthStateChange(() => {
 
 
 
-
-document
-.getElementById("signup-btn")
+document.getElementById("signup-btn")
 .addEventListener("click", () => {
 
   signUp(
-    document.getElementById("signup-email").value,
-    document.getElementById("signup-password").value
+    document.getElementById("auth-email").value,
+    document.getElementById("auth-password").value
   );
 
 });
@@ -193,18 +191,15 @@ document
 
 
 
-
-document
-.getElementById("login-btn")
+document.getElementById("login-btn")
 .addEventListener("click", () => {
 
   login(
-    document.getElementById("login-email").value,
-    document.getElementById("login-password").value
+    document.getElementById("auth-email").value,
+    document.getElementById("auth-password").value
   );
 
 });
-
 
 
 document
