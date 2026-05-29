@@ -120,6 +120,7 @@ h1 {
 }
 
 .primary-btn {
+  gap: 2px;
   border: none;
   background: linear-gradient(90deg, #2fd28b, #36a8f5);
   color: #05101c;
