@@ -392,7 +392,7 @@ textarea {
     display: grid;
     grid-template-columns: 1fr 1.6fr;
     gap: 14px;
-    align-items: start;
+    align-items: center;
 
     padding: 18px;
     border-radius: 24px;
@@ -492,10 +492,10 @@ textarea {
 }
 
 .auth-actions button {
-  min-width: 110px;
+  min-width: 80px;
   /* FINAL FIX: hero login overrides */
 .hero-auth input {
-  width: 100%;
+  width: 80%;
   height: 26px;
   padding: 0 12px;
   border-radius: 10px;
@@ -519,9 +519,9 @@ textarea {
 }
 
 .auth-actions button {
-  width: 120px;
-  min-width: 120px;
-  height: 32px;
+  width: 100px;
+  min-width: 100px;
+  height: 26px;
   border-radius: 10px;
   font-size: 13px;
   font-weight: 700;
