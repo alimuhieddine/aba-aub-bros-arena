@@ -502,3 +502,11 @@ textarea {
     font-size: 11px;
   }
 }
+.hero-auth {
+    align-items: center;
+}
+
+.auth-actions {
+    margin-left: auto;
+    margin-right: auto;
+}
