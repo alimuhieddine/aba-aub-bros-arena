@@ -99,7 +99,7 @@ h1 {
 
 .auth-actions {
   display: flex;
-  gap: 8px;
+  gap: 18px;
 }
 
 .primary-btn,
@@ -119,8 +119,7 @@ h1 {
   white-space: nowrap;
 }
 
-.primary-btn {
-  gap: 2px;
+
   border: none;
   background: linear-gradient(90deg, #2fd28b, #36a8f5);
   color: #05101c;
