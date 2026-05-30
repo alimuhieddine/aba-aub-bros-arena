@@ -171,10 +171,12 @@ async function signUp(email, password) {
   alert("Check your email and confirm your account.");
   await refreshAuthUI();
 }
-
 let currentProfile = null;
+let profileIsEditing = false;
 
 function setProfileEditing(isEditing) {
+  profileIsEditing = isEditing;
+
   [
     "profile-first-name",
     "profile-last-name",
@@ -186,8 +188,9 @@ function setProfileEditing(isEditing) {
     if (el) el.disabled = !isEditing;
   });
 
-  $("edit-profile-btn").style.display = isEditing ? "none" : "inline-flex";
-  $("save-profile-btn").style.display = isEditing ? "inline-flex" : "none";
+  $("profile-action-btn").textContent = isEditing
+    ? "Save Profile"
+    : "Edit Profile";
 }
 
 async function loadMyProfile() {
@@ -204,9 +207,6 @@ async function loadMyProfile() {
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
-  console.log("MY PROFILE:", data);
-  console.log("PROFILE ERROR:", error);
-
   if (error) {
     alert(error.message);
     return;
@@ -220,7 +220,6 @@ async function loadMyProfile() {
     $("profile-display-name").value = data.display_name || "";
     $("profile-birth-date").value = data.birth_date || "";
     $("profile-phone").value = data.phone || "";
-
     setProfileEditing(false);
   } else {
     setProfileEditing(true);
@@ -259,9 +258,9 @@ async function saveProfile() {
     alert(error.message);
     return;
   }
-alert("Profile saved.");
-await loadMyProfile();
-setProfileEditing(false);;
+
+  alert("Profile saved.");
+  await loadMyProfile();
 }
 
 async function refreshAuthUI() {
@@ -272,38 +271,12 @@ async function refreshAuthUI() {
     $("auth-logged-out").style.display = "none";
     $("auth-logged-in").style.display = "flex";
     $("current-user").textContent = session.user.email;
-
     await loadMyProfile();
   } else {
     $("auth-logged-out").style.display = "flex";
     $("auth-logged-in").style.display = "none";
     setProfileEditing(false);
   }
-}
-
-
-
-
-
-let profileIsEditing = false;
-
-function setProfileEditing(isEditing) {
-  profileIsEditing = isEditing;
-
-  [
-    "profile-first-name",
-    "profile-last-name",
-    "profile-display-name",
-    "profile-birth-date",
-    "profile-phone"
-  ].forEach(id => {
-    const el = $(id);
-    if (el) el.disabled = !isEditing;
-  });
-
-  $("profile-action-btn").textContent = isEditing
-    ? "Save Profile"
-    : "Edit Profile";
 }
 
 $("profile-action-btn").addEventListener("click", async () => {
@@ -313,14 +286,6 @@ $("profile-action-btn").addEventListener("click", async () => {
     setProfileEditing(true);
   }
 });
-
-
-
-
-
-$("edit-profile-btn").addEventListener(...)
-$("save-profile-btn").addEventListener(...)
-
 
 $("signup-btn").addEventListener("click", () => {
   signUp($("auth-email").value, $("auth-password").value);
@@ -338,6 +303,5 @@ supabaseClient.auth.onAuthStateChange(() => {
 
 render();
 refreshAuthUI();
-
 
 refreshAuthUI();
