@@ -260,45 +260,56 @@
     </form>
   </dialog>
 
-  <dialog id="matchModal" class="modal">
-    <form method="dialog" id="matchForm" class="modal-card">
-      <button class="close" value="cancel" type="submit">×</button>
-      <h3>Create Match</h3>
+ <dialog id="matchModal" class="modal">
+  <form method="dialog" id="matchForm" class="modal-card">
+    <button class="close" value="cancel" type="submit">×</button>
+    <h3>Create Match</h3>
 
-      <label>Sport
-        <select name="sport">
-          <option>Padel</option>
-          <option>Soccer</option>
-          <option>Basketball</option>
-        </select>
-      </label>
+    <label>
+      Sport
+      <select name="sport_id" id="match-sport" required>
+        <option value="">Select sport</option>
+      </select>
+    </label>
 
-      <label>Title
-        <input name="title" required placeholder="Fox & Wolf vs Pigs" />
-      </label>
+    <label>
+      Venue
+      <select name="venue_id" id="match-venue" required>
+        <option value="">Select venue</option>
+      </select>
+    </label>
 
-      <label>Date & time
-        <input name="date" type="datetime-local" required />
-      </label>
+    <label>
+      Title
+      <input name="title" required placeholder="Wolf & Fox vs Pigs" />
+    </label>
 
-      <label>Court / Field
-        <input name="venue" required placeholder="The Padict Club" />
-      </label>
+    <label>
+      Match Type
+      <select name="match_type">
+        <option value="friendly">Friendly</option>
+        <option value="league">League</option>
+      </select>
+    </label>
 
-      <label>Address
-        <input name="address" placeholder="Google Maps address" />
-      </label>
+    <label>
+      Start time
+      <input name="start_time" type="datetime-local" required />
+    </label>
 
-      <label>Type
-        <select name="type">
-          <option>Friendly</option>
-          <option>League</option>
-        </select>
-      </label>
+    <label>
+      End time
+      <input name="end_time" type="datetime-local" required />
+    </label>
 
-      <button class="primary-btn full" type="submit">Add Match</button>
-    </form>
-  </dialog>
+    <label>
+      Notes
+      <input name="notes" placeholder="Optional notes..." />
+    </label>
+
+    <button class="primary-btn full" type="submit">Add Match</button>
+  </form>
+</dialog>
 
   <dialog id="activityModal" class="modal">
     <form method="dialog" id="activityForm" class="modal-card">
