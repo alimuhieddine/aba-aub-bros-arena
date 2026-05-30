@@ -20,26 +20,30 @@
       </div>
 
       <div class="hero-auth" id="auth-logged-out">
-        <input
-          id="auth-email"
-          type="text"
-          inputmode="email"
-          placeholder="Email"
-          autocomplete="off"
-          autocorrect="off"
-          autocapitalize="none"
-          spellcheck="false"
-        >
+       <input
+  id="auth-email"
+  type="text"
+  inputmode="email"
+  placeholder="Email"
+  autocomplete="off"
+  autocorrect="off"
+  autocapitalize="none"
+  spellcheck="false"
+  readonly
+  onfocus="this.removeAttribute('readonly');"
+>
 
-        <input
-          id="auth-password"
-          type="password"
-          placeholder="Password"
-          autocomplete="new-password"
-          autocorrect="off"
-          autocapitalize="none"
-          spellcheck="false"
-        >
+<input
+  id="auth-password"
+  type="password"
+  placeholder="Password"
+  autocomplete="new-password"
+  autocorrect="off"
+  autocapitalize="none"
+  spellcheck="false"
+  readonly
+  onfocus="this.removeAttribute('readonly');"
+>
 
         <div class="auth-actions">
           <button id="login-btn" class="primary-btn" type="button">Login</button>
