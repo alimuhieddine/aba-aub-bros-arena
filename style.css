@@ -818,3 +818,26 @@ textarea:disabled {
     height: 92px !important;
   }
 }
+/* Give venue text more room on iPhone */
+.venue-info .row {
+  display: flex;
+  flex-direction: row !important;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.venue-info .row > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.venue-info .meta {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.venue-info .pill {
+  flex-shrink: 0;
+}
