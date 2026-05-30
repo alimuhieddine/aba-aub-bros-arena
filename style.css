@@ -619,9 +619,9 @@ textarea {
     margin-bottom: 12px !important;
   }
 }
+
 #edit-profile-btn,
 #save-profile-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+    width: 140px;
+    justify-content: center;
 }
