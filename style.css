@@ -874,3 +874,60 @@ main,
     font-size: 11px;
   }
 }
+/* === FIX SUPPORTED SPORTS CHECKBOX OVERLAP === */
+
+.checkbox-list {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  width: 100% !important;
+}
+
+.checkbox-item {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 36px !important;
+
+  padding: 0 12px !important;
+  margin: 0 !important;
+
+  border: 1px solid var(--line) !important;
+  border-radius: 999px !important;
+  background: rgba(255,255,255,0.05) !important;
+
+  color: var(--text) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+
+  overflow: hidden !important;
+  white-space: nowrap !important;
+}
+
+.checkbox-item input[type="checkbox"] {
+  appearance: auto !important;
+  -webkit-appearance: checkbox !important;
+
+  width: 16px !important;
+  min-width: 16px !important;
+  max-width: 16px !important;
+
+  height: 16px !important;
+  min-height: 16px !important;
+  max-height: 16px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+  flex: 0 0 16px !important;
+}
+
+.checkbox-item span {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
