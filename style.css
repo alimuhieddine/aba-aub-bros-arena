@@ -797,16 +797,16 @@ textarea:disabled {
   }
 
   .venue-thumb {
-    width: 124px !important;
-    min-width: 124px !important;
-    height: 124px !important;
+    width: 104px !important;
+    min-width: 104px !important;
+    height: 104px !important;
     border-radius: 16px !important;
   }
 
   .venue-info .actions .small-btn,
   .venue-card .small-btn {
-    height: 19px !important;
-    min-height: 19px !important;
+    height: 25px !important;
+    min-height: 25px !important;
     padding: 0 6px !important;
     font-size: 9px !important;
     line-height: 19px !important;
