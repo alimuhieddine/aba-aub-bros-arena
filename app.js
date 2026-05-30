@@ -176,6 +176,48 @@ supabaseClient.auth.onAuthStateChange(() => {
   refreshAuthUI();
 });
 
+async function saveProfile() {
+  const { data: { user }, error: userError } =
+    await supabaseClient.auth.getUser();
+
+  if (userError || !user) {
+    alert("Please login first.");
+    return;
+  }
+
+  const profile = {
+    auth_user_id: user.id,
+    email: user.email,
+
+    first_name: $("profile-first-name").value.trim(),
+    last_name: $("profile-last-name").value.trim(),
+    display_name: $("profile-display-name").value.trim(),
+    birth_date: $("profile-birth-date").value || null,
+    phone: $("profile-phone").value.trim(),
+
+    is_external: false,
+    is_active: true,
+    role: "member",
+    approval_status: "pending",
+    registration_status: "pending"
+  };
+
+  const { error } = await supabaseClient
+    .from("members")
+    .upsert(profile, {
+      onConflict: "auth_user_id"
+    });
+
+  if (error) {
+    console.error(error);
+    alert(error.message);
+    return;
+  }
+
+  alert("Profile saved. Waiting for admin approval.");
+}
+
+$("save-profile-btn").addEventListener("click", saveProfile);
 
 
 document.getElementById("signup-btn")
@@ -201,13 +243,16 @@ document.getElementById("login-btn")
 
 });
 
+document
+  .getElementById("save-profile-btn")
+  .addEventListener("click", saveProfile);
 
 document
 .getElementById("logout-btn")
 .addEventListener("click", logout);
 render();
 
-
+$("save-profile-btn").addEventListener("click", saveProfile);
 async function refreshAuthUI() {
 
   const {
