@@ -1,13 +1,13 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=40" />
 </head>
 
 <body>
@@ -20,30 +20,30 @@
       </div>
 
       <div class="hero-auth" id="auth-logged-out">
-       <input
-  id="auth-email"
-  type="text"
-  inputmode="email"
-  placeholder="Email"
-  autocomplete="off"
-  autocorrect="off"
-  autocapitalize="none"
-  spellcheck="false"
-  readonly
-  onfocus="this.removeAttribute('readonly');"
->
+        <input
+          id="auth-email"
+          type="text"
+          inputmode="email"
+          placeholder="Email"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="none"
+          spellcheck="false"
+          readonly
+          onfocus="this.removeAttribute('readonly');"
+        >
 
-<input
-  id="auth-password"
-  type="password"
-  placeholder="Password"
-  autocomplete="new-password"
-  autocorrect="off"
-  autocapitalize="none"
-  spellcheck="false"
-  readonly
-  onfocus="this.removeAttribute('readonly');"
->
+        <input
+          id="auth-password"
+          type="password"
+          placeholder="Password"
+          autocomplete="new-password"
+          autocorrect="off"
+          autocapitalize="none"
+          spellcheck="false"
+          readonly
+          onfocus="this.removeAttribute('readonly');"
+        >
 
         <div class="auth-actions">
           <button id="login-btn" class="primary-btn" type="button">Login</button>
@@ -67,62 +67,11 @@
       <button class="tab" data-view="matches">Matches</button>
       <button class="tab" data-view="activities">Proof</button>
       <button class="tab" data-view="rankings">Ranks</button>
-     <button class="tab auth-only" data-view="account" style="display:none;">Account</button>
-      <button class="tab admin-only" data-view="admin" style="display:none;">
-  Admin
-</button>
+      <button class="tab auth-only" data-view="account" style="display:none;">Account</button>
+      <button class="tab admin-only" data-view="admin" style="display:none;">Admin</button>
     </nav>
 
     <main>
-<section id="admin" class="view">
-  <div class="section-head">
-    <div>
-      <h2>Admin Review</h2>
-      <p class="hint">Review pending member profiles.</p>
-    </div>
-  </div>
-
-  <div id="pendingMembersList" class="stack"></div>
-
-  <div class="section-head">
-    <div>
-      <h2>Venue Management</h2>
-      <p class="hint">Add and manage ABA venues.</p>
-    </div>
-  </div>
-
-  <div class="card">
-    <label>
-      Venue Name
-      <input id="venue-name" type="text" placeholder="The Padict Club">
-    </label>
-
-    <label>
-      Location
-      <input id="venue-address" type="text" placeholder="Beirut, Lebanon">
-    </label>
-
-    <label>
-      Google Maps Link
-      <input id="venue-map-url" type="url" placeholder="https://maps.google.com/...">
-    </label>
-
-    <label>
-      Image URL
-      <input id="venue-image-url" type="url" placeholder="https://...">
-    </label>
-
-    <button id="add-venue-btn" class="primary-btn" type="button">
-      Add Venue
-    </button>
-  </div>
-
-  <div id="venuesList" class="stack"></div>
-</section>
-
-
-
-      
       <section id="dashboard" class="view active-view">
         <div class="section-head">
           <h2>Arena Feed</h2>
@@ -222,16 +171,68 @@
           </div>
         </div>
       </section>
+
+      <section id="admin" class="view">
+        <div class="section-head">
+          <div>
+            <h2>Admin Review</h2>
+            <p class="hint">Review pending member profiles.</p>
+          </div>
+        </div>
+
+        <div id="pendingMembersList" class="stack"></div>
+
+        <div class="section-head">
+          <div>
+            <h2>Venue Management</h2>
+            <p class="hint">Add venues and choose the sports supported by each venue.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <label>
+            Venue Name
+            <input id="venue-name" type="text" placeholder="The Padict Club">
+          </label>
+
+          <label>
+            Address
+            <input id="venue-address" type="text" placeholder="Beirut, Lebanon">
+          </label>
+
+          <label>
+            Google Maps Link
+            <input id="venue-google-maps-url" type="url" placeholder="https://maps.google.com/...">
+          </label>
+
+          <label>
+            Image URL
+            <input id="venue-image-url" type="url" placeholder="https://...">
+          </label>
+
+          <label>
+            Supported Sports
+            <div id="venue-sports-options" class="checkbox-list">
+              Loading sports...
+            </div>
+          </label>
+
+          <div class="actions">
+            <button id="add-venue-btn" class="primary-btn" type="button">
+              Add Venue
+            </button>
+
+            <button id="cancel-venue-edit-btn" class="secondary-btn" type="button">
+              Cancel
+            </button>
+          </div>
+        </div>
+
+        <div id="venuesList" class="stack"></div>
+      </section>
     </main>
   </div>
 
-
-  
-
-
-
-
-  
   <dialog id="leagueModal" class="modal">
     <form method="dialog" id="leagueForm" class="modal-card">
       <button class="close" value="cancel" type="submit">×</button>
@@ -335,6 +336,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=40"></script>
 </body>
 </html>
