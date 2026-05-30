@@ -248,6 +248,11 @@ async function testConnection() {
 }
 
 async function signUp(email, password) {
+  if (!email || !password) {
+    alert("Please enter email and password.");
+    return;
+  }
+
   const { error } = await supabaseClient.auth.signUp({
     email,
     password,
@@ -266,6 +271,11 @@ async function signUp(email, password) {
 }
 
 async function login(email, password) {
+  if (!email || !password) {
+    alert("Please enter email and password.");
+    return;
+  }
+
   const { error } =
     await supabaseClient.auth.signInWithPassword({ email, password });
 
@@ -279,6 +289,7 @@ async function login(email, password) {
 
 async function logout() {
   await supabaseClient.auth.signOut();
+  currentProfile = null;
   clearProfileFields();
   await refreshAuthUI();
 }
@@ -296,12 +307,23 @@ function profileFieldIds() {
 function clearProfileFields() {
   profileFieldIds().forEach(id => {
     const el = $(id);
-    if (el) el.value = "";
+    if (el) {
+      el.value = "";
+      el.disabled = true;
+    }
   });
 
   if ($("profile-status")) {
     $("profile-status").textContent = "Login to load your profile.";
   }
+
+  const btn = $("profile-action-btn");
+  if (btn) {
+    btn.textContent = "Edit Profile";
+    btn.style.display = "inline-flex";
+  }
+
+  profileIsEditing = false;
 }
 
 function setProfileEditing(isEditing) {
@@ -341,17 +363,16 @@ async function loadMyProfile() {
   if (userError || !user) {
     currentProfile = null;
     clearProfileFields();
-    setProfileEditing(false);
     return;
   }
 
   const { data, error } = await supabaseClient
     .from("members")
-    .select("*")
+    .select("id,first_name,last_name,display_name,birth_date,phone,email,is_external,is_active,role,approval_status,registration_status,auth_user_id")
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
-  console.log("MY PROFILE:", data);
+  console.log("MY PROFILE FROM SUPABASE:", data);
   console.log("PROFILE LOAD ERROR:", error);
 
   if (error) {
@@ -439,7 +460,6 @@ async function refreshAuthUI() {
 
     currentProfile = null;
     clearProfileFields();
-    setProfileEditing(false);
   }
 }
 
@@ -452,6 +472,10 @@ function bindEvents() {
       btn.classList.add("active");
       const target = $(btn.dataset.view);
       if (target) target.classList.add("active-view");
+
+      if (btn.dataset.view === "account") {
+        loadMyProfile();
+      }
     })
   );
 
@@ -525,11 +549,11 @@ function bindEvents() {
   });
 
   $("signup-btn")?.addEventListener("click", () => {
-    signUp($("auth-email").value, $("auth-password").value);
+    signUp($("auth-email").value.trim(), $("auth-password").value);
   });
 
   $("login-btn")?.addEventListener("click", () => {
-    login($("auth-email").value, $("auth-password").value);
+    login($("auth-email").value.trim(), $("auth-password").value);
   });
 
   $("logout-btn")?.addEventListener("click", logout);
