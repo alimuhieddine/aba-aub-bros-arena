@@ -534,6 +534,7 @@ let editingVenueId = null;
 let allSports = [];
 let allVenues = [];
 let allMatches = [];
+let editingMatchId = null;
 
 
 
@@ -726,6 +727,9 @@ async function loadMatches() {
     .from("matches")
     .select(`
       id,
+      sport_id,
+      venue_id,
+      league_id,
       title,
       match_type,
       start_time,
@@ -766,39 +770,174 @@ function renderMatches() {
     return;
   }
 
-  $("matchList").innerHTML = allMatches.map(match => `
-    <article class="card">
-      <div class="row">
-        <div>
-          <h3>${escapeHtml(match.title || "Untitled match")}</h3>
-          <div class="meta">
-            ${escapeHtml(match.sports?.name || "-")}
-            • ${escapeHtml(match.match_type || "-")}
-            • ${fmtDate(match.start_time)}
+  $("matchList").innerHTML = allMatches.map(match => {
+    const isCancelled = match.status === "cancelled";
+    const isFuture = new Date(match.start_time) > new Date();
+
+    return `
+      <article class="card">
+        <div class="row">
+          <div>
+            <h3>${escapeHtml(match.title || "Untitled match")}</h3>
+
+            <div class="meta">
+              ${escapeHtml(match.sports?.name || "-")}
+              • ${escapeHtml(match.match_type || "-")}
+              • ${fmtDate(match.start_time)}
+            </div>
+
+            <div class="meta">
+              📍 ${escapeHtml(match.venues?.name || "-")}
+              ${match.venues?.address ? "— " + escapeHtml(match.venues.address) : ""}
+            </div>
+
+            ${
+              match.venues?.google_maps_url
+                ? `<div class="meta"><a href="${escapeHtml(match.venues.google_maps_url)}" target="_blank">Open Map</a></div>`
+                : ""
+            }
+
+            ${
+              match.notes
+                ? `<div class="meta">${escapeHtml(match.notes)}</div>`
+                : ""
+            }
           </div>
-          <div class="meta">
-            📍 ${escapeHtml(match.venues?.name || "-")}
-            ${match.venues?.address ? "— " + escapeHtml(match.venues.address) : ""}
-          </div>
-          ${
-            match.venues?.google_maps_url
-              ? `<div class="meta"><a href="${escapeHtml(match.venues.google_maps_url)}" target="_blank">Open Map</a></div>`
-              : ""
-          }
-          ${
-            match.notes
-              ? `<div class="meta">${escapeHtml(match.notes)}</div>`
-              : ""
-          }
+
+          <span class="pill ${isCancelled ? "red" : "green"}">
+            ${escapeHtml(match.status || "scheduled")}
+          </span>
         </div>
 
-        <span class="pill green">
-          ${escapeHtml(match.status || "scheduled")}
-        </span>
-      </div>
-    </article>
-  `).join("");
+        ${
+          isCurrentUserAdmin()
+            ? `
+              <div class="actions">
+                <button class="small-btn" onclick="editMatch('${match.id}')">
+                  Edit
+                </button>
+
+                <button class="small-btn" onclick="deleteOrCancelMatch('${match.id}')">
+                  ${isFuture ? "Delete" : "Cancel"}
+                </button>
+              </div>
+            `
+            : ""
+        }
+      </article>
+    `;
+  }).join("");
 }
+
+function toDateTimeLocal(iso) {
+  if (!iso) return "";
+
+  const d = new Date(iso);
+  const offset = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - offset * 60000);
+
+  return local.toISOString().slice(0, 16);
+}
+
+async function editMatch(matchId) {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin access required.");
+    return;
+  }
+
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  editingMatchId = matchId;
+
+  await loadMatchFormOptions();
+
+  if ($("match-sport")) {
+    $("match-sport").value = match.sport_id || match.sports?.id || "";
+  }
+
+  updateMatchVenueOptions();
+
+  if ($("match-venue")) {
+    $("match-venue").value = match.venue_id || match.venues?.id || "";
+  }
+
+  const form = $("matchForm");
+  if (!form) return;
+
+  form.elements["title"].value = match.title || "";
+  form.elements["match_type"].value = match.match_type || "friendly";
+  form.elements["start_time"].value = toDateTimeLocal(match.start_time);
+  form.elements["end_time"].value = toDateTimeLocal(match.end_time);
+  form.elements["notes"].value = match.notes || "";
+
+  const submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.textContent = "Update Match";
+
+  $("matchModal")?.showModal();
+}
+
+async function deleteOrCancelMatch(matchId) {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin access required.");
+    return;
+  }
+
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (match.status === "cancelled") {
+    alert("This match is already cancelled.");
+    return;
+  }
+
+  const isFuture = new Date(match.start_time) > new Date();
+
+  if (isFuture) {
+    const ok = confirm("This match is still upcoming. Delete it completely?");
+    if (!ok) return;
+
+    const { error } = await supabaseClient
+      .from("matches")
+      .delete()
+      .eq("id", matchId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    alert("Match deleted.");
+  } else {
+    const ok = confirm("This match time has passed. Mark it as cancelled instead?");
+    if (!ok) return;
+
+    const { error } = await supabaseClient
+      .from("matches")
+      .update({
+        status: "cancelled"
+      })
+      .eq("id", matchId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    alert("Match marked as cancelled.");
+  }
+
+  await loadMatches();
+}
+
 function commentSection(m) {
   return `
     <div class="comments">
@@ -1244,8 +1383,10 @@ function bindEvents() {
 
       if (btn.dataset.view === "admin") {
         loadSportsOptions();
+        loadMatchFormOptions();
         loadPendingMembers();
         loadVenues();
+        loadMatches();
       }
     })
   );
@@ -1253,6 +1394,16 @@ function bindEvents() {
  document.querySelectorAll("[data-open]").forEach(btn =>
   btn.addEventListener("click", async () => {
     if (btn.dataset.open === "matchModal") {
+      editingMatchId = null;
+
+      const form = $("matchForm");
+      if (form) {
+        form.reset();
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.textContent = "Add Match";
+      }
+
       await loadMatchFormOptions();
     }
 
@@ -1297,17 +1448,31 @@ function bindEvents() {
       notes: fd.get("notes") || null
     };
 
-    const { error } = await supabaseClient
-      .from("matches")
-      .insert(match);
+    let result;
 
-    if (error) {
-      alert(error.message);
+    if (editingMatchId) {
+      result = await supabaseClient
+        .from("matches")
+        .update(match)
+        .eq("id", editingMatchId);
+    } else {
+      result = await supabaseClient
+        .from("matches")
+        .insert(match);
+    }
+
+    if (result.error) {
+      alert(result.error.message);
       return;
     }
 
-    alert("Match added.");
+    alert(editingMatchId ? "Match updated." : "Match added.");
+
+    editingMatchId = null;
     e.target.reset();
+
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.textContent = "Add Match";
 
     await loadMatches();
   });
