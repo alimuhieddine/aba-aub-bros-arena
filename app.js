@@ -49,6 +49,7 @@ async function loadPendingMembers() {
   }
 
   const box = $("pendingMembersList");
+  if (!box) return;
 
   if (!data || data.length === 0) {
     box.innerHTML = `<article class="card">No pending profiles.</article>`;
@@ -122,6 +123,62 @@ async function reviewMember(memberId, decision) {
 
 
 
+
+
+function applyAccessUI() {
+  const appTabs = ["dashboard", "leagues", "matches", "activities", "rankings"];
+  const status = currentProfile?.approval_status;
+
+  // Hide normal app tabs by default for logged-in users until approved.
+  appTabs.forEach(viewId => {
+    const tab = document.querySelector(`[data-view="${viewId}"]`);
+    if (tab) tab.style.display = "none";
+  });
+
+  // Hide Admin tab by default.
+  document.querySelectorAll(".admin-only").forEach(el => {
+    el.style.display = "none";
+  });
+
+  // No profile yet, pending, rejected, or suspended: Account only.
+  if (!currentProfile || status === "pending" || status === "rejected" || status === "suspended") {
+    const accountTab = document.querySelector('[data-view="account"]');
+    const accountView = $("account");
+
+    document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
+    document.querySelectorAll(".view").forEach(view => view.classList.remove("active-view"));
+
+    if (accountTab) accountTab.classList.add("active");
+    if (accountView) accountView.classList.add("active-view");
+    return;
+  }
+
+  // Approved users can see the normal app tabs.
+  if (status === "approved") {
+    appTabs.forEach(viewId => {
+      const tab = document.querySelector(`[data-view="${viewId}"]`);
+      if (tab) tab.style.display = "";
+    });
+  }
+
+  // Approved admins can see the Admin tab.
+  if (isCurrentUserAdmin()) {
+    document.querySelectorAll(".admin-only").forEach(el => {
+      el.style.display = "";
+    });
+  }
+}
+
+function resetAppTabsForLoggedOut() {
+  ["dashboard", "leagues", "matches", "activities", "rankings"].forEach(viewId => {
+    const tab = document.querySelector(`[data-view="${viewId}"]`);
+    if (tab) tab.style.display = "";
+  });
+
+  document.querySelectorAll(".admin-only").forEach(el => {
+    el.style.display = "none";
+  });
+}
 
 function loadData() {
   const saved = localStorage.getItem(STORAGE_KEY);
@@ -469,6 +526,21 @@ function setProfileStatusText(profile) {
   const approval = profile.approval_status || "pending";
   const role = profile.role || "member";
 
+  if (approval === "pending") {
+    status.textContent = "Your profile is waiting for admin approval.";
+    return;
+  }
+
+  if (approval === "rejected") {
+    status.textContent = "Your registration was rejected. Please contact an admin if you think this is a mistake.";
+    return;
+  }
+
+  if (approval === "suspended") {
+    status.textContent = "Your account is suspended. Please contact an admin.";
+    return;
+  }
+
   status.textContent = `Status: ${approval} • Role: ${role}`;
 }
 
@@ -502,6 +574,7 @@ async function loadMyProfile() {
     clearProfileFields();
     setProfileStatusText(null);
     setProfileEditing(true);
+    applyAccessUI();
     return;
   }
 
@@ -513,6 +586,18 @@ async function loadMyProfile() {
 
   setProfileStatusText(data);
   setProfileEditing(false);
+
+  if (data.approval_status === "rejected" || data.approval_status === "suspended") {
+    profileFieldIds().forEach(id => {
+      const el = $(id);
+      if (el) el.disabled = true;
+    });
+
+    const btn = $("profile-action-btn");
+    if (btn) btn.style.display = "none";
+  }
+
+  applyAccessUI();
 }
 
 async function saveProfile() {
@@ -601,10 +686,8 @@ async function refreshAuthUI() {
     el.style.display = "none";
   });
 
-  // Hide Admin tab when logged out
-  document.querySelectorAll(".admin-only").forEach(el => {
-    el.style.display = "none";
-  });
+  // Hide Admin tab and restore normal logged-out tabs
+  resetAppTabsForLoggedOut();
 
   currentProfile = null;
   clearProfileFields();
