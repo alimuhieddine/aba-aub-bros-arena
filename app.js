@@ -137,7 +137,7 @@ async function loadVenues() {
     alert(error.message);
     return;
   }
-
+allVenues = data || [];
   const box = $("venuesList");
   if (!box) return;
 
@@ -155,11 +155,7 @@ async function loadVenues() {
       .map(vs => vs.sport_id)
       .filter(Boolean);
 
-    const safeName = jsString(venue.name || "");
-    const safeAddress = jsString(venue.address || "");
-    const safeMapUrl = jsString(venue.google_maps_url || "");
-    const safeImageUrl = jsString(venue.image_url || "");
-    const safeSportIds = jsString(JSON.stringify(sportIds));
+   
 
     return `
       <article class="card venue-card">
@@ -195,11 +191,11 @@ async function loadVenues() {
 
             <div class="actions">
               <button
-                class="small-btn"
-                onclick="editVenue('${venue.id}', '${safeName}', '${safeAddress}', '${safeMapUrl}', '${safeImageUrl}', '${safeSportIds}')"
-              >
-                Edit
-              </button>
+  class="small-btn"
+  onclick="editVenue('${venue.id}')"
+>
+  Edit
+</button>
 
               <button
                 class="small-btn"
@@ -231,20 +227,27 @@ function clearVenueForm() {
   if (btn) btn.textContent = "Add Venue";
 }
 
-function editVenue(id, name, address, googleMapsUrl, imageUrl, sportIdsJson = "[]") {
+function editVenue(id) {
+  const venue = allVenues.find(v => v.id === id);
+
+  if (!venue) {
+    alert("Venue not found.");
+    return;
+  }
+
   editingVenueId = id;
 
-  if ($("venue-name")) $("venue-name").value = name || "";
-  if ($("venue-address")) $("venue-address").value = address || "";
-  if ($("venue-google-maps-url")) $("venue-google-maps-url").value = googleMapsUrl || "";
-  if ($("venue-map-url")) $("venue-map-url").value = googleMapsUrl || "";
-  if ($("venue-image-url")) $("venue-image-url").value = imageUrl || "";
+  if ($("venue-name")) $("venue-name").value = venue.name || "";
+  if ($("venue-address")) $("venue-address").value = venue.address || "";
+  if ($("venue-google-maps-url")) $("venue-google-maps-url").value = venue.google_maps_url || "";
+  if ($("venue-map-url")) $("venue-map-url").value = venue.google_maps_url || "";
+  if ($("venue-image-url")) $("venue-image-url").value = venue.image_url || "";
 
-  try {
-    setSelectedVenueSports(JSON.parse(sportIdsJson || "[]"));
-  } catch {
-    setSelectedVenueSports([]);
-  }
+  const sportIds = (venue.venue_sports || [])
+    .map(vs => vs.sport_id)
+    .filter(Boolean);
+
+  setSelectedVenueSports(sportIds);
 
   const btn = $("add-venue-btn");
   if (btn) btn.textContent = "Update Venue";
@@ -531,6 +534,7 @@ let currentProfile = null;
 let profileIsEditing = false;
 let editingVenueId = null;
 let allSports = [];
+let allVenues = [];
 
 const fmtDate = (iso) =>
   new Date(iso).toLocaleString([], {
