@@ -52,13 +52,12 @@ async function loadSportsOptions() {
   }
 
   box.innerHTML = allSports.map(sport => `
-    <label class="checkbox-item">
+    <label class="sport-chip">
       <input type="checkbox" value="${sport.id}" class="venue-sport-checkbox">
-     <span>${escapeHtml(sport.name)}</span>
+      <span>${escapeHtml(sport.name)}</span>
     </label>
   `).join("");
 }
-
 function getSelectedVenueSportIds() {
   return Array.from(document.querySelectorAll(".venue-sport-checkbox"))
     .filter(cb => cb.checked)
