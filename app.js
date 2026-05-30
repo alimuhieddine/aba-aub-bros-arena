@@ -34,6 +34,21 @@ function isCurrentUserAdmin() {
     currentProfile.role === "admin" &&
     currentProfile.approval_status === "approved";
 }
+
+function cacheProfileAccess(profile) {
+  if (!profile) {
+    localStorage.removeItem("aba_user_access");
+    return;
+  }
+
+  localStorage.setItem(
+    "aba_user_access",
+    JSON.stringify({
+      role: profile.role,
+      approval_status: profile.approval_status
+    })
+  );
+}
 async function loadPendingMembers() {
   if (!isCurrentUserAdmin()) return;
 
@@ -462,6 +477,7 @@ async function login(email, password) {
 
 async function logout() {
   await supabaseClient.auth.signOut();
+  localStorage.removeItem("aba_user_access");
   currentProfile = null;
   clearProfileFields();
   await refreshAuthUI();
@@ -569,6 +585,7 @@ async function loadMyProfile() {
   }
 
   currentProfile = data;
+  cacheProfileAccess(data);
 
   if (!data) {
     clearProfileFields();
@@ -659,19 +676,31 @@ async function refreshAuthUI() {
       el.style.display = "";
     });
 
+    // Show cached Admin tab immediately, then verify with Supabase profile.
+    // This is only a UI hint. Supabase RLS still protects the data.
+    try {
+      const cachedAccess = JSON.parse(
+        localStorage.getItem("aba_user_access") || "null"
+      );
+
+      if (
+        cachedAccess &&
+        cachedAccess.role === "admin" &&
+        cachedAccess.approval_status === "approved"
+      ) {
+        document.querySelectorAll(".admin-only").forEach(el => {
+          el.style.display = "";
+        });
+      }
+    } catch {
+      localStorage.removeItem("aba_user_access");
+    }
+
     await loadMyProfile();
+    applyAccessUI();
 
-    // Show Admin tab only for approved admins
     if (isCurrentUserAdmin()) {
-      document.querySelectorAll(".admin-only").forEach(el => {
-        el.style.display = "";
-      });
-
       await loadPendingMembers();
-    } else {
-      document.querySelectorAll(".admin-only").forEach(el => {
-        el.style.display = "none";
-      });
     }
 
     return;
@@ -686,9 +715,12 @@ async function refreshAuthUI() {
     el.style.display = "none";
   });
 
-  // Hide Admin tab and restore normal logged-out tabs
-  resetAppTabsForLoggedOut();
+  // Hide Admin tab when logged out
+  document.querySelectorAll(".admin-only").forEach(el => {
+    el.style.display = "none";
+  });
 
+  localStorage.removeItem("aba_user_access");
   currentProfile = null;
   clearProfileFields();
 
