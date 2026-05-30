@@ -81,7 +81,43 @@
       <p class="hint">Review pending member profiles.</p>
     </div>
   </div>
+
   <div id="pendingMembersList" class="stack"></div>
+
+  <div class="section-head">
+    <div>
+      <h2>Venue Management</h2>
+      <p class="hint">Add and manage ABA venues.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <label>
+      Venue Name
+      <input id="venue-name" type="text" placeholder="The Padict Club">
+    </label>
+
+    <label>
+      Location
+      <input id="venue-location" type="text" placeholder="Beirut, Lebanon">
+    </label>
+
+    <label>
+      Google Maps Link
+      <input id="venue-map-url" type="url" placeholder="https://maps.google.com/...">
+    </label>
+
+    <label>
+      Image URL
+      <input id="venue-image-url" type="url" placeholder="https://...">
+    </label>
+
+    <button id="add-venue-btn" class="primary-btn" type="button">
+      Add Venue
+    </button>
+  </div>
+
+  <div id="venuesList" class="stack"></div>
 </section>
 
 
