@@ -172,9 +172,6 @@ async function signUp(email, password) {
   await refreshAuthUI();
 }
 
-supabaseClient.auth.onAuthStateChange(() => {
-  refreshAuthUI();
-});
 let currentProfile = null;
 
 function setProfileEditing(isEditing) {
@@ -207,8 +204,11 @@ async function loadMyProfile() {
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
+  console.log("MY PROFILE:", data);
+  console.log("PROFILE ERROR:", error);
+
   if (error) {
-    console.error(error);
+    alert(error.message);
     return;
   }
 
@@ -227,7 +227,6 @@ async function loadMyProfile() {
   }
 }
 
-
 async function saveProfile() {
   const { data: { user }, error: userError } =
     await supabaseClient.auth.getUser();
@@ -240,109 +239,70 @@ async function saveProfile() {
   const profile = {
     auth_user_id: user.id,
     email: user.email,
-
     first_name: $("profile-first-name").value.trim(),
     last_name: $("profile-last-name").value.trim(),
     display_name: $("profile-display-name").value.trim(),
     birth_date: $("profile-birth-date").value || null,
     phone: $("profile-phone").value.trim(),
-
-    is_external: false,
-    is_active: true,
-    role: "member",
-    approval_status: "pending",
-    registration_status: "pending"
+    is_external: currentProfile?.is_external ?? false,
+    is_active: currentProfile?.is_active ?? true,
+    role: currentProfile?.role ?? "member",
+    approval_status: currentProfile?.approval_status ?? "pending",
+    registration_status: currentProfile?.registration_status ?? "pending"
   };
 
   const { error } = await supabaseClient
     .from("members")
-    .upsert(profile, {
-      onConflict: "auth_user_id"
-    });
+    .upsert(profile, { onConflict: "auth_user_id" });
 
   if (error) {
-    console.error(error);
     alert(error.message);
     return;
   }
 
- alert("Profile saved. Waiting for admin approval.");
-await loadMyProfile();
-setProfileEditing(false);
+  alert("Profile saved.");
+  await loadMyProfile();
 }
+
+async function refreshAuthUI() {
+  const { data: { session } } =
+    await supabaseClient.auth.getSession();
+
+  if (session) {
+    $("auth-logged-out").style.display = "none";
+    $("auth-logged-in").style.display = "flex";
+    $("current-user").textContent = session.user.email;
+
+    await loadMyProfile();
+  } else {
+    $("auth-logged-out").style.display = "flex";
+    $("auth-logged-in").style.display = "none";
+    setProfileEditing(false);
+  }
+}
+
 $("edit-profile-btn").addEventListener("click", () => {
   setProfileEditing(true);
 });
 
 $("save-profile-btn").addEventListener("click", saveProfile);
 
-
-
-document.getElementById("signup-btn")
-.addEventListener("click", () => {
-
-  signUp(
-    document.getElementById("auth-email").value,
-    document.getElementById("auth-password").value
-  );
-
+$("signup-btn").addEventListener("click", () => {
+  signUp($("auth-email").value, $("auth-password").value);
 });
 
-
-
-
-document.getElementById("login-btn")
-.addEventListener("click", () => {
-
-  login(
-    document.getElementById("auth-email").value,
-    document.getElementById("auth-password").value
-  );
-
+$("login-btn").addEventListener("click", () => {
+  login($("auth-email").value, $("auth-password").value);
 });
 
-document
-  .getElementById("save-profile-btn")
-  .addEventListener("click", saveProfile);
+$("logout-btn").addEventListener("click", logout);
 
-document
-.getElementById("logout-btn")
-.addEventListener("click", logout);
+supabaseClient.auth.onAuthStateChange(() => {
+  refreshAuthUI();
+});
+
 render();
-
-$("save-profile-btn").addEventListener("click", saveProfile);
-async function refreshAuthUI() {
-
-  const {
-    data: { session }
-  } = await supabaseClient.auth.getSession();
-
-  if (session) {
-
-    document.getElementById(
-      "auth-logged-out"
-    ).style.display = "none";
-
-    document.getElementById(
-      "auth-logged-in"
-    ).style.display = "block";
-
-    document.getElementById(
-      "current-user"
-    ).textContent =
-      session.user.email;
-loadMyProfile();
-  } else {
-
-    document.getElementById(
-      "auth-logged-out"
-    ).style.display = "block";
-
-    document.getElementById(
-      "auth-logged-in"
-    ).style.display = "none";
-  }
-}
+refreshAuthUI();
 
 
 
