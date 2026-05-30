@@ -157,56 +157,55 @@ allVenues = data || [];
    
 
     return `
-      <article class="card venue-card">
-        <div class="venue-row">
+  <article class="card venue-card">
+    <div class="venue-row">
 
-          <div class="venue-thumb">
-            ${
-              venue.image_url
-                ? `<img src="${escapeHtml(venue.image_url)}" alt="${escapeHtml(venue.name || "Venue")}">`
-                : `<div class="venue-placeholder">No Image</div>`
-            }
+      <div class="venue-thumb">
+        ${
+          venue.image_url
+            ? `<img src="${escapeHtml(venue.image_url)}" alt="${escapeHtml(venue.name || "Venue")}">`
+            : `<div class="venue-placeholder">No Image</div>`
+        }
+      </div>
+
+      <div class="venue-info">
+        <div class="venue-main">
+          <h3>${escapeHtml(venue.name || "Unnamed venue")}</h3>
+          <div class="meta">${escapeHtml(venue.address || "-")}</div>
+          <div class="meta">
+            Sports: ${sportNames.length ? escapeHtml(sportNames.join(", ")) : "-"}
           </div>
-
-          <div class="venue-info">
-            <div class="row">
-              <div>
-                <h3>${escapeHtml(venue.name || "Unnamed venue")}</h3>
-                <div class="meta">${escapeHtml(venue.address || "-")}</div>
-                <div class="meta">
-                  Sports: ${sportNames.length ? escapeHtml(sportNames.join(", ")) : "-"}
-                </div>
-                ${
-                  venue.google_maps_url
-                    ? `<div class="meta"><a href="${escapeHtml(venue.google_maps_url)}" target="_blank">Open Map</a></div>`
-                    : ""
-                }
-              </div>
-
-              <span class="pill ${venue.is_active ? "green" : "red"}">
-                ${venue.is_active ? "Active" : "Inactive"}
-              </span>
-            </div>
-
-            <div class="actions">
-              <button
-  class="small-btn"
-  onclick="editVenue('${venue.id}')"
->
-  Edit
-</button>
-
-              <button
-                class="small-btn"
-                onclick="toggleVenueActive('${venue.id}', ${venue.is_active})"
-              >
-                ${venue.is_active ? "Deactivate" : "Reactivate"}
-              </button>
-            </div>
-          </div>
-
+          ${
+            venue.google_maps_url
+              ? `<div class="meta"><a href="${escapeHtml(venue.google_maps_url)}" target="_blank">Open Map</a></div>`
+              : ""
+          }
         </div>
-      </article>
+
+        <div class="venue-side">
+          <span class="pill ${venue.is_active ? "green" : "red"}">
+            ${venue.is_active ? "Active" : "Inactive"}
+          </span>
+
+          <button
+            class="small-btn"
+            onclick="editVenue('${venue.id}')"
+          >
+            Edit
+          </button>
+
+          <button
+            class="small-btn"
+            onclick="toggleVenueActive('${venue.id}', ${venue.is_active})"
+          >
+            ${venue.is_active ? "Deactivate" : "Reactivate"}
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </article>
+`
     `;
   }).join("");
 }
