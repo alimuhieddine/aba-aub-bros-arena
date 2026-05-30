@@ -136,7 +136,8 @@ async function loadVenues() {
     alert(error.message);
     return;
   }
-allVenues = data || [];
+
+  allVenues = data || [];
   const box = $("venuesList");
   if (!box) return;
 
@@ -205,8 +206,7 @@ allVenues = data || [];
 
     </div>
   </article>
-`
-    `;
+`;
   }).join("");
 }
 
