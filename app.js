@@ -28,6 +28,96 @@ const demoData = {
   ]
 };
 
+async function loadVenues() {
+  if (!isCurrentUserAdmin()) return;
+
+  const { data, error } = await supabaseClient
+    .from("venues")
+    .select("id,name,location,map_url,image_url,is_active,created_at")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  const box = $("venuesList");
+  if (!box) return;
+
+  if (!data || data.length === 0) {
+    box.innerHTML = `<article class="card">No venues added yet.</article>`;
+    return;
+  }
+
+  box.innerHTML = data.map(venue => `
+    <article class="card">
+      <div class="row">
+        <div>
+          <h3>${escapeHtml(venue.name || "Unnamed venue")}</h3>
+          <div class="meta">${escapeHtml(venue.location || "-")}</div>
+          ${
+            venue.map_url
+              ? `<div class="meta"><a href="${escapeHtml(venue.map_url)}" target="_blank">Open Map</a></div>`
+              : ""
+          }
+        </div>
+
+        <span class="pill ${venue.is_active ? "green" : "red"}">
+          ${venue.is_active ? "Active" : "Inactive"}
+        </span>
+      </div>
+
+      ${
+        venue.image_url
+          ? `<img src="${escapeHtml(venue.image_url)}" alt="${escapeHtml(venue.name || "Venue")}" class="venue-img">`
+          : ""
+      }
+    </article>
+  `).join("");
+}
+
+async function addVenue() {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin access required.");
+    return;
+  }
+
+  const name = $("venue-name").value.trim();
+
+  if (!name) {
+    alert("Venue name is required.");
+    return;
+  }
+
+  const venue = {
+    name,
+    location: $("venue-location").value.trim(),
+    map_url: $("venue-map-url").value.trim(),
+    image_url: $("venue-image-url").value.trim(),
+    is_active: true
+  };
+
+  const { error } = await supabaseClient
+    .from("venues")
+    .insert(venue);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  $("venue-name").value = "";
+  $("venue-location").value = "";
+  $("venue-map-url").value = "";
+  $("venue-image-url").value = "";
+
+  await loadVenues();
+}
+
+
+
+
+
 
 function isCurrentUserAdmin() {
   return currentProfile &&
@@ -701,11 +791,14 @@ async function refreshAuthUI() {
 
     if (isCurrentUserAdmin()) {
       await loadPendingMembers();
+      await loadVenues();
     }
 
     return;
   }
 
+$("add-venue-btn")?.addEventListener("click", addVenue);
+  
   // Logged out state
   $("auth-logged-out").style.display = "flex";
   $("auth-logged-in").style.display = "none";
