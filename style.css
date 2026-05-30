@@ -577,3 +577,35 @@ textarea:disabled {
     font-size: 11px;
   }
 }
+/* iPhone Safari autofill prevention/fix */
+.hero-auth input,
+.hero-auth input:-webkit-autofill,
+.hero-auth input:-webkit-autofill:hover,
+.hero-auth input:-webkit-autofill:focus,
+.hero-auth input:-webkit-autofill:active {
+  height: 34px !important;
+  min-height: 34px !important;
+  max-height: 34px !important;
+
+  font-size: 16px !important;
+  line-height: normal !important;
+
+  padding: 0 10px !important;
+
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+
+  background: rgba(2, 12, 28, 0.75) !important;
+
+  box-shadow: 0 0 0 1000px #07111f inset !important;
+  -webkit-box-shadow: 0 0 0 1000px #07111f inset !important;
+
+  border: 1px solid rgba(255,255,255,0.12) !important;
+  border-radius: 10px !important;
+
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+.hero-auth {
+  gap: 12px !important;
+}
