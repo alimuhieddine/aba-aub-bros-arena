@@ -617,3 +617,23 @@ textarea:disabled {
   margin-top: 12px;
   border: 1px solid var(--line);
 }
+
+
+.venue-img {
+  width: 100%;
+  max-width: 420px;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 16px;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  display: block;
+}
+
+
+@media (max-width: 800px) {
+  .venue-img {
+    max-width: 100%;
+    height: 130px;
+  }
+}
