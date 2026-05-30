@@ -1,21 +1,17 @@
 const SUPABASE_URL = "https://welleqrjtlullhbdhive.supabase.co";
 const SUPABASE_KEY = "sb_publishable_e_Pu1JLmyXBKJnMvR5guXQ_GzvFcdK-";
-const supabaseClient= window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-async function testConnection() {
-  const { data, error } = await supabaseClient
-    .from('sports')
-    .select('*');
-
-  console.log("URL:", SUPABASE_URL);
-  console.log("DATA:", data);
-  console.log("ERROR:", error);
-}
-testConnection();
-
-
+const $ = (id) => document.getElementById(id);
 
 const STORAGE_KEY = "aba_phase1_data";
+
+function futureDate(days, hour) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  d.setHours(hour, 0, 0, 0);
+  return d.toISOString();
+}
 
 const demoData = {
   leagues: [
@@ -32,111 +28,245 @@ const demoData = {
   ]
 };
 
-function futureDate(days, hour) {
-  const d = new Date();
-  d.setDate(d.getDate() + days); d.setHours(hour, 0, 0, 0);
-  return d.toISOString();
-}
 function loadData() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (!saved) return structuredClone(demoData);
-  return JSON.parse(saved);
-}
-function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-let state = loadData();
 
-const $ = (id) => document.getElementById(id);
-const fmtDate = (iso) => new Date(iso).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  try {
+    return JSON.parse(saved);
+  } catch {
+    return structuredClone(demoData);
+  }
+}
+
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+let state = loadData();
+let currentProfile = null;
+let profileIsEditing = false;
+
+const fmtDate = (iso) =>
+  new Date(iso).toLocaleString([], {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+
+function escapeHtml(str) {
+  return String(str ?? "").replace(/[&<>"]/g, s => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;"
+  }[s]));
+}
 
 function render() {
-  $("todayLabel").textContent = new Date().toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
-  renderStats(); renderFeed(); renderLeagues(); renderMatches(); renderActivities(); renderRankings();
+  if ($("todayLabel")) {
+    $("todayLabel").textContent =
+      new Date().toLocaleDateString([], {
+        weekday: "long",
+        month: "short",
+        day: "numeric"
+      });
+  }
+
+  renderStats();
+  renderFeed();
+  renderLeagues();
+  renderMatches();
+  renderActivities();
+  renderRankings();
 }
+
 function renderStats() {
+  if (!$("verifiedCount") || !$("pendingCount")) return;
+
   const verified = state.activities.filter(a => a.approvals.length >= 2).length;
   $("verifiedCount").textContent = verified;
   $("pendingCount").textContent = state.activities.length - verified;
 }
+
 function renderFeed() {
+  if (!$("feedList")) return;
+
   const items = [
     ...state.matches.map(m => ({ kind: "match", time: new Date(m.date).getTime(), data: m })),
     ...state.activities.map(a => ({ kind: "activity", time: a.createdAt, data: a }))
-  ].sort((a,b) => b.time - a.time).slice(0,8);
-  $("feedList").innerHTML = items.map(item => item.kind === "match" ? matchCard(item.data, true) : activityCard(item.data, true)).join("");
+  ].sort((a, b) => b.time - a.time).slice(0, 8);
+
+  $("feedList").innerHTML =
+    items.map(item =>
+      item.kind === "match"
+        ? matchCard(item.data, true)
+        : activityCard(item.data, true)
+    ).join("");
 }
+
 function renderLeagues() {
+  if (!$("leagueList")) return;
+
   $("leagueList").innerHTML = state.leagues.map(l => `
     <article class="card">
-      <div class="row"><div><h3>${escapeHtml(l.name)}</h3><div class="meta">${l.sport} • ${escapeHtml(l.format || "Open format")}</div></div><span class="pill blue">League</span></div>
+      <div class="row">
+        <div>
+          <h3>${escapeHtml(l.name)}</h3>
+          <div class="meta">${escapeHtml(l.sport)} • ${escapeHtml(l.format || "Open format")}</div>
+        </div>
+        <span class="pill blue">League</span>
+      </div>
       <div class="meta">Phase 1: standings table will connect to match results in the next step.</div>
-    </article>`).join("");
+    </article>
+  `).join("");
 }
-function matchCard(m, compact=false) {
-  return `<article class="card">
-    <div class="row"><div><h3>${escapeHtml(m.title)}</h3><div class="meta">${m.sport} • ${m.type} • ${fmtDate(m.date)}</div><div class="meta">📍 ${escapeHtml(m.venue)} ${m.address ? "— " + escapeHtml(m.address) : ""}</div></div><span class="pill green">Scheduled</span></div>
-    ${compact ? "" : commentSection(m)}
-  </article>`;
+
+function matchCard(m, compact = false) {
+  return `
+    <article class="card">
+      <div class="row">
+        <div>
+          <h3>${escapeHtml(m.title)}</h3>
+          <div class="meta">${escapeHtml(m.sport)} • ${escapeHtml(m.type)} • ${fmtDate(m.date)}</div>
+          <div class="meta">📍 ${escapeHtml(m.venue)} ${m.address ? "— " + escapeHtml(m.address) : ""}</div>
+        </div>
+        <span class="pill green">Scheduled</span>
+      </div>
+      ${compact ? "" : commentSection(m)}
+    </article>
+  `;
 }
-function renderMatches() { $("matchList").innerHTML = state.matches.sort((a,b)=>new Date(a.date)-new Date(b.date)).map(m => matchCard(m)).join(""); }
+
+function renderMatches() {
+  if (!$("matchList")) return;
+
+  $("matchList").innerHTML =
+    state.matches
+      .slice()
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .map(m => matchCard(m))
+      .join("");
+}
+
 function commentSection(m) {
-  return `<div class="comments">${(m.comments || []).map(c => `<div class="comment">💬 ${escapeHtml(c)}</div>`).join("")}</div>
-    <div class="comment-box"><input id="comment-${m.id}" placeholder="Add banter/comment..." /><button class="small-btn" onclick="addComment('${m.id}')">Send</button></div>`;
+  return `
+    <div class="comments">
+      ${(m.comments || []).map(c => `<div class="comment">💬 ${escapeHtml(c)}</div>`).join("")}
+    </div>
+    <div class="comment-box">
+      <input id="comment-${m.id}" placeholder="Add banter/comment...">
+      <button class="small-btn" onclick="addComment('${m.id}')">Send</button>
+    </div>
+  `;
 }
-function activityCard(a, compact=false) {
+
+function activityCard(a, compact = false) {
   const verified = a.approvals.length >= 2;
-  return `<article class="card">
-    <div class="row"><div><h3>${escapeHtml(a.player)} — ${escapeHtml(a.activity)}</h3><div class="meta">${a.sport} • ${a.points} pts • Proof: ${escapeHtml(a.proof || "not attached yet")}</div><div class="meta">Approvals: ${a.approvals.length}/2</div></div><span class="pill ${verified ? "green" : "red"}">${verified ? "Verified" : "Pending"}</span></div>
-    ${compact || verified ? "" : `<div class="actions"><button class="small-btn" onclick="approveActivity('${a.id}')">Committee approve</button></div>`}
-  </article>`;
+
+  return `
+    <article class="card">
+      <div class="row">
+        <div>
+          <h3>${escapeHtml(a.player)} — ${escapeHtml(a.activity)}</h3>
+          <div class="meta">${escapeHtml(a.sport)} • ${a.points} pts • Proof: ${escapeHtml(a.proof || "not attached yet")}</div>
+          <div class="meta">Approvals: ${a.approvals.length}/2</div>
+        </div>
+        <span class="pill ${verified ? "green" : "red"}">${verified ? "Verified" : "Pending"}</span>
+      </div>
+      ${compact || verified ? "" : `<div class="actions"><button class="small-btn" onclick="approveActivity('${a.id}')">Committee approve</button></div>`}
+    </article>
+  `;
 }
-function renderActivities() { $("activityList").innerHTML = state.activities.map(a => activityCard(a)).join(""); }
+
+function renderActivities() {
+  if (!$("activityList")) return;
+  $("activityList").innerHTML = state.activities.map(a => activityCard(a)).join("");
+}
+
 function renderRankings() {
+  if (!$("rankingList")) return;
+
   const scores = {};
-  for (const a of state.activities) if (a.approvals.length >= 2) scores[a.player] = (scores[a.player] || 0) + Number(a.points || 0);
-  const ranks = Object.entries(scores).sort((a,b)=>b[1]-a[1]);
-  $("rankingList").innerHTML = ranks.length ? ranks.map(([name, pts], i) => `<article class="card rank"><div class="rank-number">${i+1}</div><div><h3>${escapeHtml(name)}</h3><div class="meta">Verified ABA points</div></div><strong>${pts}</strong></article>`).join("") : `<article class="card">No verified points yet.</article>`;
+  for (const a of state.activities) {
+    if (a.approvals.length >= 2) {
+      scores[a.player] = (scores[a.player] || 0) + Number(a.points || 0);
+    }
+  }
+
+  const ranks = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+
+  $("rankingList").innerHTML = ranks.length
+    ? ranks.map(([name, pts], i) => `
+      <article class="card rank">
+        <div class="rank-number">${i + 1}</div>
+        <div>
+          <h3>${escapeHtml(name)}</h3>
+          <div class="meta">Verified ABA points</div>
+        </div>
+        <strong>${pts}</strong>
+      </article>
+    `).join("")
+    : `<article class="card">No verified points yet.</article>`;
 }
+
 function approveActivity(id) {
   const a = state.activities.find(x => x.id === id);
   if (!a || a.approvals.length >= 2) return;
+
   a.approvals.push(`Committee ${a.approvals.length + 1}`);
-  saveData(); render();
+  saveData();
+  render();
 }
+
 function addComment(matchId) {
   const input = $(`comment-${matchId}`);
-  const text = input.value.trim();
+  const text = input?.value.trim();
+
   if (!text) return;
+
   const m = state.matches.find(x => x.id === matchId);
-  m.comments = m.comments || []; m.comments.push(text);
-  saveData(); render();
+  if (!m) return;
+
+  m.comments = m.comments || [];
+  m.comments.push(text);
+
+  saveData();
+  render();
 }
-function escapeHtml(str) { return String(str).replace(/[&<>"]/g, s => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[s])); }
 
-document.querySelectorAll(".tab").forEach(btn => btn.addEventListener("click", () => {
-  document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
-  document.querySelectorAll(".view").forEach(v => v.classList.remove("active-view"));
-  btn.classList.add("active"); $(btn.dataset.view).classList.add("active-view");
-}));
-document.querySelectorAll("[data-open]").forEach(btn => btn.addEventListener("click", () => $(btn.dataset.open).showModal()));
+async function testConnection() {
+  const { data, error } = await supabaseClient
+    .from("sports")
+    .select("*");
 
-$("leagueForm").addEventListener("submit", e => {
-  const fd = new FormData(e.target);
-  state.leagues.unshift({ id: crypto.randomUUID(), name: fd.get("name"), sport: fd.get("sport"), format: fd.get("format"), createdAt: Date.now() });
-  saveData(); e.target.reset(); render();
-});
-$("matchForm").addEventListener("submit", e => {
-  const fd = new FormData(e.target);
-  state.matches.unshift({ id: crypto.randomUUID(), sport: fd.get("sport"), title: fd.get("title"), date: new Date(fd.get("date")).toISOString(), venue: fd.get("venue"), address: fd.get("address"), type: fd.get("type"), comments: [] });
-  saveData(); e.target.reset(); render();
-});
-$("activityForm").addEventListener("submit", e => {
-  const fd = new FormData(e.target);
-  state.activities.unshift({ id: crypto.randomUUID(), player: fd.get("player"), sport: fd.get("sport"), activity: fd.get("activity"), proof: fd.get("proof"), points: Number(fd.get("points")), approvals: [], createdAt: Date.now() });
-  saveData(); e.target.reset(); render();
-});
+  console.log("URL:", SUPABASE_URL);
+  console.log("SPORTS DATA:", data);
+  console.log("SPORTS ERROR:", error);
+}
+
+async function signUp(email, password) {
+  const { error } = await supabaseClient.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: "https://alimuhieddine.github.io/aba-aub-bros-arena/"
+    }
+  });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  alert("Check your email and confirm your account.");
+  await refreshAuthUI();
+}
 
 async function login(email, password) {
-  const { data, error } =
+  const { error } =
     await supabaseClient.auth.signInWithPassword({ email, password });
 
   if (error) {
@@ -149,48 +279,59 @@ async function login(email, password) {
 
 async function logout() {
   await supabaseClient.auth.signOut();
+  clearProfileFields();
   await refreshAuthUI();
 }
 
-async function signUp(email, password) {
-  const { data, error } =
-    await supabaseClient.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo:
-          "https://alimuhieddine.github.io/aba-aub-bros-arena/"
-      }
-    });
-
-  if (error) {
-    alert(error.message);
-    return;
-  }
-
-  alert("Check your email and confirm your account.");
-  await refreshAuthUI();
-}
-let currentProfile = null;
-let profileIsEditing = false;
-
-function setProfileEditing(isEditing) {
-  profileIsEditing = isEditing;
-
-  [
+function profileFieldIds() {
+  return [
     "profile-first-name",
     "profile-last-name",
     "profile-display-name",
     "profile-birth-date",
     "profile-phone"
-  ].forEach(id => {
+  ];
+}
+
+function clearProfileFields() {
+  profileFieldIds().forEach(id => {
+    const el = $(id);
+    if (el) el.value = "";
+  });
+
+  if ($("profile-status")) {
+    $("profile-status").textContent = "Login to load your profile.";
+  }
+}
+
+function setProfileEditing(isEditing) {
+  profileIsEditing = isEditing;
+
+  profileFieldIds().forEach(id => {
     const el = $(id);
     if (el) el.disabled = !isEditing;
   });
 
-  $("profile-action-btn").textContent = isEditing
-    ? "Save Profile"
-    : "Edit Profile";
+  const btn = $("profile-action-btn");
+  if (btn) {
+    btn.textContent = isEditing ? "Save Profile" : "Edit Profile";
+    btn.style.display = "inline-flex";
+  }
+}
+
+function setProfileStatusText(profile) {
+  const status = $("profile-status");
+  if (!status) return;
+
+  if (!profile) {
+    status.textContent = "Complete your profile, then wait for admin approval.";
+    return;
+  }
+
+  const approval = profile.approval_status || "pending";
+  const role = profile.role || "member";
+
+  status.textContent = `Status: ${approval} • Role: ${role}`;
 }
 
 async function loadMyProfile() {
@@ -198,22 +339,31 @@ async function loadMyProfile() {
     await supabaseClient.auth.getUser();
 
   if (userError || !user) {
+    currentProfile = null;
+    clearProfileFields();
+    setProfileEditing(false);
     return;
   }
 
   const { data, error } = await supabaseClient
     .from("members")
-    .select("first_name,last_name,display_name,birth_date,phone,approval_status,role")
+    .select("*")
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
+  console.log("MY PROFILE:", data);
+  console.log("PROFILE LOAD ERROR:", error);
+
   if (error) {
-    console.error("Profile load error:", error);
     alert(error.message);
     return;
   }
 
+  currentProfile = data;
+
   if (!data) {
+    clearProfileFields();
+    setProfileStatusText(null);
     setProfileEditing(true);
     return;
   }
@@ -224,8 +374,10 @@ async function loadMyProfile() {
   $("profile-birth-date").value = data.birth_date || "";
   $("profile-phone").value = data.phone || "";
 
+  setProfileStatusText(data);
   setProfileEditing(false);
 }
+
 async function saveProfile() {
   const { data: { user }, error: userError } =
     await supabaseClient.auth.getUser();
@@ -235,12 +387,20 @@ async function saveProfile() {
     return;
   }
 
+  const firstName = $("profile-first-name").value.trim();
+  const displayName = $("profile-display-name").value.trim();
+
+  if (!firstName || !displayName) {
+    alert("First Name and Display Name are required.");
+    return;
+  }
+
   const profile = {
     auth_user_id: user.id,
     email: user.email,
-    first_name: $("profile-first-name").value.trim(),
+    first_name: firstName,
     last_name: $("profile-last-name").value.trim(),
-    display_name: $("profile-display-name").value.trim(),
+    display_name: displayName,
     birth_date: $("profile-birth-date").value || null,
     phone: $("profile-phone").value.trim(),
     is_external: currentProfile?.is_external ?? false,
@@ -271,37 +431,115 @@ async function refreshAuthUI() {
     $("auth-logged-out").style.display = "none";
     $("auth-logged-in").style.display = "flex";
     $("current-user").textContent = session.user.email;
+
     await loadMyProfile();
   } else {
     $("auth-logged-out").style.display = "flex";
     $("auth-logged-in").style.display = "none";
+
+    currentProfile = null;
+    clearProfileFields();
     setProfileEditing(false);
   }
 }
 
-$("profile-action-btn").addEventListener("click", async () => {
-  if (profileIsEditing) {
-    await saveProfile();
-  } else {
-    setProfileEditing(true);
+function bindEvents() {
+  document.querySelectorAll(".tab").forEach(btn =>
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".view").forEach(v => v.classList.remove("active-view"));
+
+      btn.classList.add("active");
+      const target = $(btn.dataset.view);
+      if (target) target.classList.add("active-view");
+    })
+  );
+
+  document.querySelectorAll("[data-open]").forEach(btn =>
+    btn.addEventListener("click", () => {
+      const modal = $(btn.dataset.open);
+      if (modal) modal.showModal();
+    })
+  );
+
+  if ($("leagueForm")) {
+    $("leagueForm").addEventListener("submit", e => {
+      const fd = new FormData(e.target);
+      state.leagues.unshift({
+        id: crypto.randomUUID(),
+        name: fd.get("name"),
+        sport: fd.get("sport"),
+        format: fd.get("format"),
+        createdAt: Date.now()
+      });
+      saveData();
+      e.target.reset();
+      render();
+    });
   }
-});
 
-$("signup-btn").addEventListener("click", () => {
-  signUp($("auth-email").value, $("auth-password").value);
-});
+  if ($("matchForm")) {
+    $("matchForm").addEventListener("submit", e => {
+      const fd = new FormData(e.target);
+      state.matches.unshift({
+        id: crypto.randomUUID(),
+        sport: fd.get("sport"),
+        title: fd.get("title"),
+        date: new Date(fd.get("date")).toISOString(),
+        venue: fd.get("venue"),
+        address: fd.get("address"),
+        type: fd.get("type"),
+        comments: []
+      });
+      saveData();
+      e.target.reset();
+      render();
+    });
+  }
 
-$("login-btn").addEventListener("click", () => {
-  login($("auth-email").value, $("auth-password").value);
-});
+  if ($("activityForm")) {
+    $("activityForm").addEventListener("submit", e => {
+      const fd = new FormData(e.target);
+      state.activities.unshift({
+        id: crypto.randomUUID(),
+        player: fd.get("player"),
+        sport: fd.get("sport"),
+        activity: fd.get("activity"),
+        proof: fd.get("proof"),
+        points: Number(fd.get("points")),
+        approvals: [],
+        createdAt: Date.now()
+      });
+      saveData();
+      e.target.reset();
+      render();
+    });
+  }
 
-$("logout-btn").addEventListener("click", logout);
+  $("profile-action-btn")?.addEventListener("click", async () => {
+    if (profileIsEditing) {
+      await saveProfile();
+    } else {
+      setProfileEditing(true);
+    }
+  });
 
-supabaseClient.auth.onAuthStateChange(() => {
-  refreshAuthUI();
-});
+  $("signup-btn")?.addEventListener("click", () => {
+    signUp($("auth-email").value, $("auth-password").value);
+  });
 
+  $("login-btn")?.addEventListener("click", () => {
+    login($("auth-email").value, $("auth-password").value);
+  });
+
+  $("logout-btn")?.addEventListener("click", logout);
+
+  supabaseClient.auth.onAuthStateChange(() => {
+    refreshAuthUI();
+  });
+}
+
+bindEvents();
 render();
-refreshAuthUI();
-
+testConnection();
 refreshAuthUI();
