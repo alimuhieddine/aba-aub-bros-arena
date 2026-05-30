@@ -49,48 +49,129 @@ async function loadVenues() {
     return;
   }
 
- box.innerHTML = data.map(venue => `
-  <article class="card venue-card">
-    <div class="venue-row">
+  box.innerHTML = data.map(venue => {
+    const safeName = jsString(venue.name || "");
+    const safeAddress = jsString(venue.address || "");
+    const safeMapUrl = jsString(venue.google_maps_url || "");
+    const safeImageUrl = jsString(venue.image_url || "");
 
-      <div class="venue-thumb">
-        ${
-          venue.image_url
-            ? `<img src="${escapeHtml(venue.image_url)}" alt="${escapeHtml(venue.name || "Venue")}">`
-            : `<div class="venue-placeholder">No Image</div>`
-        }
-      </div>
+    return `
+      <article class="card venue-card">
+        <div class="venue-row">
 
-      <div class="venue-info">
-        <div class="row">
-          <div>
-            <h3>${escapeHtml(venue.name || "Unnamed venue")}</h3>
-            <div class="meta">${escapeHtml(venue.address || "-")}</div>
+          <div class="venue-thumb">
             ${
-              venue.google_maps_url
-                ? `<div class="meta"><a href="${escapeHtml(venue.google_maps_url)}" target="_blank">Open Map</a></div>`
-                : ""
+              venue.image_url
+                ? `<img src="${escapeHtml(venue.image_url)}" alt="${escapeHtml(venue.name || "Venue")}">`
+                : `<div class="venue-placeholder">No Image</div>`
             }
           </div>
 
-          <span class="pill ${venue.is_active ? "green" : "red"}">
-            ${venue.is_active ? "Active" : "Inactive"}
-          </span>
-        </div>
-      </div>
+          <div class="venue-info">
+            <div class="row">
+              <div>
+                <h3>${escapeHtml(venue.name || "Unnamed venue")}</h3>
+                <div class="meta">${escapeHtml(venue.address || "-")}</div>
+                ${
+                  venue.google_maps_url
+                    ? `<div class="meta"><a href="${escapeHtml(venue.google_maps_url)}" target="_blank">Open Map</a></div>`
+                    : ""
+                }
+              </div>
 
-    </div>
-  </article>
-`).join("");
+              <span class="pill ${venue.is_active ? "green" : "red"}">
+                ${venue.is_active ? "Active" : "Inactive"}
+              </span>
+            </div>
+
+            <div class="actions">
+              <button
+                class="small-btn"
+                onclick="editVenue('${venue.id}', '${safeName}', '${safeAddress}', '${safeMapUrl}', '${safeImageUrl}')"
+              >
+                Edit
+              </button>
+
+              <button
+                class="small-btn"
+                onclick="toggleVenueActive('${venue.id}', ${venue.is_active})"
+              >
+                ${venue.is_active ? "Deactivate" : "Reactivate"}
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    `;
+  }).join("");
 }
 
-async function addVenue() {
+function clearVenueForm() {
+  if ($("venue-name")) $("venue-name").value = "";
+  if ($("venue-address")) $("venue-address").value = "";
+  if ($("venue-google-maps-url")) $("venue-google-maps-url").value = "";
+  if ($("venue-map-url")) $("venue-map-url").value = "";
+  if ($("venue-image-url")) $("venue-image-url").value = "";
+
+  editingVenueId = null;
+
+  const btn = $("add-venue-btn");
+  if (btn) btn.textContent = "Add Venue";
+}
+
+function editVenue(id, name, address, googleMapsUrl, imageUrl) {
+  editingVenueId = id;
+
+  if ($("venue-name")) $("venue-name").value = name || "";
+  if ($("venue-address")) $("venue-address").value = address || "";
+  if ($("venue-google-maps-url")) $("venue-google-maps-url").value = googleMapsUrl || "";
+  if ($("venue-map-url")) $("venue-map-url").value = googleMapsUrl || "";
+  if ($("venue-image-url")) $("venue-image-url").value = imageUrl || "";
+
+  const btn = $("add-venue-btn");
+  if (btn) btn.textContent = "Update Venue";
+
+  $("venue-name")?.scrollIntoView({
+    behavior: "smooth",
+    block: "center"
+  });
+}
+
+async function toggleVenueActive(id, currentStatus) {
   if (!isCurrentUserAdmin()) {
     alert("Admin access required.");
     return;
   }
 
-  const name = $("venue-name").value.trim();
+  const { error } = await supabaseClient
+    .from("venues")
+    .update({
+      is_active: !currentStatus
+    })
+    .eq("id", id);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  await loadVenues();
+}
+
+async function saveVenue() {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin access required.");
+    return;
+  }
+
+  const name = $("venue-name")?.value.trim() || "";
+  const address = $("venue-address")?.value.trim() || "";
+  const googleMapsUrl =
+    $("venue-google-maps-url")?.value.trim() ||
+    $("venue-map-url")?.value.trim() ||
+    "";
+  const imageUrl = $("venue-image-url")?.value.trim() || "";
 
   if (!name) {
     alert("Venue name is required.");
@@ -99,43 +180,46 @@ async function addVenue() {
 
   const venue = {
     name,
-    address: $("venue-address")?.value.trim() || "",
-    google_maps_url:
-      $("venue-google-maps-url")?.value.trim() ||
-      $("venue-map-url")?.value.trim() ||
-      "",
-    image_url: $("venue-image-url")?.value.trim() || "",
-    is_active: true
+    address,
+    google_maps_url: googleMapsUrl,
+    image_url: imageUrl
   };
 
-  const { data, error } = await supabaseClient
-    .from("venues")
-    .insert(venue)
-    .select();
+  let result;
 
-  console.log("ADD VENUE DATA:", data);
-  console.log("ADD VENUE ERROR:", error);
+  if (editingVenueId) {
+    result = await supabaseClient
+      .from("venues")
+      .update(venue)
+      .eq("id", editingVenueId)
+      .select();
+  } else {
+    result = await supabaseClient
+      .from("venues")
+      .insert({
+        ...venue,
+        is_active: true
+      })
+      .select();
+  }
+
+  const { data, error } = result;
+
+  console.log("SAVE VENUE DATA:", data);
+  console.log("SAVE VENUE ERROR:", error);
 
   if (error) {
     alert(error.message);
     return;
   }
 
-  $("venue-name").value = "";
-  $("venue-address").value = "";
+  const wasEditing = Boolean(editingVenueId);
 
-  if ($("venue-google-maps-url")) $("venue-google-maps-url").value = "";
-  if ($("venue-map-url")) $("venue-map-url").value = "";
+  clearVenueForm();
 
-  $("venue-image-url").value = "";
-
-  alert("Venue added.");
+  alert(wasEditing ? "Venue updated." : "Venue added.");
   await loadVenues();
 }
-
-
-
-
 
 
 function isCurrentUserAdmin() {
@@ -322,6 +406,7 @@ function saveData() {
 let state = loadData();
 let currentProfile = null;
 let profileIsEditing = false;
+let editingVenueId = null;
 
 const fmtDate = (iso) =>
   new Date(iso).toLocaleString([], {
@@ -339,6 +424,14 @@ function escapeHtml(str) {
     ">": "&gt;",
     "\"": "&quot;"
   }[s]));
+}
+
+function jsString(str) {
+  return String(str ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "");
 }
 
 function render() {
@@ -950,7 +1043,9 @@ function bindEvents() {
 
   $("logout-btn")?.addEventListener("click", logout);
 
-  $("add-venue-btn")?.addEventListener("click", addVenue);
+  $("add-venue-btn")?.addEventListener("click", saveVenue);
+
+  $("cancel-venue-edit-btn")?.addEventListener("click", clearVenueForm);
 
   supabaseClient.auth.onAuthStateChange(() => {
     refreshAuthUI();
