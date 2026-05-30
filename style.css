@@ -792,12 +792,14 @@ textarea:disabled {
 @media (max-width: 800px) {
   .venue-row {
     gap: 12px !important;
+
+    
   }
 
   .venue-thumb {
-    width: 114px !important;
-    min-width: 114px !important;
-    height: 114px !important;
+    width: 124px !important;
+    min-width: 124px !important;
+    height: 124px !important;
     border-radius: 16px !important;
   }
 
