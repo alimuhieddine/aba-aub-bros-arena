@@ -639,6 +639,14 @@ textarea:disabled {
   background: rgba(255,255,255,0.06);
 }
 
+.venue-thumb {
+  width: 110px;
+  min-width: 110px;
+  height: 110px;
+  border-radius: 18px;
+}
+
+
 .venue-thumb img {
   width: 100%;
   height: 100%;
@@ -661,7 +669,18 @@ textarea:disabled {
   flex: 1;
   min-width: 0;
 }
+.venue-info .actions {
+  margin-top: 8px;
+  gap: 6px;
+}
 
+.venue-info .actions .small-btn {
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
 @media (max-width: 800px) {
   .venue-thumb {
     width: 68px;
@@ -673,4 +692,18 @@ textarea:disabled {
   .venue-row {
     gap: 10px;
   }
+.venue-thumb {
+    width: 88px;
+    min-width: 88px;
+    height: 88px;
+    border-radius: 15px;
+  }
+
+  .venue-info .actions .small-btn {
+    height: 22px;
+    padding: 0 7px;
+    font-size: 10px;
+  }
+
+  
 }
