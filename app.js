@@ -253,7 +253,7 @@ async function signUp(email, password) {
     return;
   }
 
-  const { error } = await supabaseClient.auth.signUp({
+  const { data, error } = await supabaseClient.auth.signUp({
     email,
     password,
     options: {
@@ -262,7 +262,28 @@ async function signUp(email, password) {
   });
 
   if (error) {
+    const message = error.message.toLowerCase();
+
+    if (
+      message.includes("already registered") ||
+      message.includes("already exists") ||
+      message.includes("user already registered") ||
+      message.includes("email")
+    ) {
+      alert("This email is already registered. Please log in or use a different email.");
+      return;
+    }
+
     alert(error.message);
+    return;
+  }
+
+  /*
+    Supabase sometimes returns a user object without a session
+    when the email already exists or confirmation is required.
+  */
+  if (data?.user && data.user.identities && data.user.identities.length === 0) {
+    alert("This email is already registered. Please log in or use a different email.");
     return;
   }
 
