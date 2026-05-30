@@ -619,9 +619,14 @@ textarea {
     margin-bottom: 12px !important;
   }
 }
+.actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
 
 #edit-profile-btn,
 #save-profile-btn {
+    position: static !important;
     width: 140px;
-    justify-content: center;
 }
