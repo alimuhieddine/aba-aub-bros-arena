@@ -33,7 +33,7 @@ async function loadVenues() {
 
   const { data, error } = await supabaseClient
     .from("venues")
-    .select("id,name,location,map_url,image_url,is_active,created_at")
+    .select("id,name,address,google_maps_url,image_url,is_active,created_at")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -65,10 +65,10 @@ async function loadVenues() {
         <div class="row">
           <div>
             <h3>${escapeHtml(venue.name || "Unnamed venue")}</h3>
-            <div class="meta">${escapeHtml(venue.location || "-")}</div>
+            <div class="meta">${escapeHtml(venue.address || "-")}</div>
             ${
-              venue.map_url
-                ? `<div class="meta"><a href="${escapeHtml(venue.map_url)}" target="_blank">Open Map</a></div>`
+              venue.google_maps_url
+                ? `<div class="meta"><a href="${escapeHtml(venue.google_maps_url)}" target="_blank">Open Map</a></div>`
                 : ""
             }
           </div>
@@ -99,8 +99,8 @@ async function addVenue() {
 
   const venue = {
     name,
-    location: $("venue-location").value.trim(),
-    map_url: $("venue-map-url").value.trim(),
+    address: $("venue-address").value.trim(),
+    google_maps_url: $("venue-map-url").value.trim(),
     image_url: $("venue-image-url").value.trim(),
     is_active: true
   };
@@ -115,7 +115,7 @@ async function addVenue() {
   }
 
   $("venue-name").value = "";
-  $("venue-location").value = "";
+  $("venue-address").value = "";
   $("venue-map-url").value = "";
   $("venue-image-url").value = "";
 
