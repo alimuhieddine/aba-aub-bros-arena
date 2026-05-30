@@ -843,3 +843,199 @@ textarea:disabled {
 .venue-info .pill {
   flex-shrink: 0;
 }
+
+
+/* =========================================================
+   ABA VENUE LAYOUT FINAL FIX
+   This block must stay at the VERY END of style.css.
+   It prevents horizontal overflow on iPhone and keeps the
+   venue card readable.
+   ========================================================= */
+
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden !important;
+}
+
+.app-shell,
+main,
+.view,
+.stack,
+.card {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.venue-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  padding: 10px !important;
+}
+
+.venue-row {
+  width: 100% !important;
+  max-width: 100% !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 12px !important;
+  overflow: hidden !important;
+}
+
+/* Desktop venue image */
+.venue-thumb {
+  width: 118px !important;
+  min-width: 118px !important;
+  max-width: 118px !important;
+  height: 118px !important;
+  flex: 0 0 118px !important;
+
+  border-radius: 18px !important;
+  overflow: hidden !important;
+  border: 1px solid var(--line) !important;
+  background: rgba(255,255,255,0.06) !important;
+}
+
+.venue-thumb img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
+.venue-info {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+.venue-info .row {
+  width: 100% !important;
+  max-width: 100% !important;
+
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+
+  overflow: hidden !important;
+}
+
+.venue-info .row > div:first-child {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.venue-info h3,
+.venue-info .meta {
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.venue-info .pill {
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+  font-size: 11px !important;
+  padding: 5px 8px !important;
+}
+
+.venue-info .actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 5px !important;
+  margin-top: 7px !important;
+}
+
+.venue-info .actions .small-btn,
+.venue-card .small-btn {
+  width: auto !important;
+  min-width: 0 !important;
+  height: 20px !important;
+  min-height: 20px !important;
+
+  padding: 0 7px !important;
+  border-radius: 7px !important;
+
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 20px !important;
+}
+
+/* iPhone / mobile */
+@media (max-width: 800px) {
+  .venue-card {
+    padding: 8px !important;
+  }
+
+  .venue-row {
+    gap: 8px !important;
+    align-items: center !important;
+  }
+
+  .venue-thumb {
+    width: 76px !important;
+    min-width: 76px !important;
+    max-width: 76px !important;
+    height: 76px !important;
+    flex: 0 0 76px !important;
+    border-radius: 13px !important;
+  }
+
+  .venue-info h3 {
+    font-size: 13px !important;
+    line-height: 1.15 !important;
+  }
+
+  .venue-info .meta {
+    font-size: 10.5px !important;
+    line-height: 1.2 !important;
+    margin-top: 4px !important;
+  }
+
+  .venue-info .pill {
+    font-size: 9px !important;
+    padding: 3px 6px !important;
+  }
+
+  .venue-info .actions {
+    gap: 4px !important;
+    margin-top: 5px !important;
+  }
+
+  .venue-info .actions .small-btn,
+  .venue-card .small-btn {
+    height: 18px !important;
+    min-height: 18px !important;
+    padding: 0 5px !important;
+    border-radius: 6px !important;
+    font-size: 8.5px !important;
+    line-height: 18px !important;
+  }
+}
+
+/* Very small iPhones */
+@media (max-width: 380px) {
+  .venue-thumb {
+    width: 68px !important;
+    min-width: 68px !important;
+    max-width: 68px !important;
+    height: 68px !important;
+    flex: 0 0 68px !important;
+  }
+
+  .venue-row {
+    gap: 7px !important;
+  }
+
+  .venue-info .meta {
+    font-size: 10px !important;
+  }
+}
