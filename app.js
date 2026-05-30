@@ -270,8 +270,12 @@ async function saveProfile() {
 await loadMyProfile();
 setProfileEditing(false);
 }
+$("edit-profile-btn").addEventListener("click", () => {
+  setProfileEditing(true);
+});
 
 $("save-profile-btn").addEventListener("click", saveProfile);
+
 
 
 document.getElementById("signup-btn")
@@ -327,7 +331,7 @@ async function refreshAuthUI() {
       "current-user"
     ).textContent =
       session.user.email;
-
+loadMyProfile();
   } else {
 
     document.getElementById(
