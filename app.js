@@ -28,12 +28,109 @@ const demoData = {
   ]
 };
 
+async function loadSportsOptions() {
+  if (!isCurrentUserAdmin()) return;
+
+  const { data, error } = await supabaseClient
+    .from("sports")
+    .select("id,name")
+    .order("name", { ascending: true });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  allSports = data || [];
+
+  const box = $("venue-sports-options");
+  if (!box) return;
+
+  if (allSports.length === 0) {
+    box.innerHTML = "No sports found.";
+    return;
+  }
+
+  box.innerHTML = allSports.map(sport => `
+    <label class="checkbox-item">
+      <input type="checkbox" value="${sport.id}" class="venue-sport-checkbox">
+      ${escapeHtml(sport.name)}
+    </label>
+  `).join("");
+}
+
+function getSelectedVenueSportIds() {
+  return Array.from(document.querySelectorAll(".venue-sport-checkbox"))
+    .filter(cb => cb.checked)
+    .map(cb => cb.value);
+}
+
+function setSelectedVenueSports(sportIds) {
+  const selected = new Set(sportIds || []);
+
+  document.querySelectorAll(".venue-sport-checkbox").forEach(cb => {
+    cb.checked = selected.has(cb.value);
+  });
+}
+
+async function saveVenueSports(venueId, sportIds) {
+  if (!venueId) {
+    alert("Venue id missing. Cannot save sports.");
+    return false;
+  }
+
+  const { error: deleteError } = await supabaseClient
+    .from("venue_sports")
+    .delete()
+    .eq("venue_id", venueId);
+
+  if (deleteError) {
+    alert(deleteError.message);
+    return false;
+  }
+
+  if (!sportIds || sportIds.length === 0) {
+    return true;
+  }
+
+  const rows = sportIds.map(sportId => ({
+    venue_id: venueId,
+    sport_id: sportId
+  }));
+
+  const { error: insertError } = await supabaseClient
+    .from("venue_sports")
+    .insert(rows);
+
+  if (insertError) {
+    alert(insertError.message);
+    return false;
+  }
+
+  return true;
+}
+
 async function loadVenues() {
   if (!isCurrentUserAdmin()) return;
 
   const { data, error } = await supabaseClient
     .from("venues")
-    .select("id,name,address,google_maps_url,image_url,is_active,created_at")
+    .select(`
+      id,
+      name,
+      address,
+      google_maps_url,
+      image_url,
+      is_active,
+      created_at,
+      venue_sports (
+        sport_id,
+        sports (
+          id,
+          name
+        )
+      )
+    `)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -50,10 +147,19 @@ async function loadVenues() {
   }
 
   box.innerHTML = data.map(venue => {
+    const sportNames = (venue.venue_sports || [])
+      .map(vs => vs.sports?.name)
+      .filter(Boolean);
+
+    const sportIds = (venue.venue_sports || [])
+      .map(vs => vs.sport_id)
+      .filter(Boolean);
+
     const safeName = jsString(venue.name || "");
     const safeAddress = jsString(venue.address || "");
     const safeMapUrl = jsString(venue.google_maps_url || "");
     const safeImageUrl = jsString(venue.image_url || "");
+    const safeSportIds = jsString(JSON.stringify(sportIds));
 
     return `
       <article class="card venue-card">
@@ -72,6 +178,9 @@ async function loadVenues() {
               <div>
                 <h3>${escapeHtml(venue.name || "Unnamed venue")}</h3>
                 <div class="meta">${escapeHtml(venue.address || "-")}</div>
+                <div class="meta">
+                  Sports: ${sportNames.length ? escapeHtml(sportNames.join(", ")) : "-"}
+                </div>
                 ${
                   venue.google_maps_url
                     ? `<div class="meta"><a href="${escapeHtml(venue.google_maps_url)}" target="_blank">Open Map</a></div>`
@@ -87,7 +196,7 @@ async function loadVenues() {
             <div class="actions">
               <button
                 class="small-btn"
-                onclick="editVenue('${venue.id}', '${safeName}', '${safeAddress}', '${safeMapUrl}', '${safeImageUrl}')"
+                onclick="editVenue('${venue.id}', '${safeName}', '${safeAddress}', '${safeMapUrl}', '${safeImageUrl}', '${safeSportIds}')"
               >
                 Edit
               </button>
@@ -114,13 +223,15 @@ function clearVenueForm() {
   if ($("venue-map-url")) $("venue-map-url").value = "";
   if ($("venue-image-url")) $("venue-image-url").value = "";
 
+  setSelectedVenueSports([]);
+
   editingVenueId = null;
 
   const btn = $("add-venue-btn");
   if (btn) btn.textContent = "Add Venue";
 }
 
-function editVenue(id, name, address, googleMapsUrl, imageUrl) {
+function editVenue(id, name, address, googleMapsUrl, imageUrl, sportIdsJson = "[]") {
   editingVenueId = id;
 
   if ($("venue-name")) $("venue-name").value = name || "";
@@ -128,6 +239,12 @@ function editVenue(id, name, address, googleMapsUrl, imageUrl) {
   if ($("venue-google-maps-url")) $("venue-google-maps-url").value = googleMapsUrl || "";
   if ($("venue-map-url")) $("venue-map-url").value = googleMapsUrl || "";
   if ($("venue-image-url")) $("venue-image-url").value = imageUrl || "";
+
+  try {
+    setSelectedVenueSports(JSON.parse(sportIdsJson || "[]"));
+  } catch {
+    setSelectedVenueSports([]);
+  }
 
   const btn = $("add-venue-btn");
   if (btn) btn.textContent = "Update Venue";
@@ -212,6 +329,12 @@ async function saveVenue() {
     alert(error.message);
     return;
   }
+
+  const venueId = editingVenueId || data?.[0]?.id;
+  const selectedSportIds = getSelectedVenueSportIds();
+
+  const sportsSaved = await saveVenueSports(venueId, selectedSportIds);
+  if (!sportsSaved) return;
 
   const wasEditing = Boolean(editingVenueId);
 
@@ -407,6 +530,7 @@ let state = loadData();
 let currentProfile = null;
 let profileIsEditing = false;
 let editingVenueId = null;
+let allSports = [];
 
 const fmtDate = (iso) =>
   new Date(iso).toLocaleString([], {
@@ -902,6 +1026,7 @@ async function refreshAuthUI() {
     applyAccessUI();
 
     if (isCurrentUserAdmin()) {
+      await loadSportsOptions();
       await loadPendingMembers();
       await loadVenues();
     }
@@ -958,6 +1083,7 @@ function bindEvents() {
       }
 
       if (btn.dataset.view === "admin") {
+        loadSportsOptions();
         loadPendingMembers();
         loadVenues();
       }
