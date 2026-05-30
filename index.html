@@ -68,6 +68,9 @@
       <button class="tab" data-view="activities">Proof</button>
       <button class="tab" data-view="rankings">Ranks</button>
      <button class="tab auth-only" data-view="account" style="display:none;">Account</button>
+      <button class="tab admin-only" data-view="admin" style="display:none;">
+  Admin
+</button>
     </nav>
 
     <main>
@@ -173,6 +176,21 @@
     </main>
   </div>
 
+
+  
+<section id="admin" class="view">
+  <div class="section-head">
+    <div>
+      <h2>Admin Review</h2>
+      <p class="hint">Review pending member profiles.</p>
+    </div>
+  </div>
+  <div id="pendingMembersList" class="stack"></div>
+</section>
+
+
+
+  
   <dialog id="leagueModal" class="modal">
     <form method="dialog" id="leagueForm" class="modal-card">
       <button class="close" value="cancel" type="submit">×</button>
