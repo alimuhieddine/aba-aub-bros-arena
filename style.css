@@ -1086,3 +1086,26 @@ main,
     padding: 3px 6px !important;
   }
 }
+
+/* Make Active/Inactive label same width as Edit/Deactivate buttons */
+.venue-side {
+  align-items: stretch !important;
+}
+
+.venue-side .pill,
+.venue-side .small-btn {
+  width: 76px !important;
+  min-width: 76px !important;
+  max-width: 76px !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+@media (max-width: 800px) {
+  .venue-side .pill,
+  .venue-side .small-btn {
+    width: 68px !important;
+    min-width: 68px !important;
+    max-width: 68px !important;
+  }
+}
