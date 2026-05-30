@@ -49,31 +49,39 @@ async function loadVenues() {
     return;
   }
 
-  box.innerHTML = data.map(venue => `
-    <article class="card">
-      <div class="row">
-        <div>
-          <h3>${escapeHtml(venue.name || "Unnamed venue")}</h3>
-          <div class="meta">${escapeHtml(venue.location || "-")}</div>
-          ${
-            venue.map_url
-              ? `<div class="meta"><a href="${escapeHtml(venue.map_url)}" target="_blank">Open Map</a></div>`
-              : ""
-          }
-        </div>
+ box.innerHTML = data.map(venue => `
+  <article class="card venue-card">
+    <div class="venue-row">
 
-        <span class="pill ${venue.is_active ? "green" : "red"}">
-          ${venue.is_active ? "Active" : "Inactive"}
-        </span>
+      <div class="venue-thumb">
+        ${
+          venue.image_url
+            ? `<img src="${escapeHtml(venue.image_url)}" alt="${escapeHtml(venue.name || "Venue")}">`
+            : `<div class="venue-placeholder">No Image</div>`
+        }
       </div>
 
-      ${
-        venue.image_url
-          ? `<img src="${escapeHtml(venue.image_url)}" alt="${escapeHtml(venue.name || "Venue")}" class="venue-img">`
-          : ""
-      }
-    </article>
-  `).join("");
+      <div class="venue-info">
+        <div class="row">
+          <div>
+            <h3>${escapeHtml(venue.name || "Unnamed venue")}</h3>
+            <div class="meta">${escapeHtml(venue.location || "-")}</div>
+            ${
+              venue.map_url
+                ? `<div class="meta"><a href="${escapeHtml(venue.map_url)}" target="_blank">Open Map</a></div>`
+                : ""
+            }
+          </div>
+
+          <span class="pill ${venue.is_active ? "green" : "red"}">
+            ${venue.is_active ? "Active" : "Inactive"}
+          </span>
+        </div>
+      </div>
+
+    </div>
+  </article>
+`).join("");
 }
 
 async function addVenue() {
