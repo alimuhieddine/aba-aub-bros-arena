@@ -795,9 +795,9 @@ textarea:disabled {
   }
 
   .venue-thumb {
-    width: 104px !important;
-    min-width: 104px !important;
-    height: 104px !important;
+    width: 114px !important;
+    min-width: 114px !important;
+    height: 114px !important;
     border-radius: 16px !important;
   }
 
