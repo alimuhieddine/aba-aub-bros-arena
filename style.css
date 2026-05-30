@@ -709,8 +709,37 @@ textarea:disabled {
 }
 
 
-/* === FINAL VENUE CARD SIZE OVERRIDES === */
-/* Put this at the VERY BOTTOM of style.css */
+/* === FINAL VENUE SPORTS + VENUE CARD OVERRIDES === */
+
+.checkbox-list {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  margin-top: 6px !important;
+}
+
+.checkbox-item {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+
+  padding: 7px 10px !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 999px !important;
+
+  background: rgba(255,255,255,0.05) !important;
+  color: var(--text) !important;
+
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  margin: 0 !important;
+}
+
+.checkbox-item input {
+  width: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
 
 .venue-card {
   padding: 10px !important;
