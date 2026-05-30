@@ -175,6 +175,58 @@ async function signUp(email, password) {
 supabaseClient.auth.onAuthStateChange(() => {
   refreshAuthUI();
 });
+let currentProfile = null;
+
+function setProfileEditing(isEditing) {
+  [
+    "profile-first-name",
+    "profile-last-name",
+    "profile-display-name",
+    "profile-birth-date",
+    "profile-phone"
+  ].forEach(id => {
+    const el = $(id);
+    if (el) el.disabled = !isEditing;
+  });
+
+  $("edit-profile-btn").style.display = isEditing ? "none" : "inline-flex";
+  $("save-profile-btn").style.display = isEditing ? "inline-flex" : "none";
+}
+
+async function loadMyProfile() {
+  const { data: { user } } = await supabaseClient.auth.getUser();
+
+  if (!user) {
+    setProfileEditing(false);
+    return;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("members")
+    .select("*")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  currentProfile = data;
+
+  if (data) {
+    $("profile-first-name").value = data.first_name || "";
+    $("profile-last-name").value = data.last_name || "";
+    $("profile-display-name").value = data.display_name || "";
+    $("profile-birth-date").value = data.birth_date || "";
+    $("profile-phone").value = data.phone || "";
+
+    setProfileEditing(false);
+  } else {
+    setProfileEditing(true);
+  }
+}
+
 
 async function saveProfile() {
   const { data: { user }, error: userError } =
@@ -214,7 +266,9 @@ async function saveProfile() {
     return;
   }
 
-  alert("Profile saved. Waiting for admin approval.");
+ alert("Profile saved. Waiting for admin approval.");
+await loadMyProfile();
+setProfileEditing(false);
 }
 
 $("save-profile-btn").addEventListener("click", saveProfile);
