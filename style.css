@@ -609,43 +609,71 @@ textarea:disabled {
 .hero-auth {
   gap: 12px !important;
 }
-.venue-img {
-  width: 100%;
-  max-height: 180px;
-  object-fit: cover;
-  border-radius: 16px;
-  margin-top: 12px;
-  border: 1px solid var(--line);
+
+
+/* =========================================================
+   CLEAN VENUE + SPORTS STYLES
+   Keep this block at the bottom of style.css.
+   ========================================================= */
+
+/* Sports checkboxes */
+.checkbox-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  max-width: 100%;
 }
 
+.checkbox-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
 
+.checkbox-item input {
+  width: auto;
+  margin: 0;
+  padding: 0;
+}
+
+/* Venue list cards */
 .venue-card {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
   padding: 12px;
 }
 
 .venue-row {
-  display: flex;
-  align-items: center;
+  width: 100%;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
   gap: 14px;
+  align-items: center;
+  overflow: hidden;
 }
 
 .venue-thumb {
-  width: 82px;
-  min-width: 82px;
-  height: 82px;
-  border-radius: 16px;
+  width: 112px;
+  height: 112px;
+  min-width: 112px;
+  max-width: 112px;
+  border-radius: 18px;
   overflow: hidden;
   border: 1px solid var(--line);
   background: rgba(255,255,255,0.06);
 }
-
-.venue-thumb {
-  width: 110px;
-  min-width: 110px;
-  height: 110px;
-  border-radius: 18px;
-}
-
 
 .venue-thumb img {
   width: 100%;
@@ -654,388 +682,195 @@ textarea:disabled {
   display: block;
 }
 
-.venue-placeholder {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  place-items: center;
-  font-size: 11px;
-  color: var(--muted);
-  text-align: center;
-  padding: 6px;
-}
-
+/* Text side */
 .venue-info {
-  flex: 1;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
+
+.venue-info .row {
+  width: 100%;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+  overflow: hidden;
+}
+
+.venue-info .row > div:first-child {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.venue-info h3 {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.venue-info .meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.venue-info .pill {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .venue-info .actions {
-  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-}
-
-.venue-info .actions .small-btn {
-  height: 24px;
-  padding: 0 9px;
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: 700;
-}
-@media (max-width: 800px) {
-  .venue-thumb {
-    width: 68px;
-    min-width: 68px;
-    height: 68px;
-    border-radius: 14px;
-  }
-
-  .venue-row {
-    gap: 10px;
-  }
-.venue-thumb {
-    width: 88px;
-    min-width: 88px;
-    height: 88px;
-    border-radius: 15px;
-  }
-
-  .venue-info .actions .small-btn {
-    height: 22px;
-    padding: 0 7px;
-    font-size: 10px;
-  }
-
-  
-}
-
-
-/* === FINAL VENUE SPORTS + VENUE CARD OVERRIDES === */
-
-.checkbox-list {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  gap: 8px !important;
-  margin-top: 6px !important;
-}
-
-.checkbox-item {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-
-  padding: 7px 10px !important;
-  border: 1px solid var(--line) !important;
-  border-radius: 999px !important;
-
-  background: rgba(255,255,255,0.05) !important;
-  color: var(--text) !important;
-
-  font-size: 12px !important;
-  font-weight: 700 !important;
-  margin: 0 !important;
-}
-
-.checkbox-item input {
-  width: auto !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-.venue-card {
-  padding: 10px !important;
-}
-
-.venue-row {
-  display: flex !important;
-  align-items: center !important;
-  gap: 16px !important;
-}
-
-.venue-thumb {
-  width: 132px !important;
-  min-width: 132px !important;
-  height: 132px !important;
-  border-radius: 18px !important;
-  overflow: hidden !important;
-  border: 1px solid var(--line) !important;
-  background: rgba(255,255,255,0.06) !important;
-}
-
-.venue-thumb img {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-  display: block !important;
-}
-
-.venue-info {
-  flex: 1 !important;
-  min-width: 0 !important;
-}
-
-.venue-info .actions {
-  margin-top: 6px !important;
-  gap: 5px !important;
+  margin-top: 8px;
 }
 
 .venue-info .actions .small-btn,
 .venue-card .small-btn {
-  height: 20px !important;
-  min-height: 20px !important;
-  padding: 0 7px !important;
-  border-radius: 7px !important;
-  font-size: 10px !important;
-  font-weight: 700 !important;
-  line-height: 20px !important;
-}
-
-@media (max-width: 800px) {
-  .venue-row {
-    gap: 12px !important;
-
-    
-  }
-
-  .venue-thumb {
-    width: 104px !important;
-    min-width: 104px !important;
-    height: 104px !important;
-    border-radius: 16px !important;
-  }
-
-  .venue-info .actions .small-btn,
-  .venue-card .small-btn {
-    height: 25px !important;
-    min-height: 25px !important;
-    padding: 0 6px !important;
-    font-size: 9px !important;
-    line-height: 19px !important;
-  }
-}
-
-@media (max-width: 380px) {
-  .venue-thumb {
-    width: 92px !important;
-    min-width: 92px !important;
-    height: 92px !important;
-  }
-}
-/* Give venue text more room on iPhone */
-.venue-info .row {
-  display: flex;
-  flex-direction: row !important;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.venue-info .row > div:first-child {
-  flex: 1;
+  height: 22px;
+  min-height: 22px;
+  width: auto;
   min-width: 0;
+  padding: 0 8px;
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 22px;
 }
 
-.venue-info .meta {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.venue-info .pill {
-  flex-shrink: 0;
-}
-
-
-/* =========================================================
-   ABA VENUE LAYOUT FINAL FIX
-   This block must stay at the VERY END of style.css.
-   It prevents horizontal overflow on iPhone and keeps the
-   venue card readable.
-   ========================================================= */
-
+/* Prevent page/card horizontal scroll */
 html,
-body {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: hidden !important;
-}
-
+body,
 .app-shell,
 main,
 .view,
 .stack,
 .card {
   max-width: 100%;
-  overflow-x: hidden;
-}
-
-.venue-card {
-  width: 100% !important;
-  max-width: 100% !important;
-  overflow: hidden !important;
-  padding: 10px !important;
-}
-
-.venue-row {
-  width: 100% !important;
-  max-width: 100% !important;
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  gap: 12px !important;
-  overflow: hidden !important;
-}
-
-/* Desktop venue image */
-.venue-thumb {
-  width: 118px !important;
-  min-width: 118px !important;
-  max-width: 118px !important;
-  height: 118px !important;
-  flex: 0 0 118px !important;
-
-  border-radius: 18px !important;
-  overflow: hidden !important;
-  border: 1px solid var(--line) !important;
-  background: rgba(255,255,255,0.06) !important;
-}
-
-.venue-thumb img {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-  display: block !important;
-}
-
-.venue-info {
-  flex: 1 1 auto !important;
-  min-width: 0 !important;
-  max-width: 100% !important;
-  overflow: hidden !important;
-}
-
-.venue-info .row {
-  width: 100% !important;
-  max-width: 100% !important;
-
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: flex-start !important;
-  justify-content: space-between !important;
-  gap: 8px !important;
-
-  overflow: hidden !important;
-}
-
-.venue-info .row > div:first-child {
-  flex: 1 1 auto !important;
-  min-width: 0 !important;
-  overflow: hidden !important;
-}
-
-.venue-info h3,
-.venue-info .meta {
-  max-width: 100% !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-}
-
-.venue-info .pill {
-  flex: 0 0 auto !important;
-  white-space: nowrap !important;
-  font-size: 11px !important;
-  padding: 5px 8px !important;
-}
-
-.venue-info .actions {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  gap: 5px !important;
-  margin-top: 7px !important;
-}
-
-.venue-info .actions .small-btn,
-.venue-card .small-btn {
-  width: auto !important;
-  min-width: 0 !important;
-  height: 20px !important;
-  min-height: 20px !important;
-
-  padding: 0 7px !important;
-  border-radius: 7px !important;
-
-  font-size: 10px !important;
-  font-weight: 700 !important;
-  line-height: 20px !important;
 }
 
 /* iPhone / mobile */
 @media (max-width: 800px) {
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .app-shell {
+    width: 100%;
+    max-width: 100%;
+    padding-left: 10px;
+    padding-right: 10px;
+    overflow-x: hidden;
+  }
+
+  main,
+  .view,
+  #admin,
+  #venuesList,
+  #pendingMembersList {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  #admin .card {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  #admin input,
+  #admin select,
+  #admin textarea {
+    width: 100%;
+    max-width: 100%;
+  }
+
   .venue-card {
-    padding: 8px !important;
+    padding: 10px;
   }
 
   .venue-row {
-    gap: 8px !important;
-    align-items: center !important;
+    grid-template-columns: 82px minmax(0, 1fr);
+    gap: 10px;
   }
 
   .venue-thumb {
-    width: 76px !important;
-    min-width: 76px !important;
-    max-width: 76px !important;
-    height: 76px !important;
-    flex: 0 0 76px !important;
-    border-radius: 13px !important;
+    width: 82px;
+    height: 82px;
+    min-width: 82px;
+    max-width: 82px;
+    border-radius: 14px;
   }
 
   .venue-info h3 {
-    font-size: 13px !important;
-    line-height: 1.15 !important;
+    font-size: 17px;
+    line-height: 1.1;
   }
 
   .venue-info .meta {
-    font-size: 10.5px !important;
-    line-height: 1.2 !important;
-    margin-top: 4px !important;
+    font-size: 12px;
+    line-height: 1.25;
+    margin-top: 4px;
   }
 
   .venue-info .pill {
-    font-size: 9px !important;
-    padding: 3px 6px !important;
+    font-size: 10px;
+    padding: 4px 7px;
   }
 
   .venue-info .actions {
-    gap: 4px !important;
-    margin-top: 5px !important;
+    gap: 5px;
+    margin-top: 6px;
   }
 
   .venue-info .actions .small-btn,
   .venue-card .small-btn {
-    height: 18px !important;
-    min-height: 18px !important;
-    padding: 0 5px !important;
-    border-radius: 6px !important;
-    font-size: 8.5px !important;
-    line-height: 18px !important;
+    height: 20px;
+    min-height: 20px;
+    padding: 0 6px;
+    border-radius: 6px;
+    font-size: 9px;
+    line-height: 20px;
+  }
+
+  .checkbox-list {
+    gap: 7px;
+  }
+
+  .checkbox-item {
+    padding: 6px 9px;
+    font-size: 12px;
   }
 }
 
 /* Very small iPhones */
 @media (max-width: 380px) {
-  .venue-thumb {
-    width: 68px !important;
-    min-width: 68px !important;
-    max-width: 68px !important;
-    height: 68px !important;
-    flex: 0 0 68px !important;
+  .venue-row {
+    grid-template-columns: 74px minmax(0, 1fr);
+    gap: 8px;
   }
 
-  .venue-row {
-    gap: 7px !important;
+  .venue-thumb {
+    width: 74px;
+    height: 74px;
+    min-width: 74px;
+    max-width: 74px;
+  }
+
+  .venue-info h3 {
+    font-size: 15px;
   }
 
   .venue-info .meta {
-    font-size: 10px !important;
+    font-size: 11px;
   }
 }
