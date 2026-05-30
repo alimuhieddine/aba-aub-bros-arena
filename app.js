@@ -28,6 +28,101 @@ const demoData = {
   ]
 };
 
+
+function isCurrentUserAdmin() {
+  return currentProfile &&
+    currentProfile.role === "admin" &&
+    currentProfile.approval_status === "approved";
+}
+async function loadPendingMembers() {
+  if (!isCurrentUserAdmin()) return;
+
+  const { data, error } = await supabaseClient
+    .from("members")
+    .select("id,first_name,last_name,display_name,email,phone,birth_date,approval_status,created_at")
+    .eq("approval_status", "pending")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  const box = $("pendingMembersList");
+
+  if (!data || data.length === 0) {
+    box.innerHTML = `<article class="card">No pending profiles.</article>`;
+    return;
+  }
+
+  box.innerHTML = data.map(member => `
+    <article class="card">
+      <div class="row">
+        <div>
+          <h3>${escapeHtml(member.display_name || "Unnamed")}</h3>
+          <div class="meta">
+            ${escapeHtml(member.first_name || "")}
+            ${escapeHtml(member.last_name || "")}
+          </div>
+          <div class="meta">${escapeHtml(member.email || "")}</div>
+          <div class="meta">Phone: ${escapeHtml(member.phone || "-")}</div>
+          <div class="meta">Birth Date: ${escapeHtml(member.birth_date || "-")}</div>
+        </div>
+
+        <span class="pill red">Pending</span>
+      </div>
+
+      <div class="actions">
+        <button class="small-btn" onclick="reviewMember('${member.id}', 'approved')">
+          Approve
+        </button>
+
+        <button class="small-btn" onclick="reviewMember('${member.id}', 'rejected')">
+          Reject
+        </button>
+      </div>
+    </article>
+  `).join("");
+}
+
+
+async function reviewMember(memberId, decision) {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin access required.");
+    return;
+  }
+
+  const { error } = await supabaseClient
+    .from("members")
+    .update({
+      approval_status: decision,
+      registration_status: decision,
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: currentProfile.id
+    })
+    .eq("id", memberId);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  alert(`Member ${decision}.`);
+  await loadPendingMembers();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 function loadData() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (!saved) return structuredClone(demoData);
@@ -481,33 +576,53 @@ async function refreshAuthUI() {
 
     await loadMyProfile();
 
-  } else {
-    $("auth-logged-out").style.display = "flex";
-    $("auth-logged-in").style.display = "none";
+    // Show Admin tab only for approved admins
+    if (isCurrentUserAdmin()) {
+      document.querySelectorAll(".admin-only").forEach(el => {
+        el.style.display = "";
+      });
 
-    // Hide Account tab when logged out
-    document.querySelectorAll(".auth-only").forEach(el => {
-      el.style.display = "none";
-    });
+      await loadPendingMembers();
+    } else {
+      document.querySelectorAll(".admin-only").forEach(el => {
+        el.style.display = "none";
+      });
+    }
 
-    currentProfile = null;
-    clearProfileFields();
-
-    // If user is on Account tab and logs out, send back to Home
-    document.querySelectorAll(".tab").forEach(b => {
-      b.classList.remove("active");
-    });
-
-    document.querySelectorAll(".view").forEach(v => {
-      v.classList.remove("active-view");
-    });
-
-    const homeTab = document.querySelector('[data-view="dashboard"]');
-    if (homeTab) homeTab.classList.add("active");
-
-    const homeView = $("dashboard");
-    if (homeView) homeView.classList.add("active-view");
+    return;
   }
+
+  // Logged out state
+  $("auth-logged-out").style.display = "flex";
+  $("auth-logged-in").style.display = "none";
+
+  // Hide Account tab when logged out
+  document.querySelectorAll(".auth-only").forEach(el => {
+    el.style.display = "none";
+  });
+
+  // Hide Admin tab when logged out
+  document.querySelectorAll(".admin-only").forEach(el => {
+    el.style.display = "none";
+  });
+
+  currentProfile = null;
+  clearProfileFields();
+
+  // Send user back to Home after logout
+  document.querySelectorAll(".tab").forEach(b => {
+    b.classList.remove("active");
+  });
+
+  document.querySelectorAll(".view").forEach(v => {
+    v.classList.remove("active-view");
+  });
+
+  const homeTab = document.querySelector('[data-view="dashboard"]');
+  if (homeTab) homeTab.classList.add("active");
+
+  const homeView = $("dashboard");
+  if (homeView) homeView.classList.add("active-view");
 }
 
 function bindEvents() {
