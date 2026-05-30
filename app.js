@@ -194,38 +194,38 @@ function setProfileEditing(isEditing) {
 }
 
 async function loadMyProfile() {
-  const { data: { user } } = await supabaseClient.auth.getUser();
+  const { data: { user }, error: userError } =
+    await supabaseClient.auth.getUser();
 
-  if (!user) {
-    setProfileEditing(false);
+  if (userError || !user) {
     return;
   }
 
   const { data, error } = await supabaseClient
     .from("members")
-    .select("*")
+    .select("first_name,last_name,display_name,birth_date,phone,approval_status,role")
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
   if (error) {
+    console.error("Profile load error:", error);
     alert(error.message);
     return;
   }
 
-  currentProfile = data;
-
-  if (data) {
-    $("profile-first-name").value = data.first_name || "";
-    $("profile-last-name").value = data.last_name || "";
-    $("profile-display-name").value = data.display_name || "";
-    $("profile-birth-date").value = data.birth_date || "";
-    $("profile-phone").value = data.phone || "";
-    setProfileEditing(false);
-  } else {
+  if (!data) {
     setProfileEditing(true);
+    return;
   }
-}
 
+  $("profile-first-name").value = data.first_name || "";
+  $("profile-last-name").value = data.last_name || "";
+  $("profile-display-name").value = data.display_name || "";
+  $("profile-birth-date").value = data.birth_date || "";
+  $("profile-phone").value = data.phone || "";
+
+  setProfileEditing(false);
+}
 async function saveProfile() {
   const { data: { user }, error: userError } =
     await supabaseClient.auth.getUser();
