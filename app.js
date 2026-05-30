@@ -99,15 +99,22 @@ async function addVenue() {
 
   const venue = {
     name,
-    address: $("venue-address").value.trim(),
-    google_maps_url: $("venue-map-url").value.trim(),
-    image_url: $("venue-image-url").value.trim(),
+    address: $("venue-address")?.value.trim() || "",
+    google_maps_url:
+      $("venue-google-maps-url")?.value.trim() ||
+      $("venue-map-url")?.value.trim() ||
+      "",
+    image_url: $("venue-image-url")?.value.trim() || "",
     is_active: true
   };
 
-  const { error } = await supabaseClient
+  const { data, error } = await supabaseClient
     .from("venues")
-    .insert(venue);
+    .insert(venue)
+    .select();
+
+  console.log("ADD VENUE DATA:", data);
+  console.log("ADD VENUE ERROR:", error);
 
   if (error) {
     alert(error.message);
@@ -116,9 +123,13 @@ async function addVenue() {
 
   $("venue-name").value = "";
   $("venue-address").value = "";
-  $("venue-map-url").value = "";
+
+  if ($("venue-google-maps-url")) $("venue-google-maps-url").value = "";
+  if ($("venue-map-url")) $("venue-map-url").value = "";
+
   $("venue-image-url").value = "";
 
+  alert("Venue added.");
   await loadVenues();
 }
 
@@ -805,8 +816,6 @@ async function refreshAuthUI() {
     return;
   }
 
-$("add-venue-btn")?.addEventListener("click", addVenue);
-  
   // Logged out state
   $("auth-logged-out").style.display = "flex";
   $("auth-logged-in").style.display = "none";
@@ -853,6 +862,11 @@ function bindEvents() {
 
       if (btn.dataset.view === "account") {
         loadMyProfile();
+      }
+
+      if (btn.dataset.view === "admin") {
+        loadPendingMembers();
+        loadVenues();
       }
     })
   );
@@ -935,6 +949,8 @@ function bindEvents() {
   });
 
   $("logout-btn")?.addEventListener("click", logout);
+
+  $("add-venue-btn")?.addEventListener("click", addVenue);
 
   supabaseClient.auth.onAuthStateChange(() => {
     refreshAuthUI();
