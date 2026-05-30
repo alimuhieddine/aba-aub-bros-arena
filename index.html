@@ -20,8 +20,26 @@
       </div>
 
       <div class="hero-auth" id="auth-logged-out">
-        <input id="auth-email" type="text" inputmode="email" placeholder="Email" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
-        <input id="auth-password" type="password" placeholder="Password" autocomplete="new-password" autocorrect="off" autocapitalize="none" spellcheck="false">
+        <input
+          id="auth-email"
+          type="text"
+          inputmode="email"
+          placeholder="Email"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="none"
+          spellcheck="false"
+        >
+
+        <input
+          id="auth-password"
+          type="password"
+          placeholder="Password"
+          autocomplete="new-password"
+          autocorrect="off"
+          autocapitalize="none"
+          spellcheck="false"
+        >
 
         <div class="auth-actions">
           <button id="login-btn" class="primary-btn" type="button">Login</button>
@@ -29,11 +47,12 @@
         </div>
       </div>
 
-      <div class="hero-auth" id="auth-logged-in" style="display:none;">
+      <div class="hero-auth logged-in-box" id="auth-logged-in" style="display:none;">
         <div class="logged-user">
           <span class="logged-label">Logged in as</span>
           <span id="current-user"></span>
         </div>
+
         <button id="logout-btn" class="secondary-btn" type="button">Log Out</button>
       </div>
     </header>
@@ -53,16 +72,19 @@
           <h2>Arena Feed</h2>
           <span id="todayLabel"></span>
         </div>
+
         <div class="grid two">
           <article class="card stat-card">
             <span>Verified Activities</span>
             <strong id="verifiedCount">0</strong>
           </article>
+
           <article class="card stat-card">
             <span>Pending Proofs</span>
             <strong id="pendingCount">0</strong>
           </article>
         </div>
+
         <div id="feedList" class="stack"></div>
       </section>
 
@@ -71,6 +93,7 @@
           <h2>Leagues</h2>
           <button class="primary-btn" data-open="leagueModal" type="button">+ League</button>
         </div>
+
         <div id="leagueList" class="stack"></div>
       </section>
 
@@ -79,6 +102,7 @@
           <h2>Friendly & League Matches</h2>
           <button class="primary-btn" data-open="matchModal" type="button">+ Match</button>
         </div>
+
         <div id="matchList" class="stack"></div>
       </section>
 
@@ -87,6 +111,7 @@
           <h2>Activity Proof</h2>
           <button class="primary-btn" data-open="activityModal" type="button">+ Submit</button>
         </div>
+
         <p class="hint">Activities need 2 committee approvals before points are added.</p>
         <div id="activityList" class="stack"></div>
       </section>
@@ -96,21 +121,48 @@
           <h2>ABA Rankings</h2>
           <span class="pill">Weekly form</span>
         </div>
+
         <div id="rankingList" class="stack"></div>
       </section>
 
       <section id="account" class="view">
         <div class="section-head">
-          <h2>My Profile</h2>
+          <div>
+            <h2>My Profile</h2>
+            <p class="hint" id="profile-status">Login to load your profile.</p>
+          </div>
         </div>
-        <div class="card">
-          <label>First Name <input id="profile-first-name" type="text"></label>
-          <label>Last Name <input id="profile-last-name" type="text"></label>
-          <label>Display Name <input id="profile-display-name" type="text"></label>
-          <label>Birth Date <input id="profile-birth-date" type="date"></label>
-          <label>Phone <input id="profile-phone" type="tel"></label>
-          <div class="actions">
-            <button id="profile-action-btn" class="primary-btn" type="button">Edit Profile</button>
+
+        <div class="card profile-card">
+          <label>
+            First Name
+            <input id="profile-first-name" type="text" disabled>
+          </label>
+
+          <label>
+            Last Name
+            <input id="profile-last-name" type="text" disabled>
+          </label>
+
+          <label>
+            Display Name
+            <input id="profile-display-name" type="text" disabled>
+          </label>
+
+          <label>
+            Birth Date
+            <input id="profile-birth-date" type="date" disabled>
+          </label>
+
+          <label>
+            Phone
+            <input id="profile-phone" type="tel" disabled>
+          </label>
+
+          <div class="actions profile-actions">
+            <button id="profile-action-btn" class="primary-btn" type="button">
+              Edit Profile
+            </button>
           </div>
         </div>
       </section>
@@ -121,13 +173,25 @@
     <form method="dialog" id="leagueForm" class="modal-card">
       <button class="close" value="cancel" type="submit">×</button>
       <h3>Create League</h3>
-      <label>League name <input name="name" required placeholder="ABA Padel League" /></label>
+
+      <label>League name
+        <input name="name" required placeholder="ABA Padel League" />
+      </label>
+
       <label>Sport
         <select name="sport">
-          <option>Padel</option><option>Soccer</option><option>Basketball</option><option>Gym</option><option>Running</option>
+          <option>Padel</option>
+          <option>Soccer</option>
+          <option>Basketball</option>
+          <option>Gym</option>
+          <option>Running</option>
         </select>
       </label>
-      <label>Format <input name="format" placeholder="Doubles, 5v5, solo challenge..." /></label>
+
+      <label>Format
+        <input name="format" placeholder="Doubles, 5v5, solo challenge..." />
+      </label>
+
       <button class="primary-btn full" type="submit">Create</button>
     </form>
   </dialog>
@@ -136,16 +200,38 @@
     <form method="dialog" id="matchForm" class="modal-card">
       <button class="close" value="cancel" type="submit">×</button>
       <h3>Create Match</h3>
+
       <label>Sport
-        <select name="sport"><option>Padel</option><option>Soccer</option><option>Basketball</option></select>
+        <select name="sport">
+          <option>Padel</option>
+          <option>Soccer</option>
+          <option>Basketball</option>
+        </select>
       </label>
-      <label>Title <input name="title" required placeholder="Fox & Wolf vs Pigs" /></label>
-      <label>Date & time <input name="date" type="datetime-local" required /></label>
-      <label>Court / Field <input name="venue" required placeholder="The Padict Club" /></label>
-      <label>Address <input name="address" placeholder="Google Maps address" /></label>
+
+      <label>Title
+        <input name="title" required placeholder="Fox & Wolf vs Pigs" />
+      </label>
+
+      <label>Date & time
+        <input name="date" type="datetime-local" required />
+      </label>
+
+      <label>Court / Field
+        <input name="venue" required placeholder="The Padict Club" />
+      </label>
+
+      <label>Address
+        <input name="address" placeholder="Google Maps address" />
+      </label>
+
       <label>Type
-        <select name="type"><option>Friendly</option><option>League</option></select>
+        <select name="type">
+          <option>Friendly</option>
+          <option>League</option>
+        </select>
       </label>
+
       <button class="primary-btn full" type="submit">Add Match</button>
     </form>
   </dialog>
@@ -154,13 +240,33 @@
     <form method="dialog" id="activityForm" class="modal-card">
       <button class="close" value="cancel" type="submit">×</button>
       <h3>Submit Activity Proof</h3>
-      <label>Player <input name="player" required placeholder="Ali" /></label>
-      <label>Sport
-        <select name="sport"><option>Padel</option><option>Soccer</option><option>Gym</option><option>Running</option><option>Cycling</option></select>
+
+      <label>Player
+        <input name="player" required placeholder="Ali" />
       </label>
-      <label>Activity <input name="activity" required placeholder="90 min padel session" /></label>
-      <label>Proof link / note <input name="proof" placeholder="Photo, watch screenshot, GPS link..." /></label>
-      <label>Points <input name="points" type="number" min="1" value="10" /></label>
+
+      <label>Sport
+        <select name="sport">
+          <option>Padel</option>
+          <option>Soccer</option>
+          <option>Gym</option>
+          <option>Running</option>
+          <option>Cycling</option>
+        </select>
+      </label>
+
+      <label>Activity
+        <input name="activity" required placeholder="90 min padel session" />
+      </label>
+
+      <label>Proof link / note
+        <input name="proof" placeholder="Photo, watch screenshot, GPS link..." />
+      </label>
+
+      <label>Points
+        <input name="points" type="number" min="1" value="10" />
+      </label>
+
       <button class="primary-btn full" type="submit">Submit for Approval</button>
     </form>
   </dialog>
