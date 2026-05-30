@@ -453,13 +453,39 @@ async function refreshAuthUI() {
     $("auth-logged-in").style.display = "flex";
     $("current-user").textContent = session.user.email;
 
+    // Show Account tab after login
+    document.querySelectorAll(".auth-only").forEach(el => {
+      el.style.display = "";
+    });
+
     await loadMyProfile();
+
   } else {
     $("auth-logged-out").style.display = "flex";
     $("auth-logged-in").style.display = "none";
 
+    // Hide Account tab when logged out
+    document.querySelectorAll(".auth-only").forEach(el => {
+      el.style.display = "none";
+    });
+
     currentProfile = null;
     clearProfileFields();
+
+    // If user is on Account tab and logs out, send back to Home
+    document.querySelectorAll(".tab").forEach(b => {
+      b.classList.remove("active");
+    });
+
+    document.querySelectorAll(".view").forEach(v => {
+      v.classList.remove("active-view");
+    });
+
+    const homeTab = document.querySelector('[data-view="dashboard"]');
+    if (homeTab) homeTab.classList.add("active");
+
+    const homeView = $("dashboard");
+    if (homeView) homeView.classList.add("active-view");
   }
 }
 
