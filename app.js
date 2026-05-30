@@ -259,9 +259,9 @@ async function saveProfile() {
     alert(error.message);
     return;
   }
-
-  alert("Profile saved.");
-  await loadMyProfile();
+alert("Profile saved.");
+await loadMyProfile();
+setProfileEditing(false);;
 }
 
 async function refreshAuthUI() {
@@ -281,11 +281,46 @@ async function refreshAuthUI() {
   }
 }
 
-$("edit-profile-btn").addEventListener("click", () => {
-  setProfileEditing(true);
+
+
+
+
+let profileIsEditing = false;
+
+function setProfileEditing(isEditing) {
+  profileIsEditing = isEditing;
+
+  [
+    "profile-first-name",
+    "profile-last-name",
+    "profile-display-name",
+    "profile-birth-date",
+    "profile-phone"
+  ].forEach(id => {
+    const el = $(id);
+    if (el) el.disabled = !isEditing;
+  });
+
+  $("profile-action-btn").textContent = isEditing
+    ? "Save Profile"
+    : "Edit Profile";
+}
+
+$("profile-action-btn").addEventListener("click", async () => {
+  if (profileIsEditing) {
+    await saveProfile();
+  } else {
+    setProfileEditing(true);
+  }
 });
 
-$("save-profile-btn").addEventListener("click", saveProfile);
+
+
+
+
+$("edit-profile-btn").addEventListener(...)
+$("save-profile-btn").addEventListener(...)
+
 
 $("signup-btn").addEventListener("click", () => {
   signUp($("auth-email").value, $("auth-password").value);
