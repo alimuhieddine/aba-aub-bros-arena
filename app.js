@@ -54,7 +54,7 @@ async function loadSportsOptions() {
   box.innerHTML = allSports.map(sport => `
     <label class="checkbox-item">
       <input type="checkbox" value="${sport.id}" class="venue-sport-checkbox">
-      ${escapeHtml(sport.name)}
+     <span>${escapeHtml(sport.name)}</span>
     </label>
   `).join("");
 }
