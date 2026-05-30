@@ -533,6 +533,89 @@ let profileIsEditing = false;
 let editingVenueId = null;
 let allSports = [];
 let allVenues = [];
+let allMatches = [];
+
+
+
+async function loadMatchFormOptions() {
+  if (!isCurrentUserAdmin()) return;
+
+  const { data: sportsData, error: sportsError } = await supabaseClient
+    .from("sports")
+    .select("id,name")
+    .order("name", { ascending: true });
+
+  if (sportsError) {
+    alert(sportsError.message);
+    return;
+  }
+
+  const { data: venuesData, error: venuesError } = await supabaseClient
+    .from("venues")
+    .select(`
+      id,
+      name,
+      address,
+      is_active,
+      venue_sports (
+        sport_id
+      )
+    `)
+    .eq("is_active", true)
+    .order("name", { ascending: true });
+
+  if (venuesError) {
+    alert(venuesError.message);
+    return;
+  }
+
+  allSports = sportsData || [];
+  allVenues = venuesData || [];
+
+  const sportSelect = $("match-sport");
+  if (sportSelect) {
+    sportSelect.innerHTML = `
+      <option value="">Select sport</option>
+      ${allSports.map(s => `
+        <option value="${s.id}">${escapeHtml(s.name)}</option>
+      `).join("")}
+    `;
+  }
+
+  updateMatchVenueOptions();
+}
+
+
+
+
+
+function updateMatchVenueOptions() {
+  const sportId = $("match-sport")?.value || "";
+  const venueSelect = $("match-venue");
+
+  if (!venueSelect) return;
+
+  const filteredVenues = sportId
+    ? allVenues.filter(v =>
+        (v.venue_sports || []).some(vs => vs.sport_id === sportId)
+      )
+    : allVenues;
+
+  venueSelect.innerHTML = `
+    <option value="">Select venue</option>
+    ${filteredVenues.map(v => `
+      <option value="${v.id}">
+        ${escapeHtml(v.name)}${v.address ? " — " + escapeHtml(v.address) : ""}
+      </option>
+    `).join("")}
+  `;
+}
+
+
+
+
+
+
 
 const fmtDate = (iso) =>
   new Date(iso).toLocaleString([], {
@@ -635,17 +718,87 @@ function matchCard(m, compact = false) {
   `;
 }
 
+
+async function loadMatches() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") return;
+
+  const { data, error } = await supabaseClient
+    .from("matches")
+    .select(`
+      id,
+      title,
+      match_type,
+      start_time,
+      end_time,
+      status,
+      notes,
+      created_at,
+      sports (
+        id,
+        name
+      ),
+      venues (
+        id,
+        name,
+        address,
+        google_maps_url,
+        image_url
+      )
+    `)
+    .order("start_time", { ascending: true });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  allMatches = data || [];
+  renderMatches();
+}
+
+
+
 function renderMatches() {
   if (!$("matchList")) return;
 
-  $("matchList").innerHTML =
-    state.matches
-      .slice()
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .map(m => matchCard(m))
-      .join("");
-}
+  if (!allMatches || allMatches.length === 0) {
+    $("matchList").innerHTML = `<article class="card">No matches scheduled yet.</article>`;
+    return;
+  }
 
+  $("matchList").innerHTML = allMatches.map(match => `
+    <article class="card">
+      <div class="row">
+        <div>
+          <h3>${escapeHtml(match.title || "Untitled match")}</h3>
+          <div class="meta">
+            ${escapeHtml(match.sports?.name || "-")}
+            • ${escapeHtml(match.match_type || "-")}
+            • ${fmtDate(match.start_time)}
+          </div>
+          <div class="meta">
+            📍 ${escapeHtml(match.venues?.name || "-")}
+            ${match.venues?.address ? "— " + escapeHtml(match.venues.address) : ""}
+          </div>
+          ${
+            match.venues?.google_maps_url
+              ? `<div class="meta"><a href="${escapeHtml(match.venues.google_maps_url)}" target="_blank">Open Map</a></div>`
+              : ""
+          }
+          ${
+            match.notes
+              ? `<div class="meta">${escapeHtml(match.notes)}</div>`
+              : ""
+          }
+        </div>
+
+        <span class="pill green">
+          ${escapeHtml(match.status || "scheduled")}
+        </span>
+      </div>
+    </article>
+  `).join("");
+}
 function commentSection(m) {
   return `
     <div class="comments">
@@ -1026,11 +1179,15 @@ async function refreshAuthUI() {
 
     await loadMyProfile();
     applyAccessUI();
-
+if (currentProfile?.approval_status === "approved") {
+  await loadMatches();
+}
     if (isCurrentUserAdmin()) {
       await loadSportsOptions();
-      await loadPendingMembers();
-      await loadVenues();
+await loadMatchFormOptions();
+await loadPendingMembers();
+await loadVenues();
+await loadMatches();
     }
 
     return;
@@ -1071,6 +1228,7 @@ async function refreshAuthUI() {
 }
 
 function bindEvents() {
+  $("match-sport")?.addEventListener("change", updateMatchVenueOptions);
   document.querySelectorAll(".tab").forEach(btn =>
     btn.addEventListener("click", () => {
       document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
@@ -1092,13 +1250,16 @@ function bindEvents() {
     })
   );
 
-  document.querySelectorAll("[data-open]").forEach(btn =>
-    btn.addEventListener("click", () => {
-      const modal = $(btn.dataset.open);
-      if (modal) modal.showModal();
-    })
-  );
+ document.querySelectorAll("[data-open]").forEach(btn =>
+  btn.addEventListener("click", async () => {
+    if (btn.dataset.open === "matchModal") {
+      await loadMatchFormOptions();
+    }
 
+    const modal = $(btn.dataset.open);
+    if (modal) modal.showModal();
+  })
+);
   if ($("leagueForm")) {
     $("leagueForm").addEventListener("submit", e => {
       const fd = new FormData(e.target);
@@ -1115,24 +1276,42 @@ function bindEvents() {
     });
   }
 
-  if ($("matchForm")) {
-    $("matchForm").addEventListener("submit", e => {
-      const fd = new FormData(e.target);
-      state.matches.unshift({
-        id: crypto.randomUUID(),
-        sport: fd.get("sport"),
-        title: fd.get("title"),
-        date: new Date(fd.get("date")).toISOString(),
-        venue: fd.get("venue"),
-        address: fd.get("address"),
-        type: fd.get("type"),
-        comments: []
-      });
-      saveData();
-      e.target.reset();
-      render();
-    });
-  }
+ if ($("matchForm")) {
+  $("matchForm").addEventListener("submit", async e => {
+    const fd = new FormData(e.target);
+
+    if (!isCurrentUserAdmin()) {
+      alert("Admin access required.");
+      return;
+    }
+
+    const match = {
+      sport_id: fd.get("sport_id"),
+      venue_id: fd.get("venue_id"),
+      league_id: null,
+      title: fd.get("title"),
+      match_type: fd.get("match_type"),
+      start_time: new Date(fd.get("start_time")).toISOString(),
+      end_time: new Date(fd.get("end_time")).toISOString(),
+      status: "scheduled",
+      notes: fd.get("notes") || null
+    };
+
+    const { error } = await supabaseClient
+      .from("matches")
+      .insert(match);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    alert("Match added.");
+    e.target.reset();
+
+    await loadMatches();
+  });
+}
 
   if ($("activityForm")) {
     $("activityForm").addEventListener("submit", e => {
