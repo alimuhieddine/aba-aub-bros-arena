@@ -1390,6 +1390,8 @@ function scoreEntriesForGame(match, gameId) {
 }
 
 async function loadPendingPadelGames(match) {
+  const linkedGames = matchSessionGames(match);
+
   const { data, error } = await supabaseClient
     .from("match_games")
     .select("id,sport_id,league_id,title,status,team_a_name,team_b_name,team_a_score,team_b_score,winner_team,created_by,created_at")
@@ -1399,15 +1401,22 @@ async function loadPendingPadelGames(match) {
 
   if (error) {
     alert(error.message);
-    allPendingGames = [];
-    return [];
+    allPendingGames = linkedGames;
+    return allPendingGames;
   }
 
-  const alreadyLinkedIds = new Set(
-    (match.match_game_sessions || []).map(session => session.game_id)
-  );
+  const byId = new Map();
 
-  allPendingGames = (data || []).filter(game => !alreadyLinkedIds.has(game.id));
+  linkedGames.forEach(game => {
+    if (game?.id) byId.set(game.id, game);
+  });
+
+  (data || []).forEach(game => {
+    if (game?.id && !byId.has(game.id)) byId.set(game.id, game);
+  });
+
+  allPendingGames = Array.from(byId.values());
+
   return allPendingGames;
 }
 
@@ -1416,15 +1425,15 @@ function renderPendingGameOptions() {
   if (!select) return;
 
   if (!allPendingGames.length) {
-    select.innerHTML = `<option value="">No pending games found</option>`;
+    select.innerHTML = `<option value="">No games found</option>`;
     return;
   }
 
   select.innerHTML = `
-    <option value="">Select pending game</option>
+    <option value="">Select game</option>
     ${allPendingGames.map(game => `
       <option value="${game.id}">
-        ${escapeHtml(game.title || "Pending Game")}
+        ${escapeHtml(game.title || "Game")} — ${escapeHtml(game.status || "-")}
       </option>
     `).join("")}
   `;
@@ -1496,8 +1505,12 @@ function canSubmitScore(match) {
   const displayStatus = getMatchDisplayStatus(match);
 
   return canManageMatch(match) &&
-    displayStatus === "finished" &&
-    match.score_status !== "submitted";
+    displayStatus !== "cancelled" &&
+    (
+      displayStatus === "finished" ||
+      displayStatus === "completed" ||
+      match.score_status === "submitted"
+    );
 }
 
 function hasSubmittedScore(match) {
@@ -1735,7 +1748,7 @@ function renderMatches() {
                 ${
                   canSubmitScore(match)
                     ? `<button class="small-btn" onclick="openScoreSubmission('${match.id}')">
-                        Add Result
+                        ${hasSubmittedScore(match) ? "Edit Result" : "Add Result"}
                       </button>`
                     : ""
                 }
@@ -2781,14 +2794,14 @@ async function openScoreSubmission(matchId) {
   }
 
   if (!canSubmitScore(match)) {
-    alert("Result can only be added after the match is finished. If this message appears after the match ended, make sure teams are assigned first.");
+    alert("Result can only be added or edited after the match is finished. Make sure teams are assigned first.");
     return;
   }
 
   const { teamA, teamB } = getTwoMatchTeams(match);
 
   if (!teamA || !teamB) {
-    alert("Assign teams before submitting score.");
+    alert("Assign teams before adding or editing the result.");
     return;
   }
 
@@ -2865,7 +2878,7 @@ async function savePadelGameOnly() {
   }
 
   if (!canSubmitScore(match)) {
-    alert("Game can only be saved after the match is finished and teams are assigned.");
+    alert("Game can only be saved/edited after the match is finished and teams are assigned.");
     return null;
   }
 
@@ -3103,9 +3116,12 @@ async function finalizeCurrentMatchResult() {
   let scoreB = Number(teamB.score || 0);
 
   if (isPadelMatch(match)) {
-    const score = completedGameScoreForMatch(match);
-    scoreA = score.teamA;
-    scoreB = score.teamB;
+    const savedGame = await savePadelGameOnly();
+
+    if (!savedGame) return;
+
+    scoreA = savedGame.score.teamA;
+    scoreB = savedGame.score.teamB;
   } else {
     scoreA = Number($("score-team-a")?.value || 0);
     scoreB = Number($("score-team-b")?.value || 0);
