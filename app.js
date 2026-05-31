@@ -999,17 +999,27 @@ function renderMatches() {
           invitation && !isCancelled && isFuture
             ? `
               <div class="actions">
-                <button class="small-btn" onclick="voteMatch('${match.id}', 'in')" ${isFull && !userIsIn ? "disabled" : ""}>
-                  I'm In
-                </button>
+                <button
+  class="small-btn ${invitation?.status === "in" ? "selected-vote" : ""}"
+  onclick="voteMatch('${match.id}', 'in')"
+  ${isFull && !userIsIn ? "disabled" : ""}
+>
+  I'm In
+</button>
 
-                <button class="small-btn" onclick="voteMatch('${match.id}', 'maybe')">
-                  Maybe
-                </button>
+<button
+  class="small-btn ${invitation?.status === "maybe" ? "selected-vote" : ""}"
+  onclick="voteMatch('${match.id}', 'maybe')"
+>
+  Maybe
+</button>
 
-                <button class="small-btn" onclick="voteMatch('${match.id}', 'out')">
-                  Out
-                </button>
+<button
+  class="small-btn ${invitation?.status === "out" ? "selected-vote-red" : ""}"
+  onclick="voteMatch('${match.id}', 'out')"
+>
+  Out
+</button>
               </div>
             `
             : ""
