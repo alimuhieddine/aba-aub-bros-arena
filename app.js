@@ -774,49 +774,6 @@ async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingV
   return true;
 }
 
-  const match = allMatches.find(m => m.id === matchId);
-  const existingInvitations = match?.match_invitations || [];
-  const existingIds = existingInvitations.map(inv => inv.member_id);
-
-  const idsToRemove = existingIds.filter(id =>
-    id !== currentProfile?.id && !uniqueInvitedIds.includes(id)
-  );
-
-  const idsToAdd = uniqueInvitedIds.filter(id => !existingIds.includes(id));
-
-  if (idsToRemove.length > 0) {
-    const { error: removeError } = await supabaseClient
-      .from("match_invitations")
-      .update({ status: "removed" })
-      .eq("match_id", matchId)
-      .in("member_id", idsToRemove);
-
-    if (removeError) {
-      alert(removeError.message);
-      return false;
-    }
-  }
-
-  if (idsToAdd.length > 0) {
-    const rows = idsToAdd.map(memberId => ({
-      match_id: matchId,
-      member_id: memberId,
-      invited_by: currentProfile.id,
-      status: "invited"
-    }));
-
-    const { error: addError } = await supabaseClient
-      .from("match_invitations")
-      .insert(rows);
-
-    if (addError) {
-      alert(addError.message);
-      return false;
-    }
-  }
-
-  return true;
-}
 
 const fmtDate = (iso) =>
   new Date(iso).toLocaleString([], {
