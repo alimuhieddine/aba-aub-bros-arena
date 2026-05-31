@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=64" />
+  <link rel="stylesheet" href="style.css?v=65" />
 </head>
 
 <body>
@@ -478,12 +478,12 @@
             Game action
             <select id="padel-game-mode">
               <option value="new">New Game</option>
-              <option value="continue">Continue Pending Game</option>
+              <option value="continue">Edit / Continue Game</option>
             </select>
           </label>
 
           <label id="padel-pending-game-label" style="display:none;">
-            Pending Game
+            Existing / Pending Game
             <select id="padel-pending-game"></select>
           </label>
         </div>
@@ -585,6 +585,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=64"></script>
+  <script src="app.js?v=65"></script>
 </body>
 </html>
