@@ -1669,3 +1669,11 @@ main,
     grid-template-columns: 1fr;
   }
 }
+
+
+/* === RESULT EDITING / DELETE GAME === */
+.danger-btn {
+  border-color: rgba(255,95,103,.45) !important;
+  color: var(--danger) !important;
+  background: rgba(255,95,103,.10) !important;
+}
