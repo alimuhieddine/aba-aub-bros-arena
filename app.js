@@ -1214,6 +1214,8 @@ function renderMatches() {
               IN players: ${inPlayerNames(match).length ? escapeHtml(inPlayerNames(match).join(", ")) : "-"}
             </div>
 
+            ${renderTeamsSummary(match)}
+
             ${
               isFull
                 ? `<div class="meta">Match is full.</div>`
