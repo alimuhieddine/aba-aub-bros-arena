@@ -1141,3 +1141,23 @@ main,
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* === MATCH VOTE SELECTED STATE === */
+/* Add this block at the bottom of style.css */
+
+.selected-vote {
+  background: rgba(36,209,126,.22) !important;
+  color: var(--accent) !important;
+  border-color: rgba(36,209,126,.65) !important;
+}
+
+.selected-vote-red {
+  background: rgba(255,95,103,.18) !important;
+  color: var(--danger) !important;
+  border-color: rgba(255,95,103,.6) !important;
+}
+
+.small-btn:disabled {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+}
