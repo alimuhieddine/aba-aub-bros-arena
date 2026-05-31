@@ -536,6 +536,8 @@ let allVenues = [];
 let allMatches = [];
 let editingMatchId = null;
 let allMembers = [];
+let allExternalMembers = [];
+let currentExternalMatchId = null;
 
 
 
@@ -573,7 +575,7 @@ async function loadMatchFormOptions() {
 
   const { data: membersData, error: membersError } = await supabaseClient
     .from("members")
-    .select("id,first_name,last_name,display_name,email,is_external")
+    .select("id,first_name,last_name,display_name,email,phone,is_external")
     .eq("approval_status", "approved")
     .eq("is_active", true)
     .order("display_name", { ascending: true });
@@ -1154,7 +1156,7 @@ function renderMatches() {
               <div class="actions">
                 ${
                   !isCancelled && isFuture && !isFull
-                    ? `<button class="small-btn" onclick="addExternalPlayers('${match.id}')">
+                    ? `<button class="small-btn" onclick="openExternalPlayerPicker('${match.id}')">
                         Add External
                       </button>`
                     : ""
@@ -1379,66 +1381,64 @@ async function voteMatch(matchId, newStatus) {
   await loadMatches();
 }
 
-async function findOrCreateExternalMember(rawName, sequenceNumber) {
-  const cleanName = rawName.trim();
+async function loadExternalMembersForPicker(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
 
-  if (!cleanName) return null;
-
-  const normalized = cleanName.toLowerCase();
-
-  const { data: existing, error: existingError } = await supabaseClient
-    .from("members")
-    .select("id,display_name,first_name,last_name,email,is_external")
-    .eq("is_external", true)
-    .eq("is_active", true);
-
-  if (existingError) {
-    alert(existingError.message);
-    return null;
+  if (!match) {
+    alert("Match not found.");
+    return;
   }
-
-  const found = (existing || []).find(member => {
-    const display = String(member.display_name || "").toLowerCase();
-    const first = String(member.first_name || "").toLowerCase();
-
-    return display === normalized ||
-      first === normalized ||
-      display.includes(`(${normalized})`);
-  });
-
-  if (found) return found;
-
-  const displayName = `External ${sequenceNumber} (${cleanName})`;
 
   const { data, error } = await supabaseClient
     .from("members")
-    .insert({
-      first_name: cleanName,
-      last_name: "",
-      display_name: displayName,
-      email: null,
-      phone: null,
-      birth_date: null,
-      auth_user_id: null,
-      is_external: true,
-      is_active: true,
-      role: "member",
-      approval_status: "approved",
-      registration_status: "approved",
-      invited_by: currentProfile?.id || null
-    })
-    .select("id,first_name,last_name,display_name,email,is_external")
-    .single();
+    .select("id,first_name,last_name,display_name,email,phone,is_external")
+    .eq("is_external", true)
+    .eq("is_active", true)
+    .eq("approval_status", "approved")
+    .order("display_name", { ascending: true });
 
   if (error) {
     alert(error.message);
-    return null;
+    return;
   }
 
-  return data;
+  const alreadyLinkedIds = new Set(
+    (match.match_invitations || [])
+      .filter(inv => inv.status !== "removed")
+      .map(inv => inv.member_id)
+  );
+
+  allExternalMembers = data || [];
+
+  const box = $("external-player-options");
+  if (!box) return;
+
+  if (allExternalMembers.length === 0) {
+    box.innerHTML = `<div class="hint">No external players saved yet. Create one below.</div>`;
+    return;
+  }
+
+  box.innerHTML = allExternalMembers.map(member => {
+    const alreadyInMatch = alreadyLinkedIds.has(member.id);
+
+    return `
+      <label class="sport-chip ${alreadyInMatch ? "disabled-chip" : ""}">
+        <input
+          type="checkbox"
+          value="${member.id}"
+          class="external-player-checkbox"
+          ${alreadyInMatch ? "disabled" : ""}
+        >
+        <span>
+          ${escapeHtml(memberDisplayName(member))}
+          ${alreadyInMatch ? " — already added" : ""}
+        </span>
+      </label>
+    `;
+  }).join("");
 }
 
-async function addExternalPlayers(matchId) {
+async function openExternalPlayerPicker(matchId) {
   const match = allMatches.find(m => m.id === matchId);
 
   if (!match) {
@@ -1462,52 +1462,65 @@ async function addExternalPlayers(matchId) {
   }
 
   const remaining = remainingSpots(match);
-
   if (remaining !== null && remaining <= 0) {
     alert("This match is already full.");
     return;
   }
 
-  const answer = prompt(
-    remaining === null
-      ? "Enter external player names separated by commas, example: Joe, Moe"
-      : `Enter external player names separated by commas. Remaining spots: ${remaining}\nExample: Joe, Moe`
-  );
+  currentExternalMatchId = matchId;
 
-  if (answer === null) return;
-
-  const names = answer
-    .split(",")
-    .map(name => name.trim())
-    .filter(Boolean);
-
-  if (names.length === 0) {
-    alert("Please enter at least one name.");
-    return;
+  if ($("external-player-match-label")) {
+    $("external-player-match-label").textContent =
+      remaining === null
+        ? "Select existing external players, or create a new external profile."
+        : `Remaining spots: ${remaining}. Select existing external players, or create a new external profile.`;
   }
 
-  if (remaining !== null && names.length > remaining) {
+  if ($("new-external-name")) $("new-external-name").value = "";
+  if ($("new-external-phone")) $("new-external-phone").value = "";
+  if ($("new-external-email")) $("new-external-email").value = "";
+
+  await loadExternalMembersForPicker(matchId);
+
+  $("externalPlayerModal")?.showModal();
+}
+
+function getSelectedExternalMemberIds() {
+  return Array.from(document.querySelectorAll(".external-player-checkbox"))
+    .filter(cb => cb.checked && !cb.disabled)
+    .map(cb => cb.value);
+}
+
+async function addExternalMemberIdsToMatch(matchId, memberIds) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return false;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can add external players.");
+    return false;
+  }
+
+  const uniqueIds = Array.from(new Set(memberIds || [])).filter(Boolean);
+
+  if (uniqueIds.length === 0) {
+    alert("Select at least one external player.");
+    return false;
+  }
+
+  const remaining = remainingSpots(match);
+
+  if (remaining !== null && uniqueIds.length > remaining) {
     alert(`You can only add ${remaining} external player(s).`);
-    return;
+    return false;
   }
 
-  const existingExternalCount = externalPlayerCount(match);
-  const createdOrFoundMembers = [];
-
-  for (let index = 0; index < names.length; index++) {
-    const externalMember = await findOrCreateExternalMember(
-      names[index],
-      existingExternalCount + index + 1
-    );
-
-    if (!externalMember) return;
-
-    createdOrFoundMembers.push(externalMember);
-  }
-
-  const rows = createdOrFoundMembers.map(member => ({
+  const rows = uniqueIds.map(memberId => ({
     match_id: matchId,
-    member_id: member.id,
+    member_id: memberId,
     invited_by: currentProfile.id,
     status: "in"
   }));
@@ -1520,11 +1533,107 @@ async function addExternalPlayers(matchId) {
 
   if (error) {
     alert(error.message);
+    return false;
+  }
+
+  await loadMatches();
+  await loadExternalMembersForPicker(matchId);
+
+  return true;
+}
+
+async function addSelectedExternalPlayers() {
+  if (!currentExternalMatchId) {
+    alert("No match selected.");
     return;
   }
 
-  alert(`${createdOrFoundMembers.length} external player(s) added.`);
-  await loadMatches();
+  const selectedIds = getSelectedExternalMemberIds();
+  const ok = await addExternalMemberIdsToMatch(currentExternalMatchId, selectedIds);
+
+  if (!ok) return;
+
+  alert(`${selectedIds.length} external player(s) added.`);
+}
+
+function nextExternalDisplayNumber() {
+  return allExternalMembers.length + 1;
+}
+
+async function createExternalPlayerProfile() {
+  if (!currentExternalMatchId) {
+    alert("No match selected.");
+    return;
+  }
+
+  const name = $("new-external-name")?.value.trim() || "";
+  const phone = $("new-external-phone")?.value.trim() || "";
+  const email = $("new-external-email")?.value.trim() || "";
+
+  if (!name) {
+    alert("External player name is required.");
+    return;
+  }
+
+  const existing = allExternalMembers.find(member => {
+    const display = String(member.display_name || "").toLowerCase();
+    const first = String(member.first_name || "").toLowerCase();
+    const cleaned = name.toLowerCase();
+
+    return display === cleaned ||
+      first === cleaned ||
+      display.includes(`(${cleaned})`);
+  });
+
+  if (existing) {
+    const useExisting = confirm(`${memberDisplayName(existing)} already exists. Add this existing external player to the match?`);
+    if (!useExisting) return;
+
+    const ok = await addExternalMemberIdsToMatch(currentExternalMatchId, [existing.id]);
+    if (ok) {
+      if ($("new-external-name")) $("new-external-name").value = "";
+      if ($("new-external-phone")) $("new-external-phone").value = "";
+      if ($("new-external-email")) $("new-external-email").value = "";
+    }
+    return;
+  }
+
+  const displayName = `External ${nextExternalDisplayNumber()} (${name})`;
+
+  const { data, error } = await supabaseClient
+    .from("members")
+    .insert({
+      first_name: name,
+      last_name: "",
+      display_name: displayName,
+      email: email || null,
+      phone: phone || null,
+      birth_date: null,
+      auth_user_id: null,
+      is_external: true,
+      is_active: true,
+      role: "member",
+      approval_status: "approved",
+      registration_status: "approved"
+    })
+    .select("id,first_name,last_name,display_name,email,phone,is_external")
+    .single();
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  allExternalMembers.push(data);
+
+  const ok = await addExternalMemberIdsToMatch(currentExternalMatchId, [data.id]);
+  if (!ok) return;
+
+  if ($("new-external-name")) $("new-external-name").value = "";
+  if ($("new-external-phone")) $("new-external-phone").value = "";
+  if ($("new-external-email")) $("new-external-email").value = "";
+
+  alert(`${memberDisplayName(data)} created and added.`);
 }
 
 async function renameExternalMember(memberId, matchId, currentName) {
@@ -2243,6 +2352,10 @@ function bindEvents() {
   $("add-venue-btn")?.addEventListener("click", saveVenue);
 
   $("cancel-venue-edit-btn")?.addEventListener("click", clearVenueForm);
+
+  $("add-selected-external-btn")?.addEventListener("click", addSelectedExternalPlayers);
+
+  $("create-external-player-btn")?.addEventListener("click", createExternalPlayerProfile);
 
   supabaseClient.auth.onAuthStateChange(() => {
     refreshAuthUI();
