@@ -535,11 +535,12 @@ let allSports = [];
 let allVenues = [];
 let allMatches = [];
 let editingMatchId = null;
+let allMembers = [];
 
 
 
 async function loadMatchFormOptions() {
-  if (!isCurrentUserAdmin()) return;
+  if (!currentProfile || currentProfile.approval_status !== "approved") return;
 
   const { data: sportsData, error: sportsError } = await supabaseClient
     .from("sports")
@@ -570,8 +571,21 @@ async function loadMatchFormOptions() {
     return;
   }
 
+  const { data: membersData, error: membersError } = await supabaseClient
+    .from("members")
+    .select("id,first_name,last_name,display_name,email")
+    .eq("approval_status", "approved")
+    .eq("is_active", true)
+    .order("display_name", { ascending: true });
+
+  if (membersError) {
+    alert(membersError.message);
+    return;
+  }
+
   allSports = sportsData || [];
   allVenues = venuesData || [];
+  allMembers = (membersData || []).filter(member => member.id !== currentProfile?.id);
 
   const sportSelect = $("match-sport");
   if (sportSelect) {
@@ -583,12 +597,9 @@ async function loadMatchFormOptions() {
     `;
   }
 
+  renderMatchInviteOptions();
   updateMatchVenueOptions();
 }
-
-
-
-
 
 function updateMatchVenueOptions() {
   const sportId = $("match-sport")?.value || "";
@@ -612,11 +623,124 @@ function updateMatchVenueOptions() {
   `;
 }
 
+function memberDisplayName(member) {
+  return member?.display_name ||
+    `${member?.first_name || ""} ${member?.last_name || ""}`.trim() ||
+    member?.email ||
+    "Unnamed";
+}
 
+function renderMatchInviteOptions(selectedIds = []) {
+  const box = $("match-invite-options");
+  if (!box) return;
 
+  const selected = new Set(selectedIds || []);
 
+  if (!allMembers || allMembers.length === 0) {
+    box.innerHTML = "No approved members found.";
+    return;
+  }
 
+  box.innerHTML = allMembers.map(member => `
+    <label class="sport-chip">
+      <input
+        type="checkbox"
+        value="${member.id}"
+        class="match-invite-checkbox"
+        ${selected.has(member.id) ? "checked" : ""}
+      >
+      <span>${escapeHtml(memberDisplayName(member))}</span>
+    </label>
+  `).join("");
+}
 
+function getSelectedInviteMemberIds() {
+  return Array.from(document.querySelectorAll(".match-invite-checkbox"))
+    .filter(cb => cb.checked)
+    .map(cb => cb.value);
+}
+
+async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingVotes = false) {
+  if (!matchId) {
+    alert("Match id missing. Cannot save invitations.");
+    return false;
+  }
+
+  const uniqueInvitedIds = Array.from(new Set(invitedMemberIds || []))
+    .filter(id => id && id !== currentProfile?.id);
+
+  if (!preserveExistingVotes) {
+    const creatorRow = {
+      match_id: matchId,
+      member_id: currentProfile.id,
+      invited_by: currentProfile.id,
+      status: "in"
+    };
+
+    const invitedRows = uniqueInvitedIds.map(memberId => ({
+      match_id: matchId,
+      member_id: memberId,
+      invited_by: currentProfile.id,
+      status: "invited"
+    }));
+
+    const { error } = await supabaseClient
+      .from("match_invitations")
+      .upsert([creatorRow, ...invitedRows], {
+        onConflict: "match_id,member_id"
+      });
+
+    if (error) {
+      alert(error.message);
+      return false;
+    }
+
+    return true;
+  }
+
+  const match = allMatches.find(m => m.id === matchId);
+  const existingInvitations = match?.match_invitations || [];
+  const existingIds = existingInvitations.map(inv => inv.member_id);
+
+  const idsToRemove = existingIds.filter(id =>
+    id !== currentProfile?.id && !uniqueInvitedIds.includes(id)
+  );
+
+  const idsToAdd = uniqueInvitedIds.filter(id => !existingIds.includes(id));
+
+  if (idsToRemove.length > 0) {
+    const { error: removeError } = await supabaseClient
+      .from("match_invitations")
+      .update({ status: "removed" })
+      .eq("match_id", matchId)
+      .in("member_id", idsToRemove);
+
+    if (removeError) {
+      alert(removeError.message);
+      return false;
+    }
+  }
+
+  if (idsToAdd.length > 0) {
+    const rows = idsToAdd.map(memberId => ({
+      match_id: matchId,
+      member_id: memberId,
+      invited_by: currentProfile.id,
+      status: "invited"
+    }));
+
+    const { error: addError } = await supabaseClient
+      .from("match_invitations")
+      .insert(rows);
+
+    if (addError) {
+      alert(addError.message);
+      return false;
+    }
+  }
+
+  return true;
+}
 
 const fmtDate = (iso) =>
   new Date(iso).toLocaleString([], {
@@ -730,6 +854,13 @@ async function loadMatches() {
       sport_id,
       venue_id,
       league_id,
+      created_by,
+      max_players,
+      required_players,
+      external_players_count,
+      visibility,
+      team_status,
+      score_status,
       title,
       match_type,
       start_time,
@@ -747,6 +878,12 @@ async function loadMatches() {
         address,
         google_maps_url,
         image_url
+      ),
+      match_invitations (
+        id,
+        member_id,
+        invited_by,
+        status
       )
     `)
     .order("start_time", { ascending: true });
@@ -756,11 +893,39 @@ async function loadMatches() {
     return;
   }
 
-  allMatches = data || [];
+  const myId = currentProfile?.id;
+
+  allMatches = (data || []).filter(match =>
+    isCurrentUserAdmin() ||
+    match.created_by === myId ||
+    (match.match_invitations || []).some(inv =>
+      inv.member_id === myId && inv.status !== "removed"
+    )
+  );
+
   renderMatches();
 }
 
+function invitationCounts(match) {
+  const invitations = match.match_invitations || [];
 
+  return {
+    inCount: invitations.filter(inv => inv.status === "in").length,
+    maybeCount: invitations.filter(inv => inv.status === "maybe").length,
+    outCount: invitations.filter(inv => inv.status === "out").length,
+    invitedCount: invitations.filter(inv => inv.status === "invited").length
+  };
+}
+
+function myInvitation(match) {
+  return (match.match_invitations || []).find(inv =>
+    inv.member_id === currentProfile?.id
+  );
+}
+
+function canManageMatch(match) {
+  return isCurrentUserAdmin() || match.created_by === currentProfile?.id;
+}
 
 function renderMatches() {
   if (!$("matchList")) return;
@@ -773,6 +938,14 @@ function renderMatches() {
   $("matchList").innerHTML = allMatches.map(match => {
     const isCancelled = match.status === "cancelled";
     const isFuture = new Date(match.start_time) > new Date();
+    const counts = invitationCounts(match);
+    const invitation = myInvitation(match);
+    const maxPlayers = Number(match.max_players || 0);
+    const spotsLabel = maxPlayers
+      ? `${counts.inCount}/${maxPlayers} IN`
+      : `${counts.inCount} IN`;
+    const isFull = maxPlayers && counts.inCount >= maxPlayers;
+    const userIsIn = invitation?.status === "in";
 
     return `
       <article class="card">
@@ -791,6 +964,19 @@ function renderMatches() {
               ${match.venues?.address ? "— " + escapeHtml(match.venues.address) : ""}
             </div>
 
+            <div class="meta">
+              Players: ${spotsLabel}
+              • Maybe: ${counts.maybeCount}
+              • Out: ${counts.outCount}
+              • Invited: ${counts.invitedCount}
+            </div>
+
+            ${
+              isFull
+                ? `<div class="meta">Match is full.</div>`
+                : ""
+            }
+
             ${
               match.venues?.google_maps_url
                 ? `<div class="meta"><a href="${escapeHtml(match.venues.google_maps_url)}" target="_blank">Open Map</a></div>`
@@ -804,13 +990,33 @@ function renderMatches() {
             }
           </div>
 
-          <span class="pill ${isCancelled ? "red" : "green"}">
-            ${escapeHtml(match.status || "scheduled")}
+          <span class="pill ${isCancelled ? "red" : isFull ? "blue" : "green"}">
+            ${escapeHtml(isFull && !isCancelled ? "full" : (match.status || "scheduled"))}
           </span>
         </div>
 
         ${
-          isCurrentUserAdmin()
+          invitation && !isCancelled && isFuture
+            ? `
+              <div class="actions">
+                <button class="small-btn" onclick="voteMatch('${match.id}', 'in')" ${isFull && !userIsIn ? "disabled" : ""}>
+                  I'm In
+                </button>
+
+                <button class="small-btn" onclick="voteMatch('${match.id}', 'maybe')">
+                  Maybe
+                </button>
+
+                <button class="small-btn" onclick="voteMatch('${match.id}', 'out')">
+                  Out
+                </button>
+              </div>
+            `
+            : ""
+        }
+
+        ${
+          canManageMatch(match)
             ? `
               <div class="actions">
                 <button class="small-btn" onclick="editMatch('${match.id}')">
@@ -840,15 +1046,15 @@ function toDateTimeLocal(iso) {
 }
 
 async function editMatch(matchId) {
-  if (!isCurrentUserAdmin()) {
-    alert("Admin access required.");
-    return;
-  }
-
   const match = allMatches.find(m => m.id === matchId);
 
   if (!match) {
     alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can edit this match.");
     return;
   }
 
@@ -871,9 +1077,17 @@ async function editMatch(matchId) {
 
   form.elements["title"].value = match.title || "";
   form.elements["match_type"].value = match.match_type || "friendly";
+  form.elements["required_players"].value = match.required_players || match.max_players || 4;
+  form.elements["max_players"].value = match.max_players || match.required_players || 4;
   form.elements["start_time"].value = toDateTimeLocal(match.start_time);
   form.elements["end_time"].value = toDateTimeLocal(match.end_time);
   form.elements["notes"].value = match.notes || "";
+
+  const invitedIds = (match.match_invitations || [])
+    .filter(inv => inv.member_id !== currentProfile?.id && inv.status !== "removed")
+    .map(inv => inv.member_id);
+
+  renderMatchInviteOptions(invitedIds);
 
   const submitBtn = form.querySelector('button[type="submit"]');
   if (submitBtn) submitBtn.textContent = "Update Match";
@@ -882,15 +1096,15 @@ async function editMatch(matchId) {
 }
 
 async function deleteOrCancelMatch(matchId) {
-  if (!isCurrentUserAdmin()) {
-    alert("Admin access required.");
-    return;
-  }
-
   const match = allMatches.find(m => m.id === matchId);
 
   if (!match) {
     alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can delete/cancel this match.");
     return;
   }
 
@@ -933,6 +1147,59 @@ async function deleteOrCancelMatch(matchId) {
     }
 
     alert("Match marked as cancelled.");
+  }
+
+  await loadMatches();
+}
+
+async function voteMatch(matchId, newStatus) {
+  if (!currentProfile || currentProfile.approval_status !== "approved") {
+    alert("Approved members only.");
+    return;
+  }
+
+  const match = allMatches.find(m => m.id === matchId);
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  const invitation = myInvitation(match);
+  if (!invitation) {
+    alert("You are not invited to this match.");
+    return;
+  }
+
+  if (new Date(match.start_time) <= new Date()) {
+    alert("Voting is closed because the match time has passed.");
+    return;
+  }
+
+  if (match.status === "cancelled") {
+    alert("This match is cancelled.");
+    return;
+  }
+
+  const counts = invitationCounts(match);
+  const maxPlayers = Number(match.max_players || 0);
+  const userIsCurrentlyIn = invitation.status === "in";
+
+  if (newStatus === "in" && maxPlayers && counts.inCount >= maxPlayers && !userIsCurrentlyIn) {
+    alert("This match is already full. You can vote Maybe or Out.");
+    return;
+  }
+
+  const { error } = await supabaseClient
+    .from("match_invitations")
+    .update({
+      status: newStatus,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", invitation.id);
+
+  if (error) {
+    alert(error.message);
+    return;
   }
 
   await loadMatches();
@@ -1401,7 +1668,7 @@ function bindEvents() {
         form.reset();
 
         const submitBtn = form.querySelector('button[type="submit"]');
-        if (submitBtn) submitBtn.textContent = "Add Match";
+        if (submitBtn) submitBtn.textContent = "Create Match";
       }
 
       await loadMatchFormOptions();
@@ -1431,20 +1698,46 @@ function bindEvents() {
   $("matchForm").addEventListener("submit", async e => {
     const fd = new FormData(e.target);
 
-    if (!isCurrentUserAdmin()) {
-      alert("Admin access required.");
+    if (!currentProfile || currentProfile.approval_status !== "approved") {
+      alert("Approved members only.");
       return;
+    }
+
+    const requiredPlayers = Number(fd.get("required_players") || 0);
+    const maxPlayers = Number(fd.get("max_players") || 0);
+
+    if (!maxPlayers || maxPlayers < 1) {
+      alert("Max players must be at least 1.");
+      return;
+    }
+
+    if (requiredPlayers > maxPlayers) {
+      alert("Required players cannot be greater than max players.");
+      return;
+    }
+
+    const selectedInviteIds = getSelectedInviteMemberIds();
+
+    if (!editingMatchId && selectedInviteIds.length + 1 > maxPlayers) {
+      const ok = confirm("You invited more players than the maximum spots. Players can still vote, but only the first players to vote IN will take the spots. Continue?");
+      if (!ok) return;
     }
 
     const match = {
       sport_id: fd.get("sport_id"),
       venue_id: fd.get("venue_id"),
       league_id: null,
+      created_by: currentProfile.id,
       title: fd.get("title"),
       match_type: fd.get("match_type"),
       start_time: new Date(fd.get("start_time")).toISOString(),
       end_time: new Date(fd.get("end_time")).toISOString(),
-      status: "scheduled",
+      status: "open_for_votes",
+      max_players: maxPlayers,
+      required_players: requiredPlayers || maxPlayers,
+      visibility: "invited",
+      team_status: "not_assigned",
+      score_status: "not_submitted",
       notes: fd.get("notes") || null
     };
 
@@ -1454,11 +1747,13 @@ function bindEvents() {
       result = await supabaseClient
         .from("matches")
         .update(match)
-        .eq("id", editingMatchId);
+        .eq("id", editingMatchId)
+        .select();
     } else {
       result = await supabaseClient
         .from("matches")
-        .insert(match);
+        .insert(match)
+        .select();
     }
 
     if (result.error) {
@@ -1466,13 +1761,23 @@ function bindEvents() {
       return;
     }
 
-    alert(editingMatchId ? "Match updated." : "Match added.");
+    const matchId = editingMatchId || result.data?.[0]?.id;
+
+    const invitationsSaved = await saveMatchInvitations(
+      matchId,
+      selectedInviteIds,
+      Boolean(editingMatchId)
+    );
+
+    if (!invitationsSaved) return;
+
+    alert(editingMatchId ? "Match updated." : "Match created.");
 
     editingMatchId = null;
     e.target.reset();
 
     const submitBtn = e.target.querySelector('button[type="submit"]');
-    if (submitBtn) submitBtn.textContent = "Add Match";
+    if (submitBtn) submitBtn.textContent = "Create Match";
 
     await loadMatches();
   });
