@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=72" />
+  <link rel="stylesheet" href="style.css?v=73" />
 </head>
 
 <body>
@@ -238,25 +238,36 @@
       <button class="close" value="cancel" type="submit">×</button>
       <h3>Create League</h3>
 
-      <label>League name
+      <label>
+        League name
         <input name="name" required placeholder="ABA Padel League" />
       </label>
 
-      <label>Sport
-        <select name="sport">
-          <option>Padel</option>
-          <option>Soccer</option>
-          <option>Basketball</option>
-          <option>Gym</option>
-          <option>Running</option>
+      <label>
+        Sport
+        <select name="sport_id" id="league-sport" required>
+          <option value="">Select sport</option>
         </select>
       </label>
 
-      <label>Format
-        <input name="format" placeholder="Doubles, 5v5, solo challenge..." />
+      <label>
+        Format
+        <input name="format" placeholder="Doubles, 5v5, round robin..." />
       </label>
 
-      <button class="primary-btn full" type="submit">Create</button>
+      <div class="grid two">
+        <label>
+          Start date optional
+          <input name="start_date" type="date" />
+        </label>
+
+        <label>
+          End date optional
+          <input name="end_date" type="date" />
+        </label>
+      </div>
+
+      <button class="primary-btn full" type="submit">Create League</button>
     </form>
   </dialog>
 
@@ -286,9 +297,16 @@
 
     <label>
       Match Type
-      <select name="match_type">
+      <select name="match_type" id="match-type">
         <option value="friendly">Friendly</option>
         <option value="league">League</option>
+      </select>
+    </label>
+
+    <label id="match-league-label" style="display:none;">
+      League
+      <select name="league_id" id="match-league">
+        <option value="">Select league</option>
       </select>
     </label>
 
@@ -589,6 +607,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=72"></script>
+  <script src="app.js?v=73"></script>
 </body>
 </html>
