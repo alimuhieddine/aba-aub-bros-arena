@@ -1330,8 +1330,7 @@ main,
   margin-bottom: 6px;
 }
 
-#match-start-time,
-#match-end-time {
+.ampm-time-row select {
   cursor: pointer;
 }
 
@@ -1347,4 +1346,38 @@ main,
 .pill.gold {
   color: var(--gold);
   background: rgba(255,209,102,.14);
+}
+
+
+/* === AM/PM SPLIT TIME SELECTORS === */
+.ampm-time-row {
+  display: grid;
+  grid-template-columns: minmax(52px, .8fr) auto minmax(52px, .8fr) minmax(68px, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.ampm-time-row span {
+  text-align: center;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.ampm-time-row select {
+  padding-left: 8px;
+  padding-right: 8px;
+  cursor: pointer;
+}
+
+@media (max-width: 800px) {
+  .ampm-time-row {
+    grid-template-columns: minmax(48px, .8fr) auto minmax(48px, .8fr) minmax(62px, 1fr);
+    gap: 5px;
+  }
+
+  .ampm-time-row select {
+    padding-left: 6px;
+    padding-right: 6px;
+    font-size: 15px;
+  }
 }
