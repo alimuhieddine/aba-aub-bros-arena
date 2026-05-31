@@ -3945,7 +3945,7 @@ function bindEvents() {
       required_players: requiredPlayers || maxPlayers,
       visibility: "invited",
       team_status: "not_assigned",
-      score_status: "not_submitted",
+      score_status: "pending",
       notes: fd.get("notes") || null
     };
 
