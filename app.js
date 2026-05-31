@@ -539,6 +539,7 @@ let allMembers = [];
 let allExternalMembers = [];
 let currentExternalMatchId = null;
 let currentTeamMatchId = null;
+let currentScoreMatchId = null;
 
 
 
@@ -1148,6 +1149,44 @@ function currentTeamByMemberId(match) {
   return map;
 }
 
+
+function canSubmitScore(match) {
+  const displayStatus = getMatchDisplayStatus(match);
+
+  return canManageMatch(match) &&
+    displayStatus === "finished" &&
+    match.score_status !== "submitted" &&
+    (match.match_teams || []).length >= 2;
+}
+
+function hasSubmittedScore(match) {
+  return match.score_status === "submitted" || match.status === "completed";
+}
+
+function renderScoreSummary(match) {
+  const teams = match.match_teams || [];
+
+  if (!teams.length || !hasSubmittedScore(match)) return "";
+
+  return `
+    <div class="score-summary">
+      ${teams.map(team => `
+        <div class="score-summary-row">
+          <strong>${escapeHtml(team.name || "Team")}</strong>
+          <span>${Number(team.score || 0)}</span>
+          <em>${escapeHtml(team.result || "-")}</em>
+        </div>
+      `).join("")}
+
+      ${
+        match.notes
+          ? `<div class="score-notes">${escapeHtml(match.notes)}</div>`
+          : ""
+      }
+    </div>
+  `;
+}
+
 function renderMatches() {
   if (!$("matchList")) return;
 
@@ -1215,6 +1254,8 @@ function renderMatches() {
             </div>
 
             ${renderTeamsSummary(match)}
+
+            ${renderScoreSummary(match)}
 
             ${
               isFull
@@ -1308,6 +1349,14 @@ function renderMatches() {
           canManageMatch(match)
             ? `
               <div class="actions">
+                ${
+                  canSubmitScore(match)
+                    ? `<button class="small-btn" onclick="openScoreSubmission('${match.id}')">
+                        Submit Score
+                      </button>`
+                    : ""
+                }
+
                 ${
                   matchEditable && counts.inCount >= 2
                     ? `<button class="small-btn" onclick="openTeamAssignment('${match.id}')">
@@ -2331,6 +2380,142 @@ async function saveTeams() {
 }
 
 
+function getTwoMatchTeams(match) {
+  const teams = match.match_teams || [];
+
+  return {
+    teamA: teams[0] || null,
+    teamB: teams[1] || null
+  };
+}
+
+function openScoreSubmission(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canSubmitScore(match)) {
+    alert("Score can only be submitted after the match is finished and teams are assigned.");
+    return;
+  }
+
+  const { teamA, teamB } = getTwoMatchTeams(match);
+
+  if (!teamA || !teamB) {
+    alert("Assign teams before submitting score.");
+    return;
+  }
+
+  currentScoreMatchId = matchId;
+
+  if ($("score-match-label")) {
+    $("score-match-label").textContent = match.title || "Match result";
+  }
+
+  if ($("score-team-a-label")) {
+    $("score-team-a-label").textContent = `${teamA.name || "Team A"} score`;
+  }
+
+  if ($("score-team-b-label")) {
+    $("score-team-b-label").textContent = `${teamB.name || "Team B"} score`;
+  }
+
+  if ($("score-team-a")) $("score-team-a").value = Number(teamA.score || 0);
+  if ($("score-team-b")) $("score-team-b").value = Number(teamB.score || 0);
+  if ($("score-summary")) $("score-summary").value = match.notes || "";
+
+  $("scoreModal")?.showModal();
+}
+
+async function saveScore() {
+  if (!currentScoreMatchId) {
+    alert("No match selected.");
+    return;
+  }
+
+  const match = allMatches.find(m => m.id === currentScoreMatchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canSubmitScore(match)) {
+    alert("Score can only be submitted after the match is finished and teams are assigned.");
+    return;
+  }
+
+  const { teamA, teamB } = getTwoMatchTeams(match);
+
+  if (!teamA || !teamB) {
+    alert("Assign teams before submitting score.");
+    return;
+  }
+
+  const scoreA = Number($("score-team-a")?.value || 0);
+  const scoreB = Number($("score-team-b")?.value || 0);
+  const summary = $("score-summary")?.value.trim() || null;
+
+  if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB) || scoreA < 0 || scoreB < 0) {
+    alert("Scores must be whole numbers equal to or greater than 0.");
+    return;
+  }
+
+  const resultA = scoreA > scoreB ? "win" : scoreA < scoreB ? "loss" : "draw";
+  const resultB = scoreB > scoreA ? "win" : scoreB < scoreA ? "loss" : "draw";
+
+  const { error: teamAError } = await supabaseClient
+    .from("match_teams")
+    .update({
+      score: scoreA,
+      result: resultA
+    })
+    .eq("id", teamA.id);
+
+  if (teamAError) {
+    alert(teamAError.message);
+    return;
+  }
+
+  const { error: teamBError } = await supabaseClient
+    .from("match_teams")
+    .update({
+      score: scoreB,
+      result: resultB
+    })
+    .eq("id", teamB.id);
+
+  if (teamBError) {
+    alert(teamBError.message);
+    return;
+  }
+
+  const { error: matchError } = await supabaseClient
+    .from("matches")
+    .update({
+      status: "completed",
+      score_status: "submitted",
+      notes: summary
+    })
+    .eq("id", currentScoreMatchId);
+
+  if (matchError) {
+    alert(matchError.message);
+    return;
+  }
+
+  alert("Score saved.");
+
+  $("scoreModal")?.close();
+  currentScoreMatchId = null;
+
+  await loadMatches();
+}
+
+
 function commentSection(m) {
   return `
     <div class="comments">
@@ -2963,6 +3148,8 @@ function bindEvents() {
   $("create-external-player-btn")?.addEventListener("click", createExternalPlayerProfile);
 
   $("save-teams-btn")?.addEventListener("click", saveTeams);
+
+  $("save-score-btn")?.addEventListener("click", saveScore);
 
   supabaseClient.auth.onAuthStateChange(() => {
     refreshAuthUI();
