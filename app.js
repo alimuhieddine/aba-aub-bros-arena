@@ -1627,6 +1627,14 @@ function renderScoreSummary(match) {
   `;
 }
 
+
+function isTeamEditable(match) {
+  const displayStatus = getMatchDisplayStatus(match);
+
+  return canManageMatch(match) &&
+    displayStatus !== "cancelled";
+}
+
 function renderMatches() {
   if (!$("matchList")) return;
 
@@ -1800,7 +1808,7 @@ function renderMatches() {
                 }
 
                 ${
-                  matchEditable && counts.inCount >= 2
+                  isTeamEditable(match) && counts.inCount >= 2
                     ? `<button class="small-btn" onclick="openTeamAssignment('${match.id}')">
                         Assign Teams
                       </button>`
@@ -2612,8 +2620,8 @@ async function openTeamAssignment(matchId) {
     return;
   }
 
-  if (!isMatchEditable(match)) {
-    alert("Teams can only be assigned before the match starts.");
+  if (!isTeamEditable(match)) {
+    alert("Teams cannot be edited for cancelled matches.");
     return;
   }
 
@@ -2682,6 +2690,22 @@ function updateTeamBalanceStatus() {
   status.classList.toggle("unbalanced", !isBalanced);
 }
 
+
+async function recalculatePointsAfterTeamEdit(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match || match.score_status !== "submitted") return true;
+
+  // Reload the match after team save so team/result assignments are current.
+  await loadMatches();
+
+  const refreshedMatch = allMatches.find(m => m.id === matchId);
+
+  if (!refreshedMatch || refreshedMatch.score_status !== "submitted") return true;
+
+  return await saveMatchMemberPoints(refreshedMatch);
+}
+
 async function saveTeams() {
   if (!currentTeamMatchId) {
     alert("No match selected.");
@@ -2700,8 +2724,8 @@ async function saveTeams() {
     return;
   }
 
-  if (!isMatchEditable(match)) {
-    alert("Teams can only be saved before the match starts.");
+  if (!isTeamEditable(match)) {
+    alert("Teams cannot be saved for cancelled matches.");
     return;
   }
 
@@ -2813,7 +2837,15 @@ async function saveTeams() {
     return;
   }
 
-  alert("Teams saved.");
+  if (match.score_status === "submitted") {
+    const pointsUpdated = await recalculatePointsAfterTeamEdit(currentTeamMatchId);
+
+    if (!pointsUpdated) return;
+
+    alert("Teams saved and points recalculated.");
+  } else {
+    alert("Teams saved.");
+  }
 
   $("teamModal")?.close();
   currentTeamMatchId = null;
