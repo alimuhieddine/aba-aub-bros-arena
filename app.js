@@ -908,9 +908,20 @@ async function loadMatches() {
 
 function invitationCounts(match) {
   const invitations = match.match_invitations || [];
+  const hasCreatorInvitation = invitations.some(inv =>
+    inv.member_id === match.created_by && inv.status !== "removed"
+  );
+
+  let inCount = invitations.filter(inv => inv.status === "in").length;
+
+  // The creator is automatically IN by default, even if the creator invitation row
+  // is missing or not visible because of an old RLS/cache issue.
+  if (match.created_by && !hasCreatorInvitation) {
+    inCount += 1;
+  }
 
   return {
-    inCount: invitations.filter(inv => inv.status === "in").length,
+    inCount,
     maybeCount: invitations.filter(inv => inv.status === "maybe").length,
     outCount: invitations.filter(inv => inv.status === "out").length,
     invitedCount: invitations.filter(inv => inv.status === "invited").length
@@ -940,17 +951,17 @@ function renderMatches() {
     const isFuture = new Date(match.start_time) > new Date();
     const counts = invitationCounts(match);
     const invitation = myInvitation(match);
-const isCreator = match.created_by === currentProfile?.id;
-const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
+    const isCreator = match.created_by === currentProfile?.id;
+    const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
 
-const maxPlayers = Number(match.max_players || 0);
-const spotsLabel = maxPlayers
-  ? `${counts.inCount}/${maxPlayers} IN`
-  : `${counts.inCount} IN`;
+    const maxPlayers = Number(match.max_players || 0);
+    const spotsLabel = maxPlayers
+      ? `${counts.inCount}/${maxPlayers} IN`
+      : `${counts.inCount} IN`;
 
-const isFull = maxPlayers && counts.inCount >= maxPlayers;
-const userIsIn = currentVoteStatus === "in";
-const canVoteThisMatch = Boolean(invitation || isCreator);
+    const isFull = maxPlayers && counts.inCount >= maxPlayers;
+    const userIsIn = currentVoteStatus === "in";
+    const canVoteThisMatch = Boolean(invitation || isCreator);
 
     return `
       <article class="card">
@@ -1005,26 +1016,26 @@ const canVoteThisMatch = Boolean(invitation || isCreator);
             ? `
               <div class="actions">
                 <button
-  class="small-btn ${currentVoteStatus === "in" ? "selected-vote" : ""}"
-  onclick="voteMatch('${match.id}', 'in')"
-  ${isFull && !userIsIn ? "disabled" : ""}
->
-  I'm In
-</button>
+                  class="small-btn ${currentVoteStatus === "in" ? "selected-vote" : ""}"
+                  onclick="voteMatch('${match.id}', 'in')"
+                  ${isFull && !userIsIn ? "disabled" : ""}
+                >
+                  I'm In
+                </button>
 
-<button
-  class="small-btn ${currentVoteStatus === "maybe" ? "selected-vote" : ""}"
-  onclick="voteMatch('${match.id}', 'maybe')"
->
-  Maybe
-</button>
+                <button
+                  class="small-btn ${currentVoteStatus === "maybe" ? "selected-vote" : ""}"
+                  onclick="voteMatch('${match.id}', 'maybe')"
+                >
+                  Maybe
+                </button>
 
-<button
-  class="small-btn ${currentVoteStatus === "out" ? "selected-vote-red" : ""}"
-  onclick="voteMatch('${match.id}', 'out')"
->
-  Out
-</button>
+                <button
+                  class="small-btn ${currentVoteStatus === "out" ? "selected-vote-red" : ""}"
+                  onclick="voteMatch('${match.id}', 'out')"
+                >
+                  Out
+                </button>
               </div>
             `
             : ""
@@ -1180,34 +1191,12 @@ async function voteMatch(matchId, newStatus) {
   }
 
   let invitation = myInvitation(match);
-const isCreator = match.created_by === currentProfile?.id;
+  const isCreator = match.created_by === currentProfile?.id;
 
-if (!invitation && !isCreator) {
-  alert("You are not invited to this match.");
-  return;
-}
-
-if (!invitation && isCreator) {
-  const { data, error } = await supabaseClient
-    .from("match_invitations")
-    .upsert({
-      match_id: matchId,
-      member_id: currentProfile.id,
-      invited_by: currentProfile.id,
-      status: "in"
-    }, {
-      onConflict: "match_id,member_id"
-    })
-    .select()
-    .single();
-
-  if (error) {
-    alert(error.message);
+  if (!invitation && !isCreator) {
+    alert("You are not invited to this match.");
     return;
   }
-
-  invitation = data;
-}
 
   if (new Date(match.start_time) <= new Date()) {
     alert("Voting is closed because the match time has passed.");
@@ -1221,27 +1210,56 @@ if (!invitation && isCreator) {
 
   const counts = invitationCounts(match);
   const maxPlayers = Number(match.max_players || 0);
-  const userIsCurrentlyIn = invitation.status === "in";
+  const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
+  const userIsCurrentlyIn = currentVoteStatus === "in";
 
   if (newStatus === "in" && maxPlayers && counts.inCount >= maxPlayers && !userIsCurrentlyIn) {
     alert("This match is already full. You can vote Maybe or Out.");
     return;
   }
 
-  const { error } = await supabaseClient
-    .from("match_invitations")
-    .update({
+  if (!invitation && isCreator) {
+    const { data, error } = await supabaseClient
+      .from("match_invitations")
+      .upsert({
+        match_id: matchId,
+        member_id: currentProfile.id,
+        invited_by: currentProfile.id,
+        status: newStatus
+      }, {
+        onConflict: "match_id,member_id"
+      })
+      .select()
+      .single();
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    match.match_invitations = match.match_invitations || [];
+    match.match_invitations.push(data);
+    invitation = data;
+  } else {
+    const updatePayload = {
       status: newStatus,
       updated_at: new Date().toISOString()
-    })
-    .eq("id", invitation.id);
+    };
 
-  if (error) {
-    alert(error.message);
-    return;
+    const { error } = await supabaseClient
+      .from("match_invitations")
+      .update(updatePayload)
+      .eq("id", invitation.id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    invitation.status = newStatus;
   }
-invitation.status = newStatus;
-renderMatches();
+
+  renderMatches();
   await loadMatches();
 }
 
