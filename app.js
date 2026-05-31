@@ -538,6 +538,7 @@ let editingMatchId = null;
 let allMembers = [];
 let allExternalMembers = [];
 let currentExternalMatchId = null;
+let currentTeamMatchId = null;
 
 
 
@@ -925,6 +926,26 @@ async function loadMatches() {
           email,
           is_external
         )
+      ),
+      match_teams (
+        id,
+        name,
+        color,
+        score,
+        result,
+        match_team_players (
+          id,
+          member_id,
+          is_external,
+          member:members!match_team_players_member_id_fkey (
+            id,
+            first_name,
+            last_name,
+            display_name,
+            email,
+            is_external
+          )
+        )
       )
     `)
     .order("start_time", { ascending: true });
@@ -1069,6 +1090,62 @@ function isVotingOpenForMatch(match) {
 function isMatchEditable(match) {
   return getMatchDisplayStatus(match) !== "cancelled" &&
     new Date(match.start_time) > new Date();
+}
+
+
+function inPlayerInvitations(match) {
+  return (match.match_invitations || []).filter(inv =>
+    inv.status === "in" && invitationMember(inv)
+  );
+}
+
+function teamAssignments(match) {
+  const teams = match.match_teams || [];
+
+  return teams.map(team => ({
+    ...team,
+    players: (team.match_team_players || []).map(tp => ({
+      teamPlayerId: tp.id,
+      memberId: tp.member_id,
+      name: memberDisplayName(tp.member),
+      isExternal: Boolean(tp.member?.is_external)
+    }))
+  }));
+}
+
+function renderTeamsSummary(match) {
+  const teams = teamAssignments(match);
+
+  if (!teams.length) return "";
+
+  return `
+    <div class="teams-summary">
+      ${teams.map(team => `
+        <div class="team-summary-row">
+          <strong>${escapeHtml(team.name || "Team")}</strong>
+          <span>
+            ${
+              team.players.length
+                ? escapeHtml(team.players.map(player => player.name).join(", "))
+                : "No players assigned"
+            }
+          </span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function currentTeamByMemberId(match) {
+  const map = new Map();
+
+  (match.match_teams || []).forEach(team => {
+    (team.match_team_players || []).forEach(tp => {
+      if (tp.member_id) map.set(tp.member_id, team.id);
+    });
+  });
+
+  return map;
 }
 
 function renderMatches() {
@@ -1229,6 +1306,14 @@ function renderMatches() {
           canManageMatch(match)
             ? `
               <div class="actions">
+                ${
+                  matchEditable && counts.inCount >= 2
+                    ? `<button class="small-btn" onclick="openTeamAssignment('${match.id}')">
+                        Assign Teams
+                      </button>`
+                    : ""
+                }
+
                 ${
                   matchEditable && !isFull
                     ? `<button class="small-btn" onclick="openExternalPlayerPicker('${match.id}')">
@@ -1945,6 +2030,273 @@ async function removeExternalMemberFromMatch(invitationId, matchId) {
 }
 
 
+function renderTeamAssignmentList(match) {
+  const box = $("team-assignment-list");
+  if (!box) return;
+
+  const players = inPlayerInvitations(match);
+  const teams = match.match_teams || [];
+  const teamA = teams[0] || null;
+  const teamB = teams[1] || null;
+  const assignedMap = currentTeamByMemberId(match);
+
+  if (!players.length) {
+    box.innerHTML = `<div class="hint">No IN players yet.</div>`;
+    return;
+  }
+
+  box.innerHTML = players.map(inv => {
+    const member = invitationMember(inv);
+    const memberId = member?.id || inv.member_id;
+    const selectedTeamId = assignedMap.get(memberId) || "";
+    const selectedSide =
+      teamA && selectedTeamId === teamA.id ? "A" :
+      teamB && selectedTeamId === teamB.id ? "B" :
+      "";
+
+    return `
+      <div class="team-player-row">
+        <div class="team-player-name">
+          ${escapeHtml(invitationMemberDisplayName(inv))}
+          ${member?.is_external ? `<span class="mini-pill">External</span>` : ""}
+        </div>
+
+        <div class="team-choice">
+          <label class="team-choice-chip">
+            <input
+              type="radio"
+              name="team-choice-${memberId}"
+              value="A"
+              data-member-id="${memberId}"
+              ${selectedSide === "A" ? "checked" : ""}
+            >
+            <span>A</span>
+          </label>
+
+          <label class="team-choice-chip">
+            <input
+              type="radio"
+              name="team-choice-${memberId}"
+              value="B"
+              data-member-id="${memberId}"
+              ${selectedSide === "B" ? "checked" : ""}
+            >
+            <span>B</span>
+          </label>
+
+          <label class="team-choice-chip">
+            <input
+              type="radio"
+              name="team-choice-${memberId}"
+              value=""
+              data-member-id="${memberId}"
+              ${selectedSide === "" ? "checked" : ""}
+            >
+            <span>Unassigned</span>
+          </label>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function openTeamAssignment(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can assign teams.");
+    return;
+  }
+
+  if (!isMatchEditable(match)) {
+    alert("Teams can only be assigned before the match starts.");
+    return;
+  }
+
+  const players = inPlayerInvitations(match);
+
+  if (players.length < 2) {
+    alert("At least 2 IN players are needed to assign teams.");
+    return;
+  }
+
+  currentTeamMatchId = matchId;
+
+  const teams = match.match_teams || [];
+
+  if ($("team-a-name")) $("team-a-name").value = teams[0]?.name || "Team A";
+  if ($("team-b-name")) $("team-b-name").value = teams[1]?.name || "Team B";
+
+  if ($("team-match-label")) {
+    $("team-match-label").textContent =
+      `${match.title || "Match"} — assign ${players.length} IN player(s).`;
+  }
+
+  renderTeamAssignmentList(match);
+
+  $("teamModal")?.showModal();
+}
+
+function collectTeamAssignments() {
+  const choices = Array.from(document.querySelectorAll("#team-assignment-list input[type='radio']:checked"));
+
+  const teamA = [];
+  const teamB = [];
+
+  choices.forEach(input => {
+    const memberId = input.dataset.memberId;
+    const value = input.value;
+
+    if (!memberId) return;
+
+    if (value === "A") teamA.push(memberId);
+    if (value === "B") teamB.push(memberId);
+  });
+
+  return {
+    teamA,
+    teamB
+  };
+}
+
+async function saveTeams() {
+  if (!currentTeamMatchId) {
+    alert("No match selected.");
+    return;
+  }
+
+  const match = allMatches.find(m => m.id === currentTeamMatchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can save teams.");
+    return;
+  }
+
+  if (!isMatchEditable(match)) {
+    alert("Teams can only be saved before the match starts.");
+    return;
+  }
+
+  const teamAName = $("team-a-name")?.value.trim() || "Team A";
+  const teamBName = $("team-b-name")?.value.trim() || "Team B";
+  const assignments = collectTeamAssignments();
+
+  if (assignments.teamA.length === 0 || assignments.teamB.length === 0) {
+    const ok = confirm("One team is empty. Save anyway?");
+    if (!ok) return;
+  }
+
+  const existingTeamIds = (match.match_teams || []).map(team => team.id);
+
+  if (existingTeamIds.length > 0) {
+    const { error: deletePlayersError } = await supabaseClient
+      .from("match_team_players")
+      .delete()
+      .in("match_team_id", existingTeamIds);
+
+    if (deletePlayersError) {
+      alert(deletePlayersError.message);
+      return;
+    }
+
+    const { error: deleteTeamsError } = await supabaseClient
+      .from("match_teams")
+      .delete()
+      .eq("match_id", currentTeamMatchId);
+
+    if (deleteTeamsError) {
+      alert(deleteTeamsError.message);
+      return;
+    }
+  }
+
+  const { data: teamsData, error: teamsError } = await supabaseClient
+    .from("match_teams")
+    .insert([
+      {
+        match_id: currentTeamMatchId,
+        name: teamAName,
+        color: "A",
+        score: 0,
+        result: null
+      },
+      {
+        match_id: currentTeamMatchId,
+        name: teamBName,
+        color: "B",
+        score: 0,
+        result: null
+      }
+    ])
+    .select("id,name,color");
+
+  if (teamsError) {
+    alert(teamsError.message);
+    return;
+  }
+
+  const teamAId = teamsData?.find(team => team.color === "A")?.id || teamsData?.[0]?.id;
+  const teamBId = teamsData?.find(team => team.color === "B")?.id || teamsData?.[1]?.id;
+
+  const playerRows = [
+    ...assignments.teamA.map(memberId => ({
+      match_team_id: teamAId,
+      member_id: memberId,
+      is_external: Boolean(
+        inPlayerInvitations(match).find(inv => inv.member_id === memberId)?.member?.is_external
+      )
+    })),
+    ...assignments.teamB.map(memberId => ({
+      match_team_id: teamBId,
+      member_id: memberId,
+      is_external: Boolean(
+        inPlayerInvitations(match).find(inv => inv.member_id === memberId)?.member?.is_external
+      )
+    }))
+  ];
+
+  if (playerRows.length > 0) {
+    const { error: playersError } = await supabaseClient
+      .from("match_team_players")
+      .insert(playerRows);
+
+    if (playersError) {
+      alert(playersError.message);
+      return;
+    }
+  }
+
+  const { error: matchUpdateError } = await supabaseClient
+    .from("matches")
+    .update({
+      team_status: "assigned"
+    })
+    .eq("id", currentTeamMatchId);
+
+  if (matchUpdateError) {
+    alert(matchUpdateError.message);
+    return;
+  }
+
+  alert("Teams saved.");
+
+  $("teamModal")?.close();
+  currentTeamMatchId = null;
+
+  await loadMatches();
+}
+
+
 function commentSection(m) {
   return `
     <div class="comments">
@@ -2575,6 +2927,8 @@ function bindEvents() {
   $("add-selected-external-btn")?.addEventListener("click", addSelectedExternalPlayers);
 
   $("create-external-player-btn")?.addEventListener("click", createExternalPlayerProfile);
+
+  $("save-teams-btn")?.addEventListener("click", saveTeams);
 
   supabaseClient.auth.onAuthStateChange(() => {
     refreshAuthUI();
