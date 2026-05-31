@@ -1492,3 +1492,29 @@ main,
     gap: 3px;
   }
 }
+
+
+/* === TEAM BALANCE STATUS === */
+.team-balance-status {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.05);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.team-balance-status.balanced {
+  color: var(--accent);
+  border-color: rgba(36,209,126,.35);
+  background: rgba(36,209,126,.10);
+}
+
+.team-balance-status.unbalanced {
+  color: var(--danger);
+  border-color: rgba(255,95,103,.35);
+  background: rgba(255,95,103,.10);
+}
