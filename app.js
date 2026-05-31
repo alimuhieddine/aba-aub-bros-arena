@@ -1497,8 +1497,7 @@ function canSubmitScore(match) {
 
   return canManageMatch(match) &&
     displayStatus === "finished" &&
-    match.score_status !== "submitted" &&
-    (match.match_teams || []).length >= 2;
+    match.score_status !== "submitted";
 }
 
 function hasSubmittedScore(match) {
@@ -1736,7 +1735,7 @@ function renderMatches() {
                 ${
                   canSubmitScore(match)
                     ? `<button class="small-btn" onclick="openScoreSubmission('${match.id}')">
-                        Submit Score
+                        Add Result
                       </button>`
                     : ""
                 }
@@ -2782,7 +2781,7 @@ async function openScoreSubmission(matchId) {
   }
 
   if (!canSubmitScore(match)) {
-    alert("Score can only be submitted after the match is finished and teams are assigned.");
+    alert("Result can only be added after the match is finished. If this message appears after the match ended, make sure teams are assigned first.");
     return;
   }
 
@@ -2844,7 +2843,7 @@ async function saveScore() {
   }
 
   if (!canSubmitScore(match)) {
-    alert("Score can only be submitted after the match is finished and teams are assigned.");
+    alert("Result can only be added after the match is finished. If this message appears after the match ended, make sure teams are assigned first.");
     return;
   }
 
