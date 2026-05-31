@@ -1261,7 +1261,7 @@ function populateMatchTimeSelects() {
     return `<option value="${hour}">${hour}</option>`;
   }).join("");
 
-  const minuteOptions = [0, 15, 30, 45].map(minute => {
+  const minuteOptions = Array.from({ length: 60 }, (_, minute) => {
     return `<option value="${pad2(minute)}">${pad2(minute)}</option>`;
   }).join("");
 
@@ -1284,11 +1284,9 @@ function setTimeParts(prefix, hour24, minute = 0) {
 
   hourSelect.value = String(hour12);
 
-  const roundedMinute = [0, 15, 30, 45].reduce((best, value) =>
-    Math.abs(value - minute) < Math.abs(best - minute) ? value : best
-  , 0);
+  const cleanMinute = Math.max(0, Math.min(59, Number(minute) || 0));
 
-  minuteSelect.value = pad2(roundedMinute);
+  minuteSelect.value = pad2(cleanMinute);
   ampmSelect.value = ampm;
 }
 
