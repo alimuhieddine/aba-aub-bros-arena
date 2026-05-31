@@ -883,7 +883,14 @@ async function loadMatches() {
         id,
         member_id,
         invited_by,
-        status
+        status,
+        members (
+          id,
+          first_name,
+          last_name,
+          display_name,
+          email
+        )
       ),
       match_external_players (
         id,
@@ -956,6 +963,35 @@ function canManageMatch(match) {
   return isCurrentUserAdmin() || match.created_by === currentProfile?.id;
 }
 
+
+function invitationMemberDisplayName(invitation) {
+  const member = invitation?.members;
+
+  return member?.display_name ||
+    `${member?.first_name || ""} ${member?.last_name || ""}`.trim() ||
+    member?.email ||
+    "Unnamed";
+}
+
+function inPlayerNames(match) {
+  const invitations = match.match_invitations || [];
+
+  const names = invitations
+    .filter(inv => inv.status === "in")
+    .map(inv => invitationMemberDisplayName(inv))
+    .filter(Boolean);
+
+  const hasCreatorInvitation = invitations.some(inv =>
+    inv.member_id === match.created_by && inv.status !== "removed"
+  );
+
+  if (match.created_by && !hasCreatorInvitation) {
+    names.unshift("Creator");
+  }
+
+  return names;
+}
+
 function renderMatches() {
   if (!$("matchList")) return;
 
@@ -1007,6 +1043,10 @@ function renderMatches() {
               • Maybe: ${counts.maybeCount}
               • Out: ${counts.outCount}
               • Invited: ${counts.invitedCount}
+            </div>
+
+            <div class="meta">
+              IN players: ${inPlayerNames(match).length ? escapeHtml(inPlayerNames(match).join(", ")) : "-"}
             </div>
 
             ${
