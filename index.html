@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=56" />
+  <link rel="stylesheet" href="style.css?v=57" />
 </head>
 
 <body>
@@ -470,7 +470,31 @@
 
       <div id="padel-score-section" style="display:none;">
         <p class="hint">
-          Enter padel sets. Completed sets count toward the final result. Uncheck completed for an unfinished set.
+          A match is the booking/session. Inside it, add a new game or continue a pending game.
+        </p>
+
+        <div class="grid two">
+          <label>
+            Game action
+            <select id="padel-game-mode">
+              <option value="new">New Game</option>
+              <option value="continue">Continue Pending Game</option>
+            </select>
+          </label>
+
+          <label id="padel-pending-game-label" style="display:none;">
+            Pending Game
+            <select id="padel-pending-game"></select>
+          </label>
+        </div>
+
+        <label>
+          Game title
+          <input id="padel-game-title" type="text" placeholder="Game 1">
+        </label>
+
+        <p class="hint">
+          Each padel game is best of 3 sets. Completed sets decide the game winner.
         </p>
 
         <div class="padel-set-grid padel-set-head">
@@ -555,6 +579,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=56"></script>
+  <script src="app.js?v=57"></script>
 </body>
 </html>
