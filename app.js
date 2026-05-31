@@ -883,9 +883,7 @@ function matchCard(m, compact = false) {
 async function loadMatches() {
   if (!currentProfile || currentProfile.approval_status !== "approved") return;
 
-  const { data, error } = await supabaseClient
-    .from("matches")
-    .select(`
+  const fullSelect = `
       id,
       sport_id,
       venue_id,
@@ -978,8 +976,89 @@ async function loadMatches() {
           created_at
         )
       )
-    `)
+    `;
+
+  const fallbackSelect = `
+      id,
+      sport_id,
+      venue_id,
+      league_id,
+      created_by,
+      max_players,
+      required_players,
+      external_players_count,
+      visibility,
+      team_status,
+      score_status,
+      title,
+      match_type,
+      start_time,
+      end_time,
+      status,
+      notes,
+      created_at,
+      sports (
+        id,
+        name
+      ),
+      venues (
+        id,
+        name,
+        address,
+        google_maps_url,
+        image_url
+      ),
+      match_invitations (
+        id,
+        member_id,
+        invited_by,
+        status,
+        member:members!match_invitations_member_id_fkey (
+          id,
+          first_name,
+          last_name,
+          display_name,
+          email,
+          is_external
+        )
+      ),
+      match_teams (
+        id,
+        name,
+        color,
+        score,
+        result,
+        match_team_players (
+          id,
+          member_id,
+          is_external,
+          member:members!match_team_players_member_id_fkey (
+            id,
+            first_name,
+            last_name,
+            display_name,
+            email,
+            is_external
+          )
+        )
+      )
+    `;
+
+  let result = await supabaseClient
+    .from("matches")
+    .select(fullSelect)
     .order("start_time", { ascending: true });
+
+  if (result.error) {
+    console.warn("Full match load failed, retrying without game scoring tables:", result.error.message);
+
+    result = await supabaseClient
+      .from("matches")
+      .select(fallbackSelect)
+      .order("start_time", { ascending: true });
+  }
+
+  const { data, error } = result;
 
   if (error) {
     alert(error.message);
@@ -1086,6 +1165,135 @@ function inPlayerNames(match) {
   return names;
 }
 
+
+
+function pad2(num) {
+  return String(num).padStart(2, "0");
+}
+
+function toLocalDateValue(date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+function populateMatchTimeSelects() {
+  const startHour = $("match-start-hour");
+  const startMinute = $("match-start-minute");
+  const endHour = $("match-end-hour");
+  const endMinute = $("match-end-minute");
+
+  if (!startHour || !startMinute || !endHour || !endMinute) return;
+
+  if (startHour.options.length && startMinute.options.length) return;
+
+  const hourOptions = Array.from({ length: 12 }, (_, i) => {
+    const hour = i + 1;
+    return `<option value="${hour}">${hour}</option>`;
+  }).join("");
+
+  const minuteOptions = Array.from({ length: 60 }, (_, minute) => {
+    return `<option value="${pad2(minute)}">${pad2(minute)}</option>`;
+  }).join("");
+
+  startHour.innerHTML = hourOptions;
+  endHour.innerHTML = hourOptions;
+
+  startMinute.innerHTML = minuteOptions;
+  endMinute.innerHTML = minuteOptions;
+}
+
+function setTimeParts(prefix, hour24, minute = 0) {
+  const hourSelect = $(`${prefix}-hour`);
+  const minuteSelect = $(`${prefix}-minute`);
+  const ampmSelect = $(`${prefix}-ampm`);
+
+  if (!hourSelect || !minuteSelect || !ampmSelect) return;
+
+  const ampm = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 || 12;
+
+  hourSelect.value = String(hour12);
+
+  const cleanMinute = Math.max(0, Math.min(59, Number(minute) || 0));
+
+  minuteSelect.value = pad2(cleanMinute);
+  ampmSelect.value = ampm;
+}
+
+function readTimeParts(prefix) {
+  const hour = Number($(`${prefix}-hour`)?.value || 0);
+  const minute = Number($(`${prefix}-minute`)?.value || 0);
+  const ampm = $(`${prefix}-ampm`)?.value || "AM";
+
+  if (!hour || hour < 1 || hour > 12) return null;
+
+  let hour24 = hour % 12;
+  if (ampm === "PM") hour24 += 12;
+
+  return {
+    hour24,
+    minute
+  };
+}
+
+function setDefaultMatchDateTimes() {
+  populateMatchTimeSelects();
+
+  const today = new Date();
+
+  if ($("match-start-date")) $("match-start-date").value = toLocalDateValue(today);
+  setTimeParts("match-start", 18, 0);
+
+  if ($("match-end-date")) $("match-end-date").value = toLocalDateValue(today);
+  setTimeParts("match-end", 19, 30);
+}
+
+function setMatchDateTimeFields(startIso, endIso) {
+  populateMatchTimeSelects();
+
+  const start = startIso ? new Date(startIso) : new Date();
+  const end = endIso ? new Date(endIso) : new Date(start.getTime() + 90 * 60000);
+
+  if ($("match-start-date")) $("match-start-date").value = toLocalDateValue(start);
+  setTimeParts("match-start", start.getHours(), start.getMinutes());
+
+  if ($("match-end-date")) $("match-end-date").value = toLocalDateValue(end);
+  setTimeParts("match-end", end.getHours(), end.getMinutes());
+}
+
+function getMatchDateTimeValues() {
+  const startDate = $("match-start-date")?.value || "";
+  const endDate = $("match-end-date")?.value || "";
+  const startParts = readTimeParts("match-start");
+  const endParts = readTimeParts("match-end");
+
+  if (!startDate || !endDate || !startParts || !endParts) {
+    alert("Please choose match start and end date/time.");
+    return null;
+  }
+
+  const startTimeValue = new Date(`${startDate}T${pad2(startParts.hour24)}:${pad2(startParts.minute)}:00`);
+  const endTimeValue = new Date(`${endDate}T${pad2(endParts.hour24)}:${pad2(endParts.minute)}:00`);
+
+  if (Number.isNaN(startTimeValue.getTime()) || Number.isNaN(endTimeValue.getTime())) {
+    alert("Invalid match date or time.");
+    return null;
+  }
+
+  if (startTimeValue <= new Date()) {
+    alert("Match start time must be in the future.");
+    return null;
+  }
+
+  if (endTimeValue <= startTimeValue) {
+    alert("End time must be after start time.");
+    return null;
+  }
+
+  return {
+    startTime: startTimeValue,
+    endTime: endTimeValue
+  };
+}
 
 function getMatchDisplayStatus(match) {
   if (match.status === "cancelled") return "cancelled";
@@ -2518,10 +2726,12 @@ function bindEvents() {
 
   $("save-score-btn")?.addEventListener("click", saveScore);
 
-  document.querySelectorAll("#padel-score-section input").forEach(input => {
-    input.addEventListener("input", updatePadelScorePreview);
-    input.addEventListener("change", updatePadelScorePreview);
-  });
+  if ($("padel-score-section")) {
+    document.querySelectorAll("#padel-score-section input").forEach(input => {
+      input.addEventListener("input", updatePadelScorePreview);
+      input.addEventListener("change", updatePadelScorePreview);
+    });
+  }
 
   $("padel-game-mode")?.addEventListener("change", () => {
     setPadelGameModeUI();
