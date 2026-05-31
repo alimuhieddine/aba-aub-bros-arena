@@ -1712,3 +1712,9 @@ main,
   color: var(--gold);
   font-size: 13px;
 }
+
+
+/* === LEAGUE SELECTOR === */
+#match-league-label {
+  transition: opacity .15s ease;
+}
