@@ -1050,7 +1050,7 @@ async function loadMatches() {
     .order("start_time", { ascending: true });
 
   if (result.error) {
-    console.warn("Full match load failed, retrying without game scoring tables:", result.error.message);
+    console.warn("Full match load failed. Retrying without game/session scoring tables:", result.error.message);
 
     result = await supabaseClient
       .from("matches")
@@ -1165,135 +1165,6 @@ function inPlayerNames(match) {
   return names;
 }
 
-
-
-function pad2(num) {
-  return String(num).padStart(2, "0");
-}
-
-function toLocalDateValue(date) {
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
-}
-
-function populateMatchTimeSelects() {
-  const startHour = $("match-start-hour");
-  const startMinute = $("match-start-minute");
-  const endHour = $("match-end-hour");
-  const endMinute = $("match-end-minute");
-
-  if (!startHour || !startMinute || !endHour || !endMinute) return;
-
-  if (startHour.options.length && startMinute.options.length) return;
-
-  const hourOptions = Array.from({ length: 12 }, (_, i) => {
-    const hour = i + 1;
-    return `<option value="${hour}">${hour}</option>`;
-  }).join("");
-
-  const minuteOptions = Array.from({ length: 60 }, (_, minute) => {
-    return `<option value="${pad2(minute)}">${pad2(minute)}</option>`;
-  }).join("");
-
-  startHour.innerHTML = hourOptions;
-  endHour.innerHTML = hourOptions;
-
-  startMinute.innerHTML = minuteOptions;
-  endMinute.innerHTML = minuteOptions;
-}
-
-function setTimeParts(prefix, hour24, minute = 0) {
-  const hourSelect = $(`${prefix}-hour`);
-  const minuteSelect = $(`${prefix}-minute`);
-  const ampmSelect = $(`${prefix}-ampm`);
-
-  if (!hourSelect || !minuteSelect || !ampmSelect) return;
-
-  const ampm = hour24 >= 12 ? "PM" : "AM";
-  const hour12 = hour24 % 12 || 12;
-
-  hourSelect.value = String(hour12);
-
-  const cleanMinute = Math.max(0, Math.min(59, Number(minute) || 0));
-
-  minuteSelect.value = pad2(cleanMinute);
-  ampmSelect.value = ampm;
-}
-
-function readTimeParts(prefix) {
-  const hour = Number($(`${prefix}-hour`)?.value || 0);
-  const minute = Number($(`${prefix}-minute`)?.value || 0);
-  const ampm = $(`${prefix}-ampm`)?.value || "AM";
-
-  if (!hour || hour < 1 || hour > 12) return null;
-
-  let hour24 = hour % 12;
-  if (ampm === "PM") hour24 += 12;
-
-  return {
-    hour24,
-    minute
-  };
-}
-
-function setDefaultMatchDateTimes() {
-  populateMatchTimeSelects();
-
-  const today = new Date();
-
-  if ($("match-start-date")) $("match-start-date").value = toLocalDateValue(today);
-  setTimeParts("match-start", 18, 0);
-
-  if ($("match-end-date")) $("match-end-date").value = toLocalDateValue(today);
-  setTimeParts("match-end", 19, 30);
-}
-
-function setMatchDateTimeFields(startIso, endIso) {
-  populateMatchTimeSelects();
-
-  const start = startIso ? new Date(startIso) : new Date();
-  const end = endIso ? new Date(endIso) : new Date(start.getTime() + 90 * 60000);
-
-  if ($("match-start-date")) $("match-start-date").value = toLocalDateValue(start);
-  setTimeParts("match-start", start.getHours(), start.getMinutes());
-
-  if ($("match-end-date")) $("match-end-date").value = toLocalDateValue(end);
-  setTimeParts("match-end", end.getHours(), end.getMinutes());
-}
-
-function getMatchDateTimeValues() {
-  const startDate = $("match-start-date")?.value || "";
-  const endDate = $("match-end-date")?.value || "";
-  const startParts = readTimeParts("match-start");
-  const endParts = readTimeParts("match-end");
-
-  if (!startDate || !endDate || !startParts || !endParts) {
-    alert("Please choose match start and end date/time.");
-    return null;
-  }
-
-  const startTimeValue = new Date(`${startDate}T${pad2(startParts.hour24)}:${pad2(startParts.minute)}:00`);
-  const endTimeValue = new Date(`${endDate}T${pad2(endParts.hour24)}:${pad2(endParts.minute)}:00`);
-
-  if (Number.isNaN(startTimeValue.getTime()) || Number.isNaN(endTimeValue.getTime())) {
-    alert("Invalid match date or time.");
-    return null;
-  }
-
-  if (startTimeValue <= new Date()) {
-    alert("Match start time must be in the future.");
-    return null;
-  }
-
-  if (endTimeValue <= startTimeValue) {
-    alert("End time must be after start time.");
-    return null;
-  }
-
-  return {
-    startTime: startTimeValue,
-    endTime: endTimeValue
-  };
-}
 
 function getMatchDisplayStatus(match) {
   if (match.status === "cancelled") return "cancelled";
@@ -1518,20 +1389,10 @@ function scoreEntriesForGame(match, gameId) {
   );
 }
 
-function padelCompletedGameCountForTeam(match, teamLetter) {
-  const sessionGames = matchSessionGames(match).filter(game =>
-    game.status === "completed"
-  );
-
-  return sessionGames.filter(game =>
-    game.winner_team === teamLetter
-  ).length;
-}
-
 async function loadPendingPadelGames(match) {
   const { data, error } = await supabaseClient
     .from("match_games")
-    .select("id,sport_id,title,status,team_a_name,team_b_name,team_a_score,team_b_score,winner_team,created_by,created_at")
+    .select("id,sport_id,league_id,title,status,team_a_name,team_b_name,team_a_score,team_b_score,winner_team,created_by,created_at")
     .eq("sport_id", match.sport_id)
     .eq("status", "in_progress")
     .order("created_at", { ascending: false });
@@ -1573,9 +1434,7 @@ function setPadelGameModeUI() {
   const mode = $("padel-game-mode")?.value || "new";
   const label = $("padel-pending-game-label");
 
-  if (label) {
-    label.style.display = mode === "continue" ? "" : "none";
-  }
+  if (label) label.style.display = mode === "continue" ? "" : "none";
 }
 
 function clearPadelSetInputs() {
@@ -1589,7 +1448,7 @@ function clearPadelSetInputs() {
 }
 
 async function loadPendingGameScoreIntoForm(gameId) {
-  if (!currentScoreMatchId || !gameId) {
+  if (!gameId) {
     clearPadelSetInputs();
     return;
   }
@@ -1619,17 +1478,9 @@ async function loadPendingGameScoreIntoForm(gameId) {
     const setNumber = Number(entry.set_number || 0);
     if (![1, 2, 3].includes(setNumber)) return;
 
-    if ($(`padel-set-${setNumber}-a`)) {
-      $(`padel-set-${setNumber}-a`).value = Number(entry.team_a_score || 0);
-    }
-
-    if ($(`padel-set-${setNumber}-b`)) {
-      $(`padel-set-${setNumber}-b`).value = Number(entry.team_b_score || 0);
-    }
-
-    if ($(`padel-set-${setNumber}-completed`)) {
-      $(`padel-set-${setNumber}-completed`).checked = Boolean(entry.is_completed);
-    }
+    if ($(`padel-set-${setNumber}-a`)) $(`padel-set-${setNumber}-a`).value = Number(entry.team_a_score || 0);
+    if ($(`padel-set-${setNumber}-b`)) $(`padel-set-${setNumber}-b`).value = Number(entry.team_b_score || 0);
+    if ($(`padel-set-${setNumber}-completed`)) $(`padel-set-${setNumber}-completed`).checked = Boolean(entry.is_completed);
   });
 
   updatePadelScorePreview();
@@ -1660,6 +1511,9 @@ function renderScoreSummary(match) {
   if (!teams.length || !hasSubmittedScore(match)) return "";
 
   const sessionGames = matchSessionGames(match);
+  const legacyPadelSets = scoreEntries(match, "padel_set")
+    .filter(entry => !entry.game_id)
+    .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0));
 
   return `
     <div class="score-summary">
@@ -1693,7 +1547,19 @@ function renderScoreSummary(match) {
               }).join("")}
             </div>
           `
-          : ""
+          : legacyPadelSets.length
+            ? `
+              <div class="padel-score-summary">
+                ${legacyPadelSets.map(set => `
+                  <div>
+                    Set ${Number(set.set_number || 0)}:
+                    ${Number(set.team_a_score || 0)}-${Number(set.team_b_score || 0)}
+                    ${set.is_completed ? "" : " unfinished"}
+                  </div>
+                `).join("")}
+              </div>
+            `
+            : ""
       }
 
       ${
@@ -1703,6 +1569,562 @@ function renderScoreSummary(match) {
       }
     </div>
   `;
+}
+
+function renderMatches() {
+  if (!$("matchList")) return;
+
+  if (!allMatches || allMatches.length === 0) {
+    $("matchList").innerHTML = `<article class="card">No matches scheduled yet.</article>`;
+    return;
+  }
+
+  $("matchList").innerHTML = allMatches.map(match => {
+    const displayStatus = getMatchDisplayStatus(match);
+    const isCancelled = displayStatus === "cancelled";
+    const isFuture = new Date(match.start_time) > new Date();
+    const votingOpen = isVotingOpenForMatch(match);
+    const matchEditable = isMatchEditable(match);
+    const counts = invitationCounts(match);
+    const externalInvitations = externalPlayerInvitations(match);
+    const externalCount = externalInvitations.length;
+    const filledCount = counts.inCount;
+    const invitation = myInvitation(match);
+    const isCreator = String(match.created_by || "") === String(currentProfile?.id || "");
+    const isAdmin = isCurrentUserAdmin();
+    const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
+
+    const maxPlayers = Number(match.max_players || 0);
+    const spotsLabel = maxPlayers
+      ? `${filledCount}/${maxPlayers} filled`
+      : `${filledCount} filled`;
+
+    const isFull = maxPlayers && filledCount >= maxPlayers;
+    const userIsIn = currentVoteStatus === "in";
+    const canVoteThisMatch = Boolean(invitation || isCreator || isAdmin);
+
+    return `
+      <article class="card">
+        <div class="row">
+          <div>
+            <h3>${escapeHtml(match.title || "Untitled match")}</h3>
+
+            <div class="meta">
+              ${escapeHtml(match.sports?.name || "-")}
+              • ${escapeHtml(match.match_type || "-")}
+              • ${fmtDate(match.start_time)}
+            </div>
+
+            <div class="meta">
+              Time: ${fmtDate(match.start_time)} → ${fmtDate(match.end_time)}
+            </div>
+
+            <div class="meta">
+              📍 ${escapeHtml(match.venues?.name || "-")}
+              ${match.venues?.address ? "— " + escapeHtml(match.venues.address) : ""}
+            </div>
+
+            <div class="meta">
+              Players: ${spotsLabel}
+              • IN: ${counts.inCount}
+              • External: ${externalCount}
+              • Maybe: ${counts.maybeCount}
+              • Out: ${counts.outCount}
+              • Invited: ${counts.invitedCount}
+            </div>
+
+            <div class="meta">
+              IN players: ${inPlayerNames(match).length ? escapeHtml(inPlayerNames(match).join(", ")) : "-"}
+            </div>
+
+            ${renderTeamsSummary(match)}
+
+            ${renderScoreSummary(match)}
+
+            ${
+              isFull
+                ? `<div class="meta">Match is full.</div>`
+                : ""
+            }
+
+            ${
+              externalCount
+                ? `
+                  <div class="external-list">
+                    <div class="meta">External players:</div>
+                    ${externalInvitations.map(inv => {
+                      const player = invitationMember(inv);
+                      const playerName = invitationMemberDisplayName(inv);
+
+                      return `
+                        <div class="external-player-row">
+                          <span>${escapeHtml(playerName)}</span>
+
+                          ${
+                            canManageMatch(match) && matchEditable
+                              ? `
+                                <button class="tiny-btn" onclick="renameExternalMember('${player?.id || ""}', '${match.id}', '${jsString(playerName)}')">
+                                  Rename
+                                </button>
+
+                                <button class="tiny-btn danger" onclick="removeExternalMemberFromMatch('${inv.id}', '${match.id}')">
+                                  Remove
+                                </button>
+                              `
+                              : ""
+                          }
+                        </div>
+                      `;
+                    }).join("")}
+                  </div>
+                `
+                : ""
+            }
+
+            ${
+              match.venues?.google_maps_url
+                ? `<div class="meta"><a href="${escapeHtml(match.venues.google_maps_url)}" target="_blank">Open Map</a></div>`
+                : ""
+            }
+
+            ${
+              match.notes
+                ? `<div class="meta">${escapeHtml(match.notes)}</div>`
+                : ""
+            }
+          </div>
+
+          <span class="pill ${getMatchStatusClass(displayStatus, isFull)}">
+            ${escapeHtml(isFull && displayStatus === "open_for_votes" ? "full" : displayStatus)}
+          </span>
+        </div>
+
+        ${
+         canVoteThisMatch && votingOpen
+            ? `
+              <div class="actions">
+                <button
+                  class="small-btn ${currentVoteStatus === "in" ? "selected-vote" : ""}"
+                  onclick="voteMatch('${match.id}', 'in')"
+                  ${isFull && !userIsIn ? "disabled" : ""}
+                >
+                  I'm In
+                </button>
+
+                <button
+                  class="small-btn ${currentVoteStatus === "maybe" ? "selected-vote" : ""}"
+                  onclick="voteMatch('${match.id}', 'maybe')"
+                >
+                  Maybe
+                </button>
+
+                <button
+                  class="small-btn ${currentVoteStatus === "out" ? "selected-vote-red" : ""}"
+                  onclick="voteMatch('${match.id}', 'out')"
+                >
+                  Out
+                </button>
+              </div>
+            `
+            : ""
+        }
+
+        ${
+          canManageMatch(match)
+            ? `
+              <div class="actions">
+                ${
+                  canSubmitScore(match)
+                    ? `<button class="small-btn" onclick="openScoreSubmission('${match.id}')">
+                        Submit Score
+                      </button>`
+                    : ""
+                }
+
+                ${
+                  matchEditable && counts.inCount >= 2
+                    ? `<button class="small-btn" onclick="openTeamAssignment('${match.id}')">
+                        Assign Teams
+                      </button>`
+                    : ""
+                }
+
+                ${
+                  matchEditable && !isFull
+                    ? `<button class="small-btn" onclick="openExternalPlayerPicker('${match.id}')">
+                        Add External
+                      </button>`
+                    : ""
+                }
+
+                <button class="small-btn" onclick="editMatch('${match.id}')">
+                  Edit
+                </button>
+
+                <button class="small-btn" onclick="deleteOrCancelMatch('${match.id}')">
+                  ${isFuture ? "Delete" : "Cancel"}
+                </button>
+              </div>
+            `
+            : ""
+        }
+      </article>
+    `;
+  }).join("");
+}
+
+function toDateTimeLocal(iso) {
+  if (!iso) return "";
+
+  const d = new Date(iso);
+  const offset = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - offset * 60000);
+
+  return local.toISOString().slice(0, 16);
+}
+
+function pad2(num) {
+  return String(num).padStart(2, "0");
+}
+
+function toLocalDateValue(date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+function toAmPmLabel(hour, minute = 0) {
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const h12 = hour % 12 || 12;
+  return `${h12}:${pad2(minute)} ${suffix}`;
+}
+
+function populateMatchTimeSelects() {
+  const startHour = $("match-start-hour");
+  const startMinute = $("match-start-minute");
+  const endHour = $("match-end-hour");
+  const endMinute = $("match-end-minute");
+
+  if (!startHour || !startMinute || !endHour || !endMinute) return;
+
+  if (startHour.options.length && startMinute.options.length) return;
+
+  const hourOptions = Array.from({ length: 12 }, (_, i) => {
+    const hour = i + 1;
+    return `<option value="${hour}">${hour}</option>`;
+  }).join("");
+
+  const minuteOptions = Array.from({ length: 60 }, (_, minute) => {
+    return `<option value="${pad2(minute)}">${pad2(minute)}</option>`;
+  }).join("");
+
+  startHour.innerHTML = hourOptions;
+  endHour.innerHTML = hourOptions;
+
+  startMinute.innerHTML = minuteOptions;
+  endMinute.innerHTML = minuteOptions;
+}
+
+function setTimeParts(prefix, hour24, minute = 0) {
+  const hourSelect = $(`${prefix}-hour`);
+  const minuteSelect = $(`${prefix}-minute`);
+  const ampmSelect = $(`${prefix}-ampm`);
+
+  if (!hourSelect || !minuteSelect || !ampmSelect) return;
+
+  const ampm = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 || 12;
+
+  hourSelect.value = String(hour12);
+
+  const cleanMinute = Math.max(0, Math.min(59, Number(minute) || 0));
+
+  minuteSelect.value = pad2(cleanMinute);
+  ampmSelect.value = ampm;
+}
+
+function readTimeParts(prefix) {
+  const hour = Number($(`${prefix}-hour`)?.value || 0);
+  const minute = Number($(`${prefix}-minute`)?.value || 0);
+  const ampm = $(`${prefix}-ampm`)?.value || "AM";
+
+  if (!hour || hour < 1 || hour > 12) return null;
+
+  let hour24 = hour % 12;
+  if (ampm === "PM") hour24 += 12;
+
+  return {
+    hour24,
+    minute
+  };
+}
+
+function setDefaultMatchDateTimes() {
+  populateMatchTimeSelects();
+
+  const today = new Date();
+
+  if ($("match-start-date")) $("match-start-date").value = toLocalDateValue(today);
+  setTimeParts("match-start", 18, 0);
+
+  if ($("match-end-date")) $("match-end-date").value = toLocalDateValue(today);
+  setTimeParts("match-end", 19, 30);
+}
+
+function setMatchDateTimeFields(startIso, endIso) {
+  populateMatchTimeSelects();
+
+  const start = startIso ? new Date(startIso) : new Date();
+  const end = endIso ? new Date(endIso) : new Date(start.getTime() + 90 * 60000);
+
+  if ($("match-start-date")) $("match-start-date").value = toLocalDateValue(start);
+  setTimeParts("match-start", start.getHours(), start.getMinutes());
+
+  if ($("match-end-date")) $("match-end-date").value = toLocalDateValue(end);
+  setTimeParts("match-end", end.getHours(), end.getMinutes());
+}
+
+function getMatchDateTimeValues() {
+  const startDate = $("match-start-date")?.value || "";
+  const endDate = $("match-end-date")?.value || "";
+  const startParts = readTimeParts("match-start");
+  const endParts = readTimeParts("match-end");
+
+  if (!startDate || !endDate || !startParts || !endParts) {
+    alert("Please choose match start and end date/time.");
+    return null;
+  }
+
+  const startTimeValue = new Date(`${startDate}T${pad2(startParts.hour24)}:${pad2(startParts.minute)}:00`);
+  const endTimeValue = new Date(`${endDate}T${pad2(endParts.hour24)}:${pad2(endParts.minute)}:00`);
+
+  if (Number.isNaN(startTimeValue.getTime()) || Number.isNaN(endTimeValue.getTime())) {
+    alert("Invalid match date or time.");
+    return null;
+  }
+
+  if (startTimeValue <= new Date()) {
+    alert("Match start time must be in the future.");
+    return null;
+  }
+
+  if (endTimeValue <= startTimeValue) {
+    alert("End time must be after start time.");
+    return null;
+  }
+
+  return {
+    startTime: startTimeValue,
+    endTime: endTimeValue
+  };
+}
+
+
+async function editMatch(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can edit this match.");
+    return;
+  }
+
+  if (!isMatchEditable(match)) {
+    alert("You can only edit match details before the match starts.");
+    return;
+  }
+
+  editingMatchId = matchId;
+
+  await loadMatchFormOptions();
+
+  if ($("match-sport")) {
+    $("match-sport").value = match.sport_id || match.sports?.id || "";
+  }
+
+  updateMatchVenueOptions();
+
+  if ($("match-venue")) {
+    $("match-venue").value = match.venue_id || match.venues?.id || "";
+  }
+
+  const form = $("matchForm");
+  if (!form) return;
+
+  form.elements["title"].value = match.title || "";
+  form.elements["match_type"].value = match.match_type || "friendly";
+  form.elements["required_players"].value = match.required_players || match.max_players || 4;
+  form.elements["max_players"].value = match.max_players || match.required_players || 4;
+  setMatchDateTimeFields(match.start_time, match.end_time);
+  form.elements["notes"].value = match.notes || "";
+
+  const invitedIds = (match.match_invitations || [])
+    .filter(inv => inv.member_id !== currentProfile?.id && inv.status !== "removed")
+    .map(inv => inv.member_id);
+
+  renderMatchInviteOptions(invitedIds);
+
+  const submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.textContent = "Update Match";
+
+  $("matchModal")?.showModal();
+}
+
+async function deleteOrCancelMatch(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can delete/cancel this match.");
+    return;
+  }
+
+  if (match.status === "cancelled") {
+    alert("This match is already cancelled.");
+    return;
+  }
+
+  const isFuture = new Date(match.start_time) > new Date();
+
+  if (isFuture) {
+    const ok = confirm("This match is still upcoming. Delete it completely?");
+    if (!ok) return;
+
+    const { error } = await supabaseClient
+      .from("matches")
+      .delete()
+      .eq("id", matchId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    alert("Match deleted.");
+  } else {
+    const ok = confirm("This match time has passed. Mark it as cancelled instead?");
+    if (!ok) return;
+
+    const { error } = await supabaseClient
+      .from("matches")
+      .update({
+        status: "cancelled"
+      })
+      .eq("id", matchId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    alert("Match marked as cancelled.");
+  }
+
+  await loadMatches();
+}
+
+async function voteMatch(matchId, newStatus) {
+  if (!currentProfile || currentProfile.approval_status !== "approved") {
+    alert("Approved members only.");
+    return;
+  }
+
+  const match = allMatches.find(m => m.id === matchId);
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  let invitation = myInvitation(match);
+  const isCreator = match.created_by === currentProfile?.id;
+
+  if (!invitation && !isCreator) {
+    alert("You are not invited to this match.");
+    return;
+  }
+
+  const displayStatus = getMatchDisplayStatus(match);
+
+  if (displayStatus === "cancelled") {
+    alert("This match is cancelled.");
+    return;
+  }
+
+  if (displayStatus === "playing") {
+    alert("Voting is closed because the match is currently playing.");
+    return;
+  }
+
+  if (displayStatus === "finished" || displayStatus === "completed") {
+    alert("Voting is closed because the match has finished.");
+    return;
+  }
+
+  if (new Date(match.start_time) <= new Date()) {
+    alert("Voting is closed because the match time has passed.");
+    return;
+  }
+
+  const counts = invitationCounts(match);
+  const filledCount = counts.inCount;
+  const maxPlayers = Number(match.max_players || 0);
+  const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
+  const userIsCurrentlyIn = currentVoteStatus === "in";
+
+  if (newStatus === "in" && maxPlayers && filledCount >= maxPlayers && !userIsCurrentlyIn) {
+    alert("This match is already full. You can vote Maybe or Out.");
+    return;
+  }
+
+  if (!invitation && isCreator) {
+    const { data, error } = await supabaseClient
+      .from("match_invitations")
+      .upsert({
+        match_id: matchId,
+        member_id: currentProfile.id,
+        invited_by: currentProfile.id,
+        status: newStatus
+      }, {
+        onConflict: "match_id,member_id"
+      })
+      .select()
+      .single();
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    match.match_invitations = match.match_invitations || [];
+    match.match_invitations.push(data);
+    invitation = data;
+  } else {
+    const updatePayload = {
+      status: newStatus,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabaseClient
+      .from("match_invitations")
+      .update(updatePayload)
+      .eq("id", invitation.id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    invitation.status = newStatus;
+  }
+
+  renderMatches();
+  await loadMatches();
 }
 
 async function loadExternalMembersForPicker(matchId) {
@@ -2043,6 +2465,305 @@ async function removeExternalMemberFromMatch(invitationId, matchId) {
 }
 
 
+function renderTeamAssignmentList(match) {
+  const box = $("team-assignment-list");
+  if (!box) return;
+
+  const players = inPlayerInvitations(match);
+  const teams = match.match_teams || [];
+  const teamA = teams[0] || null;
+  const teamB = teams[1] || null;
+  const assignedMap = currentTeamByMemberId(match);
+
+  if (!players.length) {
+    box.innerHTML = `<div class="hint">No IN players yet.</div>`;
+    return;
+  }
+
+  box.innerHTML = players.map(inv => {
+    const member = invitationMember(inv);
+    const memberId = member?.id || inv.member_id;
+    const selectedTeamId = assignedMap.get(memberId) || "";
+    const selectedSide =
+      teamA && selectedTeamId === teamA.id ? "A" :
+      teamB && selectedTeamId === teamB.id ? "B" :
+      "";
+
+    return `
+      <div class="team-player-row">
+        <div class="team-player-name">
+          ${escapeHtml(invitationMemberDisplayName(inv))}
+          ${member?.is_external ? `<span class="mini-pill">External</span>` : ""}
+        </div>
+
+        <div class="team-choice">
+          <label class="team-choice-chip">
+            <input
+              type="radio"
+              name="team-choice-${memberId}"
+              value="A"
+              data-member-id="${memberId}"
+              ${selectedSide === "A" ? "checked" : ""}
+            >
+            <span>A</span>
+          </label>
+
+          <label class="team-choice-chip">
+            <input
+              type="radio"
+              name="team-choice-${memberId}"
+              value="B"
+              data-member-id="${memberId}"
+              ${selectedSide === "B" ? "checked" : ""}
+            >
+            <span>B</span>
+          </label>
+
+          <label class="team-choice-chip">
+            <input
+              type="radio"
+              name="team-choice-${memberId}"
+              value=""
+              data-member-id="${memberId}"
+              ${selectedSide === "" ? "checked" : ""}
+            >
+            <span>Unassigned</span>
+          </label>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  document.querySelectorAll("#team-assignment-list input[type='radio']").forEach(input => {
+    input.addEventListener("change", updateTeamBalanceStatus);
+  });
+
+  updateTeamBalanceStatus();
+}
+
+async function openTeamAssignment(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can assign teams.");
+    return;
+  }
+
+  if (!isMatchEditable(match)) {
+    alert("Teams can only be assigned before the match starts.");
+    return;
+  }
+
+  const players = inPlayerInvitations(match);
+
+  if (players.length < 2) {
+    alert("At least 2 IN players are needed to assign teams.");
+    return;
+  }
+
+  currentTeamMatchId = matchId;
+
+  const teams = match.match_teams || [];
+
+  if ($("team-a-name")) $("team-a-name").value = teams[0]?.name || "Team A";
+  if ($("team-b-name")) $("team-b-name").value = teams[1]?.name || "Team B";
+
+  if ($("team-match-label")) {
+    $("team-match-label").textContent =
+      `${match.title || "Match"} — assign ${players.length} IN player(s).`;
+  }
+
+  renderTeamAssignmentList(match);
+  updateTeamBalanceStatus();
+
+  $("teamModal")?.showModal();
+}
+
+function collectTeamAssignments() {
+  const choices = Array.from(document.querySelectorAll("#team-assignment-list input[type='radio']:checked"));
+
+  const teamA = [];
+  const teamB = [];
+
+  choices.forEach(input => {
+    const memberId = input.dataset.memberId;
+    const value = input.value;
+
+    if (!memberId) return;
+
+    if (value === "A") teamA.push(memberId);
+    if (value === "B") teamB.push(memberId);
+  });
+
+  return {
+    teamA,
+    teamB
+  };
+}
+
+
+function updateTeamBalanceStatus() {
+  const status = $("team-balance-status");
+  if (!status) return;
+
+  const assignments = collectTeamAssignments();
+  const difference = Math.abs(assignments.teamA.length - assignments.teamB.length);
+  const isBalanced =
+    assignments.teamA.length > 0 &&
+    assignments.teamB.length > 0 &&
+    difference <= 1;
+
+  status.textContent = `Team A: ${assignments.teamA.length} • Team B: ${assignments.teamB.length}`;
+
+  status.classList.toggle("balanced", isBalanced);
+  status.classList.toggle("unbalanced", !isBalanced);
+}
+
+async function saveTeams() {
+  if (!currentTeamMatchId) {
+    alert("No match selected.");
+    return;
+  }
+
+  const match = allMatches.find(m => m.id === currentTeamMatchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can save teams.");
+    return;
+  }
+
+  if (!isMatchEditable(match)) {
+    alert("Teams can only be saved before the match starts.");
+    return;
+  }
+
+  const teamAName = $("team-a-name")?.value.trim() || "Team A";
+  const teamBName = $("team-b-name")?.value.trim() || "Team B";
+  const assignments = collectTeamAssignments();
+
+  const teamCountDifference = Math.abs(assignments.teamA.length - assignments.teamB.length);
+
+  if (assignments.teamA.length === 0 || assignments.teamB.length === 0) {
+    alert("Both teams must have at least one player.");
+    return;
+  }
+
+  if (teamCountDifference > 1) {
+    alert("Teams must be balanced. The number of players in Team A and Team B can differ by maximum 1 player.");
+    return;
+  }
+
+  const existingTeamIds = (match.match_teams || []).map(team => team.id);
+
+  if (existingTeamIds.length > 0) {
+    const { error: deletePlayersError } = await supabaseClient
+      .from("match_team_players")
+      .delete()
+      .in("match_team_id", existingTeamIds);
+
+    if (deletePlayersError) {
+      alert(deletePlayersError.message);
+      return;
+    }
+
+    const { error: deleteTeamsError } = await supabaseClient
+      .from("match_teams")
+      .delete()
+      .eq("match_id", currentTeamMatchId);
+
+    if (deleteTeamsError) {
+      alert(deleteTeamsError.message);
+      return;
+    }
+  }
+
+  const { data: teamsData, error: teamsError } = await supabaseClient
+    .from("match_teams")
+    .insert([
+      {
+        match_id: currentTeamMatchId,
+        name: teamAName,
+        color: "A",
+        score: 0,
+        result: null
+      },
+      {
+        match_id: currentTeamMatchId,
+        name: teamBName,
+        color: "B",
+        score: 0,
+        result: null
+      }
+    ])
+    .select("id,name,color");
+
+  if (teamsError) {
+    alert(teamsError.message);
+    return;
+  }
+
+  const teamAId = teamsData?.find(team => team.color === "A")?.id || teamsData?.[0]?.id;
+  const teamBId = teamsData?.find(team => team.color === "B")?.id || teamsData?.[1]?.id;
+
+  const playerRows = [
+    ...assignments.teamA.map(memberId => ({
+      match_team_id: teamAId,
+      member_id: memberId,
+      is_external: Boolean(
+        inPlayerInvitations(match).find(inv => inv.member_id === memberId)?.member?.is_external
+      )
+    })),
+    ...assignments.teamB.map(memberId => ({
+      match_team_id: teamBId,
+      member_id: memberId,
+      is_external: Boolean(
+        inPlayerInvitations(match).find(inv => inv.member_id === memberId)?.member?.is_external
+      )
+    }))
+  ];
+
+  if (playerRows.length > 0) {
+    const { error: playersError } = await supabaseClient
+      .from("match_team_players")
+      .insert(playerRows);
+
+    if (playersError) {
+      alert(playersError.message);
+      return;
+    }
+  }
+
+  const { error: matchUpdateError } = await supabaseClient
+    .from("matches")
+    .update({
+      team_status: "assigned"
+    })
+    .eq("id", currentTeamMatchId);
+
+  if (matchUpdateError) {
+    alert(matchUpdateError.message);
+    return;
+  }
+
+  alert("Teams saved.");
+
+  $("teamModal")?.close();
+  currentTeamMatchId = null;
+
+  await loadMatches();
+}
+
+
 function getTwoMatchTeams(match) {
   const teams = match.match_teams || [];
 
@@ -2078,13 +2799,8 @@ async function openScoreSubmission(matchId) {
     $("score-match-label").textContent = `${match.title || "Match result"} — ${match.sports?.name || ""}`;
   }
 
-  if ($("score-team-a-label")) {
-    $("score-team-a-label").textContent = `${teamA.name || "Team A"} score`;
-  }
-
-  if ($("score-team-b-label")) {
-    $("score-team-b-label").textContent = `${teamB.name || "Team B"} score`;
-  }
+  if ($("score-team-a-label")) $("score-team-a-label").textContent = `${teamA.name || "Team A"} score`;
+  if ($("score-team-b-label")) $("score-team-b-label").textContent = `${teamB.name || "Team B"} score`;
 
   if ($("padel-team-a-head")) $("padel-team-a-head").textContent = teamA.name || "Team A";
   if ($("padel-team-b-head")) $("padel-team-b-head").textContent = teamB.name || "Team B";
@@ -3007,11 +3723,21 @@ function bindEvents() {
 
     editingMatchId = null;
     e.target.reset();
+    setDefaultMatchDateTimes();
 
     const submitBtn = e.target.querySelector('button[type="submit"]');
     if (submitBtn) submitBtn.textContent = "Create Match";
 
     await loadMatches();
+
+    document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".view").forEach(v => v.classList.remove("active-view"));
+
+    const matchesTab = document.querySelector('[data-view="matches"]');
+    const matchesView = $("matches");
+
+    if (matchesTab) matchesTab.classList.add("active");
+    if (matchesView) matchesView.classList.add("active-view");
   });
 }
 
@@ -3056,26 +3782,30 @@ function bindEvents() {
 
   $("cancel-venue-edit-btn")?.addEventListener("click", clearVenueForm);
 
-  if (typeof addSelectedExternalPlayers === "function") $("add-selected-external-btn")?.addEventListener("click", addSelectedExternalPlayers);
+  $("add-selected-external-btn")?.addEventListener("click", addSelectedExternalPlayers);
 
-  if (typeof createExternalPlayerProfile === "function") $("create-external-player-btn")?.addEventListener("click", createExternalPlayerProfile);
+  $("create-external-player-btn")?.addEventListener("click", createExternalPlayerProfile);
 
   $("save-teams-btn")?.addEventListener("click", saveTeams);
 
   $("save-score-btn")?.addEventListener("click", saveScore);
 
-  if ($("padel-score-section")) {
-    document.querySelectorAll("#padel-score-section input").forEach(input => {
-      input.addEventListener("input", updatePadelScorePreview);
-      input.addEventListener("change", updatePadelScorePreview);
-    });
-  }
+  document.querySelectorAll("#padel-score-section input").forEach(input => {
+    input.addEventListener("input", updatePadelScorePreview);
+    input.addEventListener("change", updatePadelScorePreview);
+  });
 
   $("padel-game-mode")?.addEventListener("change", () => {
     setPadelGameModeUI();
+
     if ($("padel-game-mode")?.value === "new") {
       clearPadelSetInputs();
-      if ($("padel-game-title")) $("padel-game-title").value = "Game 1";
+
+      if ($("padel-game-title")) {
+        const match = allMatches.find(m => m.id === currentScoreMatchId);
+        const nextGameNumber = match ? matchSessionGames(match).length + 1 : 1;
+        $("padel-game-title").value = `Game ${nextGameNumber}`;
+      }
     }
   });
 
