@@ -3378,8 +3378,7 @@ async function saveMatchMemberPoints(match) {
       sport_id: match.sport_id,
       base_points: points.basePoints,
       difficulty_factor: points.difficultyFactor,
-      consistency_bonus: points.consistencyBonus,
-      total_points: points.totalPoints
+      consistency_bonus: points.consistencyBonus
     };
   });
 
