@@ -587,8 +587,10 @@ async function loadMatchFormOptions() {
 
   allSports = sportsData || [];
   allVenues = venuesData || [];
-  allMembers = (membersData || []).filter(member => member.id !== currentProfile?.id);
-
+ allMembers = (membersData || []).filter(member =>
+  member.id !== currentProfile?.id &&
+  !member.is_external
+);
   const sportSelect = $("match-sport");
   if (sportSelect) {
     sportSelect.innerHTML = `
@@ -668,8 +670,21 @@ async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingV
     return false;
   }
 
+  /*
+    Only real registered members should receive voting invitations.
+    External players are handled separately through Add External,
+    and they are automatically inserted as status = "in".
+  */
+  const realMemberIds = (allMembers || [])
+    .filter(member => !member.is_external)
+    .map(member => member.id);
+
   const uniqueInvitedIds = Array.from(new Set(invitedMemberIds || []))
-    .filter(id => id && id !== currentProfile?.id);
+    .filter(id =>
+      id &&
+      id !== currentProfile?.id &&
+      realMemberIds.includes(id)
+    );
 
   if (!preserveExistingVotes) {
     const creatorRow = {
@@ -699,6 +714,65 @@ async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingV
 
     return true;
   }
+
+  const match = allMatches.find(m => m.id === matchId);
+  const existingInvitations = match?.match_invitations || [];
+  const existingIds = existingInvitations.map(inv => inv.member_id);
+
+  /*
+    Remove only real member invitations that were unchecked.
+    Do NOT remove external players here because they are managed
+    from the Add External modal.
+  */
+  const idsToRemove = existingInvitations
+    .filter(inv => {
+      const member = invitationMember(inv);
+      return (
+        inv.member_id !== currentProfile?.id &&
+        !member?.is_external &&
+        !uniqueInvitedIds.includes(inv.member_id)
+      );
+    })
+    .map(inv => inv.member_id);
+
+  const idsToAdd = uniqueInvitedIds.filter(id => !existingIds.includes(id));
+
+  if (idsToRemove.length > 0) {
+    const { error: removeError } = await supabaseClient
+      .from("match_invitations")
+      .update({
+        status: "removed",
+        updated_at: new Date().toISOString()
+      })
+      .eq("match_id", matchId)
+      .in("member_id", idsToRemove);
+
+    if (removeError) {
+      alert(removeError.message);
+      return false;
+    }
+  }
+
+  if (idsToAdd.length > 0) {
+    const rows = idsToAdd.map(memberId => ({
+      match_id: matchId,
+      member_id: memberId,
+      invited_by: currentProfile.id,
+      status: "invited"
+    }));
+
+    const { error: addError } = await supabaseClient
+      .from("match_invitations")
+      .insert(rows);
+
+    if (addError) {
+      alert(addError.message);
+      return false;
+    }
+  }
+
+  return true;
+}
 
   const match = allMatches.find(m => m.id === matchId);
   const existingInvitations = match?.match_invitations || [];
