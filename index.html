@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=55" />
+  <link rel="stylesheet" href="style.css?v=56" />
 </head>
 
 <body>
@@ -451,19 +451,61 @@
       <h3>Submit Score</h3>
 
       <p class="hint" id="score-match-label">
-        Enter the final score for each team.
+        Enter the final score.
       </p>
 
-      <div class="grid two">
-        <label>
-          <span id="score-team-a-label">Team A score</span>
-          <input id="score-team-a" type="number" min="0" step="1" value="0">
-        </label>
+      <div id="simple-score-section">
+        <div class="grid two">
+          <label>
+            <span id="score-team-a-label">Team A score</span>
+            <input id="score-team-a" type="number" min="0" step="1" value="0">
+          </label>
 
-        <label>
-          <span id="score-team-b-label">Team B score</span>
-          <input id="score-team-b" type="number" min="0" step="1" value="0">
-        </label>
+          <label>
+            <span id="score-team-b-label">Team B score</span>
+            <input id="score-team-b" type="number" min="0" step="1" value="0">
+          </label>
+        </div>
+      </div>
+
+      <div id="padel-score-section" style="display:none;">
+        <p class="hint">
+          Enter padel sets. Completed sets count toward the final result. Uncheck completed for an unfinished set.
+        </p>
+
+        <div class="padel-set-grid padel-set-head">
+          <span>Set</span>
+          <span id="padel-team-a-head">Team A</span>
+          <span id="padel-team-b-head">Team B</span>
+          <span>Done</span>
+        </div>
+
+        <div id="padel-set-list">
+          <div class="padel-set-grid">
+            <span>1</span>
+            <input id="padel-set-1-a" type="number" min="0" step="1" value="">
+            <input id="padel-set-1-b" type="number" min="0" step="1" value="">
+            <input id="padel-set-1-completed" type="checkbox" checked>
+          </div>
+
+          <div class="padel-set-grid">
+            <span>2</span>
+            <input id="padel-set-2-a" type="number" min="0" step="1" value="">
+            <input id="padel-set-2-b" type="number" min="0" step="1" value="">
+            <input id="padel-set-2-completed" type="checkbox" checked>
+          </div>
+
+          <div class="padel-set-grid">
+            <span>3</span>
+            <input id="padel-set-3-a" type="number" min="0" step="1" value="">
+            <input id="padel-set-3-b" type="number" min="0" step="1" value="">
+            <input id="padel-set-3-completed" type="checkbox" checked>
+          </div>
+        </div>
+
+        <div id="padel-score-preview" class="score-preview">
+          Sets: 0 - 0
+        </div>
       </div>
 
       <label>
@@ -513,6 +555,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=55"></script>
+  <script src="app.js?v=56"></script>
 </body>
 </html>
