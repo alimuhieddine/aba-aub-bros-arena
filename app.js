@@ -947,6 +947,16 @@ async function loadMatches() {
             is_external
           )
         )
+      ),
+      match_score_entries (
+        id,
+        entry_type,
+        game_number,
+        set_number,
+        team_a_score,
+        team_b_score,
+        is_completed,
+        notes
       )
     `)
     .order("start_time", { ascending: true });
@@ -1150,6 +1160,123 @@ function currentTeamByMemberId(match) {
 }
 
 
+
+function sportName(match) {
+  return String(match.sports?.name || "").toLowerCase();
+}
+
+function isPadelMatch(match) {
+  return sportName(match).includes("padel");
+}
+
+function isSimpleScoreMatch(match) {
+  return !isPadelMatch(match);
+}
+
+function scoreEntries(match, entryType = null) {
+  const entries = match.match_score_entries || [];
+
+  return entryType
+    ? entries.filter(entry => entry.entry_type === entryType)
+    : entries;
+}
+
+function padelSetInputs() {
+  return [1, 2, 3].map(setNumber => {
+    const aRaw = $(`padel-set-${setNumber}-a`)?.value;
+    const bRaw = $(`padel-set-${setNumber}-b`)?.value;
+    const completed = Boolean($(`padel-set-${setNumber}-completed`)?.checked);
+
+    const hasAnyValue = aRaw !== "" || bRaw !== "";
+    const a = aRaw === "" ? null : Number(aRaw);
+    const b = bRaw === "" ? null : Number(bRaw);
+
+    return {
+      setNumber,
+      teamAScore: a,
+      teamBScore: b,
+      isCompleted: completed,
+      hasAnyValue
+    };
+  });
+}
+
+function calculatePadelSetResult(sets) {
+  let teamASetWins = 0;
+  let teamBSetWins = 0;
+
+  const validSets = [];
+
+  for (const set of sets) {
+    if (!set.hasAnyValue) continue;
+
+    if (
+      set.teamAScore === null ||
+      set.teamBScore === null ||
+      !Number.isInteger(set.teamAScore) ||
+      !Number.isInteger(set.teamBScore) ||
+      set.teamAScore < 0 ||
+      set.teamBScore < 0
+    ) {
+      return {
+        error: "Padel set scores must be whole numbers equal to or greater than 0."
+      };
+    }
+
+    validSets.push(set);
+
+    if (set.isCompleted) {
+      if (set.teamAScore > set.teamBScore) teamASetWins += 1;
+      if (set.teamBScore > set.teamAScore) teamBSetWins += 1;
+    }
+  }
+
+  if (validSets.length === 0) {
+    return {
+      error: "Enter at least one padel set."
+    };
+  }
+
+  return {
+    teamASetWins,
+    teamBSetWins,
+    validSets
+  };
+}
+
+function updatePadelScorePreview() {
+  const preview = $("padel-score-preview");
+  if (!preview) return;
+
+  const result = calculatePadelSetResult(padelSetInputs());
+
+  if (result.error) {
+    preview.textContent = result.error;
+    preview.classList.add("unbalanced");
+    preview.classList.remove("balanced");
+    return;
+  }
+
+  preview.textContent = `Sets: ${result.teamASetWins} - ${result.teamBSetWins}`;
+  preview.classList.add("balanced");
+  preview.classList.remove("unbalanced");
+}
+
+function setScoreMode(match) {
+  const simpleSection = $("simple-score-section");
+  const padelSection = $("padel-score-section");
+
+  if (!simpleSection || !padelSection) return;
+
+  if (isPadelMatch(match)) {
+    simpleSection.style.display = "none";
+    padelSection.style.display = "";
+  } else {
+    simpleSection.style.display = "";
+    padelSection.style.display = "none";
+  }
+}
+
 function canSubmitScore(match) {
   const displayStatus = getMatchDisplayStatus(match);
 
@@ -1168,6 +1295,9 @@ function renderScoreSummary(match) {
 
   if (!teams.length || !hasSubmittedScore(match)) return "";
 
+  const padelSets = scoreEntries(match, "padel_set")
+    .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0));
+
   return `
     <div class="score-summary">
       ${teams.map(team => `
@@ -1177,6 +1307,22 @@ function renderScoreSummary(match) {
           <em>${escapeHtml(team.result || "-")}</em>
         </div>
       `).join("")}
+
+      ${
+        padelSets.length
+          ? `
+            <div class="padel-score-summary">
+              ${padelSets.map(set => `
+                <div>
+                  Set ${Number(set.set_number || 0)}:
+                  ${Number(set.team_a_score || 0)}-${Number(set.team_b_score || 0)}
+                  ${set.is_completed ? "" : " unfinished"}
+                </div>
+              `).join("")}
+            </div>
+          `
+          : ""
+      }
 
       ${
         match.notes
@@ -2412,7 +2558,7 @@ function openScoreSubmission(matchId) {
   currentScoreMatchId = matchId;
 
   if ($("score-match-label")) {
-    $("score-match-label").textContent = match.title || "Match result";
+    $("score-match-label").textContent = `${match.title || "Match result"} — ${match.sports?.name || ""}`;
   }
 
   if ($("score-team-a-label")) {
@@ -2423,9 +2569,33 @@ function openScoreSubmission(matchId) {
     $("score-team-b-label").textContent = `${teamB.name || "Team B"} score`;
   }
 
+  if ($("padel-team-a-head")) $("padel-team-a-head").textContent = teamA.name || "Team A";
+  if ($("padel-team-b-head")) $("padel-team-b-head").textContent = teamB.name || "Team B";
+
   if ($("score-team-a")) $("score-team-a").value = Number(teamA.score || 0);
   if ($("score-team-b")) $("score-team-b").value = Number(teamB.score || 0);
   if ($("score-summary")) $("score-summary").value = match.notes || "";
+
+  for (const setNumber of [1, 2, 3]) {
+    const existingSet = scoreEntries(match, "padel_set").find(entry =>
+      Number(entry.set_number) === setNumber
+    );
+
+    if ($(`padel-set-${setNumber}-a`)) {
+      $(`padel-set-${setNumber}-a`).value = existingSet ? Number(existingSet.team_a_score || 0) : "";
+    }
+
+    if ($(`padel-set-${setNumber}-b`)) {
+      $(`padel-set-${setNumber}-b`).value = existingSet ? Number(existingSet.team_b_score || 0) : "";
+    }
+
+    if ($(`padel-set-${setNumber}-completed`)) {
+      $(`padel-set-${setNumber}-completed`).checked = existingSet ? Boolean(existingSet.is_completed) : true;
+    }
+  }
+
+  setScoreMode(match);
+  updatePadelScorePreview();
 
   $("scoreModal")?.showModal();
 }
@@ -2455,17 +2625,81 @@ async function saveScore() {
     return;
   }
 
-  const scoreA = Number($("score-team-a")?.value || 0);
-  const scoreB = Number($("score-team-b")?.value || 0);
   const summary = $("score-summary")?.value.trim() || null;
 
-  if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB) || scoreA < 0 || scoreB < 0) {
-    alert("Scores must be whole numbers equal to or greater than 0.");
+  let scoreA = 0;
+  let scoreB = 0;
+  let resultA = "draw";
+  let resultB = "draw";
+  let scoreRows = [];
+
+  if (isPadelMatch(match)) {
+    const padelResult = calculatePadelSetResult(padelSetInputs());
+
+    if (padelResult.error) {
+      alert(padelResult.error);
+      return;
+    }
+
+    scoreA = padelResult.teamASetWins;
+    scoreB = padelResult.teamBSetWins;
+
+    scoreRows = padelResult.validSets.map(set => ({
+      match_id: currentScoreMatchId,
+      sport_id: match.sport_id,
+      entry_type: "padel_set",
+      game_number: 1,
+      set_number: set.setNumber,
+      team_a_score: set.teamAScore,
+      team_b_score: set.teamBScore,
+      is_completed: set.isCompleted,
+      notes: null
+    }));
+  } else {
+    scoreA = Number($("score-team-a")?.value || 0);
+    scoreB = Number($("score-team-b")?.value || 0);
+
+    if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB) || scoreA < 0 || scoreB < 0) {
+      alert("Scores must be whole numbers equal to or greater than 0.");
+      return;
+    }
+
+    scoreRows = [{
+      match_id: currentScoreMatchId,
+      sport_id: match.sport_id,
+      entry_type: "simple",
+      game_number: 1,
+      set_number: null,
+      team_a_score: scoreA,
+      team_b_score: scoreB,
+      is_completed: true,
+      notes: null
+    }];
+  }
+
+  resultA = scoreA > scoreB ? "win" : scoreA < scoreB ? "loss" : "draw";
+  resultB = scoreB > scoreA ? "win" : scoreB < scoreA ? "loss" : "draw";
+
+  const { error: deleteEntriesError } = await supabaseClient
+    .from("match_score_entries")
+    .delete()
+    .eq("match_id", currentScoreMatchId);
+
+  if (deleteEntriesError) {
+    alert(deleteEntriesError.message);
     return;
   }
 
-  const resultA = scoreA > scoreB ? "win" : scoreA < scoreB ? "loss" : "draw";
-  const resultB = scoreB > scoreA ? "win" : scoreB < scoreA ? "loss" : "draw";
+  if (scoreRows.length > 0) {
+    const { error: entriesError } = await supabaseClient
+      .from("match_score_entries")
+      .insert(scoreRows);
+
+    if (entriesError) {
+      alert(entriesError.message);
+      return;
+    }
+  }
 
   const { error: teamAError } = await supabaseClient
     .from("match_teams")
@@ -2514,7 +2748,6 @@ async function saveScore() {
 
   await loadMatches();
 }
-
 
 function commentSection(m) {
   return `
@@ -3150,6 +3383,11 @@ function bindEvents() {
   $("save-teams-btn")?.addEventListener("click", saveTeams);
 
   $("save-score-btn")?.addEventListener("click", saveScore);
+
+  document.querySelectorAll("#padel-score-section input").forEach(input => {
+    input.addEventListener("input", updatePadelScorePreview);
+    input.addEventListener("change", updatePadelScorePreview);
+  });
 
   supabaseClient.auth.onAuthStateChange(() => {
     refreshAuthUI();
