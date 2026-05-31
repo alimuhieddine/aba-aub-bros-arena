@@ -1247,40 +1247,77 @@ function toAmPmLabel(hour, minute = 0) {
 }
 
 function populateMatchTimeSelects() {
-  const startSelect = $("match-start-time");
-  const endSelect = $("match-end-time");
+  const startHour = $("match-start-hour");
+  const startMinute = $("match-start-minute");
+  const endHour = $("match-end-hour");
+  const endMinute = $("match-end-minute");
 
-  if (!startSelect || !endSelect) return;
+  if (!startHour || !startMinute || !endHour || !endMinute) return;
 
-  if (startSelect.options.length && endSelect.options.length) return;
+  if (startHour.options.length && startMinute.options.length) return;
 
-  const options = [];
+  const hourOptions = Array.from({ length: 12 }, (_, i) => {
+    const hour = i + 1;
+    return `<option value="${hour}">${hour}</option>`;
+  }).join("");
 
-  for (let hour = 0; hour < 24; hour++) {
-    for (const minute of [0, 30]) {
-      const value = `${pad2(hour)}:${pad2(minute)}`;
-      const label = toAmPmLabel(hour, minute);
-      options.push(`<option value="${value}">${label}</option>`);
-    }
-  }
+  const minuteOptions = [0, 15, 30, 45].map(minute => {
+    return `<option value="${pad2(minute)}">${pad2(minute)}</option>`;
+  }).join("");
 
-  const html = options.join("");
-  startSelect.innerHTML = html;
-  endSelect.innerHTML = html;
+  startHour.innerHTML = hourOptions;
+  endHour.innerHTML = hourOptions;
+
+  startMinute.innerHTML = minuteOptions;
+  endMinute.innerHTML = minuteOptions;
+}
+
+function setTimeParts(prefix, hour24, minute = 0) {
+  const hourSelect = $(`${prefix}-hour`);
+  const minuteSelect = $(`${prefix}-minute`);
+  const ampmSelect = $(`${prefix}-ampm`);
+
+  if (!hourSelect || !minuteSelect || !ampmSelect) return;
+
+  const ampm = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 || 12;
+
+  hourSelect.value = String(hour12);
+
+  const roundedMinute = [0, 15, 30, 45].reduce((best, value) =>
+    Math.abs(value - minute) < Math.abs(best - minute) ? value : best
+  , 0);
+
+  minuteSelect.value = pad2(roundedMinute);
+  ampmSelect.value = ampm;
+}
+
+function readTimeParts(prefix) {
+  const hour = Number($(`${prefix}-hour`)?.value || 0);
+  const minute = Number($(`${prefix}-minute`)?.value || 0);
+  const ampm = $(`${prefix}-ampm`)?.value || "AM";
+
+  if (!hour || hour < 1 || hour > 12) return null;
+
+  let hour24 = hour % 12;
+  if (ampm === "PM") hour24 += 12;
+
+  return {
+    hour24,
+    minute
+  };
 }
 
 function setDefaultMatchDateTimes() {
   populateMatchTimeSelects();
 
   const today = new Date();
-  const end = new Date(today);
-  end.setHours(19, 30, 0, 0);
 
   if ($("match-start-date")) $("match-start-date").value = toLocalDateValue(today);
-  if ($("match-start-time")) $("match-start-time").value = "18:00";
+  setTimeParts("match-start", 18, 0);
 
   if ($("match-end-date")) $("match-end-date").value = toLocalDateValue(today);
-  if ($("match-end-time")) $("match-end-time").value = "19:30";
+  setTimeParts("match-end", 19, 30);
 }
 
 function setMatchDateTimeFields(startIso, endIso) {
@@ -1290,25 +1327,25 @@ function setMatchDateTimeFields(startIso, endIso) {
   const end = endIso ? new Date(endIso) : new Date(start.getTime() + 90 * 60000);
 
   if ($("match-start-date")) $("match-start-date").value = toLocalDateValue(start);
-  if ($("match-start-time")) $("match-start-time").value = `${pad2(start.getHours())}:${pad2(start.getMinutes() < 30 ? 0 : 30)}`;
+  setTimeParts("match-start", start.getHours(), start.getMinutes());
 
   if ($("match-end-date")) $("match-end-date").value = toLocalDateValue(end);
-  if ($("match-end-time")) $("match-end-time").value = `${pad2(end.getHours())}:${pad2(end.getMinutes() < 30 ? 0 : 30)}`;
+  setTimeParts("match-end", end.getHours(), end.getMinutes());
 }
 
 function getMatchDateTimeValues() {
   const startDate = $("match-start-date")?.value || "";
-  const startTime = $("match-start-time")?.value || "";
   const endDate = $("match-end-date")?.value || "";
-  const endTime = $("match-end-time")?.value || "";
+  const startParts = readTimeParts("match-start");
+  const endParts = readTimeParts("match-end");
 
-  if (!startDate || !startTime || !endDate || !endTime) {
+  if (!startDate || !endDate || !startParts || !endParts) {
     alert("Please choose match start and end date/time.");
     return null;
   }
 
-  const startTimeValue = new Date(`${startDate}T${startTime}:00`);
-  const endTimeValue = new Date(`${endDate}T${endTime}:00`);
+  const startTimeValue = new Date(`${startDate}T${pad2(startParts.hour24)}:${pad2(startParts.minute)}:00`);
+  const endTimeValue = new Date(`${endDate}T${pad2(endParts.hour24)}:${pad2(endParts.minute)}:00`);
 
   if (Number.isNaN(startTimeValue.getTime()) || Number.isNaN(endTimeValue.getTime())) {
     alert("Invalid match date or time.");
