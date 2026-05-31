@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=51" />
+  <link rel="stylesheet" href="style.css?v=52" />
 </head>
 
 <body>
@@ -408,6 +408,38 @@
     </form>
   </dialog>
 
+
+  <dialog id="teamModal" class="modal">
+    <form method="dialog" id="teamForm" class="modal-card team-modal-card">
+      <button class="close" value="cancel" type="submit">×</button>
+      <h3>Assign Teams</h3>
+
+      <p class="hint" id="team-match-label">
+        Assign IN players to teams.
+      </p>
+
+      <div class="grid two">
+        <label>
+          Team A name
+          <input id="team-a-name" type="text" value="Team A">
+        </label>
+
+        <label>
+          Team B name
+          <input id="team-b-name" type="text" value="Team B">
+        </label>
+      </div>
+
+      <div id="team-assignment-list" class="team-assignment-list">
+        Loading players...
+      </div>
+
+      <button id="save-teams-btn" class="primary-btn full" type="button">
+        Save Teams
+      </button>
+    </form>
+  </dialog>
+
   <dialog id="activityModal" class="modal">
     <form method="dialog" id="activityForm" class="modal-card">
       <button class="close" value="cancel" type="submit">×</button>
@@ -444,6 +476,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=51"></script>
+  <script src="app.js?v=52"></script>
 </body>
 </html>
