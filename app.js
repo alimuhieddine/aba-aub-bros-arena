@@ -1442,15 +1442,17 @@ function renderPendingGameOptions() {
 function setPadelGameModeUI() {
   const mode = $("padel-game-mode")?.value || "new";
   const label = $("padel-pending-game-label");
+  const deleteBtn = $("delete-game-btn");
 
   if (label) label.style.display = mode === "continue" ? "" : "none";
+  if (deleteBtn) deleteBtn.style.display = mode === "continue" ? "" : "none";
 }
 
 function clearPadelSetInputs() {
   for (const setNumber of [1, 2, 3]) {
     if ($(`padel-set-${setNumber}-a`)) $(`padel-set-${setNumber}-a`).value = "";
     if ($(`padel-set-${setNumber}-b`)) $(`padel-set-${setNumber}-b`).value = "";
-    if ($(`padel-set-${setNumber}-completed`)) $(`padel-set-${setNumber}-completed`).checked = true;
+    if ($(`padel-set-${setNumber}-completed`)) $(`padel-set-${setNumber}-completed`).checked = false;
   }
 
   updatePadelScorePreview();
@@ -1547,12 +1549,16 @@ function renderScoreSummary(match) {
                   .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0));
 
                 return `
-                  <div><strong>${escapeHtml(game.title || `Game ${index + 1}`)}</strong> — ${escapeHtml(game.status || "-")}${game.winner_team ? ` • Winner: Team ${escapeHtml(game.winner_team)}` : ""}</div>
+                  <div>
+                    <strong>${escapeHtml(game.title || `Game ${index + 1}`)}</strong>
+                    — ${escapeHtml(padelGameStatusLabel(game, gameSets))}
+                    ${game.winner_team ? ` • Winner: Team ${escapeHtml(game.winner_team)}` : ""}
+                  </div>
                   ${gameSets.map(set => `
                     <div>
                       Set ${Number(set.set_number || 0)}:
                       ${Number(set.team_a_score || 0)}-${Number(set.team_b_score || 0)}
-                      ${set.is_completed ? "" : " unfinished"}
+                      ${set.is_completed ? "" : " incomplete"}
                     </div>
                   `).join("")}
                 `;
@@ -1566,7 +1572,7 @@ function renderScoreSummary(match) {
                   <div>
                     Set ${Number(set.set_number || 0)}:
                     ${Number(set.team_a_score || 0)}-${Number(set.team_b_score || 0)}
-                    ${set.is_completed ? "" : " unfinished"}
+                    ${set.is_completed ? "" : " incomplete"}
                   </div>
                 `).join("")}
               </div>
@@ -2864,6 +2870,128 @@ function completedGameScoreForMatch(match, extraGame = null) {
   };
 }
 
+
+function shouldAutoCompletePadelSet(scoreA, scoreB) {
+  if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB)) return false;
+
+  const high = Math.max(scoreA, scoreB);
+  const low = Math.min(scoreA, scoreB);
+  const diff = high - low;
+
+  return high >= 6 && low <= 4 && diff >= 2;
+}
+
+function autoCompletePadelSet(setNumber) {
+  const aRaw = $(`padel-set-${setNumber}-a`)?.value;
+  const bRaw = $(`padel-set-${setNumber}-b`)?.value;
+  const completedBox = $(`padel-set-${setNumber}-completed`);
+
+  if (!completedBox || aRaw === "" || bRaw === "") return;
+
+  const scoreA = Number(aRaw);
+  const scoreB = Number(bRaw);
+
+  if (shouldAutoCompletePadelSet(scoreA, scoreB)) {
+    completedBox.checked = true;
+  }
+}
+
+function autoCompleteAllPadelSets() {
+  [1, 2, 3].forEach(autoCompletePadelSet);
+  updatePadelScorePreview();
+}
+
+function padelGameStatusLabel(game, gameSets = []) {
+  if (!game) return "";
+
+  const completedSets = gameSets.filter(set => Boolean(set.is_completed)).length;
+  const incompleteSets = gameSets.filter(set => !set.is_completed).length;
+  const unstartedSets = Math.max(0, 3 - gameSets.length);
+
+  if (game.status === "completed") {
+    return "completed";
+  }
+
+  if (incompleteSets > 0) {
+    return `incomplete — ${incompleteSets} incomplete set${incompleteSets === 1 ? "" : "s"}`;
+  }
+
+  if (unstartedSets > 0) {
+    return `incomplete — ${unstartedSets} remaining unstarted set${unstartedSets === 1 ? "" : "s"}`;
+  }
+
+  return "incomplete";
+}
+
+async function deleteSelectedGameFromResults() {
+  if (!currentScoreMatchId) {
+    alert("No match selected.");
+    return;
+  }
+
+  const match = allMatches.find(m => m.id === currentScoreMatchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canSubmitScore(match)) {
+    alert("Games can only be deleted while editing results.");
+    return;
+  }
+
+  if (!isPadelMatch(match)) {
+    alert("Delete Game is currently for padel games only.");
+    return;
+  }
+
+  const mode = $("padel-game-mode")?.value || "new";
+  const gameId = $("padel-pending-game")?.value || "";
+
+  if (mode !== "continue" || !gameId) {
+    alert("Choose Edit / Continue Game and select a game to delete.");
+    return;
+  }
+
+  const game = allPendingGames.find(g => g.id === gameId);
+  const ok = confirm(`Delete ${game?.title || "this game"} from results? This removes its saved sets too.`);
+
+  if (!ok) return;
+
+  const { error: deleteGameError } = await supabaseClient
+    .from("match_games")
+    .delete()
+    .eq("id", gameId);
+
+  if (deleteGameError) {
+    alert(deleteGameError.message);
+    return;
+  }
+
+  alert("Game deleted.");
+
+  await loadMatches();
+
+  const refreshedMatch = allMatches.find(m => m.id === currentScoreMatchId);
+  if (!refreshedMatch) {
+    $("scoreModal")?.close();
+    currentScoreMatchId = null;
+    return;
+  }
+
+  await loadPendingPadelGames(refreshedMatch);
+  renderPendingGameOptions();
+
+  if ($("padel-game-mode")) $("padel-game-mode").value = "new";
+  setPadelGameModeUI();
+
+  const nextGameNumber = matchSessionGames(refreshedMatch).length + 1;
+  if ($("padel-game-title")) $("padel-game-title").value = `Game ${nextGameNumber}`;
+
+  clearPadelSetInputs();
+}
+
 async function savePadelGameOnly() {
   if (!currentScoreMatchId) {
     alert("No match selected.");
@@ -3892,11 +4020,22 @@ function bindEvents() {
 
   $("save-game-btn")?.addEventListener("click", saveCurrentGameAndStayOpen);
 
+  $("delete-game-btn")?.addEventListener("click", deleteSelectedGameFromResults);
+
   $("save-score-btn")?.addEventListener("click", saveScore);
 
   document.querySelectorAll("#padel-score-section input").forEach(input => {
-    input.addEventListener("input", updatePadelScorePreview);
-    input.addEventListener("change", updatePadelScorePreview);
+    input.addEventListener("input", () => {
+      const match = input.id.match(/^padel-set-(\d+)-[ab]$/);
+      if (match) autoCompletePadelSet(Number(match[1]));
+      updatePadelScorePreview();
+    });
+
+    input.addEventListener("change", () => {
+      const match = input.id.match(/^padel-set-(\d+)-[ab]$/);
+      if (match) autoCompletePadelSet(Number(match[1]));
+      updatePadelScorePreview();
+    });
   });
 
   $("padel-game-mode")?.addEventListener("change", () => {
