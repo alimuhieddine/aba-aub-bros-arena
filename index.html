@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=46" />
+  <link rel="stylesheet" href="style.css?v=47" />
 </head>
 
 <body>
@@ -330,6 +330,54 @@
   </form>
 </dialog>
 
+
+  <dialog id="externalPlayerModal" class="modal">
+    <form method="dialog" id="externalPlayerForm" class="modal-card">
+      <button class="close" value="cancel" type="submit">×</button>
+      <h3>Add External Players</h3>
+
+      <p class="hint" id="external-player-match-label">
+        Select existing external players, or create a new external profile.
+      </p>
+
+      <label>
+        Existing External Players
+        <div id="external-player-options" class="checkbox-list external-picker-list">
+          Loading external players...
+        </div>
+      </label>
+
+      <div class="actions">
+        <button id="add-selected-external-btn" class="primary-btn" type="button">
+          Add Selected
+        </button>
+      </div>
+
+      <div class="external-new-box">
+        <h3>New External Player</h3>
+
+        <label>
+          Display name
+          <input id="new-external-name" type="text" placeholder="Joe">
+        </label>
+
+        <label>
+          Phone optional
+          <input id="new-external-phone" type="tel" placeholder="+961...">
+        </label>
+
+        <label>
+          Email optional
+          <input id="new-external-email" type="email" placeholder="joe@example.com">
+        </label>
+
+        <button id="create-external-player-btn" class="secondary-btn full" type="button">
+          Create External Profile
+        </button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="activityModal" class="modal">
     <form method="dialog" id="activityForm" class="modal-card">
       <button class="close" value="cancel" type="submit">×</button>
@@ -366,6 +414,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=46"></script>
+  <script src="app.js?v=47"></script>
 </body>
 </html>
