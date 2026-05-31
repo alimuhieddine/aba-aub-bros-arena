@@ -965,7 +965,7 @@ function canManageMatch(match) {
 
 
 function invitationMemberDisplayName(invitation) {
-  const member = invitation?.members;
+  const member = invitation?.member;
 
   return member?.display_name ||
     `${member?.first_name || ""} ${member?.last_name || ""}`.trim() ||
