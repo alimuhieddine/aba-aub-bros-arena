@@ -940,12 +940,17 @@ function renderMatches() {
     const isFuture = new Date(match.start_time) > new Date();
     const counts = invitationCounts(match);
     const invitation = myInvitation(match);
-    const maxPlayers = Number(match.max_players || 0);
-    const spotsLabel = maxPlayers
-      ? `${counts.inCount}/${maxPlayers} IN`
-      : `${counts.inCount} IN`;
-    const isFull = maxPlayers && counts.inCount >= maxPlayers;
-    const userIsIn = invitation?.status === "in";
+const isCreator = match.created_by === currentProfile?.id;
+const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
+
+const maxPlayers = Number(match.max_players || 0);
+const spotsLabel = maxPlayers
+  ? `${counts.inCount}/${maxPlayers} IN`
+  : `${counts.inCount} IN`;
+
+const isFull = maxPlayers && counts.inCount >= maxPlayers;
+const userIsIn = currentVoteStatus === "in";
+const canVoteThisMatch = Boolean(invitation || isCreator);
 
     return `
       <article class="card">
@@ -996,11 +1001,11 @@ function renderMatches() {
         </div>
 
         ${
-          invitation && !isCancelled && isFuture
+         canVoteThisMatch && !isCancelled && isFuture
             ? `
               <div class="actions">
                 <button
-  class="small-btn ${invitation?.status === "in" ? "selected-vote" : ""}"
+  class="small-btn ${currentVoteStatus === "in" ? "selected-vote" : ""}"
   onclick="voteMatch('${match.id}', 'in')"
   ${isFull && !userIsIn ? "disabled" : ""}
 >
@@ -1008,14 +1013,14 @@ function renderMatches() {
 </button>
 
 <button
-  class="small-btn ${invitation?.status === "maybe" ? "selected-vote" : ""}"
+  class="small-btn ${currentVoteStatus === "maybe" ? "selected-vote" : ""}"
   onclick="voteMatch('${match.id}', 'maybe')"
 >
   Maybe
 </button>
 
 <button
-  class="small-btn ${invitation?.status === "out" ? "selected-vote-red" : ""}"
+  class="small-btn ${currentVoteStatus === "out" ? "selected-vote-red" : ""}"
   onclick="voteMatch('${match.id}', 'out')"
 >
   Out
@@ -1174,11 +1179,35 @@ async function voteMatch(matchId, newStatus) {
     return;
   }
 
-  const invitation = myInvitation(match);
-  if (!invitation) {
-    alert("You are not invited to this match.");
+  let invitation = myInvitation(match);
+const isCreator = match.created_by === currentProfile?.id;
+
+if (!invitation && !isCreator) {
+  alert("You are not invited to this match.");
+  return;
+}
+
+if (!invitation && isCreator) {
+  const { data, error } = await supabaseClient
+    .from("match_invitations")
+    .upsert({
+      match_id: matchId,
+      member_id: currentProfile.id,
+      invited_by: currentProfile.id,
+      status: "in"
+    }, {
+      onConflict: "match_id,member_id"
+    })
+    .select()
+    .single();
+
+  if (error) {
+    alert(error.message);
     return;
   }
+
+  invitation = data;
+}
 
   if (new Date(match.start_time) <= new Date()) {
     alert("Voting is closed because the match time has passed.");
