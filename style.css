@@ -1651,3 +1651,21 @@ main,
 .padel-score-summary strong {
   color: var(--text);
 }
+
+
+/* === MULTI-GAME RESULT ACTIONS === */
+.score-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.score-actions button {
+  width: 100%;
+}
+
+@media (max-width: 800px) {
+  .score-actions {
+    grid-template-columns: 1fr;
+  }
+}
