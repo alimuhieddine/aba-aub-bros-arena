@@ -880,18 +880,11 @@ async function loadMatches() {
         image_url
       ),
       match_invitations (
-  id,
-  member_id,
-  invited_by,
-  status,
-  member:members!match_invitations_member_id_fkey (
-    id,
-    first_name,
-    last_name,
-    display_name,
-    email
-  )
-),
+        id,
+        member_id,
+        invited_by,
+        status
+      ),
       match_external_players (
         id,
         display_name
@@ -963,35 +956,6 @@ function canManageMatch(match) {
   return isCurrentUserAdmin() || match.created_by === currentProfile?.id;
 }
 
-
-function invitationMemberDisplayName(invitation) {
-  const member = invitation?.member;
-
-  return member?.display_name ||
-    `${member?.first_name || ""} ${member?.last_name || ""}`.trim() ||
-    member?.email ||
-    "Unnamed";
-}
-
-function inPlayerNames(match) {
-  const invitations = match.match_invitations || [];
-
-  const names = invitations
-    .filter(inv => inv.status === "in")
-    .map(inv => invitationMemberDisplayName(inv))
-    .filter(Boolean);
-
-  const hasCreatorInvitation = invitations.some(inv =>
-    inv.member_id === match.created_by && inv.status !== "removed"
-  );
-
-  if (match.created_by && !hasCreatorInvitation) {
-    names.unshift("Creator");
-  }
-
-  return names;
-}
-
 function renderMatches() {
   if (!$("matchList")) return;
 
@@ -1045,10 +1009,6 @@ function renderMatches() {
               • Invited: ${counts.invitedCount}
             </div>
 
-            <div class="meta">
-              IN players: ${inPlayerNames(match).length ? escapeHtml(inPlayerNames(match).join(", ")) : "-"}
-            </div>
-
             ${
               isFull
                 ? `<div class="meta">Match is full.</div>`
@@ -1057,7 +1017,30 @@ function renderMatches() {
 
             ${
               externalCount
-                ? `<div class="meta">External players: ${escapeHtml((match.match_external_players || []).map(p => p.display_name).join(", "))}</div>`
+                ? `
+                  <div class="external-list">
+                    <div class="meta">External players:</div>
+                    ${(match.match_external_players || []).map(player => `
+                      <div class="external-player-row">
+                        <span>${escapeHtml(player.display_name || "External player")}</span>
+
+                        ${
+                          canManageMatch(match) && !isCancelled && isFuture
+                            ? `
+                              <button class="tiny-btn" onclick="renameExternalPlayer('${player.id}', '${match.id}', '${jsString(player.display_name || "")}')">
+                                Rename
+                              </button>
+
+                              <button class="tiny-btn danger" onclick="removeExternalPlayer('${player.id}', '${match.id}')">
+                                Remove
+                              </button>
+                            `
+                            : ""
+                        }
+                      </div>
+                    `).join("")}
+                  </div>
+                `
                 : ""
             }
 
@@ -1411,6 +1394,94 @@ async function addExternalPlayers(matchId) {
   }
 
   alert(`${names.length} external player(s) added.`);
+  await loadMatches();
+}
+
+async function renameExternalPlayer(externalPlayerId, matchId, currentName) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can rename external players.");
+    return;
+  }
+
+  if (match.status === "cancelled") {
+    alert("This match is cancelled.");
+    return;
+  }
+
+  if (new Date(match.start_time) <= new Date()) {
+    alert("You cannot rename external players after the match time has passed.");
+    return;
+  }
+
+  const newName = prompt("Edit external player display name:", currentName || "");
+
+  if (newName === null) return;
+
+  const cleanName = newName.trim();
+
+  if (!cleanName) {
+    alert("Name cannot be empty.");
+    return;
+  }
+
+  const { error } = await supabaseClient
+    .from("match_external_players")
+    .update({
+      display_name: cleanName
+    })
+    .eq("id", externalPlayerId);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  await loadMatches();
+}
+
+async function removeExternalPlayer(externalPlayerId, matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can remove external players.");
+    return;
+  }
+
+  if (match.status === "cancelled") {
+    alert("This match is cancelled.");
+    return;
+  }
+
+  if (new Date(match.start_time) <= new Date()) {
+    alert("You cannot remove external players after the match time has passed.");
+    return;
+  }
+
+  const ok = confirm("Remove this external player?");
+  if (!ok) return;
+
+  const { error } = await supabaseClient
+    .from("match_external_players")
+    .delete()
+    .eq("id", externalPlayerId);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
   await loadMatches();
 }
 
@@ -1915,18 +1986,7 @@ function bindEvents() {
 
     const requiredPlayers = Number(fd.get("required_players") || 0);
     const maxPlayers = Number(fd.get("max_players") || 0);
-const startTime = new Date(fd.get("start_time"));
-const endTime = new Date(fd.get("end_time"));
 
-if (startTime <= new Date()) {
-  alert("Match start time must be in the future.");
-  return;
-}
-
-if (endTime <= startTime) {
-  alert("End time must be after start time.");
-  return;
-}
     if (!maxPlayers || maxPlayers < 1) {
       alert("Max players must be at least 1.");
       return;
@@ -1952,7 +2012,7 @@ if (endTime <= startTime) {
       title: fd.get("title"),
       match_type: fd.get("match_type"),
       start_time: new Date(fd.get("start_time")).toISOString(),
-end_time: new Date(fd.get("end_time")).toISOString(),
+      end_time: new Date(fd.get("end_time")).toISOString(),
       status: "open_for_votes",
       max_players: maxPlayers,
       required_players: requiredPlayers || maxPlayers,
