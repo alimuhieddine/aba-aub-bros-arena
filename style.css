@@ -1641,3 +1641,13 @@ main,
     padding: 9px 7px;
   }
 }
+
+
+/* === MATCH GAMES SCORING === */
+#padel-pending-game-label {
+  transition: opacity .15s ease;
+}
+
+.padel-score-summary strong {
+  color: var(--text);
+}
