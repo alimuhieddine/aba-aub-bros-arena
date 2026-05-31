@@ -1381,3 +1381,114 @@ main,
     font-size: 15px;
   }
 }
+
+
+/* === TEAM ASSIGNMENT === */
+.team-modal-card {
+  width: min(92vw, 620px);
+}
+
+.team-assignment-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  max-height: 330px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.team-player-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.04);
+}
+
+.team-player-name {
+  min-width: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.team-choice {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.team-choice-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255,255,255,.05);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.team-choice-chip input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  padding: 0;
+}
+
+.teams-summary {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.team-summary-row {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255,255,255,.035);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.team-summary-row strong {
+  color: var(--text);
+}
+
+.mini-pill {
+  display: inline-flex;
+  margin-left: 5px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: rgba(49,168,255,.12);
+  color: var(--accent2);
+  font-size: 9px;
+  font-weight: 900;
+}
+
+@media (max-width: 800px) {
+  .team-player-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .team-choice {
+    justify-content: flex-start;
+  }
+
+  .team-summary-row {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+}
