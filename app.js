@@ -534,6 +534,7 @@ let editingVenueId = null;
 let allSports = [];
 let allVenues = [];
 let allMatches = [];
+let allLeagues = [];
 let editingMatchId = null;
 let allMembers = [];
 let allExternalMembers = [];
@@ -543,6 +544,51 @@ let currentScoreMatchId = null;
 let allPendingGames = [];
 
 
+
+
+function updateLeagueSportOptions() {
+  const select = $("league-sport");
+  if (!select) return;
+
+  select.innerHTML = `
+    <option value="">Select sport</option>
+    ${(allSports || []).map(sport => `
+      <option value="${sport.id}">${escapeHtml(sport.name)}</option>
+    `).join("")}
+  `;
+}
+
+function isLeagueMatchSelected() {
+  return $("match-type")?.value === "league";
+}
+
+function updateMatchLeagueOptions() {
+  const label = $("match-league-label");
+  const select = $("match-league");
+  const sportId = $("match-sport")?.value || "";
+
+  if (!label || !select) return;
+
+  const show = isLeagueMatchSelected();
+  label.style.display = show ? "" : "none";
+
+  if (!show) {
+    select.value = "";
+    return;
+  }
+
+  const activeLeagues = (allLeagues || []).filter(league =>
+    (!sportId || league.sport_id === sportId) &&
+    (league.status || "active") === "active"
+  );
+
+  select.innerHTML = `
+    <option value="">Select league</option>
+    ${activeLeagues.map(league => `
+      <option value="${league.id}">${escapeHtml(league.name)}</option>
+    `).join("")}
+  `;
+}
 
 async function loadMatchFormOptions() {
   if (!currentProfile || currentProfile.approval_status !== "approved") return;
@@ -576,6 +622,30 @@ async function loadMatchFormOptions() {
     return;
   }
 
+  const { data: leaguesData, error: leaguesError } = await supabaseClient
+    .from("leagues")
+    .select(`
+      id,
+      name,
+      sport_id,
+      format,
+      status,
+      start_date,
+      end_date,
+      created_by,
+      created_at,
+      sports (
+        id,
+        name
+      )
+    `)
+    .eq("status", "active")
+    .order("created_at", { ascending: false });
+
+  if (leaguesError) {
+    console.warn("Could not load active leagues:", leaguesError.message);
+  }
+
   const { data: membersData, error: membersError } = await supabaseClient
     .from("members")
     .select("id,first_name,last_name,display_name,email,phone,is_external")
@@ -590,6 +660,7 @@ async function loadMatchFormOptions() {
 
   allSports = sportsData || [];
   allVenues = venuesData || [];
+  allLeagues = leaguesData || allLeagues || [];
  allMembers = (membersData || []).filter(member =>
   member.id !== currentProfile?.id &&
   !member.is_external
@@ -603,6 +674,9 @@ async function loadMatchFormOptions() {
       `).join("")}
     `;
   }
+
+  updateLeagueSportOptions();
+  updateMatchLeagueOptions();
 
   renderMatchInviteOptions();
   updateMatchVenueOptions();
@@ -628,6 +702,8 @@ function updateMatchVenueOptions() {
       </option>
     `).join("")}
   `;
+
+  updateMatchLeagueOptions();
 }
 
 function memberDisplayName(member) {
@@ -849,18 +925,78 @@ function renderFeed() {
 function renderLeagues() {
   if (!$("leagueList")) return;
 
-  $("leagueList").innerHTML = state.leagues.map(l => `
-    <article class="card">
-      <div class="row">
-        <div>
-          <h3>${escapeHtml(l.name)}</h3>
-          <div class="meta">${escapeHtml(l.sport)} • ${escapeHtml(l.format || "Open format")}</div>
+  if (!allLeagues || allLeagues.length === 0) {
+    $("leagueList").innerHTML = `<article class="card">No leagues created yet.</article>`;
+    return;
+  }
+
+  $("leagueList").innerHTML = allLeagues.map(league => {
+    const matchesCount = (allMatches || []).filter(match => match.league_id === league.id).length;
+    const gamesCount = (allMatches || []).reduce((count, match) => {
+      return count + (match.match_game_sessions || []).filter(session =>
+        session.match_games?.league_id === league.id
+      ).length;
+    }, 0);
+
+    return `
+      <article class="card">
+        <div class="row">
+          <div>
+            <h3>${escapeHtml(league.name)}</h3>
+            <div class="meta">
+              ${escapeHtml(league.sports?.name || "-")}
+              • ${escapeHtml(league.format || "Open format")}
+            </div>
+            <div class="meta">
+              ${league.start_date ? `From ${escapeHtml(league.start_date)}` : ""}
+              ${league.end_date ? ` • Until ${escapeHtml(league.end_date)}` : ""}
+            </div>
+            <div class="meta">
+              Linked bookings: ${matchesCount} • Games: ${gamesCount}
+            </div>
+          </div>
+
+          <span class="pill ${league.status === "completed" ? "blue" : "green"}">
+            ${escapeHtml(league.status || "active")}
+          </span>
         </div>
-        <span class="pill blue">League</span>
-      </div>
-      <div class="meta">Phase 1: standings table will connect to match results in the next step.</div>
-    </article>
-  `).join("");
+      </article>
+    `;
+  }).join("");
+}
+
+async function loadLeagues() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") return;
+
+  const { data, error } = await supabaseClient
+    .from("leagues")
+    .select(`
+      id,
+      name,
+      sport_id,
+      format,
+      status,
+      start_date,
+      end_date,
+      created_by,
+      created_at,
+      sports (
+        id,
+        name
+      )
+    `)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.warn("Could not load leagues:", error.message);
+    allLeagues = [];
+    renderLeagues();
+    return;
+  }
+
+  allLeagues = data || [];
+  renderLeagues();
+  updateMatchLeagueOptions();
 }
 
 function matchCard(m, compact = false) {
@@ -1108,6 +1244,7 @@ async function loadMatches() {
   );
 
   renderMatches();
+  renderLeagues();
 }
 
 function invitationCounts(match) {
@@ -2021,6 +2158,11 @@ async function editMatch(matchId) {
 
   form.elements["title"].value = match.title || "";
   form.elements["match_type"].value = match.match_type || "friendly";
+  updateMatchLeagueOptions();
+
+  if (form.elements["league_id"]) {
+    form.elements["league_id"].value = match.league_id || "";
+  }
   form.elements["required_players"].value = match.required_players || match.max_players || 4;
   form.elements["max_players"].value = match.max_players || match.required_players || 4;
   setMatchDateTimeFields(match.start_time, match.end_time);
@@ -3984,6 +4126,7 @@ async function refreshAuthUI() {
     await loadMyProfile();
     applyAccessUI();
 if (currentProfile?.approval_status === "approved") {
+  await loadLeagues();
   await loadMatches();
 }
     if (isCurrentUserAdmin()) {
@@ -4036,6 +4179,7 @@ function bindEvents() {
   setDefaultMatchDateTimes();
 
   $("match-sport")?.addEventListener("change", updateMatchVenueOptions);
+  $("match-type")?.addEventListener("change", updateMatchLeagueOptions);
   document.querySelectorAll(".tab").forEach(btn =>
     btn.addEventListener("click", () => {
       document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
@@ -4047,6 +4191,10 @@ function bindEvents() {
 
       if (btn.dataset.view === "account") {
         loadMyProfile();
+      }
+
+      if (btn.dataset.view === "leagues") {
+        loadLeagues();
       }
 
       if (btn.dataset.view === "admin") {
@@ -4061,6 +4209,12 @@ function bindEvents() {
 
  document.querySelectorAll("[data-open]").forEach(btn =>
   btn.addEventListener("click", async () => {
+    if (btn.dataset.open === "leagueModal") {
+      await loadSportsOptions();
+      await loadLeagues();
+      updateLeagueSportOptions();
+    }
+
     if (btn.dataset.open === "matchModal") {
       editingMatchId = null;
 
@@ -4082,18 +4236,39 @@ function bindEvents() {
   })
 );
   if ($("leagueForm")) {
-    $("leagueForm").addEventListener("submit", e => {
+    $("leagueForm").addEventListener("submit", async e => {
       const fd = new FormData(e.target);
-      state.leagues.unshift({
-        id: crypto.randomUUID(),
+
+      if (!currentProfile || currentProfile.approval_status !== "approved") {
+        alert("Approved members only.");
+        return;
+      }
+
+      const payload = {
         name: fd.get("name"),
-        sport: fd.get("sport"),
-        format: fd.get("format"),
-        createdAt: Date.now()
-      });
-      saveData();
+        sport_id: fd.get("sport_id"),
+        format: fd.get("format") || null,
+        status: "active",
+        start_date: fd.get("start_date") || null,
+        end_date: fd.get("end_date") || null,
+        created_by: currentProfile.id
+      };
+
+      const { error } = await supabaseClient
+        .from("leagues")
+        .insert(payload);
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      alert("League created.");
       e.target.reset();
-      render();
+      $("leagueModal")?.close();
+
+      await loadLeagues();
+      await loadMatchFormOptions();
     });
   }
 
@@ -4122,6 +4297,11 @@ function bindEvents() {
       return;
     }
 
+    if (fd.get("match_type") === "league" && !fd.get("league_id")) {
+      alert("Please select a league for league matches.");
+      return;
+    }
+
     const selectedInviteIds = getSelectedInviteMemberIds();
 
     if (!editingMatchId && selectedInviteIds.length + 1 > maxPlayers) {
@@ -4132,7 +4312,7 @@ function bindEvents() {
     const match = {
       sport_id: fd.get("sport_id"),
       venue_id: fd.get("venue_id"),
-      league_id: null,
+      league_id: fd.get("match_type") === "league" ? (fd.get("league_id") || null) : null,
       created_by: currentProfile.id,
       title: fd.get("title"),
       match_type: fd.get("match_type"),
