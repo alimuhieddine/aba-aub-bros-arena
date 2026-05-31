@@ -582,12 +582,14 @@ function updateMatchLeagueOptions() {
     (league.status || "active") === "active"
   );
 
-  select.innerHTML = `
-    <option value="">Select league</option>
-    ${activeLeagues.map(league => `
-      <option value="${league.id}">${escapeHtml(league.name)}</option>
-    `).join("")}
-  `;
+  select.innerHTML = activeLeagues.length
+    ? `
+      <option value="">Select league</option>
+      ${activeLeagues.map(league => `
+        <option value="${league.id}">${escapeHtml(league.name)}</option>
+      `).join("")}
+    `
+    : `<option value="">No active league for this sport</option>`;
 }
 
 async function loadMatchFormOptions() {
@@ -920,6 +922,23 @@ function renderFeed() {
         ? matchCard(item.data, true)
         : activityCard(item.data, true)
     ).join("");
+}
+
+
+function leagueById(leagueId) {
+  if (!leagueId) return null;
+  return (allLeagues || []).find(league => league.id === leagueId) || null;
+}
+
+function leagueNameForId(leagueId) {
+  const league = leagueById(leagueId);
+  return league?.name || "";
+}
+
+function leagueSportMatchesSelection(leagueId, sportId) {
+  const league = leagueById(leagueId);
+  if (!league || !sportId) return false;
+  return league.sport_id === sportId;
 }
 
 function renderLeagues() {
@@ -1815,6 +1834,12 @@ function renderMatches() {
               • ${escapeHtml(match.match_type || "-")}
               • ${fmtDate(match.start_time)}
             </div>
+
+            ${
+              match.league_id
+                ? `<div class="meta">🏆 League: ${escapeHtml(leagueNameForId(match.league_id) || "Linked league")}</div>`
+                : ""
+            }
 
             <div class="meta">
               Time: ${fmtDate(match.start_time)} → ${fmtDate(match.end_time)}
@@ -3028,7 +3053,9 @@ async function openScoreSubmission(matchId) {
   currentScoreMatchId = matchId;
 
   if ($("score-match-label")) {
-    $("score-match-label").textContent = `${match.title || "Match result"} — ${match.sports?.name || ""}`;
+    const leagueName = leagueNameForId(match.league_id);
+    $("score-match-label").textContent =
+      `${match.title || "Match result"} — ${match.sports?.name || ""}${leagueName ? " — League: " + leagueName : ""}`;
   }
 
   if ($("score-team-a-label")) $("score-team-a-label").textContent = `${teamA.name || "Team A"} score`;
@@ -3606,7 +3633,7 @@ async function finalizeCurrentMatchResult() {
       .from("match_games")
       .insert({
         sport_id: match.sport_id,
-        league_id: match.league_id || null,
+        league_id: match.league_id || null, // automatically inherited from the booking/match league
         title: match.title || "Game",
         status: "completed",
         team_a_name: teamA.name || "Team A",
@@ -4299,6 +4326,11 @@ function bindEvents() {
 
     if (fd.get("match_type") === "league" && !fd.get("league_id")) {
       alert("Please select a league for league matches.");
+      return;
+    }
+
+    if (fd.get("match_type") === "league" && !leagueSportMatchesSelection(fd.get("league_id"), fd.get("sport_id"))) {
+      alert("The selected league does not match the selected sport.");
       return;
     }
 
