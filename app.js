@@ -1705,6 +1705,344 @@ function renderScoreSummary(match) {
   `;
 }
 
+async function loadExternalMembersForPicker(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("members")
+    .select("id,first_name,last_name,display_name,email,phone,is_external")
+    .eq("is_external", true)
+    .eq("is_active", true)
+    .eq("approval_status", "approved")
+    .order("display_name", { ascending: true });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  const alreadyLinkedIds = new Set(
+    (match.match_invitations || [])
+      .filter(inv => inv.status !== "removed")
+      .map(inv => inv.member_id)
+  );
+
+  allExternalMembers = data || [];
+
+  const box = $("external-player-options");
+  if (!box) return;
+
+  if (allExternalMembers.length === 0) {
+    box.innerHTML = `<div class="hint">No external players saved yet. Create one below.</div>`;
+    return;
+  }
+
+  box.innerHTML = allExternalMembers.map(member => {
+    const alreadyInMatch = alreadyLinkedIds.has(member.id);
+
+    return `
+      <label class="sport-chip ${alreadyInMatch ? "disabled-chip" : ""}">
+        <input
+          type="checkbox"
+          value="${member.id}"
+          class="external-player-checkbox"
+          ${alreadyInMatch ? "disabled" : ""}
+        >
+        <span>
+          ${escapeHtml(memberDisplayName(member))}
+          ${alreadyInMatch ? " — already added" : ""}
+        </span>
+      </label>
+    `;
+  }).join("");
+}
+
+async function openExternalPlayerPicker(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can add external players.");
+    return;
+  }
+
+  if (!isMatchEditable(match)) {
+    alert("You can only add external players before the match starts.");
+    return;
+  }
+
+  const remaining = remainingSpots(match);
+  if (remaining !== null && remaining <= 0) {
+    alert("This match is already full.");
+    return;
+  }
+
+  currentExternalMatchId = matchId;
+
+  if ($("external-player-match-label")) {
+    $("external-player-match-label").textContent =
+      remaining === null
+        ? "Select existing external players, or create a new external profile."
+        : `Remaining spots: ${remaining}. Select existing external players, or create a new external profile.`;
+  }
+
+  if ($("new-external-name")) $("new-external-name").value = "";
+  if ($("new-external-phone")) $("new-external-phone").value = "";
+  if ($("new-external-email")) $("new-external-email").value = "";
+
+  await loadExternalMembersForPicker(matchId);
+
+  $("externalPlayerModal")?.showModal();
+}
+
+function getSelectedExternalMemberIds() {
+  return Array.from(document.querySelectorAll(".external-player-checkbox"))
+    .filter(cb => cb.checked && !cb.disabled)
+    .map(cb => cb.value);
+}
+
+async function addExternalMemberIdsToMatch(matchId, memberIds) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return false;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can add external players.");
+    return false;
+  }
+
+  const uniqueIds = Array.from(new Set(memberIds || [])).filter(Boolean);
+
+  if (uniqueIds.length === 0) {
+    alert("Select at least one external player.");
+    return false;
+  }
+
+  const remaining = remainingSpots(match);
+
+  if (remaining !== null && uniqueIds.length > remaining) {
+    alert(`You can only add ${remaining} external player(s).`);
+    return false;
+  }
+
+  const rows = uniqueIds.map(memberId => ({
+    match_id: matchId,
+    member_id: memberId,
+    invited_by: currentProfile.id,
+    status: "in"
+  }));
+
+  const { error } = await supabaseClient
+    .from("match_invitations")
+    .upsert(rows, {
+      onConflict: "match_id,member_id"
+    });
+
+  if (error) {
+    alert(error.message);
+    return false;
+  }
+
+  await loadMatches();
+  await loadExternalMembersForPicker(matchId);
+
+  return true;
+}
+
+async function addSelectedExternalPlayers() {
+  if (!currentExternalMatchId) {
+    alert("No match selected.");
+    return;
+  }
+
+  const selectedIds = getSelectedExternalMemberIds();
+  const ok = await addExternalMemberIdsToMatch(currentExternalMatchId, selectedIds);
+
+  if (!ok) return;
+
+  alert(`${selectedIds.length} external player(s) added.`);
+}
+
+function nextExternalDisplayNumber() {
+  return allExternalMembers.length + 1;
+}
+
+async function createExternalPlayerProfile() {
+  if (!currentExternalMatchId) {
+    alert("No match selected.");
+    return;
+  }
+
+  const name = $("new-external-name")?.value.trim() || "";
+  const phone = $("new-external-phone")?.value.trim() || "";
+  const email = $("new-external-email")?.value.trim() || "";
+
+  if (!name) {
+    alert("External player name is required.");
+    return;
+  }
+
+  const existing = allExternalMembers.find(member => {
+    const display = String(member.display_name || "").toLowerCase();
+    const first = String(member.first_name || "").toLowerCase();
+    const cleaned = name.toLowerCase();
+
+    return display === cleaned ||
+      first === cleaned ||
+      display.includes(`(${cleaned})`);
+  });
+
+  if (existing) {
+    const useExisting = confirm(`${memberDisplayName(existing)} already exists. Add this existing external player to the match?`);
+    if (!useExisting) return;
+
+    const ok = await addExternalMemberIdsToMatch(currentExternalMatchId, [existing.id]);
+    if (ok) {
+      if ($("new-external-name")) $("new-external-name").value = "";
+      if ($("new-external-phone")) $("new-external-phone").value = "";
+      if ($("new-external-email")) $("new-external-email").value = "";
+    }
+    return;
+  }
+
+  const displayName = `External ${nextExternalDisplayNumber()} (${name})`;
+
+  const { data, error } = await supabaseClient
+    .from("members")
+    .insert({
+      first_name: name,
+      last_name: "",
+      display_name: displayName,
+      email: email || null,
+      phone: phone || null,
+      birth_date: null,
+      auth_user_id: null,
+      is_external: true,
+      is_active: true,
+      role: "member",
+      approval_status: "approved",
+      registration_status: "approved"
+    })
+    .select("id,first_name,last_name,display_name,email,phone,is_external")
+    .single();
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  allExternalMembers.push(data);
+
+  const ok = await addExternalMemberIdsToMatch(currentExternalMatchId, [data.id]);
+  if (!ok) return;
+
+  if ($("new-external-name")) $("new-external-name").value = "";
+  if ($("new-external-phone")) $("new-external-phone").value = "";
+  if ($("new-external-email")) $("new-external-email").value = "";
+
+  alert(`${memberDisplayName(data)} created and added.`);
+}
+
+async function renameExternalMember(memberId, matchId, currentName) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can rename external players.");
+    return;
+  }
+
+  if (!isMatchEditable(match)) {
+    alert("You can only rename external players before the match starts.");
+    return;
+  }
+
+  if (!memberId) {
+    alert("External member id missing.");
+    return;
+  }
+
+  const newName = prompt("Edit external player display name:", currentName || "");
+
+  if (newName === null) return;
+
+  const cleanName = newName.trim();
+
+  if (!cleanName) {
+    alert("Name cannot be empty.");
+    return;
+  }
+
+  const { error } = await supabaseClient
+    .from("members")
+    .update({
+      display_name: cleanName
+    })
+    .eq("id", memberId)
+    .eq("is_external", true);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  await loadMatches();
+}
+
+async function removeExternalMemberFromMatch(invitationId, matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can remove external players.");
+    return;
+  }
+
+  if (!isMatchEditable(match)) {
+    alert("You can only remove external players before the match starts.");
+    return;
+  }
+
+  const ok = confirm("Remove this external player from this match?");
+  if (!ok) return;
+
+  const { error } = await supabaseClient
+    .from("match_invitations")
+    .update({
+      status: "removed",
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", invitationId);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  await loadMatches();
+}
+
+
 function getTwoMatchTeams(match) {
   const teams = match.match_teams || [];
 
@@ -2718,9 +3056,9 @@ function bindEvents() {
 
   $("cancel-venue-edit-btn")?.addEventListener("click", clearVenueForm);
 
-  $("add-selected-external-btn")?.addEventListener("click", addSelectedExternalPlayers);
+  if (typeof addSelectedExternalPlayers === "function") $("add-selected-external-btn")?.addEventListener("click", addSelectedExternalPlayers);
 
-  $("create-external-player-btn")?.addEventListener("click", createExternalPlayerProfile);
+  if (typeof createExternalPlayerProfile === "function") $("create-external-player-btn")?.addEventListener("click", createExternalPlayerProfile);
 
   $("save-teams-btn")?.addEventListener("click", saveTeams);
 
