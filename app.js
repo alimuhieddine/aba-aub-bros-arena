@@ -2098,6 +2098,12 @@ function renderTeamAssignmentList(match) {
       </div>
     `;
   }).join("");
+
+  document.querySelectorAll("#team-assignment-list input[type='radio']").forEach(input => {
+    input.addEventListener("change", updateTeamBalanceStatus);
+  });
+
+  updateTeamBalanceStatus();
 }
 
 async function openTeamAssignment(matchId) {
@@ -2138,6 +2144,7 @@ async function openTeamAssignment(matchId) {
   }
 
   renderTeamAssignmentList(match);
+  updateTeamBalanceStatus();
 
   $("teamModal")?.showModal();
 }
@@ -2162,6 +2169,24 @@ function collectTeamAssignments() {
     teamA,
     teamB
   };
+}
+
+
+function updateTeamBalanceStatus() {
+  const status = $("team-balance-status");
+  if (!status) return;
+
+  const assignments = collectTeamAssignments();
+  const difference = Math.abs(assignments.teamA.length - assignments.teamB.length);
+  const isBalanced =
+    assignments.teamA.length > 0 &&
+    assignments.teamB.length > 0 &&
+    difference <= 1;
+
+  status.textContent = `Team A: ${assignments.teamA.length} • Team B: ${assignments.teamB.length}`;
+
+  status.classList.toggle("balanced", isBalanced);
+  status.classList.toggle("unbalanced", !isBalanced);
 }
 
 async function saveTeams() {
@@ -2191,9 +2216,16 @@ async function saveTeams() {
   const teamBName = $("team-b-name")?.value.trim() || "Team B";
   const assignments = collectTeamAssignments();
 
+  const teamCountDifference = Math.abs(assignments.teamA.length - assignments.teamB.length);
+
   if (assignments.teamA.length === 0 || assignments.teamB.length === 0) {
-    const ok = confirm("One team is empty. Save anyway?");
-    if (!ok) return;
+    alert("Both teams must have at least one player.");
+    return;
+  }
+
+  if (teamCountDifference > 1) {
+    alert("Teams must be balanced. The number of players in Team A and Team B can differ by maximum 1 player.");
+    return;
   }
 
   const existingTeamIds = (match.match_teams || []).map(team => team.id);
