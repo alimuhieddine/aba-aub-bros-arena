@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=62" />
+  <link rel="stylesheet" href="style.css?v=64" />
 </head>
 
 <body>
@@ -537,9 +537,15 @@
         <textarea id="score-summary" rows="4" placeholder="Optional match summary..."></textarea>
       </label>
 
-      <button id="save-score-btn" class="primary-btn full" type="button">
-        Save Result
-      </button>
+      <div class="actions score-actions">
+        <button id="save-game-btn" class="secondary-btn" type="button">
+          Save Game
+        </button>
+
+        <button id="save-score-btn" class="primary-btn" type="button">
+          Finalize Match Result
+        </button>
+      </div>
     </form>
   </dialog>
 
@@ -579,6 +585,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=62"></script>
+  <script src="app.js?v=64"></script>
 </body>
 </html>
