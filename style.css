@@ -1568,3 +1568,76 @@ main,
   color: var(--muted);
   font-size: 12px;
 }
+
+
+/* === SPORT-SPECIFIC SCORING === */
+.padel-set-grid {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) minmax(0, 1fr) 54px;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.padel-set-grid input[type="number"] {
+  padding: 10px;
+}
+
+.padel-set-grid input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0 auto;
+}
+
+.padel-set-head {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  margin-top: 10px;
+}
+
+.score-preview {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.05);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.score-preview.balanced {
+  color: var(--accent);
+  border-color: rgba(36,209,126,.35);
+  background: rgba(36,209,126,.10);
+}
+
+.score-preview.unbalanced {
+  color: var(--danger);
+  border-color: rgba(255,95,103,.35);
+  background: rgba(255,95,103,.10);
+}
+
+.padel-score-summary {
+  padding: 7px 8px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.03);
+  color: var(--muted);
+  font-size: 12px;
+  display: grid;
+  gap: 3px;
+}
+
+@media (max-width: 800px) {
+  .padel-set-grid {
+    grid-template-columns: 32px minmax(0, 1fr) minmax(0, 1fr) 46px;
+    gap: 6px;
+  }
+
+  .padel-set-grid input[type="number"] {
+    padding: 9px 7px;
+  }
+}
