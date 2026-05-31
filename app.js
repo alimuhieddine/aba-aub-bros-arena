@@ -1322,6 +1322,12 @@ function calculatePadelSetResult(sets) {
       };
     }
 
+    if (set.isCompleted && !isValidCompletedPadelSet(set.teamAScore, set.teamBScore)) {
+      return {
+        error: `Set ${set.setNumber} cannot be marked complete with ${set.teamAScore}-${set.teamBScore}. Valid completed set scores are 6-0 to 6-4, 7-5, 7-6 for tie-break sets, or 8-6 / 9-7 / 10-8 etc. for advantage sets.`
+      };
+    }
+
     validSets.push(set);
 
     if (set.isCompleted) {
@@ -2871,14 +2877,38 @@ function completedGameScoreForMatch(match, extraGame = null) {
 }
 
 
-function shouldAutoCompletePadelSet(scoreA, scoreB) {
+function isValidCompletedPadelSet(scoreA, scoreB) {
   if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB)) return false;
+  if (scoreA < 0 || scoreB < 0) return false;
+  if (scoreA === scoreB) return false;
 
   const high = Math.max(scoreA, scoreB);
   const low = Math.min(scoreA, scoreB);
   const diff = high - low;
 
-  return high >= 6 && low <= 4 && diff >= 2;
+  // Standard set: 6 games with at least 2 games difference.
+  // Examples: 6-0, 6-1, 6-2, 6-3, 6-4.
+  if (high === 6) {
+    return low <= 4;
+  }
+
+  // 7-5 is a normal advantage finish.
+  // 7-6 is a tie-break set score.
+  if (high === 7) {
+    return low === 5 || low === 6;
+  }
+
+  // Advantage/no-tiebreak continuation after 6-6.
+  // Examples: 8-6, 9-7, 10-8, 11-9...
+  if (high > 7) {
+    return diff === 2;
+  }
+
+  return false;
+}
+
+function shouldAutoCompletePadelSet(scoreA, scoreB) {
+  return isValidCompletedPadelSet(scoreA, scoreB);
 }
 
 function autoCompletePadelSet(setNumber) {
