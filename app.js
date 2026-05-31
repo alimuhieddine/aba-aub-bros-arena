@@ -884,6 +884,10 @@ async function loadMatches() {
         member_id,
         invited_by,
         status
+      ),
+      match_external_players (
+        id,
+        display_name
       )
     `)
     .order("start_time", { ascending: true });
@@ -914,8 +918,6 @@ function invitationCounts(match) {
 
   let inCount = invitations.filter(inv => inv.status === "in").length;
 
-  // The creator is automatically IN by default, even if the creator invitation row
-  // is missing or not visible because of an old RLS/cache issue.
   if (match.created_by && !hasCreatorInvitation) {
     inCount += 1;
   }
@@ -926,6 +928,22 @@ function invitationCounts(match) {
     outCount: invitations.filter(inv => inv.status === "out").length,
     invitedCount: invitations.filter(inv => inv.status === "invited").length
   };
+}
+
+
+function externalPlayerCount(match) {
+  return (match.match_external_players || []).length;
+}
+
+function filledPlayerCount(match) {
+  return invitationCounts(match).inCount + externalPlayerCount(match);
+}
+
+function remainingSpots(match) {
+  const maxPlayers = Number(match.max_players || 0);
+  if (!maxPlayers) return null;
+
+  return Math.max(0, maxPlayers - filledPlayerCount(match));
 }
 
 function myInvitation(match) {
@@ -950,16 +968,18 @@ function renderMatches() {
     const isCancelled = match.status === "cancelled";
     const isFuture = new Date(match.start_time) > new Date();
     const counts = invitationCounts(match);
+    const externalCount = externalPlayerCount(match);
+    const filledCount = counts.inCount + externalCount;
     const invitation = myInvitation(match);
     const isCreator = match.created_by === currentProfile?.id;
     const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
 
     const maxPlayers = Number(match.max_players || 0);
     const spotsLabel = maxPlayers
-      ? `${counts.inCount}/${maxPlayers} IN`
-      : `${counts.inCount} IN`;
+      ? `${filledCount}/${maxPlayers} filled`
+      : `${filledCount} filled`;
 
-    const isFull = maxPlayers && counts.inCount >= maxPlayers;
+    const isFull = maxPlayers && filledCount >= maxPlayers;
     const userIsIn = currentVoteStatus === "in";
     const canVoteThisMatch = Boolean(invitation || isCreator);
 
@@ -982,6 +1002,8 @@ function renderMatches() {
 
             <div class="meta">
               Players: ${spotsLabel}
+              • IN: ${counts.inCount}
+              • External: ${externalCount}
               • Maybe: ${counts.maybeCount}
               • Out: ${counts.outCount}
               • Invited: ${counts.invitedCount}
@@ -990,6 +1012,12 @@ function renderMatches() {
             ${
               isFull
                 ? `<div class="meta">Match is full.</div>`
+                : ""
+            }
+
+            ${
+              externalCount
+                ? `<div class="meta">External players: ${escapeHtml((match.match_external_players || []).map(p => p.display_name).join(", "))}</div>`
                 : ""
             }
 
@@ -1045,6 +1073,14 @@ function renderMatches() {
           canManageMatch(match)
             ? `
               <div class="actions">
+                ${
+                  !isCancelled && isFuture && !isFull
+                    ? `<button class="small-btn" onclick="addExternalPlayers('${match.id}')">
+                        Add External
+                      </button>`
+                    : ""
+                }
+
                 <button class="small-btn" onclick="editMatch('${match.id}')">
                   Edit
                 </button>
@@ -1209,11 +1245,13 @@ async function voteMatch(matchId, newStatus) {
   }
 
   const counts = invitationCounts(match);
+  const externalCount = externalPlayerCount(match);
+  const filledCount = counts.inCount + externalCount;
   const maxPlayers = Number(match.max_players || 0);
   const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
   const userIsCurrentlyIn = currentVoteStatus === "in";
 
-  if (newStatus === "in" && maxPlayers && counts.inCount >= maxPlayers && !userIsCurrentlyIn) {
+  if (newStatus === "in" && maxPlayers && filledCount >= maxPlayers && !userIsCurrentlyIn) {
     alert("This match is already full. You can vote Maybe or Out.");
     return;
   }
@@ -1262,6 +1300,77 @@ async function voteMatch(matchId, newStatus) {
   renderMatches();
   await loadMatches();
 }
+
+async function addExternalPlayers(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can add external players.");
+    return;
+  }
+
+  if (match.status === "cancelled") {
+    alert("This match is cancelled.");
+    return;
+  }
+
+  if (new Date(match.start_time) <= new Date()) {
+    alert("You cannot add external players after the match time has passed.");
+    return;
+  }
+
+  const remaining = remainingSpots(match);
+
+  if (remaining !== null && remaining <= 0) {
+    alert("This match is already full.");
+    return;
+  }
+
+  const answer = prompt(
+    remaining === null
+      ? "How many external players do you want to add?"
+      : `How many external players do you want to add? Remaining spots: ${remaining}`
+  );
+
+  if (answer === null) return;
+
+  const count = Number(answer);
+
+  if (!Number.isInteger(count) || count < 1) {
+    alert("Please enter a valid whole number.");
+    return;
+  }
+
+  if (remaining !== null && count > remaining) {
+    alert(`You can only add ${remaining} external player(s).`);
+    return;
+  }
+
+  const existingExternalCount = externalPlayerCount(match);
+
+  const rows = Array.from({ length: count }, (_, index) => ({
+    match_id: matchId,
+    display_name: `External ${existingExternalCount + index + 1}`
+  }));
+
+  const { error } = await supabaseClient
+    .from("match_external_players")
+    .insert(rows);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  alert(`${count} external player(s) added.`);
+  await loadMatches();
+}
+
 
 function commentSection(m) {
   return `
