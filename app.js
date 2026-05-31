@@ -1915,7 +1915,18 @@ function bindEvents() {
 
     const requiredPlayers = Number(fd.get("required_players") || 0);
     const maxPlayers = Number(fd.get("max_players") || 0);
+const startTime = new Date(fd.get("start_time"));
+const endTime = new Date(fd.get("end_time"));
 
+if (startTime <= new Date()) {
+  alert("Match start time must be in the future.");
+  return;
+}
+
+if (endTime <= startTime) {
+  alert("End time must be after start time.");
+  return;
+}
     if (!maxPlayers || maxPlayers < 1) {
       alert("Max players must be at least 1.");
       return;
@@ -1941,7 +1952,7 @@ function bindEvents() {
       title: fd.get("title"),
       match_type: fd.get("match_type"),
       start_time: new Date(fd.get("start_time")).toISOString(),
-      end_time: new Date(fd.get("end_time")).toISOString(),
+end_time: new Date(fd.get("end_time")).toISOString(),
       status: "open_for_votes",
       max_players: maxPlayers,
       required_players: requiredPlayers || maxPlayers,
