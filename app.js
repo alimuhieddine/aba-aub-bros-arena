@@ -1188,6 +1188,106 @@ function toDateTimeLocal(iso) {
   return local.toISOString().slice(0, 16);
 }
 
+function pad2(num) {
+  return String(num).padStart(2, "0");
+}
+
+function toLocalDateValue(date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+function toAmPmLabel(hour, minute = 0) {
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const h12 = hour % 12 || 12;
+  return `${h12}:${pad2(minute)} ${suffix}`;
+}
+
+function populateMatchTimeSelects() {
+  const startSelect = $("match-start-time");
+  const endSelect = $("match-end-time");
+
+  if (!startSelect || !endSelect) return;
+
+  if (startSelect.options.length && endSelect.options.length) return;
+
+  const options = [];
+
+  for (let hour = 0; hour < 24; hour++) {
+    for (const minute of [0, 30]) {
+      const value = `${pad2(hour)}:${pad2(minute)}`;
+      const label = toAmPmLabel(hour, minute);
+      options.push(`<option value="${value}">${label}</option>`);
+    }
+  }
+
+  const html = options.join("");
+  startSelect.innerHTML = html;
+  endSelect.innerHTML = html;
+}
+
+function setDefaultMatchDateTimes() {
+  populateMatchTimeSelects();
+
+  const today = new Date();
+  const end = new Date(today);
+  end.setHours(19, 30, 0, 0);
+
+  if ($("match-start-date")) $("match-start-date").value = toLocalDateValue(today);
+  if ($("match-start-time")) $("match-start-time").value = "18:00";
+
+  if ($("match-end-date")) $("match-end-date").value = toLocalDateValue(today);
+  if ($("match-end-time")) $("match-end-time").value = "19:30";
+}
+
+function setMatchDateTimeFields(startIso, endIso) {
+  populateMatchTimeSelects();
+
+  const start = startIso ? new Date(startIso) : new Date();
+  const end = endIso ? new Date(endIso) : new Date(start.getTime() + 90 * 60000);
+
+  if ($("match-start-date")) $("match-start-date").value = toLocalDateValue(start);
+  if ($("match-start-time")) $("match-start-time").value = `${pad2(start.getHours())}:${pad2(start.getMinutes() < 30 ? 0 : 30)}`;
+
+  if ($("match-end-date")) $("match-end-date").value = toLocalDateValue(end);
+  if ($("match-end-time")) $("match-end-time").value = `${pad2(end.getHours())}:${pad2(end.getMinutes() < 30 ? 0 : 30)}`;
+}
+
+function getMatchDateTimeValues() {
+  const startDate = $("match-start-date")?.value || "";
+  const startTime = $("match-start-time")?.value || "";
+  const endDate = $("match-end-date")?.value || "";
+  const endTime = $("match-end-time")?.value || "";
+
+  if (!startDate || !startTime || !endDate || !endTime) {
+    alert("Please choose match start and end date/time.");
+    return null;
+  }
+
+  const startTimeValue = new Date(`${startDate}T${startTime}:00`);
+  const endTimeValue = new Date(`${endDate}T${endTime}:00`);
+
+  if (Number.isNaN(startTimeValue.getTime()) || Number.isNaN(endTimeValue.getTime())) {
+    alert("Invalid match date or time.");
+    return null;
+  }
+
+  if (startTimeValue <= new Date()) {
+    alert("Match start time must be in the future.");
+    return null;
+  }
+
+  if (endTimeValue <= startTimeValue) {
+    alert("End time must be after start time.");
+    return null;
+  }
+
+  return {
+    startTime: startTimeValue,
+    endTime: endTimeValue
+  };
+}
+
+
 async function editMatch(matchId) {
   const match = allMatches.find(m => m.id === matchId);
 
@@ -1222,8 +1322,7 @@ async function editMatch(matchId) {
   form.elements["match_type"].value = match.match_type || "friendly";
   form.elements["required_players"].value = match.required_players || match.max_players || 4;
   form.elements["max_players"].value = match.max_players || match.required_players || 4;
-  form.elements["start_time"].value = toDateTimeLocal(match.start_time);
-  form.elements["end_time"].value = toDateTimeLocal(match.end_time);
+  setMatchDateTimeFields(match.start_time, match.end_time);
   form.elements["notes"].value = match.notes || "";
 
   const invitedIds = (match.match_invitations || [])
@@ -2163,6 +2262,9 @@ await loadMatches();
 }
 
 function bindEvents() {
+  populateMatchTimeSelects();
+  setDefaultMatchDateTimes();
+
   $("match-sport")?.addEventListener("change", updateMatchVenueOptions);
   document.querySelectorAll(".tab").forEach(btn =>
     btn.addEventListener("click", () => {
@@ -2200,6 +2302,8 @@ function bindEvents() {
         if (submitBtn) submitBtn.textContent = "Create Match";
       }
 
+      setDefaultMatchDateTimes();
+
       await loadMatchFormOptions();
     }
 
@@ -2234,6 +2338,9 @@ function bindEvents() {
 
     const requiredPlayers = Number(fd.get("required_players") || 0);
     const maxPlayers = Number(fd.get("max_players") || 0);
+    const matchDateTimes = getMatchDateTimeValues();
+
+    if (!matchDateTimes) return;
 
     if (!maxPlayers || maxPlayers < 1) {
       alert("Max players must be at least 1.");
@@ -2259,8 +2366,8 @@ function bindEvents() {
       created_by: currentProfile.id,
       title: fd.get("title"),
       match_type: fd.get("match_type"),
-      start_time: new Date(fd.get("start_time")).toISOString(),
-      end_time: new Date(fd.get("end_time")).toISOString(),
+      start_time: matchDateTimes.startTime.toISOString(),
+      end_time: matchDateTimes.endTime.toISOString(),
       status: "open_for_votes",
       max_players: maxPlayers,
       required_players: requiredPlayers || maxPlayers,
