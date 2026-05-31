@@ -1211,7 +1211,8 @@ async function voteMatch(matchId, newStatus) {
     alert(error.message);
     return;
   }
-
+invitation.status = newStatus;
+renderMatches();
   await loadMatches();
 }
 
