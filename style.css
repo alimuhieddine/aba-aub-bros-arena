@@ -1109,3 +1109,19 @@ main,
     max-width: 68px !important;
   }
 }
+.selected-vote {
+  background: rgba(36,209,126,.22) !important;
+  color: var(--accent) !important;
+  border-color: rgba(36,209,126,.65) !important;
+}
+
+.selected-vote-red {
+  background: rgba(255,95,103,.18) !important;
+  color: var(--danger) !important;
+  border-color: rgba(255,95,103,.6) !important;
+}
+
+.small-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
