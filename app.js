@@ -975,6 +975,22 @@ async function loadMatches() {
           created_by,
           created_at
         )
+      ),
+      match_member_points (
+        id,
+        member_id,
+        base_points,
+        difficulty_factor,
+        consistency_bonus,
+        total_points,
+        member:members!match_member_points_member_id_fkey (
+          id,
+          first_name,
+          last_name,
+          display_name,
+          email,
+          is_external
+        )
       )
     `;
 
@@ -1040,6 +1056,22 @@ async function loadMatches() {
             email,
             is_external
           )
+        )
+      ),
+      match_member_points (
+        id,
+        member_id,
+        base_points,
+        difficulty_factor,
+        consistency_bonus,
+        total_points,
+        member:members!match_member_points_member_id_fkey (
+          id,
+          first_name,
+          last_name,
+          display_name,
+          email,
+          is_external
         )
       )
     `;
@@ -1664,6 +1696,8 @@ function renderMatches() {
             ${renderTeamsSummary(match)}
 
             ${renderScoreSummary(match)}
+
+            ${renderPointsSummary(match)}
 
             ${
               isFull
@@ -3244,6 +3278,110 @@ async function saveCurrentGameAndStayOpen() {
   clearPadelSetInputs();
 }
 
+
+function teamResultForMember(match, memberId) {
+  const teams = match.match_teams || [];
+
+  for (const team of teams) {
+    const players = team.match_team_players || [];
+    const found = players.some(player => player.member_id === memberId);
+
+    if (found) {
+      return {
+        team,
+        result: team.result || "draw"
+      };
+    }
+  }
+
+  return {
+    team: null,
+    result: "participated"
+  };
+}
+
+function pointBreakdownForResult(result) {
+  const basePoints = 10;
+  let resultBonus = 0;
+
+  if (result === "win") resultBonus = 5;
+  if (result === "draw") resultBonus = 2;
+
+  return {
+    basePoints,
+    difficultyFactor: 1,
+    consistencyBonus: resultBonus,
+    totalPoints: basePoints + resultBonus
+  };
+}
+
+async function saveMatchMemberPoints(match) {
+  if (!match?.id) return false;
+
+  const inInvitations = inPlayerInvitations(match);
+
+  if (!inInvitations.length) {
+    console.warn("No IN players found for points calculation.");
+    return true;
+  }
+
+  const { error: deleteError } = await supabaseClient
+    .from("match_member_points")
+    .delete()
+    .eq("match_id", match.id);
+
+  if (deleteError) {
+    alert(deleteError.message);
+    return false;
+  }
+
+  const rows = inInvitations.map(inv => {
+    const memberId = inv.member_id;
+    const playerTeam = teamResultForMember(match, memberId);
+    const points = pointBreakdownForResult(playerTeam.result);
+
+    return {
+      match_id: match.id,
+      member_id: memberId,
+      sport_id: match.sport_id,
+      base_points: points.basePoints,
+      difficulty_factor: points.difficultyFactor,
+      consistency_bonus: points.consistencyBonus,
+      total_points: points.totalPoints
+    };
+  });
+
+  const { error: insertError } = await supabaseClient
+    .from("match_member_points")
+    .insert(rows);
+
+  if (insertError) {
+    alert(insertError.message);
+    return false;
+  }
+
+  return true;
+}
+
+function renderPointsSummary(match) {
+  if (!match.match_member_points || !match.match_member_points.length) return "";
+
+  return `
+    <div class="points-summary">
+      <strong>Points</strong>
+      ${match.match_member_points.map(point => {
+        const memberName = memberDisplayName(point.member);
+        return `
+          <div class="points-row">
+            <span>${escapeHtml(memberName)}</span>
+            <b>${Number(point.total_points || 0)}</b>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
 async function finalizeCurrentMatchResult() {
   if (!currentScoreMatchId) {
     alert("No match selected.");
@@ -3393,7 +3531,36 @@ async function finalizeCurrentMatchResult() {
     return;
   }
 
-  alert("Match result finalized.");
+  const refreshedMatchForPoints = {
+    ...match,
+    status: "completed",
+    score_status: "submitted",
+    match_teams: (match.match_teams || []).map(team => {
+      if (team.id === teamA.id) {
+        return {
+          ...team,
+          score: scoreA,
+          result: resultA
+        };
+      }
+
+      if (team.id === teamB.id) {
+        return {
+          ...team,
+          score: scoreB,
+          result: resultB
+        };
+      }
+
+      return team;
+    })
+  };
+
+  const pointsSaved = await saveMatchMemberPoints(refreshedMatchForPoints);
+
+  if (!pointsSaved) return;
+
+  alert("Match result finalized and points saved.");
 
   $("scoreModal")?.close();
   currentScoreMatchId = null;
