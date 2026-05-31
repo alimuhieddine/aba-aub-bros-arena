@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=49" />
+  <link rel="stylesheet" href="style.css?v=50" />
 </head>
 
 <body>
@@ -312,7 +312,15 @@
 
       <label>
         Start time
-        <select id="match-start-time" required></select>
+        <div class="ampm-time-row">
+          <select id="match-start-hour" required></select>
+          <span>:</span>
+          <select id="match-start-minute" required></select>
+          <select id="match-start-ampm" required>
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
       </label>
     </div>
 
@@ -324,7 +332,15 @@
 
       <label>
         End time
-        <select id="match-end-time" required></select>
+        <div class="ampm-time-row">
+          <select id="match-end-hour" required></select>
+          <span>:</span>
+          <select id="match-end-minute" required></select>
+          <select id="match-end-ampm" required>
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
       </label>
     </div>
 
@@ -428,6 +444,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=49"></script>
+  <script src="app.js?v=50"></script>
 </body>
 </html>
