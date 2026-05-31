@@ -573,7 +573,7 @@ async function loadMatchFormOptions() {
 
   const { data: membersData, error: membersError } = await supabaseClient
     .from("members")
-    .select("id,first_name,last_name,display_name,email")
+    .select("id,first_name,last_name,display_name,email,is_external")
     .eq("approval_status", "approved")
     .eq("is_active", true)
     .order("display_name", { ascending: true });
@@ -883,11 +883,15 @@ async function loadMatches() {
         id,
         member_id,
         invited_by,
-        status
-      ),
-      match_external_players (
-        id,
-        display_name
+        status,
+        member:members!match_invitations_member_id_fkey (
+          id,
+          first_name,
+          last_name,
+          display_name,
+          email,
+          is_external
+        )
       )
     `)
     .order("start_time", { ascending: true });
@@ -930,13 +934,35 @@ function invitationCounts(match) {
   };
 }
 
+function invitationMember(invitation) {
+  return invitation?.member || null;
+}
+
+function invitationMemberDisplayName(invitation) {
+  const member = invitationMember(invitation);
+
+  return member?.display_name ||
+    `${member?.first_name || ""} ${member?.last_name || ""}`.trim() ||
+    member?.email ||
+    "Unnamed";
+}
+
+function isExternalInvitation(invitation) {
+  return Boolean(invitationMember(invitation)?.is_external);
+}
+
+function externalPlayerInvitations(match) {
+  return (match.match_invitations || []).filter(inv =>
+    inv.status === "in" && isExternalInvitation(inv)
+  );
+}
 
 function externalPlayerCount(match) {
-  return (match.match_external_players || []).length;
+  return externalPlayerInvitations(match).length;
 }
 
 function filledPlayerCount(match) {
-  return invitationCounts(match).inCount + externalPlayerCount(match);
+  return invitationCounts(match).inCount;
 }
 
 function remainingSpots(match) {
@@ -956,6 +982,25 @@ function canManageMatch(match) {
   return isCurrentUserAdmin() || match.created_by === currentProfile?.id;
 }
 
+function inPlayerNames(match) {
+  const invitations = match.match_invitations || [];
+
+  const names = invitations
+    .filter(inv => inv.status === "in")
+    .map(inv => invitationMemberDisplayName(inv))
+    .filter(Boolean);
+
+  const hasCreatorInvitation = invitations.some(inv =>
+    inv.member_id === match.created_by && inv.status !== "removed"
+  );
+
+  if (match.created_by && !hasCreatorInvitation) {
+    names.unshift("Creator");
+  }
+
+  return names;
+}
+
 function renderMatches() {
   if (!$("matchList")) return;
 
@@ -968,10 +1013,12 @@ function renderMatches() {
     const isCancelled = match.status === "cancelled";
     const isFuture = new Date(match.start_time) > new Date();
     const counts = invitationCounts(match);
-    const externalCount = externalPlayerCount(match);
-    const filledCount = counts.inCount + externalCount;
+    const externalInvitations = externalPlayerInvitations(match);
+    const externalCount = externalInvitations.length;
+    const filledCount = counts.inCount;
     const invitation = myInvitation(match);
-    const isCreator = match.created_by === currentProfile?.id;
+    const isCreator = String(match.created_by || "") === String(currentProfile?.id || "");
+    const isAdmin = isCurrentUserAdmin();
     const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
 
     const maxPlayers = Number(match.max_players || 0);
@@ -981,7 +1028,7 @@ function renderMatches() {
 
     const isFull = maxPlayers && filledCount >= maxPlayers;
     const userIsIn = currentVoteStatus === "in";
-    const canVoteThisMatch = Boolean(invitation || isCreator);
+    const canVoteThisMatch = Boolean(invitation || isCreator || isAdmin);
 
     return `
       <article class="card">
@@ -1009,6 +1056,10 @@ function renderMatches() {
               • Invited: ${counts.invitedCount}
             </div>
 
+            <div class="meta">
+              IN players: ${inPlayerNames(match).length ? escapeHtml(inPlayerNames(match).join(", ")) : "-"}
+            </div>
+
             ${
               isFull
                 ? `<div class="meta">Match is full.</div>`
@@ -1020,25 +1071,30 @@ function renderMatches() {
                 ? `
                   <div class="external-list">
                     <div class="meta">External players:</div>
-                    ${(match.match_external_players || []).map(player => `
-                      <div class="external-player-row">
-                        <span>${escapeHtml(player.display_name || "External player")}</span>
+                    ${externalInvitations.map(inv => {
+                      const player = invitationMember(inv);
+                      const playerName = invitationMemberDisplayName(inv);
 
-                        ${
-                          canManageMatch(match) && !isCancelled && isFuture
-                            ? `
-                              <button class="tiny-btn" onclick="renameExternalPlayer('${player.id}', '${match.id}', '${jsString(player.display_name || "")}')">
-                                Rename
-                              </button>
+                      return `
+                        <div class="external-player-row">
+                          <span>${escapeHtml(playerName)}</span>
 
-                              <button class="tiny-btn danger" onclick="removeExternalPlayer('${player.id}', '${match.id}')">
-                                Remove
-                              </button>
-                            `
-                            : ""
-                        }
-                      </div>
-                    `).join("")}
+                          ${
+                            canManageMatch(match) && !isCancelled && isFuture
+                              ? `
+                                <button class="tiny-btn" onclick="renameExternalMember('${player?.id || ""}', '${match.id}', '${jsString(playerName)}')">
+                                  Rename
+                                </button>
+
+                                <button class="tiny-btn danger" onclick="removeExternalMemberFromMatch('${inv.id}', '${match.id}')">
+                                  Remove
+                                </button>
+                              `
+                              : ""
+                          }
+                        </div>
+                      `;
+                    }).join("")}
                   </div>
                 `
                 : ""
@@ -1268,8 +1324,7 @@ async function voteMatch(matchId, newStatus) {
   }
 
   const counts = invitationCounts(match);
-  const externalCount = externalPlayerCount(match);
-  const filledCount = counts.inCount + externalCount;
+  const filledCount = counts.inCount;
   const maxPlayers = Number(match.max_players || 0);
   const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
   const userIsCurrentlyIn = currentVoteStatus === "in";
@@ -1322,6 +1377,65 @@ async function voteMatch(matchId, newStatus) {
 
   renderMatches();
   await loadMatches();
+}
+
+async function findOrCreateExternalMember(rawName, sequenceNumber) {
+  const cleanName = rawName.trim();
+
+  if (!cleanName) return null;
+
+  const normalized = cleanName.toLowerCase();
+
+  const { data: existing, error: existingError } = await supabaseClient
+    .from("members")
+    .select("id,display_name,first_name,last_name,email,is_external")
+    .eq("is_external", true)
+    .eq("is_active", true);
+
+  if (existingError) {
+    alert(existingError.message);
+    return null;
+  }
+
+  const found = (existing || []).find(member => {
+    const display = String(member.display_name || "").toLowerCase();
+    const first = String(member.first_name || "").toLowerCase();
+
+    return display === normalized ||
+      first === normalized ||
+      display.includes(`(${normalized})`);
+  });
+
+  if (found) return found;
+
+  const displayName = `External ${sequenceNumber} (${cleanName})`;
+
+  const { data, error } = await supabaseClient
+    .from("members")
+    .insert({
+      first_name: cleanName,
+      last_name: "",
+      display_name: displayName,
+      email: null,
+      phone: null,
+      birth_date: null,
+      auth_user_id: null,
+      is_external: true,
+      is_active: true,
+      role: "member",
+      approval_status: "approved",
+      registration_status: "approved",
+      invited_by: currentProfile?.id || null
+    })
+    .select("id,first_name,last_name,display_name,email,is_external")
+    .single();
+
+  if (error) {
+    alert(error.message);
+    return null;
+  }
+
+  return data;
 }
 
 async function addExternalPlayers(matchId) {
@@ -1378,26 +1492,42 @@ async function addExternalPlayers(matchId) {
   }
 
   const existingExternalCount = externalPlayerCount(match);
+  const createdOrFoundMembers = [];
 
-  const rows = names.map((name, index) => ({
+  for (let index = 0; index < names.length; index++) {
+    const externalMember = await findOrCreateExternalMember(
+      names[index],
+      existingExternalCount + index + 1
+    );
+
+    if (!externalMember) return;
+
+    createdOrFoundMembers.push(externalMember);
+  }
+
+  const rows = createdOrFoundMembers.map(member => ({
     match_id: matchId,
-    display_name: `External ${existingExternalCount + index + 1} (${name})`
+    member_id: member.id,
+    invited_by: currentProfile.id,
+    status: "in"
   }));
 
   const { error } = await supabaseClient
-    .from("match_external_players")
-    .insert(rows);
+    .from("match_invitations")
+    .upsert(rows, {
+      onConflict: "match_id,member_id"
+    });
 
   if (error) {
     alert(error.message);
     return;
   }
 
-  alert(`${names.length} external player(s) added.`);
+  alert(`${createdOrFoundMembers.length} external player(s) added.`);
   await loadMatches();
 }
 
-async function renameExternalPlayer(externalPlayerId, matchId, currentName) {
+async function renameExternalMember(memberId, matchId, currentName) {
   const match = allMatches.find(m => m.id === matchId);
 
   if (!match) {
@@ -1420,6 +1550,11 @@ async function renameExternalPlayer(externalPlayerId, matchId, currentName) {
     return;
   }
 
+  if (!memberId) {
+    alert("External member id missing.");
+    return;
+  }
+
   const newName = prompt("Edit external player display name:", currentName || "");
 
   if (newName === null) return;
@@ -1432,11 +1567,12 @@ async function renameExternalPlayer(externalPlayerId, matchId, currentName) {
   }
 
   const { error } = await supabaseClient
-    .from("match_external_players")
+    .from("members")
     .update({
       display_name: cleanName
     })
-    .eq("id", externalPlayerId);
+    .eq("id", memberId)
+    .eq("is_external", true);
 
   if (error) {
     alert(error.message);
@@ -1446,7 +1582,7 @@ async function renameExternalPlayer(externalPlayerId, matchId, currentName) {
   await loadMatches();
 }
 
-async function removeExternalPlayer(externalPlayerId, matchId) {
+async function removeExternalMemberFromMatch(invitationId, matchId) {
   const match = allMatches.find(m => m.id === matchId);
 
   if (!match) {
@@ -1469,13 +1605,16 @@ async function removeExternalPlayer(externalPlayerId, matchId) {
     return;
   }
 
-  const ok = confirm("Remove this external player?");
+  const ok = confirm("Remove this external player from this match?");
   if (!ok) return;
 
   const { error } = await supabaseClient
-    .from("match_external_players")
-    .delete()
-    .eq("id", externalPlayerId);
+    .from("match_invitations")
+    .update({
+      status: "removed",
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", invitationId);
 
   if (error) {
     alert(error.message);
