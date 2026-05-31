@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=41" />
+  <link rel="stylesheet" href="style.css?v=42" />
 </head>
 
 <body>
@@ -292,6 +292,18 @@
       </select>
     </label>
 
+    <div class="grid two">
+      <label>
+        Required players
+        <input name="required_players" type="number" min="1" value="4" required />
+      </label>
+
+      <label>
+        Max players
+        <input name="max_players" type="number" min="1" value="4" required />
+      </label>
+    </div>
+
     <label>
       Start time
       <input name="start_time" type="datetime-local" required />
@@ -303,11 +315,18 @@
     </label>
 
     <label>
+      Invite Players
+      <div id="match-invite-options" class="checkbox-list">
+        Loading members...
+      </div>
+    </label>
+
+    <label>
       Notes
       <input name="notes" placeholder="Optional notes..." />
     </label>
 
-    <button class="primary-btn full" type="submit">Add Match</button>
+    <button class="primary-btn full" type="submit">Create Match</button>
   </form>
 </dialog>
 
@@ -347,6 +366,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=41"></script>
+  <script src="app.js?v=42"></script>
 </body>
 </html>
