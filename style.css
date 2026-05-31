@@ -1518,3 +1518,53 @@ main,
   border-color: rgba(255,95,103,.35);
   background: rgba(255,95,103,.10);
 }
+
+
+/* === SCORE SUBMISSION === */
+.score-modal-card {
+  width: min(92vw, 560px);
+}
+
+.score-summary {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.score-summary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255,255,255,.035);
+  font-size: 12px;
+}
+
+.score-summary-row strong {
+  color: var(--text);
+}
+
+.score-summary-row span {
+  color: var(--gold);
+  font-weight: 900;
+  font-size: 15px;
+}
+
+.score-summary-row em {
+  color: var(--muted);
+  font-style: normal;
+  text-transform: uppercase;
+  font-weight: 900;
+  font-size: 10px;
+}
+
+.score-notes {
+  padding: 7px 8px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.03);
+  color: var(--muted);
+  font-size: 12px;
+}
