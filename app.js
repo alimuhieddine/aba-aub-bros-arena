@@ -880,18 +880,18 @@ async function loadMatches() {
         image_url
       ),
       match_invitations (
-        id,
-        member_id,
-        invited_by,
-        status,
-        members (
-          id,
-          first_name,
-          last_name,
-          display_name,
-          email
-        )
-      ),
+  id,
+  member_id,
+  invited_by,
+  status,
+  member:members!match_invitations_member_id_fkey (
+    id,
+    first_name,
+    last_name,
+    display_name,
+    email
+  )
+),
       match_external_players (
         id,
         display_name
