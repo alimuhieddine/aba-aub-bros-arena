@@ -1318,3 +1318,26 @@ main,
     line-height: 20px;
   }
 }
+
+
+/* === MATCH DATE/TIME AM-PM SELECTS === */
+.match-date-time-grid {
+  margin-top: 2px;
+}
+
+.match-date-time-grid label {
+  margin-top: 10px;
+  margin-bottom: 6px;
+}
+
+#match-start-time,
+#match-end-time {
+  cursor: pointer;
+}
+
+@media (max-width: 800px) {
+  .match-date-time-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+}
