@@ -1228,3 +1228,93 @@ main,
     line-height: 20px;
   }
 }
+
+
+/* === EXTERNAL PLAYER PICKER MODAL === */
+
+.external-picker-list {
+  max-height: 230px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.external-new-box {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.disabled-chip {
+  opacity: .55;
+}
+
+.disabled-chip input {
+  cursor: not-allowed;
+}
+
+.external-list {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.external-player-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+}
+
+.external-player-row span {
+  flex: 1 1 auto;
+  min-width: 130px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.tiny-btn {
+  height: 22px;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.07);
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 22px;
+}
+
+.tiny-btn.danger {
+  color: var(--danger);
+  border-color: rgba(255,95,103,.45);
+  background: rgba(255,95,103,.10);
+}
+
+@media (max-width: 800px) {
+  .external-picker-list {
+    max-height: 210px;
+  }
+
+  .external-player-row {
+    gap: 5px;
+    padding: 6px;
+  }
+
+  .external-player-row span {
+    font-size: 11px;
+    min-width: 100px;
+  }
+
+  .tiny-btn {
+    height: 20px;
+    min-height: 20px;
+    padding: 0 6px;
+    font-size: 9px;
+    line-height: 20px;
+  }
+}
