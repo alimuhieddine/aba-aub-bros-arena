@@ -2829,7 +2829,251 @@ async function openScoreSubmission(matchId) {
   $("scoreModal")?.showModal();
 }
 
-async function saveScore() {
+
+function finalizableMatchGames(match) {
+  return matchSessionGames(match).filter(game => game.status === "completed");
+}
+
+function completedGameScoreForMatch(match, extraGame = null) {
+  let games = finalizableMatchGames(match);
+
+  if (extraGame) {
+    games = games.filter(game => game.id !== extraGame.id);
+
+    if (extraGame.status === "completed") {
+      games.push(extraGame);
+    }
+  }
+
+  return {
+    teamA: games.filter(game => game.winner_team === "A").length,
+    teamB: games.filter(game => game.winner_team === "B").length
+  };
+}
+
+async function savePadelGameOnly() {
+  if (!currentScoreMatchId) {
+    alert("No match selected.");
+    return null;
+  }
+
+  const match = allMatches.find(m => m.id === currentScoreMatchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return null;
+  }
+
+  if (!canSubmitScore(match)) {
+    alert("Game can only be saved after the match is finished and teams are assigned.");
+    return null;
+  }
+
+  if (!isPadelMatch(match)) {
+    alert("Save Game is currently for padel games only.");
+    return null;
+  }
+
+  const { teamA, teamB } = getTwoMatchTeams(match);
+
+  if (!teamA || !teamB) {
+    alert("Assign teams before saving a game.");
+    return null;
+  }
+
+  const mode = $("padel-game-mode")?.value || "new";
+  const gameTitle = $("padel-game-title")?.value.trim() || "Padel Game";
+  const padelResult = calculatePadelSetResult(padelSetInputs());
+
+  if (padelResult.error) {
+    alert(padelResult.error);
+    return null;
+  }
+
+  let gameId = null;
+  const winnerTeam = padelGameWinnerFromSets(padelResult);
+  const gameStatus = winnerTeam ? "completed" : "in_progress";
+
+  if (mode === "continue") {
+    gameId = $("padel-pending-game")?.value || "";
+
+    if (!gameId) {
+      alert("Select a pending game to continue.");
+      return null;
+    }
+
+    const { error: gameUpdateError } = await supabaseClient
+      .from("match_games")
+      .update({
+        title: gameTitle,
+        team_a_name: teamA.name || "Team A",
+        team_b_name: teamB.name || "Team B",
+        team_a_score: padelResult.teamASetWins,
+        team_b_score: padelResult.teamBSetWins,
+        winner_team: winnerTeam,
+        status: gameStatus
+      })
+      .eq("id", gameId);
+
+    if (gameUpdateError) {
+      alert(gameUpdateError.message);
+      return null;
+    }
+  } else {
+    const { data: gameData, error: gameError } = await supabaseClient
+      .from("match_games")
+      .insert({
+        sport_id: match.sport_id,
+        league_id: match.league_id || null,
+        title: gameTitle,
+        status: gameStatus,
+        team_a_name: teamA.name || "Team A",
+        team_b_name: teamB.name || "Team B",
+        team_a_score: padelResult.teamASetWins,
+        team_b_score: padelResult.teamBSetWins,
+        winner_team: winnerTeam,
+        created_by: currentProfile.id
+      })
+      .select("id")
+      .single();
+
+    if (gameError) {
+      alert(gameError.message);
+      return null;
+    }
+
+    gameId = gameData.id;
+  }
+
+  const { error: sessionError } = await supabaseClient
+    .from("match_game_sessions")
+    .upsert({
+      match_id: currentScoreMatchId,
+      game_id: gameId
+    }, {
+      onConflict: "match_id,game_id"
+    });
+
+  if (sessionError) {
+    alert(sessionError.message);
+    return null;
+  }
+
+  const { error: deleteEntriesError } = await supabaseClient
+    .from("match_score_entries")
+    .delete()
+    .eq("game_id", gameId);
+
+  if (deleteEntriesError) {
+    alert(deleteEntriesError.message);
+    return null;
+  }
+
+  const scoreRows = padelResult.validSets.map(set => ({
+    match_id: currentScoreMatchId,
+    game_id: gameId,
+    sport_id: match.sport_id,
+    entry_type: "padel_set",
+    game_number: null,
+    set_number: set.setNumber,
+    team_a_score: set.teamAScore,
+    team_b_score: set.teamBScore,
+    is_completed: set.isCompleted,
+    notes: null
+  }));
+
+  const { error: entriesError } = await supabaseClient
+    .from("match_score_entries")
+    .insert(scoreRows);
+
+  if (entriesError) {
+    alert(entriesError.message);
+    return null;
+  }
+
+  const score = completedGameScoreForMatch(match, {
+    id: gameId,
+    status: gameStatus,
+    winner_team: winnerTeam
+  });
+
+  const resultA = score.teamA > score.teamB ? "win" : score.teamA < score.teamB ? "loss" : "draw";
+  const resultB = score.teamB > score.teamA ? "win" : score.teamB < score.teamA ? "loss" : "draw";
+
+  const { error: teamAError } = await supabaseClient
+    .from("match_teams")
+    .update({
+      score: score.teamA,
+      result: resultA
+    })
+    .eq("id", teamA.id);
+
+  if (teamAError) {
+    alert(teamAError.message);
+    return null;
+  }
+
+  const { error: teamBError } = await supabaseClient
+    .from("match_teams")
+    .update({
+      score: score.teamB,
+      result: resultB
+    })
+    .eq("id", teamB.id);
+
+  if (teamBError) {
+    alert(teamBError.message);
+    return null;
+  }
+
+  const summary = $("score-summary")?.value.trim() || null;
+
+  const { error: matchError } = await supabaseClient
+    .from("matches")
+    .update({
+      score_status: "in_progress",
+      notes: summary
+    })
+    .eq("id", currentScoreMatchId);
+
+  if (matchError) {
+    alert(matchError.message);
+    return null;
+  }
+
+  return {
+    gameId,
+    gameStatus,
+    winnerTeam,
+    score
+  };
+}
+
+async function saveCurrentGameAndStayOpen() {
+  const saved = await savePadelGameOnly();
+
+  if (!saved) return;
+
+  alert(saved.gameStatus === "completed" ? "Game saved as completed." : "Game saved as pending.");
+
+  await loadMatches();
+
+  const match = allMatches.find(m => m.id === currentScoreMatchId);
+  if (!match) return;
+
+  await loadPendingPadelGames(match);
+  renderPendingGameOptions();
+
+  if ($("padel-game-mode")) $("padel-game-mode").value = "new";
+  setPadelGameModeUI();
+
+  const nextGameNumber = matchSessionGames(match).length + 1;
+  if ($("padel-game-title")) $("padel-game-title").value = `Game ${nextGameNumber}`;
+
+  clearPadelSetInputs();
+}
+
+async function finalizeCurrentMatchResult() {
   if (!currentScoreMatchId) {
     alert("No match selected.");
     return;
@@ -2843,198 +3087,34 @@ async function saveScore() {
   }
 
   if (!canSubmitScore(match)) {
-    alert("Result can only be added after the match is finished. If this message appears after the match ended, make sure teams are assigned first.");
+    alert("Result can only be finalized after the match is finished.");
     return;
   }
 
   const { teamA, teamB } = getTwoMatchTeams(match);
 
   if (!teamA || !teamB) {
-    alert("Assign teams before submitting score.");
+    alert("Assign teams before finalizing the result.");
     return;
   }
 
   const summary = $("score-summary")?.value.trim() || null;
+  let scoreA = Number(teamA.score || 0);
+  let scoreB = Number(teamB.score || 0);
 
   if (isPadelMatch(match)) {
-    const mode = $("padel-game-mode")?.value || "new";
-    const gameTitle = $("padel-game-title")?.value.trim() || "Padel Game";
-    const padelResult = calculatePadelSetResult(padelSetInputs());
-
-    if (padelResult.error) {
-      alert(padelResult.error);
-      return;
-    }
-
-    let gameId = null;
-    const winnerTeam = padelGameWinnerFromSets(padelResult);
-    const gameStatus = winnerTeam ? "completed" : "in_progress";
-
-    if (mode === "continue") {
-      gameId = $("padel-pending-game")?.value || "";
-
-      if (!gameId) {
-        alert("Select a pending game to continue.");
-        return;
-      }
-
-      const { error: gameUpdateError } = await supabaseClient
-        .from("match_games")
-        .update({
-          title: gameTitle,
-          team_a_name: teamA.name || "Team A",
-          team_b_name: teamB.name || "Team B",
-          team_a_score: padelResult.teamASetWins,
-          team_b_score: padelResult.teamBSetWins,
-          winner_team: winnerTeam,
-          status: gameStatus
-        })
-        .eq("id", gameId);
-
-      if (gameUpdateError) {
-        alert(gameUpdateError.message);
-        return;
-      }
-    } else {
-      const { data: gameData, error: gameError } = await supabaseClient
-        .from("match_games")
-        .insert({
-          sport_id: match.sport_id,
-          league_id: match.league_id || null,
-          title: gameTitle,
-          status: gameStatus,
-          team_a_name: teamA.name || "Team A",
-          team_b_name: teamB.name || "Team B",
-          team_a_score: padelResult.teamASetWins,
-          team_b_score: padelResult.teamBSetWins,
-          winner_team: winnerTeam,
-          created_by: currentProfile.id
-        })
-        .select("id")
-        .single();
-
-      if (gameError) {
-        alert(gameError.message);
-        return;
-      }
-
-      gameId = gameData.id;
-    }
-
-    const { error: sessionError } = await supabaseClient
-      .from("match_game_sessions")
-      .upsert({
-        match_id: currentScoreMatchId,
-        game_id: gameId
-      }, {
-        onConflict: "match_id,game_id"
-      });
-
-    if (sessionError) {
-      alert(sessionError.message);
-      return;
-    }
-
-    const { error: deleteEntriesError } = await supabaseClient
-      .from("match_score_entries")
-      .delete()
-      .eq("game_id", gameId);
-
-    if (deleteEntriesError) {
-      alert(deleteEntriesError.message);
-      return;
-    }
-
-    const scoreRows = padelResult.validSets.map(set => ({
-      match_id: currentScoreMatchId,
-      game_id: gameId,
-      sport_id: match.sport_id,
-      entry_type: "padel_set",
-      game_number: null,
-      set_number: set.setNumber,
-      team_a_score: set.teamAScore,
-      team_b_score: set.teamBScore,
-      is_completed: set.isCompleted,
-      notes: null
-    }));
-
-    const { error: entriesError } = await supabaseClient
-      .from("match_score_entries")
-      .insert(scoreRows);
-
-    if (entriesError) {
-      alert(entriesError.message);
-      return;
-    }
-
-    const currentSessionGames = matchSessionGames(match);
-    const completedGames = [
-      ...currentSessionGames.filter(game => game.id !== gameId && game.status === "completed"),
-      {
-        id: gameId,
-        status: gameStatus,
-        winner_team: winnerTeam
-      }
-    ].filter(game => game.status === "completed");
-
-    const sessionScoreA = completedGames.filter(game => game.winner_team === "A").length;
-    const sessionScoreB = completedGames.filter(game => game.winner_team === "B").length;
-
-    const resultA = sessionScoreA > sessionScoreB ? "win" : sessionScoreA < sessionScoreB ? "loss" : "draw";
-    const resultB = sessionScoreB > sessionScoreA ? "win" : sessionScoreB < sessionScoreA ? "loss" : "draw";
-
-    const { error: teamAError } = await supabaseClient
-      .from("match_teams")
-      .update({
-        score: sessionScoreA,
-        result: resultA
-      })
-      .eq("id", teamA.id);
-
-    if (teamAError) {
-      alert(teamAError.message);
-      return;
-    }
-
-    const { error: teamBError } = await supabaseClient
-      .from("match_teams")
-      .update({
-        score: sessionScoreB,
-        result: resultB
-      })
-      .eq("id", teamB.id);
-
-    if (teamBError) {
-      alert(teamBError.message);
-      return;
-    }
-
-    const { error: matchError } = await supabaseClient
-      .from("matches")
-      .update({
-        status: "completed",
-        score_status: "submitted",
-        notes: summary
-      })
-      .eq("id", currentScoreMatchId);
-
-    if (matchError) {
-      alert(matchError.message);
-      return;
-    }
-
-    alert("Padel game saved.");
+    const score = completedGameScoreForMatch(match);
+    scoreA = score.teamA;
+    scoreB = score.teamB;
   } else {
-    const scoreA = Number($("score-team-a")?.value || 0);
-    const scoreB = Number($("score-team-b")?.value || 0);
+    scoreA = Number($("score-team-a")?.value || 0);
+    scoreB = Number($("score-team-b")?.value || 0);
 
     if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB) || scoreA < 0 || scoreB < 0) {
       alert("Scores must be whole numbers equal to or greater than 0.");
       return;
     }
 
-    const resultA = scoreA > scoreB ? "win" : scoreA < scoreB ? "loss" : "draw";
-    const resultB = scoreB > scoreA ? "win" : scoreB < scoreA ? "loss" : "draw";
     const winnerTeam = scoreA > scoreB ? "A" : scoreB > scoreA ? "B" : "draw";
 
     const { data: gameData, error: gameError } = await supabaseClient
@@ -3094,54 +3174,61 @@ async function saveScore() {
       alert(entryError.message);
       return;
     }
-
-    const { error: teamAError } = await supabaseClient
-      .from("match_teams")
-      .update({
-        score: scoreA,
-        result: resultA
-      })
-      .eq("id", teamA.id);
-
-    if (teamAError) {
-      alert(teamAError.message);
-      return;
-    }
-
-    const { error: teamBError } = await supabaseClient
-      .from("match_teams")
-      .update({
-        score: scoreB,
-        result: resultB
-      })
-      .eq("id", teamB.id);
-
-    if (teamBError) {
-      alert(teamBError.message);
-      return;
-    }
-
-    const { error: matchError } = await supabaseClient
-      .from("matches")
-      .update({
-        status: "completed",
-        score_status: "submitted",
-        notes: summary
-      })
-      .eq("id", currentScoreMatchId);
-
-    if (matchError) {
-      alert(matchError.message);
-      return;
-    }
-
-    alert("Score saved.");
   }
+
+  const resultA = scoreA > scoreB ? "win" : scoreA < scoreB ? "loss" : "draw";
+  const resultB = scoreB > scoreA ? "win" : scoreB < scoreA ? "loss" : "draw";
+
+  const { error: teamAError } = await supabaseClient
+    .from("match_teams")
+    .update({
+      score: scoreA,
+      result: resultA
+    })
+    .eq("id", teamA.id);
+
+  if (teamAError) {
+    alert(teamAError.message);
+    return;
+  }
+
+  const { error: teamBError } = await supabaseClient
+    .from("match_teams")
+    .update({
+      score: scoreB,
+      result: resultB
+    })
+    .eq("id", teamB.id);
+
+  if (teamBError) {
+    alert(teamBError.message);
+    return;
+  }
+
+  const { error: matchError } = await supabaseClient
+    .from("matches")
+    .update({
+      status: "completed",
+      score_status: "submitted",
+      notes: summary
+    })
+    .eq("id", currentScoreMatchId);
+
+  if (matchError) {
+    alert(matchError.message);
+    return;
+  }
+
+  alert("Match result finalized.");
 
   $("scoreModal")?.close();
   currentScoreMatchId = null;
 
   await loadMatches();
+}
+
+async function saveScore() {
+  await finalizeCurrentMatchResult();
 }
 
 function commentSection(m) {
@@ -3786,6 +3873,8 @@ function bindEvents() {
   $("create-external-player-btn")?.addEventListener("click", createExternalPlayerProfile);
 
   $("save-teams-btn")?.addEventListener("click", saveTeams);
+
+  $("save-game-btn")?.addEventListener("click", saveCurrentGameAndStayOpen);
 
   $("save-score-btn")?.addEventListener("click", saveScore);
 
