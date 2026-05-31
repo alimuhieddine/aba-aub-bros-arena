@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=54" />
+  <link rel="stylesheet" href="style.css?v=55" />
 </head>
 
 <body>
@@ -444,6 +444,39 @@
     </form>
   </dialog>
 
+
+  <dialog id="scoreModal" class="modal">
+    <form method="dialog" id="scoreForm" class="modal-card score-modal-card">
+      <button class="close" value="cancel" type="submit">×</button>
+      <h3>Submit Score</h3>
+
+      <p class="hint" id="score-match-label">
+        Enter the final score for each team.
+      </p>
+
+      <div class="grid two">
+        <label>
+          <span id="score-team-a-label">Team A score</span>
+          <input id="score-team-a" type="number" min="0" step="1" value="0">
+        </label>
+
+        <label>
+          <span id="score-team-b-label">Team B score</span>
+          <input id="score-team-b" type="number" min="0" step="1" value="0">
+        </label>
+      </div>
+
+      <label>
+        Match summary / notes
+        <textarea id="score-summary" rows="4" placeholder="Optional match summary..."></textarea>
+      </label>
+
+      <button id="save-score-btn" class="primary-btn full" type="button">
+        Save Result
+      </button>
+    </form>
+  </dialog>
+
   <dialog id="activityModal" class="modal">
     <form method="dialog" id="activityForm" class="modal-card">
       <button class="close" value="cancel" type="submit">×</button>
@@ -480,6 +513,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=54"></script>
+  <script src="app.js?v=55"></script>
 </body>
 </html>
