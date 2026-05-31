@@ -1677,3 +1677,38 @@ main,
   color: var(--danger) !important;
   background: rgba(255,95,103,.10) !important;
 }
+
+
+/* === POINTS SUMMARY === */
+.points-summary {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255,255,255,.035);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.points-summary > strong {
+  color: var(--text);
+}
+
+.points-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.points-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.points-row b {
+  color: var(--gold);
+  font-size: 13px;
+}
