@@ -1373,29 +1373,32 @@ async function addExternalPlayers(matchId) {
 
   const answer = prompt(
     remaining === null
-      ? "How many external players do you want to add?"
-      : `How many external players do you want to add? Remaining spots: ${remaining}`
+      ? "Enter external player names separated by commas, example: Joe, Moe"
+      : `Enter external player names separated by commas. Remaining spots: ${remaining}\nExample: Joe, Moe`
   );
 
   if (answer === null) return;
 
-  const count = Number(answer);
+  const names = answer
+    .split(",")
+    .map(name => name.trim())
+    .filter(Boolean);
 
-  if (!Number.isInteger(count) || count < 1) {
-    alert("Please enter a valid whole number.");
+  if (names.length === 0) {
+    alert("Please enter at least one name.");
     return;
   }
 
-  if (remaining !== null && count > remaining) {
+  if (remaining !== null && names.length > remaining) {
     alert(`You can only add ${remaining} external player(s).`);
     return;
   }
 
   const existingExternalCount = externalPlayerCount(match);
 
-  const rows = Array.from({ length: count }, (_, index) => ({
+  const rows = names.map((name, index) => ({
     match_id: matchId,
-    display_name: `External ${existingExternalCount + index + 1}`
+    display_name: `External ${existingExternalCount + index + 1} (${name})`
   }));
 
   const { error } = await supabaseClient
@@ -1407,7 +1410,7 @@ async function addExternalPlayers(matchId) {
     return;
   }
 
-  alert(`${count} external player(s) added.`);
+  alert(`${names.length} external player(s) added.`);
   await loadMatches();
 }
 
