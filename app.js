@@ -1003,6 +1003,43 @@ function inPlayerNames(match) {
   return names;
 }
 
+
+function getMatchDisplayStatus(match) {
+  if (match.status === "cancelled") return "cancelled";
+  if (match.status === "completed") return "completed";
+
+  const now = new Date();
+  const start = new Date(match.start_time);
+  const end = new Date(match.end_time);
+
+  if (now >= start && now <= end) return "playing";
+  if (now > end) return "finished";
+
+  return match.status || "open_for_votes";
+}
+
+function getMatchStatusClass(displayStatus, isFull) {
+  if (displayStatus === "cancelled") return "red";
+  if (displayStatus === "playing") return "gold";
+  if (displayStatus === "finished" || displayStatus === "completed") return "blue";
+  if (isFull) return "blue";
+  return "green";
+}
+
+function isVotingOpenForMatch(match) {
+  const displayStatus = getMatchDisplayStatus(match);
+  return displayStatus !== "cancelled" &&
+    displayStatus !== "playing" &&
+    displayStatus !== "finished" &&
+    displayStatus !== "completed" &&
+    new Date(match.start_time) > new Date();
+}
+
+function isMatchEditable(match) {
+  return getMatchDisplayStatus(match) !== "cancelled" &&
+    new Date(match.start_time) > new Date();
+}
+
 function renderMatches() {
   if (!$("matchList")) return;
 
@@ -1012,8 +1049,11 @@ function renderMatches() {
   }
 
   $("matchList").innerHTML = allMatches.map(match => {
-    const isCancelled = match.status === "cancelled";
+    const displayStatus = getMatchDisplayStatus(match);
+    const isCancelled = displayStatus === "cancelled";
     const isFuture = new Date(match.start_time) > new Date();
+    const votingOpen = isVotingOpenForMatch(match);
+    const matchEditable = isMatchEditable(match);
     const counts = invitationCounts(match);
     const externalInvitations = externalPlayerInvitations(match);
     const externalCount = externalInvitations.length;
@@ -1042,6 +1082,10 @@ function renderMatches() {
               ${escapeHtml(match.sports?.name || "-")}
               • ${escapeHtml(match.match_type || "-")}
               • ${fmtDate(match.start_time)}
+            </div>
+
+            <div class="meta">
+              Time: ${fmtDate(match.start_time)} → ${fmtDate(match.end_time)}
             </div>
 
             <div class="meta">
@@ -1082,7 +1126,7 @@ function renderMatches() {
                           <span>${escapeHtml(playerName)}</span>
 
                           ${
-                            canManageMatch(match) && !isCancelled && isFuture
+                            canManageMatch(match) && matchEditable
                               ? `
                                 <button class="tiny-btn" onclick="renameExternalMember('${player?.id || ""}', '${match.id}', '${jsString(playerName)}')">
                                   Rename
@@ -1115,13 +1159,13 @@ function renderMatches() {
             }
           </div>
 
-          <span class="pill ${isCancelled ? "red" : isFull ? "blue" : "green"}">
-            ${escapeHtml(isFull && !isCancelled ? "full" : (match.status || "scheduled"))}
+          <span class="pill ${getMatchStatusClass(displayStatus, isFull)}">
+            ${escapeHtml(isFull && displayStatus === "open_for_votes" ? "full" : displayStatus)}
           </span>
         </div>
 
         ${
-         canVoteThisMatch && !isCancelled && isFuture
+         canVoteThisMatch && votingOpen
             ? `
               <div class="actions">
                 <button
@@ -1155,7 +1199,7 @@ function renderMatches() {
             ? `
               <div class="actions">
                 ${
-                  !isCancelled && isFuture && !isFull
+                  matchEditable && !isFull
                     ? `<button class="small-btn" onclick="openExternalPlayerPicker('${match.id}')">
                         Add External
                       </button>`
@@ -1301,6 +1345,11 @@ async function editMatch(matchId) {
     return;
   }
 
+  if (!isMatchEditable(match)) {
+    alert("You can only edit match details before the match starts.");
+    return;
+  }
+
   editingMatchId = matchId;
 
   await loadMatchFormOptions();
@@ -1414,13 +1463,25 @@ async function voteMatch(matchId, newStatus) {
     return;
   }
 
-  if (new Date(match.start_time) <= new Date()) {
-    alert("Voting is closed because the match time has passed.");
+  const displayStatus = getMatchDisplayStatus(match);
+
+  if (displayStatus === "cancelled") {
+    alert("This match is cancelled.");
     return;
   }
 
-  if (match.status === "cancelled") {
-    alert("This match is cancelled.");
+  if (displayStatus === "playing") {
+    alert("Voting is closed because the match is currently playing.");
+    return;
+  }
+
+  if (displayStatus === "finished" || displayStatus === "completed") {
+    alert("Voting is closed because the match has finished.");
+    return;
+  }
+
+  if (new Date(match.start_time) <= new Date()) {
+    alert("Voting is closed because the match time has passed.");
     return;
   }
 
@@ -1550,13 +1611,8 @@ async function openExternalPlayerPicker(matchId) {
     return;
   }
 
-  if (match.status === "cancelled") {
-    alert("This match is cancelled.");
-    return;
-  }
-
-  if (new Date(match.start_time) <= new Date()) {
-    alert("You cannot add external players after the match time has passed.");
+  if (!isMatchEditable(match)) {
+    alert("You can only add external players before the match starts.");
     return;
   }
 
@@ -1748,13 +1804,8 @@ async function renameExternalMember(memberId, matchId, currentName) {
     return;
   }
 
-  if (match.status === "cancelled") {
-    alert("This match is cancelled.");
-    return;
-  }
-
-  if (new Date(match.start_time) <= new Date()) {
-    alert("You cannot rename external players after the match time has passed.");
+  if (!isMatchEditable(match)) {
+    alert("You can only rename external players before the match starts.");
     return;
   }
 
@@ -1803,13 +1854,8 @@ async function removeExternalMemberFromMatch(invitationId, matchId) {
     return;
   }
 
-  if (match.status === "cancelled") {
-    alert("This match is cancelled.");
-    return;
-  }
-
-  if (new Date(match.start_time) <= new Date()) {
-    alert("You cannot remove external players after the match time has passed.");
+  if (!isMatchEditable(match)) {
+    alert("You can only remove external players before the match starts.");
     return;
   }
 
@@ -2473,3 +2519,9 @@ bindEvents();
 render();
 testConnection();
 refreshAuthUI();
+
+setInterval(() => {
+  if (currentProfile?.approval_status === "approved" && allMatches?.length) {
+    renderMatches();
+  }
+}, 60000);
