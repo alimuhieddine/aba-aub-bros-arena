@@ -2035,3 +2035,49 @@ main,
   font-weight: 800;
   line-height: 1.35;
 }
+
+
+/* === RATING ADJUSTMENT HISTORY === */
+.rating-history,
+.rating-history-empty {
+  margin-top: 6px;
+  display: grid;
+  gap: 3px;
+  font-size: 10px;
+}
+
+.rating-history-empty {
+  color: var(--muted);
+  opacity: .85;
+}
+
+.rating-history-row {
+  display: grid;
+  grid-template-columns: 46px 86px minmax(0, 1fr);
+  gap: 5px;
+  align-items: center;
+  color: var(--muted);
+}
+
+.rating-history-row em {
+  font-style: normal;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  opacity: .9;
+}
+
+.positive-change {
+  color: var(--accent);
+  font-weight: 900;
+}
+
+.negative-change {
+  color: var(--danger);
+  font-weight: 900;
+}
+
+@media (max-width: 800px) {
+  .rating-history-row {
+    grid-template-columns: 42px 80px minmax(0, 1fr);
+  }
+}
