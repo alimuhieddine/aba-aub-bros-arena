@@ -540,6 +540,7 @@ let editingMatchId = null;
 let allMembers = [];
 let allExternalMembers = [];
 let allSportProfiles = [];
+let allSportSkillRatings = [];
 let currentExternalMatchId = null;
 let currentTeamMatchId = null;
 let currentScoreMatchId = null;
@@ -595,16 +596,70 @@ function updateMatchLeagueOptions() {
 }
 
 
+
+function selectedRatingSport() {
+  const sportId = $("rating-sport-filter")?.value || "";
+  return (allSports || []).find(sport => sport.id === sportId) || null;
+}
+
+function sportNameById(sportId) {
+  return (allSports || []).find(sport => sport.id === sportId)?.name || "";
+}
+
+function isPadelSportName(name) {
+  return String(name || "").toLowerCase().includes("padel") ||
+    String(name || "").toLowerCase().includes("paddle");
+}
+
+function isSoccerSportName(name) {
+  const clean = String(name || "").toLowerCase();
+  return clean.includes("soccer") ||
+    clean.includes("football") ||
+    clean.includes("futsal");
+}
+
+function sportProfileType(sportId) {
+  const name = sportNameById(sportId);
+
+  if (isPadelSportName(name)) return "padel";
+  if (isSoccerSportName(name)) return "soccer";
+
+  return "generic";
+}
+
+function skillRatingForMember(memberId, sportId, skillKey, fallback = 0) {
+  const item = (allSportSkillRatings || []).find(skill =>
+    skill.member_id === memberId &&
+    skill.sport_id === sportId &&
+    skill.skill_key === skillKey
+  );
+
+  const rating = Number(item?.rating);
+  return Number.isFinite(rating) ? rating : fallback;
+}
+
+function skillValueForMember(memberId, sportId, skillKey, fallback = "") {
+  const item = (allSportSkillRatings || []).find(skill =>
+    skill.member_id === memberId &&
+    skill.sport_id === sportId &&
+    skill.skill_key === skillKey
+  );
+
+  return item?.skill_value || fallback;
+}
+
 async function loadSportProfiles() {
   if (!currentProfile || currentProfile.approval_status !== "approved") return [];
 
-  const { data, error } = await supabaseClient
+  const { data: profilesData, error: profilesError } = await supabaseClient
     .from("member_sport_profiles")
     .select(`
       id,
       member_id,
       sport_id,
       rating,
+      overall_rating,
+      rating_system,
       preferred_position,
       games_played,
       wins,
@@ -625,13 +680,32 @@ async function loadSportProfiles() {
       )
     `);
 
-  if (error) {
-    console.warn("Could not load sport profiles:", error.message);
+  if (profilesError) {
+    console.warn("Could not load sport profiles:", profilesError.message);
     allSportProfiles = [];
-    return [];
+  } else {
+    allSportProfiles = profilesData || [];
   }
 
-  allSportProfiles = data || [];
+  const { data: skillsData, error: skillsError } = await supabaseClient
+    .from("member_sport_skill_ratings")
+    .select(`
+      id,
+      member_id,
+      sport_id,
+      skill_key,
+      skill_label,
+      rating,
+      skill_value
+    `);
+
+  if (skillsError) {
+    console.warn("Could not load sport skill ratings:", skillsError.message);
+    allSportSkillRatings = [];
+  } else {
+    allSportSkillRatings = skillsData || [];
+  }
+
   return allSportProfiles;
 }
 
@@ -641,15 +715,44 @@ function sportProfileForMember(memberId, sportId) {
   ) || null;
 }
 
-function memberSportRating(memberId, sportId) {
-  const profile = sportProfileForMember(memberId, sportId);
-  const rating = Number(profile?.rating);
+function soccerOverallRating(memberId, sportId) {
+  const attack = skillRatingForMember(memberId, sportId, "attack", 5);
+  const midfield = skillRatingForMember(memberId, sportId, "midfield", 5);
+  const defense = skillRatingForMember(memberId, sportId, "defense", 5);
+  const goalkeeping = skillRatingForMember(memberId, sportId, "goalkeeping", 5);
+  const stamina = skillRatingForMember(memberId, sportId, "stamina", 5);
 
-  return Number.isFinite(rating) && rating > 0 ? rating : 5;
+  return (attack + midfield + defense + goalkeeping + stamina) / 5;
+}
+
+function padelOverallRating(memberId, sportId) {
+  return skillRatingForMember(memberId, sportId, "playtomic_level", 3.5);
+}
+
+function genericOverallRating(memberId, sportId) {
+  const profile = sportProfileForMember(memberId, sportId);
+  const overall = Number(profile?.overall_rating ?? profile?.rating);
+
+  return Number.isFinite(overall) && overall > 0 ? overall : 5;
+}
+
+function memberSportRating(memberId, sportId) {
+  const type = sportProfileType(sportId);
+
+  if (type === "padel") return padelOverallRating(memberId, sportId);
+  if (type === "soccer") return soccerOverallRating(memberId, sportId);
+
+  return genericOverallRating(memberId, sportId);
 }
 
 function memberSportPosition(memberId, sportId) {
+  const type = sportProfileType(sportId);
   const profile = sportProfileForMember(memberId, sportId);
+
+  if (type === "padel") {
+    return skillValueForMember(memberId, sportId, "side_preference", "both");
+  }
+
   return profile?.preferred_position || "";
 }
 
@@ -689,11 +792,121 @@ function approvedRatingMembers() {
     .sort((a, b) => memberDisplayName(a).localeCompare(memberDisplayName(b)));
 }
 
+function numericSkillInput(member, sportId, key, label, min, max, step, placeholder, fallback = "") {
+  const value = skillRatingForMember(member.id, sportId, key, fallback);
+
+  return `
+    <label>
+      ${label}
+      <input
+        class="sport-skill-input"
+        data-skill-key="${key}"
+        data-skill-label="${label}"
+        type="number"
+        min="${min}"
+        max="${max}"
+        step="${step}"
+        value="${value === "" ? "" : escapeHtml(String(value))}"
+        placeholder="${placeholder}"
+      >
+    </label>
+  `;
+}
+
+function valueSkillSelect(member, sportId, key, label, options, fallback = "") {
+  const value = skillValueForMember(member.id, sportId, key, fallback);
+
+  return `
+    <label>
+      ${label}
+      <select
+        class="sport-skill-value"
+        data-skill-key="${key}"
+        data-skill-label="${label}"
+      >
+        ${options.map(option => `
+          <option value="${escapeHtml(option.value)}" ${option.value === value ? "selected" : ""}>
+            ${escapeHtml(option.label)}
+          </option>
+        `).join("")}
+      </select>
+    </label>
+  `;
+}
+
+function renderPadelRatingFields(member, sportId) {
+  return `
+    ${numericSkillInput(member, sportId, "playtomic_level", "Playtomic level", 0, 7, 0.1, "3.5", 3.5)}
+    ${numericSkillInput(member, sportId, "reliability", "Reliability %", 0, 100, 1, "70", 50)}
+    ${valueSkillSelect(member, sportId, "side_preference", "Side", [
+      { value: "both", label: "Both" },
+      { value: "left", label: "Left" },
+      { value: "right", label: "Right" }
+    ], "both")}
+  `;
+}
+
+function renderSoccerRatingFields(member, sportId) {
+  const profile = sportProfileForMember(member.id, sportId);
+  const position = profile?.preferred_position || "";
+
+  return `
+    ${numericSkillInput(member, sportId, "attack", "Attack", 1, 10, 0.1, "5", 5)}
+    ${numericSkillInput(member, sportId, "midfield", "Midfield", 1, 10, 0.1, "5", 5)}
+    ${numericSkillInput(member, sportId, "defense", "Defense", 1, 10, 0.1, "5", 5)}
+    ${numericSkillInput(member, sportId, "goalkeeping", "Goalkeeping", 1, 10, 0.1, "5", 5)}
+    ${numericSkillInput(member, sportId, "stamina", "Stamina", 1, 10, 0.1, "5", 5)}
+    <label>
+      Preferred position
+      <select class="sport-position-input">
+        <option value="" ${position === "" ? "selected" : ""}>None</option>
+        <option value="attack" ${position === "attack" ? "selected" : ""}>Attack</option>
+        <option value="midfield" ${position === "midfield" ? "selected" : ""}>Midfield</option>
+        <option value="defense" ${position === "defense" ? "selected" : ""}>Defense</option>
+        <option value="goalkeeper" ${position === "goalkeeper" ? "selected" : ""}>Goalkeeper</option>
+      </select>
+    </label>
+  `;
+}
+
+function renderGenericRatingFields(member, sportId) {
+  const profile = sportProfileForMember(member.id, sportId);
+  const rating = profile?.overall_rating ?? profile?.rating ?? "";
+  const position = profile?.preferred_position || "";
+
+  return `
+    <label>
+      Overall rating
+      <input
+        class="sport-overall-input"
+        type="number"
+        min="1"
+        max="10"
+        step="0.1"
+        value="${escapeHtml(String(rating))}"
+        placeholder="5"
+      >
+    </label>
+
+    <label>
+      Preferred position
+      <input
+        class="sport-position-input"
+        type="text"
+        value="${escapeHtml(position)}"
+        placeholder="optional"
+      >
+    </label>
+  `;
+}
+
 function renderSportRatingManager() {
   const box = $("sportRatingList");
   if (!box) return;
 
   const sportId = $("rating-sport-filter")?.value || "";
+  const sport = selectedRatingSport();
+  const type = sportProfileType(sportId);
 
   if (!sportId) {
     box.innerHTML = `<div class="hint">Select a sport to edit ratings.</div>`;
@@ -707,47 +920,42 @@ function renderSportRatingManager() {
     return;
   }
 
-  box.innerHTML = members.map(member => {
-    const profile = sportProfileForMember(member.id, sportId);
-    const rating = profile?.rating ?? "";
-    const position = profile?.preferred_position || "";
+  const profileHint =
+    type === "padel"
+      ? "Padel uses Playtomic level 0.0–7.0, reliability, and side preference."
+      : type === "soccer"
+        ? "Soccer uses attack, midfield, defense, goalkeeping, stamina, and preferred position."
+        : "This sport uses a generic overall rating.";
 
-    return `
-      <div class="sport-rating-row" data-member-id="${member.id}">
-        <div>
-          <strong>${escapeHtml(memberDisplayName(member))}</strong>
-          ${member.is_external ? `<span class="mini-pill">External</span>` : ""}
+  box.innerHTML = `
+    <div class="hint">${escapeHtml(profileHint)}</div>
+
+    ${members.map(member => {
+      const fields =
+        type === "padel"
+          ? renderPadelRatingFields(member, sportId)
+          : type === "soccer"
+            ? renderSoccerRatingFields(member, sportId)
+            : renderGenericRatingFields(member, sportId);
+
+      return `
+        <div class="sport-rating-row sport-rating-row-${type}" data-member-id="${member.id}">
+          <div>
+            <strong>${escapeHtml(memberDisplayName(member))}</strong>
+            ${member.is_external ? `<span class="mini-pill">External</span>` : ""}
+          </div>
+
+          <div class="sport-rating-fields">
+            ${fields}
+          </div>
+
+          <button class="small-btn" type="button" onclick="saveMemberSportProfile('${member.id}')">
+            Save
+          </button>
         </div>
-
-        <label>
-          Rating
-          <input
-            class="sport-rating-input"
-            type="number"
-            min="1"
-            max="10"
-            step="0.1"
-            value="${escapeHtml(String(rating))}"
-            placeholder="5"
-          >
-        </label>
-
-        <label>
-          Position
-          <input
-            class="sport-position-input"
-            type="text"
-            value="${escapeHtml(position)}"
-            placeholder="optional"
-          >
-        </label>
-
-        <button class="small-btn" type="button" onclick="saveMemberSportProfile('${member.id}')">
-          Save
-        </button>
-      </div>
-    `;
-  }).join("");
+      `;
+    }).join("")}
+  `;
 }
 
 async function saveMemberSportProfile(memberId) {
@@ -764,28 +972,81 @@ async function saveMemberSportProfile(memberId) {
     return;
   }
 
-  const rating = Number(row.querySelector(".sport-rating-input")?.value || 5);
+  const type = sportProfileType(sportId);
   const preferredPosition = row.querySelector(".sport-position-input")?.value.trim() || null;
+  const overallInput = row.querySelector(".sport-overall-input");
+  const overallRating = overallInput ? Number(overallInput.value || 5) : memberSportRating(memberId, sportId);
 
-  if (!Number.isFinite(rating) || rating < 1 || rating > 10) {
-    alert("Rating must be between 1 and 10.");
+  if (!Number.isFinite(overallRating)) {
+    alert("Invalid rating.");
     return;
   }
 
-  const { error } = await supabaseClient
+  const { error: profileError } = await supabaseClient
     .from("member_sport_profiles")
     .upsert({
       member_id: memberId,
       sport_id: sportId,
-      rating,
+      rating: overallRating,
+      overall_rating: overallRating,
+      rating_system: type === "padel" ? "playtomic" : type,
       preferred_position: preferredPosition
     }, {
       onConflict: "member_id,sport_id"
     });
 
-  if (error) {
-    alert(error.message);
+  if (profileError) {
+    alert(profileError.message);
     return;
+  }
+
+  const skillRows = [];
+
+  row.querySelectorAll(".sport-skill-input").forEach(input => {
+    const skillKey = input.dataset.skillKey;
+    const skillLabel = input.dataset.skillLabel;
+    const rating = Number(input.value);
+
+    if (!skillKey || !Number.isFinite(rating)) return;
+
+    skillRows.push({
+      member_id: memberId,
+      sport_id: sportId,
+      skill_key: skillKey,
+      skill_label: skillLabel,
+      rating,
+      skill_value: null
+    });
+  });
+
+  row.querySelectorAll(".sport-skill-value").forEach(select => {
+    const skillKey = select.dataset.skillKey;
+    const skillLabel = select.dataset.skillLabel;
+    const value = select.value;
+
+    if (!skillKey) return;
+
+    skillRows.push({
+      member_id: memberId,
+      sport_id: sportId,
+      skill_key: skillKey,
+      skill_label: skillLabel,
+      rating: null,
+      skill_value: value
+    });
+  });
+
+  if (skillRows.length) {
+    const { error: skillsError } = await supabaseClient
+      .from("member_sport_skill_ratings")
+      .upsert(skillRows, {
+        onConflict: "member_id,sport_id,skill_key"
+      });
+
+    if (skillsError) {
+      alert(skillsError.message);
+      return;
+    }
   }
 
   await loadSportProfiles();
