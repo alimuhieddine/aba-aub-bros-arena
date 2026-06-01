@@ -6,6 +6,23 @@ const $ = (id) => document.getElementById(id);
 
 const STORAGE_KEY = "aba_phase1_data";
 
+
+function cleanUuid(value) {
+  if (value === undefined || value === null) return null;
+
+  const text = String(value).trim();
+
+  if (
+    !text ||
+    text.toLowerCase() === "null" ||
+    text.toLowerCase() === "undefined"
+  ) {
+    return null;
+  }
+
+  return text;
+}
+
 function futureDate(days, hour) {
   const d = new Date();
   d.setDate(d.getDate() + days);
@@ -1005,8 +1022,8 @@ async function saveMemberSportProfile(memberId) {
   const { error: profileError } = await supabaseClient
     .from("member_sport_profiles")
     .upsert({
-      member_id: memberId,
-      sport_id: sportId,
+      member_id: cleanUuid(memberId),
+      sport_id: cleanUuid(sportId),
       rating: overallRating,
       overall_rating: overallRating,
       rating_system: type === "padel" ? "playtomic" : type,
@@ -1030,8 +1047,8 @@ async function saveMemberSportProfile(memberId) {
     if (!skillKey || !Number.isFinite(rating)) return;
 
     skillRows.push({
-      member_id: memberId,
-      sport_id: sportId,
+      member_id: cleanUuid(memberId),
+      sport_id: cleanUuid(sportId),
       skill_key: skillKey,
       skill_label: skillLabel,
       rating,
@@ -1047,8 +1064,8 @@ async function saveMemberSportProfile(memberId) {
     if (!skillKey) return;
 
     skillRows.push({
-      member_id: memberId,
-      sport_id: sportId,
+      member_id: cleanUuid(memberId),
+      sport_id: cleanUuid(sportId),
       skill_key: skillKey,
       skill_label: skillLabel,
       rating: null,
@@ -4210,8 +4227,8 @@ async function savePadelGameOnly() {
     const { data: gameData, error: gameError } = await supabaseClient
       .from("match_games")
       .insert({
-        sport_id: match.sport_id,
-        league_id: match.league_id || null,
+        sport_id: cleanUuid(match.sport_id),
+        league_id: cleanUuid(match.league_id),
         title: gameTitle,
         status: gameStatus,
         team_a_name: teamA.name || "Team A",
@@ -4235,8 +4252,8 @@ async function savePadelGameOnly() {
   const { error: sessionError } = await supabaseClient
     .from("match_game_sessions")
     .upsert({
-      match_id: currentScoreMatchId,
-      game_id: gameId
+      match_id: cleanUuid(currentScoreMatchId),
+      game_id: cleanUuid(gameId)
     }, {
       onConflict: "match_id,game_id"
     });
@@ -4259,7 +4276,7 @@ async function savePadelGameOnly() {
   const scoreRows = padelResult.validSets.map(set => ({
     match_id: currentScoreMatchId,
     game_id: gameId,
-    sport_id: match.sport_id,
+    sport_id: cleanUuid(match.sport_id),
     entry_type: "padel_set",
     game_number: null,
     set_number: set.setNumber,
@@ -4462,7 +4479,7 @@ function padelRatingDeltaForResult(result, reliability) {
 }
 
 async function updatePadelRatingMovementAfterMatch(match) {
-  if (!match?.id || !isPadelMatch(match)) return true;
+  if (!cleanUuid(match?.id) || !cleanUuid(match?.sport_id) || !isPadelMatch(match)) return true;
 
   const inInvitations = inPlayerInvitations(match);
   const uniqueMemberIds = Array.from(new Set(
@@ -4499,16 +4516,16 @@ async function updatePadelRatingMovementAfterMatch(match) {
 
     skillRows.push(
       {
-        member_id: memberId,
-        sport_id: match.sport_id,
+        member_id: cleanUuid(memberId),
+        sport_id: cleanUuid(match.sport_id),
         skill_key: "playtomic_level",
         skill_label: "Playtomic level",
         rating: newLevel,
         skill_value: null
       },
       {
-        member_id: memberId,
-        sport_id: match.sport_id,
+        member_id: cleanUuid(memberId),
+        sport_id: cleanUuid(match.sport_id),
         skill_key: "reliability",
         skill_label: "Reliability %",
         rating: newReliability,
@@ -4517,8 +4534,8 @@ async function updatePadelRatingMovementAfterMatch(match) {
     );
 
     profileRows.push({
-      member_id: memberId,
-      sport_id: match.sport_id,
+      member_id: cleanUuid(memberId),
+      sport_id: cleanUuid(match.sport_id),
       rating: newLevel,
       overall_rating: newLevel,
       rating_system: "playtomic"
@@ -4526,8 +4543,8 @@ async function updatePadelRatingMovementAfterMatch(match) {
 
     adjustmentRows.push({
       match_id: match.id,
-      member_id: memberId,
-      sport_id: match.sport_id,
+      member_id: cleanUuid(memberId),
+      sport_id: cleanUuid(match.sport_id),
       adjustment: delta,
       old_rating: oldLevel,
       new_rating: newLevel,
@@ -4574,7 +4591,7 @@ async function updatePadelRatingMovementAfterMatch(match) {
 }
 
 async function updateMemberSportProfileStats(match) {
-  if (!match?.id || !match.sport_id) return true;
+  if (!cleanUuid(match?.id) || !cleanUuid(match?.sport_id)) return true;
 
   const inInvitations = inPlayerInvitations(match);
   const uniqueMemberIds = Array.from(new Set(
@@ -4587,8 +4604,8 @@ async function updateMemberSportProfileStats(match) {
     const stats = profileStatsForMemberSport(memberId, match.sport_id, match);
 
     return {
-      member_id: memberId,
-      sport_id: match.sport_id,
+      member_id: cleanUuid(memberId),
+      sport_id: cleanUuid(match.sport_id),
       games_played: stats.games_played,
       wins: stats.wins,
       losses: stats.losses,
@@ -4676,8 +4693,8 @@ async function saveMatchMemberPoints(match) {
 
     return {
       match_id: match.id,
-      member_id: memberId,
-      sport_id: match.sport_id,
+      member_id: cleanUuid(memberId),
+      sport_id: cleanUuid(match.sport_id),
       base_points: points.basePoints,
       difficulty_factor: points.difficultyFactor,
       consistency_bonus: points.consistencyBonus
@@ -4765,8 +4782,8 @@ async function finalizeCurrentMatchResult() {
     const { data: gameData, error: gameError } = await supabaseClient
       .from("match_games")
       .insert({
-        sport_id: match.sport_id,
-        league_id: match.league_id || null, // automatically inherited from the booking/match league
+        sport_id: cleanUuid(match.sport_id),
+        league_id: cleanUuid(match.league_id), // automatically inherited from the booking/match league
         title: match.title || "Game",
         status: "completed",
         team_a_name: teamA.name || "Team A",
@@ -4789,8 +4806,8 @@ async function finalizeCurrentMatchResult() {
     const { error: sessionError } = await supabaseClient
       .from("match_game_sessions")
       .upsert({
-        match_id: currentScoreMatchId,
-        game_id: gameId
+        match_id: cleanUuid(currentScoreMatchId),
+        game_id: cleanUuid(gameId)
       }, {
         onConflict: "match_id,game_id"
       });
@@ -4803,9 +4820,9 @@ async function finalizeCurrentMatchResult() {
     const { error: entryError } = await supabaseClient
       .from("match_score_entries")
       .insert({
-        match_id: currentScoreMatchId,
-        game_id: gameId,
-        sport_id: match.sport_id,
+        match_id: cleanUuid(currentScoreMatchId),
+        game_id: cleanUuid(gameId),
+        sport_id: cleanUuid(match.sport_id),
         entry_type: "simple",
         game_number: 1,
         set_number: null,
@@ -5614,7 +5631,7 @@ function bindEvents() {
 
       const payload = {
         name: fd.get("name"),
-        sport_id: fd.get("sport_id"),
+        sport_id: cleanUuid(fd.get("sport_id")),
         format: fd.get("format") || null,
         status: fd.get("status") || "active",
         start_date: fd.get("start_date") || null,
@@ -5704,9 +5721,9 @@ function bindEvents() {
     }
 
     const match = {
-      sport_id: fd.get("sport_id"),
+      sport_id: cleanUuid(fd.get("sport_id")),
       venue_id: fd.get("venue_id"),
-      league_id: fd.get("match_type") === "league" ? (fd.get("league_id") || null) : null,
+      league_id: fd.get("match_type") === "league" ? cleanUuid(fd.get("league_id")) : null,
       created_by: currentProfile.id,
       title: fd.get("title"),
       match_type: fd.get("match_type"),
