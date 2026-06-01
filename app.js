@@ -535,6 +535,7 @@ let allSports = [];
 let allVenues = [];
 let allMatches = [];
 let allLeagues = [];
+let editingLeagueId = null;
 let editingMatchId = null;
 let allMembers = [];
 let allExternalMembers = [];
@@ -1108,6 +1109,123 @@ function renderLeagueGameStandings(leagueId) {
   `;
 }
 
+
+function canManageLeague(league) {
+  return isCurrentUserAdmin() || league.created_by === currentProfile?.id;
+}
+
+function leagueHasLinkedData(leagueId) {
+  return leagueMatches(leagueId).length > 0 || leagueCompletedGames(leagueId).length > 0;
+}
+
+async function openEditLeague(leagueId) {
+  const league = leagueById(leagueId);
+
+  if (!league) {
+    alert("League not found.");
+    return;
+  }
+
+  if (!canManageLeague(league)) {
+    alert("Only the league creator or admin can edit this league.");
+    return;
+  }
+
+  editingLeagueId = leagueId;
+
+  await loadSportsOptions();
+  updateLeagueSportOptions();
+
+  const form = $("leagueForm");
+  if (!form) return;
+
+  form.elements["name"].value = league.name || "";
+  form.elements["sport_id"].value = league.sport_id || "";
+  form.elements["format"].value = league.format || "";
+  form.elements["status"].value = league.status || "active";
+  form.elements["start_date"].value = league.start_date || "";
+  form.elements["end_date"].value = league.end_date || "";
+
+  const title = form.querySelector("h3");
+  if (title) title.textContent = "Edit League";
+
+  const submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.textContent = "Save League";
+
+  $("leagueModal")?.showModal();
+}
+
+async function deleteLeague(leagueId) {
+  const league = leagueById(leagueId);
+
+  if (!league) {
+    alert("League not found.");
+    return;
+  }
+
+  if (!canManageLeague(league)) {
+    alert("Only the league creator or admin can delete this league.");
+    return;
+  }
+
+  if (leagueHasLinkedData(leagueId)) {
+    alert("This league already has linked matches or games. Mark it as completed instead of deleting it.");
+    return;
+  }
+
+  const ok = confirm(`Delete league "${league.name}"?`);
+  if (!ok) return;
+
+  const { error } = await supabaseClient
+    .from("leagues")
+    .delete()
+    .eq("id", leagueId);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  alert("League deleted.");
+
+  await loadLeagues();
+  await loadMatchFormOptions();
+}
+
+async function markLeagueCompleted(leagueId) {
+  const league = leagueById(leagueId);
+
+  if (!league) {
+    alert("League not found.");
+    return;
+  }
+
+  if (!canManageLeague(league)) {
+    alert("Only the league creator or admin can complete this league.");
+    return;
+  }
+
+  const ok = confirm(`Mark "${league.name}" as completed? It will no longer appear when creating league matches.`);
+  if (!ok) return;
+
+  const { error } = await supabaseClient
+    .from("leagues")
+    .update({
+      status: "completed"
+    })
+    .eq("id", leagueId);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  alert("League completed.");
+
+  await loadLeagues();
+  await loadMatchFormOptions();
+}
+
 function renderLeagues() {
   if (!$("leagueList")) return;
 
@@ -1142,6 +1260,24 @@ function renderLeagues() {
             ${escapeHtml(league.status || "active")}
           </span>
         </div>
+
+        ${
+          canManageLeague(league)
+            ? `
+              <div class="actions">
+                <button class="small-btn" onclick="openEditLeague('${league.id}')">Edit League</button>
+
+                ${
+                  league.status !== "completed"
+                    ? `<button class="small-btn" onclick="markLeagueCompleted('${league.id}')">Complete</button>`
+                    : ""
+                }
+
+                <button class="small-btn danger-text-btn" onclick="deleteLeague('${league.id}')">Delete</button>
+              </div>
+            `
+            : ""
+        }
 
         ${renderLeaguePlayerStandings(league.id)}
 
@@ -4485,6 +4621,7 @@ async function refreshAuthUI() {
 if (currentProfile?.approval_status === "approved") {
   await loadLeagues();
   await loadMatches();
+  restoreActiveTab();
 }
     if (isCurrentUserAdmin()) {
       await loadSportsOptions();
@@ -4512,23 +4649,59 @@ await loadMatches();
   });
 
   localStorage.removeItem("aba_user_access");
+  localStorage.removeItem(ACTIVE_TAB_KEY);
   currentProfile = null;
   clearProfileFields();
 
-  // Send user back to Home after logout
-  document.querySelectorAll(".tab").forEach(b => {
-    b.classList.remove("active");
-  });
+  setActiveTab("dashboard", false);
+}
 
-  document.querySelectorAll(".view").forEach(v => {
-    v.classList.remove("active-view");
-  });
 
-  const homeTab = document.querySelector('[data-view="dashboard"]');
-  if (homeTab) homeTab.classList.add("active");
+const ACTIVE_TAB_KEY = "aba_active_tab";
 
-  const homeView = $("dashboard");
-  if (homeView) homeView.classList.add("active-view");
+function setActiveTab(viewId, persist = true) {
+  const targetView = $(viewId);
+  const targetTab = document.querySelector(`[data-view="${viewId}"]`);
+
+  if (!targetView || !targetTab) return;
+
+  document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active-view"));
+
+  targetTab.classList.add("active");
+  targetView.classList.add("active-view");
+
+  if (persist) {
+    localStorage.setItem(ACTIVE_TAB_KEY, viewId);
+  }
+
+  if (viewId === "account") {
+    loadMyProfile();
+  }
+
+  if (viewId === "leagues") {
+    loadLeagues();
+  }
+
+  if (viewId === "rankings") {
+    updateRankingFilters();
+    renderRankings();
+  }
+
+  if (viewId === "admin") {
+    loadSportsOptions();
+    loadMatchFormOptions();
+    loadPendingMembers();
+    loadVenues();
+    loadMatches();
+  }
+}
+
+function restoreActiveTab() {
+  const saved = localStorage.getItem(ACTIVE_TAB_KEY) || "dashboard";
+  const view = $(saved) ? saved : "dashboard";
+
+  setActiveTab(view, false);
 }
 
 function bindEvents() {
@@ -4547,39 +4720,26 @@ function bindEvents() {
   $("rank-player-type-filter")?.addEventListener("change", renderRankings);
   document.querySelectorAll(".tab").forEach(btn =>
     btn.addEventListener("click", () => {
-      document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
-      document.querySelectorAll(".view").forEach(v => v.classList.remove("active-view"));
-
-      btn.classList.add("active");
-      const target = $(btn.dataset.view);
-      if (target) target.classList.add("active-view");
-
-      if (btn.dataset.view === "account") {
-        loadMyProfile();
-      }
-
-      if (btn.dataset.view === "leagues") {
-        loadLeagues();
-      }
-
-      if (btn.dataset.view === "rankings") {
-        updateRankingFilters();
-        renderRankings();
-      }
-
-      if (btn.dataset.view === "admin") {
-        loadSportsOptions();
-        loadMatchFormOptions();
-        loadPendingMembers();
-        loadVenues();
-        loadMatches();
-      }
+      setActiveTab(btn.dataset.view);
     })
   );
 
  document.querySelectorAll("[data-open]").forEach(btn =>
   btn.addEventListener("click", async () => {
     if (btn.dataset.open === "leagueModal") {
+      editingLeagueId = null;
+
+      const form = $("leagueForm");
+      if (form) {
+        form.reset();
+
+        const title = form.querySelector("h3");
+        if (title) title.textContent = "Create League";
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.textContent = "Create League";
+      }
+
       await loadSportsOptions();
       await loadLeagues();
       updateLeagueSportOptions();
@@ -4618,29 +4778,50 @@ function bindEvents() {
         name: fd.get("name"),
         sport_id: fd.get("sport_id"),
         format: fd.get("format") || null,
-        status: "active",
+        status: fd.get("status") || "active",
         start_date: fd.get("start_date") || null,
-        end_date: fd.get("end_date") || null,
-        created_by: currentProfile.id
+        end_date: fd.get("end_date") || null
       };
 
-      const { error } = await supabaseClient
-        .from("leagues")
-        .insert(payload);
+      let result;
 
-      if (error) {
-        alert(error.message);
+      if (editingLeagueId) {
+        result = await supabaseClient
+          .from("leagues")
+          .update(payload)
+          .eq("id", editingLeagueId);
+      } else {
+        result = await supabaseClient
+          .from("leagues")
+          .insert({
+            ...payload,
+            created_by: currentProfile.id
+          });
+      }
+
+      if (result.error) {
+        alert(result.error.message);
         return;
       }
 
-      alert("League created.");
+      alert(editingLeagueId ? "League updated." : "League created.");
+
+      editingLeagueId = null;
       e.target.reset();
+
+      const title = e.target.querySelector("h3");
+      if (title) title.textContent = "Create League";
+
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.textContent = "Create League";
+
       $("leagueModal")?.close();
 
       await loadLeagues();
       await loadMatchFormOptions();
     });
   }
+
 
  if ($("matchForm")) {
   $("matchForm").addEventListener("submit", async e => {
