@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=76" />
+  <link rel="stylesheet" href="style.css?v=77" />
 </head>
 
 <body>
@@ -281,6 +281,14 @@
       <label>
         Format
         <input name="format" placeholder="Doubles, 5v5, round robin..." />
+      </label>
+
+      <label>
+        Status
+        <select name="status" id="league-status">
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+        </select>
       </label>
 
       <div class="grid two">
@@ -635,6 +643,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=76"></script>
+  <script src="app.js?v=77"></script>
 </body>
 </html>
