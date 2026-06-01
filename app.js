@@ -949,6 +949,20 @@ function renderSportRatingManager() {
           <div>
             <strong>${escapeHtml(memberDisplayName(member))}</strong>
             ${member.is_external ? `<span class="mini-pill">External</span>` : ""}
+
+            ${
+              sportProfileForMember(member.id, sportId)
+                ? `
+                  <div class="profile-stats-mini">
+                    GP ${Number(sportProfileForMember(member.id, sportId)?.games_played || 0)}
+                    • W ${Number(sportProfileForMember(member.id, sportId)?.wins || 0)}
+                    • D ${Number(sportProfileForMember(member.id, sportId)?.draws || 0)}
+                    • L ${Number(sportProfileForMember(member.id, sportId)?.losses || 0)}
+                    • Pts ${Number(sportProfileForMember(member.id, sportId)?.total_points || 0)}
+                  </div>
+                `
+                : `<div class="profile-stats-mini">No match stats yet.</div>`
+            }
           </div>
 
           <div class="sport-rating-fields">
@@ -3733,7 +3747,11 @@ async function recalculatePointsAfterTeamEdit(matchId) {
 
   if (!refreshedMatch || refreshedMatch.score_status !== "submitted") return true;
 
-  return await saveMatchMemberPoints(refreshedMatch);
+  const pointsSaved = await saveMatchMemberPoints(refreshedMatch);
+
+  if (!pointsSaved) return false;
+
+  return await updateMemberSportProfileStats(refreshedMatch);
 }
 
 async function saveTeams() {
@@ -4343,6 +4361,119 @@ async function saveCurrentGameAndStayOpen() {
 }
 
 
+
+function finalizedMatchesForSportWithCurrent(currentMatch) {
+  const byId = new Map();
+
+  (allMatches || []).forEach(match => {
+    if (
+      match.id &&
+      match.sport_id === currentMatch.sport_id &&
+      (match.score_status === "submitted" || match.status === "completed")
+    ) {
+      byId.set(match.id, match);
+    }
+  });
+
+  if (currentMatch?.id) {
+    byId.set(currentMatch.id, currentMatch);
+  }
+
+  return Array.from(byId.values());
+}
+
+function profileStatsForMemberSport(memberId, sportId, currentMatch) {
+  const matches = finalizedMatchesForSportWithCurrent(currentMatch).filter(match =>
+    match.sport_id === sportId
+  );
+
+  const stats = {
+    games_played: 0,
+    wins: 0,
+    losses: 0,
+    draws: 0,
+    total_points: 0
+  };
+
+  matches.forEach(match => {
+    const isCurrent = currentMatch?.id && match.id === currentMatch.id;
+    let point = null;
+
+    if (isCurrent) {
+      const result = teamResultForMember(match, memberId).result;
+      const breakdown = pointBreakdownForResult(result);
+
+      point = {
+        member_id: memberId,
+        base_points: breakdown.basePoints,
+        consistency_bonus: breakdown.consistencyBonus,
+        total_points: breakdown.totalPoints
+      };
+    } else {
+      point = (match.match_member_points || []).find(row => row.member_id === memberId);
+    }
+
+    if (!point) return;
+
+    const teamResult = teamResultForMember(match, memberId).result || "participated";
+
+    stats.games_played += 1;
+
+    if (teamResult === "win") stats.wins += 1;
+    else if (teamResult === "loss") stats.losses += 1;
+    else if (teamResult === "draw") stats.draws += 1;
+
+    const pointsValue = Number(
+      point.total_points ??
+      (Number(point.base_points || 0) + Number(point.consistency_bonus || 0))
+    );
+
+    stats.total_points += Number.isFinite(pointsValue) ? pointsValue : 0;
+  });
+
+  return stats;
+}
+
+async function updateMemberSportProfileStats(match) {
+  if (!match?.id || !match.sport_id) return true;
+
+  const inInvitations = inPlayerInvitations(match);
+  const uniqueMemberIds = Array.from(new Set(
+    inInvitations.map(inv => inv.member_id).filter(Boolean)
+  ));
+
+  if (!uniqueMemberIds.length) return true;
+
+  const rows = uniqueMemberIds.map(memberId => {
+    const stats = profileStatsForMemberSport(memberId, match.sport_id, match);
+
+    return {
+      member_id: memberId,
+      sport_id: match.sport_id,
+      games_played: stats.games_played,
+      wins: stats.wins,
+      losses: stats.losses,
+      draws: stats.draws,
+      total_points: stats.total_points
+    };
+  });
+
+  const { error } = await supabaseClient
+    .from("member_sport_profiles")
+    .upsert(rows, {
+      onConflict: "member_id,sport_id"
+    });
+
+  if (error) {
+    alert(error.message);
+    return false;
+  }
+
+  await loadSportProfiles();
+
+  return true;
+}
+
 function teamResultForMember(match, memberId) {
   const teams = match.match_teams || [];
 
@@ -4623,7 +4754,11 @@ async function finalizeCurrentMatchResult() {
 
   if (!pointsSaved) return;
 
-  alert("Match result finalized and points saved.");
+  const profilesUpdated = await updateMemberSportProfileStats(refreshedMatchForPoints);
+
+  if (!profilesUpdated) return;
+
+  alert("Match result finalized, points saved, and sport profiles updated.");
 
   $("scoreModal")?.close();
   currentScoreMatchId = null;
