@@ -797,7 +797,10 @@ function numericSkillInput(member, sportId, key, label, min, max, step, placehol
 
   return `
     <label>
-      ${label}
+      <span class="rating-label-line">
+        <span>${label}</span>
+        <small>${min}–${max}</small>
+      </span>
       <input
         class="sport-skill-input"
         data-skill-key="${key}"
@@ -876,7 +879,10 @@ function renderGenericRatingFields(member, sportId) {
 
   return `
     <label>
-      Overall rating
+      <span class="rating-label-line">
+        <span>Overall rating</span>
+        <small>1–10</small>
+      </span>
       <input
         class="sport-overall-input"
         type="number"
@@ -922,9 +928,9 @@ function renderSportRatingManager() {
 
   const profileHint =
     type === "padel"
-      ? "Padel uses Playtomic level 0.0–7.0, reliability, and side preference."
+      ? "Padel: Playtomic level 0.0–7.0, reliability 0–100%, and side preference."
       : type === "soccer"
-        ? "Soccer uses attack, midfield, defense, goalkeeping, stamina, and preferred position."
+        ? "Soccer: attack, midfield, defense, goalkeeping, and stamina are each 1–10, plus preferred position."
         : "This sport uses a generic overall rating.";
 
   box.innerHTML = `
