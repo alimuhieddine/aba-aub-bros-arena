@@ -539,6 +539,7 @@ let editingLeagueId = null;
 let editingMatchId = null;
 let allMembers = [];
 let allExternalMembers = [];
+let allSportProfiles = [];
 let currentExternalMatchId = null;
 let currentTeamMatchId = null;
 let currentScoreMatchId = null;
@@ -591,6 +592,204 @@ function updateMatchLeagueOptions() {
       `).join("")}
     `
     : `<option value="">No active league for this sport</option>`;
+}
+
+
+async function loadSportProfiles() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") return [];
+
+  const { data, error } = await supabaseClient
+    .from("member_sport_profiles")
+    .select(`
+      id,
+      member_id,
+      sport_id,
+      rating,
+      preferred_position,
+      games_played,
+      wins,
+      losses,
+      draws,
+      total_points,
+      members (
+        id,
+        first_name,
+        last_name,
+        display_name,
+        email,
+        is_external
+      ),
+      sports (
+        id,
+        name
+      )
+    `);
+
+  if (error) {
+    console.warn("Could not load sport profiles:", error.message);
+    allSportProfiles = [];
+    return [];
+  }
+
+  allSportProfiles = data || [];
+  return allSportProfiles;
+}
+
+function sportProfileForMember(memberId, sportId) {
+  return (allSportProfiles || []).find(profile =>
+    profile.member_id === memberId && profile.sport_id === sportId
+  ) || null;
+}
+
+function memberSportRating(memberId, sportId) {
+  const profile = sportProfileForMember(memberId, sportId);
+  const rating = Number(profile?.rating);
+
+  return Number.isFinite(rating) && rating > 0 ? rating : 5;
+}
+
+function memberSportPosition(memberId, sportId) {
+  const profile = sportProfileForMember(memberId, sportId);
+  return profile?.preferred_position || "";
+}
+
+function updateRatingSportOptions() {
+  const select = $("rating-sport-filter");
+  if (!select) return;
+
+  const current = select.value || "";
+
+  select.innerHTML = `
+    <option value="">Select sport</option>
+    ${(allSports || []).map(sport => `
+      <option value="${sport.id}">${escapeHtml(sport.name)}</option>
+    `).join("")}
+  `;
+
+  if (Array.from(select.options).some(option => option.value === current)) {
+    select.value = current;
+  }
+}
+
+function approvedRatingMembers() {
+  const byId = new Map();
+
+  (allMembers || []).forEach(member => {
+    if (member?.id) byId.set(member.id, member);
+  });
+
+  (allSportProfiles || []).forEach(profile => {
+    if (profile.members?.id) byId.set(profile.members.id, profile.members);
+  });
+
+  if (currentProfile?.id) byId.set(currentProfile.id, currentProfile);
+
+  return Array.from(byId.values())
+    .filter(member => member?.id)
+    .sort((a, b) => memberDisplayName(a).localeCompare(memberDisplayName(b)));
+}
+
+function renderSportRatingManager() {
+  const box = $("sportRatingList");
+  if (!box) return;
+
+  const sportId = $("rating-sport-filter")?.value || "";
+
+  if (!sportId) {
+    box.innerHTML = `<div class="hint">Select a sport to edit ratings.</div>`;
+    return;
+  }
+
+  const members = approvedRatingMembers();
+
+  if (!members.length) {
+    box.innerHTML = `<div class="hint">No approved members found.</div>`;
+    return;
+  }
+
+  box.innerHTML = members.map(member => {
+    const profile = sportProfileForMember(member.id, sportId);
+    const rating = profile?.rating ?? "";
+    const position = profile?.preferred_position || "";
+
+    return `
+      <div class="sport-rating-row" data-member-id="${member.id}">
+        <div>
+          <strong>${escapeHtml(memberDisplayName(member))}</strong>
+          ${member.is_external ? `<span class="mini-pill">External</span>` : ""}
+        </div>
+
+        <label>
+          Rating
+          <input
+            class="sport-rating-input"
+            type="number"
+            min="1"
+            max="10"
+            step="0.1"
+            value="${escapeHtml(String(rating))}"
+            placeholder="5"
+          >
+        </label>
+
+        <label>
+          Position
+          <input
+            class="sport-position-input"
+            type="text"
+            value="${escapeHtml(position)}"
+            placeholder="optional"
+          >
+        </label>
+
+        <button class="small-btn" type="button" onclick="saveMemberSportProfile('${member.id}')">
+          Save
+        </button>
+      </div>
+    `;
+  }).join("");
+}
+
+async function saveMemberSportProfile(memberId) {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin only.");
+    return;
+  }
+
+  const sportId = $("rating-sport-filter")?.value || "";
+  const row = document.querySelector(`.sport-rating-row[data-member-id="${memberId}"]`);
+
+  if (!sportId || !row) {
+    alert("Select a sport first.");
+    return;
+  }
+
+  const rating = Number(row.querySelector(".sport-rating-input")?.value || 5);
+  const preferredPosition = row.querySelector(".sport-position-input")?.value.trim() || null;
+
+  if (!Number.isFinite(rating) || rating < 1 || rating > 10) {
+    alert("Rating must be between 1 and 10.");
+    return;
+  }
+
+  const { error } = await supabaseClient
+    .from("member_sport_profiles")
+    .upsert({
+      member_id: memberId,
+      sport_id: sportId,
+      rating,
+      preferred_position: preferredPosition
+    }, {
+      onConflict: "member_id,sport_id"
+    });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  await loadSportProfiles();
+  renderSportRatingManager();
 }
 
 async function loadMatchFormOptions() {
@@ -668,6 +867,8 @@ async function loadMatchFormOptions() {
   member.id !== currentProfile?.id &&
   !member.is_external
 );
+
+  await loadSportProfiles();
   const sportSelect = $("match-sport");
   if (sportSelect) {
     sportSelect.innerHTML = `
@@ -679,6 +880,7 @@ async function loadMatchFormOptions() {
   }
 
   updateLeagueSportOptions();
+  updateRatingSportOptions();
   updateRankingFilters();
   updateMatchLeagueOptions();
 
@@ -3028,11 +3230,15 @@ function renderTeamAssignmentList(match) {
       teamB && selectedTeamId === teamB.id ? "B" :
       "";
 
+    const rating = memberSportRating(memberId, match.sport_id);
+    const position = memberSportPosition(memberId, match.sport_id);
+
     return `
       <div class="team-player-row">
         <div class="team-player-name">
           ${escapeHtml(invitationMemberDisplayName(inv))}
           ${member?.is_external ? `<span class="mini-pill">External</span>` : ""}
+          <span class="rating-pill">R ${Number(rating).toFixed(1)}${position ? ` • ${escapeHtml(position)}` : ""}</span>
         </div>
 
         <div class="team-choice">
@@ -3080,7 +3286,69 @@ function renderTeamAssignmentList(match) {
   updateTeamBalanceStatus();
 }
 
-async function openTeamAssignment(matchId) {
+async 
+function applySuggestedTeams() {
+  if (!currentTeamMatchId) {
+    alert("No match selected.");
+    return;
+  }
+
+  const match = allMatches.find(m => m.id === currentTeamMatchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  const players = inPlayerInvitations(match).map(inv => {
+    const member = invitationMember(inv);
+    const memberId = member?.id || inv.member_id;
+
+    return {
+      memberId,
+      rating: memberSportRating(memberId, match.sport_id)
+    };
+  }).filter(player => player.memberId);
+
+  if (players.length < 2) {
+    alert("At least 2 IN players are needed.");
+    return;
+  }
+
+  players.sort((a, b) => b.rating - a.rating);
+
+  const teamA = [];
+  const teamB = [];
+  let ratingA = 0;
+  let ratingB = 0;
+
+  players.forEach(player => {
+    if (
+      teamA.length < Math.ceil(players.length / 2) &&
+      (ratingA <= ratingB || teamB.length >= Math.floor(players.length / 2))
+    ) {
+      teamA.push(player.memberId);
+      ratingA += player.rating;
+    } else {
+      teamB.push(player.memberId);
+      ratingB += player.rating;
+    }
+  });
+
+  document.querySelectorAll("#team-assignment-list input[type='radio']").forEach(input => {
+    const memberId = input.dataset.memberId;
+
+    if (!memberId) return;
+
+    input.checked =
+      (teamA.includes(memberId) && input.value === "A") ||
+      (teamB.includes(memberId) && input.value === "B");
+  });
+
+  updateTeamBalanceStatus();
+}
+
+function openTeamAssignment(matchId) {
   const match = allMatches.find(m => m.id === matchId);
 
   if (!match) {
@@ -3148,19 +3416,42 @@ function collectTeamAssignments() {
 
 function updateTeamBalanceStatus() {
   const status = $("team-balance-status");
-  if (!status) return;
-
+  const ratingStatus = $("team-rating-status");
   const assignments = collectTeamAssignments();
+
   const difference = Math.abs(assignments.teamA.length - assignments.teamB.length);
   const isBalanced =
     assignments.teamA.length > 0 &&
     assignments.teamB.length > 0 &&
     difference <= 1;
 
-  status.textContent = `Team A: ${assignments.teamA.length} • Team B: ${assignments.teamB.length}`;
+  if (status) {
+    status.textContent = `Team A: ${assignments.teamA.length} • Team B: ${assignments.teamB.length}`;
 
-  status.classList.toggle("balanced", isBalanced);
-  status.classList.toggle("unbalanced", !isBalanced);
+    status.classList.toggle("balanced", isBalanced);
+    status.classList.toggle("unbalanced", !isBalanced);
+  }
+
+  if (ratingStatus) {
+    const match = allMatches.find(m => m.id === currentTeamMatchId);
+    const sportId = match?.sport_id;
+
+    const ratingA = assignments.teamA.reduce((sum, memberId) =>
+      sum + memberSportRating(memberId, sportId), 0
+    );
+
+    const ratingB = assignments.teamB.reduce((sum, memberId) =>
+      sum + memberSportRating(memberId, sportId), 0
+    );
+
+    const diff = Math.abs(ratingA - ratingB);
+
+    ratingStatus.textContent =
+      `Ratings: Team A ${ratingA.toFixed(1)} • Team B ${ratingB.toFixed(1)} • Diff ${diff.toFixed(1)}`;
+
+    ratingStatus.classList.toggle("balanced", diff <= 1.5 && isBalanced);
+    ratingStatus.classList.toggle("unbalanced", !(diff <= 1.5 && isBalanced));
+  }
 }
 
 
@@ -4620,6 +4911,7 @@ async function refreshAuthUI() {
     applyAccessUI();
 if (currentProfile?.approval_status === "approved") {
   await loadLeagues();
+  await loadSportProfiles();
   await loadMatches();
   restoreActiveTab();
 }
@@ -4718,6 +5010,8 @@ function bindEvents() {
 
   $("rank-league-filter")?.addEventListener("change", renderRankings);
   $("rank-player-type-filter")?.addEventListener("change", renderRankings);
+
+  $("rating-sport-filter")?.addEventListener("change", renderSportRatingManager);
   document.querySelectorAll(".tab").forEach(btn =>
     btn.addEventListener("click", () => {
       setActiveTab(btn.dataset.view);
@@ -4979,6 +5273,8 @@ function bindEvents() {
   $("add-selected-external-btn")?.addEventListener("click", addSelectedExternalPlayers);
 
   $("create-external-player-btn")?.addEventListener("click", createExternalPlayerProfile);
+
+  $("suggest-teams-btn")?.addEventListener("click", applySuggestedTeams);
 
   $("save-teams-btn")?.addEventListener("click", saveTeams);
 
