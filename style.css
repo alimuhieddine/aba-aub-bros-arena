@@ -1975,3 +1975,33 @@ main,
     grid-template-columns: 1fr;
   }
 }
+
+
+/* === SPORT-SPECIFIC PROFILE FIELDS === */
+.sport-rating-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr) auto;
+  align-items: start;
+}
+
+.sport-rating-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sport-rating-row-soccer .sport-rating-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.sport-rating-row-padel .sport-rating-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .sport-rating-row,
+  .sport-rating-fields,
+  .sport-rating-row-soccer .sport-rating-fields,
+  .sport-rating-row-padel .sport-rating-fields {
+    grid-template-columns: 1fr;
+  }
+}
