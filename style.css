@@ -1903,3 +1903,10 @@ main,
     font-size: 11px;
   }
 }
+
+
+/* === LEAGUE MANAGEMENT === */
+.danger-text-btn {
+  color: var(--danger) !important;
+  border-color: rgba(255,95,103,.35) !important;
+}
