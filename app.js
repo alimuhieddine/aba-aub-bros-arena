@@ -558,6 +558,7 @@ let allMembers = [];
 let allExternalMembers = [];
 let allSportProfiles = [];
 let allSportSkillRatings = [];
+let allRatingAdjustments = [];
 let currentExternalMatchId = null;
 let currentTeamMatchId = null;
 let currentScoreMatchId = null;
@@ -721,6 +722,34 @@ async function loadSportProfiles() {
     allSportSkillRatings = [];
   } else {
     allSportSkillRatings = skillsData || [];
+  }
+
+
+  const { data: adjustmentsData, error: adjustmentsError } = await supabaseClient
+    .from("member_sport_rating_adjustments")
+    .select(`
+      id,
+      match_id,
+      member_id,
+      sport_id,
+      adjustment,
+      old_rating,
+      new_rating,
+      reason,
+      created_at,
+      matches (
+        id,
+        title,
+        start_time
+      )
+    `)
+    .order("created_at", { ascending: false });
+
+  if (adjustmentsError) {
+    console.warn("Could not load rating adjustments:", adjustmentsError.message);
+    allRatingAdjustments = [];
+  } else {
+    allRatingAdjustments = adjustmentsData || [];
   }
 
   return allSportProfiles;
@@ -923,6 +952,54 @@ function renderGenericRatingFields(member, sportId) {
   `;
 }
 
+
+function ratingAdjustmentsForMemberSport(memberId, sportId) {
+  return (allRatingAdjustments || []).filter(item =>
+    item.member_id === memberId &&
+    item.sport_id === sportId
+  );
+}
+
+function lastRatingAdjustmentForMemberSport(memberId, sportId) {
+  return ratingAdjustmentsForMemberSport(memberId, sportId)[0] || null;
+}
+
+function formatRatingAdjustment(value) {
+  const number = Number(value || 0);
+
+  if (number > 0) return `+${number.toFixed(2)}`;
+  if (number < 0) return number.toFixed(2);
+
+  return "0.00";
+}
+
+function renderRatingAdjustmentHistory(memberId, sportId) {
+  const rows = ratingAdjustmentsForMemberSport(memberId, sportId).slice(0, 3);
+
+  if (!rows.length) {
+    return `<div class="rating-history-empty">No rating changes yet.</div>`;
+  }
+
+  return `
+    <div class="rating-history">
+      ${rows.map(row => `
+        <div class="rating-history-row">
+          <span class="${Number(row.adjustment || 0) >= 0 ? "positive-change" : "negative-change"}">
+            ${formatRatingAdjustment(row.adjustment)}
+          </span>
+          <span>
+            ${Number(row.old_rating || 0).toFixed(2)} → ${Number(row.new_rating || 0).toFixed(2)}
+          </span>
+          <em>
+            ${escapeHtml(row.reason || "-")}
+            ${row.matches?.title ? ` • ${escapeHtml(row.matches.title)}` : ""}
+          </em>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
 function renderSportRatingManager() {
   const box = $("sportRatingList");
   if (!box) return;
@@ -977,8 +1054,12 @@ function renderSportRatingManager() {
                     • L ${Number(sportProfileForMember(member.id, sportId)?.losses || 0)}
                     • Pts ${Number(sportProfileForMember(member.id, sportId)?.total_points || 0)}
                   </div>
+                  ${renderRatingAdjustmentHistory(member.id, sportId)}
                 `
-                : `<div class="profile-stats-mini">No match stats yet.</div>`
+                : `
+                  <div class="profile-stats-mini">No match stats yet.</div>
+                  ${renderRatingAdjustmentHistory(member.id, sportId)}
+                `
             }
           </div>
 
