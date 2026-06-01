@@ -678,6 +678,7 @@ async function loadMatchFormOptions() {
   }
 
   updateLeagueSportOptions();
+  updateRankingFilters();
   updateMatchLeagueOptions();
 
   renderMatchInviteOptions();
@@ -1182,6 +1183,8 @@ async function loadLeagues() {
   allLeagues = data || [];
   renderLeagues();
   updateMatchLeagueOptions();
+  updateRankingFilters();
+  renderRankings();
 }
 
 function matchCard(m, compact = false) {
@@ -1430,6 +1433,7 @@ async function loadMatches() {
 
   renderMatches();
   renderLeagues();
+  renderRankings();
 }
 
 function invitationCounts(match) {
@@ -3973,30 +3977,190 @@ function renderActivities() {
   $("activityList").innerHTML = state.activities.map(a => activityCard(a)).join("");
 }
 
+
+function updateRankingFilters() {
+  const sportSelect = $("rank-sport-filter");
+  const leagueSelect = $("rank-league-filter");
+
+  if (sportSelect) {
+    const current = sportSelect.value || "all";
+
+    sportSelect.innerHTML = `
+      <option value="all">All sports</option>
+      ${(allSports || []).map(sport => `
+        <option value="${sport.id}">${escapeHtml(sport.name)}</option>
+      `).join("")}
+    `;
+
+    sportSelect.value = Array.from(sportSelect.options).some(option => option.value === current)
+      ? current
+      : "all";
+  }
+
+  if (leagueSelect) {
+    const current = leagueSelect.value || "all";
+    const selectedSport = sportSelect?.value || "all";
+
+    const leagues = (allLeagues || []).filter(league =>
+      selectedSport === "all" || league.sport_id === selectedSport
+    );
+
+    leagueSelect.innerHTML = `
+      <option value="all">All leagues</option>
+      <option value="none">Friendly / no league</option>
+      ${leagues.map(league => `
+        <option value="${league.id}">${escapeHtml(league.name)}</option>
+      `).join("")}
+    `;
+
+    leagueSelect.value = Array.from(leagueSelect.options).some(option => option.value === current)
+      ? current
+      : "all";
+  }
+}
+
+function rankingFilteredMatches() {
+  const sportId = $("rank-sport-filter")?.value || "all";
+  const leagueId = $("rank-league-filter")?.value || "all";
+
+  return (allMatches || []).filter(match => {
+    if (match.score_status !== "submitted" && match.status !== "completed") return false;
+    if (sportId !== "all" && match.sport_id !== sportId) return false;
+
+    if (leagueId === "none" && match.league_id) return false;
+    if (leagueId !== "all" && leagueId !== "none" && match.league_id !== leagueId) return false;
+
+    return true;
+  });
+}
+
+function rankingRows() {
+  const playerType = $("rank-player-type-filter")?.value || "all";
+  const table = new Map();
+
+  rankingFilteredMatches().forEach(match => {
+    (match.match_member_points || []).forEach(point => {
+      const member = point.member;
+      const memberId = point.member_id;
+
+      if (!memberId || !member) return;
+
+      if (playerType === "members" && member.is_external) return;
+      if (playerType === "external" && !member.is_external) return;
+
+      const current = table.get(memberId) || {
+        memberId,
+        member,
+        name: memberDisplayName(member),
+        isExternal: Boolean(member.is_external),
+        totalPoints: 0,
+        basePoints: 0,
+        bonusPoints: 0,
+        matches: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        sports: new Set(),
+        leagues: new Set()
+      };
+
+      const teamInfo = teamResultForMember(match, memberId);
+      const result = teamInfo.result || "participated";
+
+      current.totalPoints += Number(point.total_points || 0);
+      current.basePoints += Number(point.base_points || 0);
+      current.bonusPoints += Number(point.consistency_bonus || 0);
+      current.matches += 1;
+
+      if (result === "win") current.wins += 1;
+      else if (result === "draw") current.draws += 1;
+      else if (result === "loss") current.losses += 1;
+
+      if (match.sports?.name) current.sports.add(match.sports.name);
+      if (match.league_id) current.leagues.add(match.league_id);
+
+      table.set(memberId, current);
+    });
+  });
+
+  return Array.from(table.values()).sort((a, b) =>
+    b.totalPoints - a.totalPoints ||
+    b.wins - a.wins ||
+    b.matches - a.matches ||
+    a.name.localeCompare(b.name)
+  );
+}
+
+function rankingSummary(rows) {
+  const totalPlayers = rows.length;
+  const totalPoints = rows.reduce((sum, row) => sum + Number(row.totalPoints || 0), 0);
+  const totalMatches = rankingFilteredMatches().length;
+
+  return `
+    <article class="card ranking-summary-card">
+      <div>
+        <div class="meta">Ranked players</div>
+        <strong>${totalPlayers}</strong>
+      </div>
+
+      <div>
+        <div class="meta">Finalized matches</div>
+        <strong>${totalMatches}</strong>
+      </div>
+
+      <div>
+        <div class="meta">Total points</div>
+        <strong>${totalPoints}</strong>
+      </div>
+    </article>
+  `;
+}
+
 function renderRankings() {
   if (!$("rankingList")) return;
 
-  const scores = {};
-  for (const a of state.activities) {
-    if (a.approvals.length >= 2) {
-      scores[a.player] = (scores[a.player] || 0) + Number(a.points || 0);
-    }
+  updateRankingFilters();
+
+  const rows = rankingRows();
+
+  if (!rows.length) {
+    $("rankingList").innerHTML = `
+      ${rankingSummary(rows)}
+      <article class="card">No finalized points for this filter yet.</article>
+    `;
+    return;
   }
 
-  const ranks = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  $("rankingList").innerHTML = `
+    ${rankingSummary(rows)}
 
-  $("rankingList").innerHTML = ranks.length
-    ? ranks.map(([name, pts], i) => `
-      <article class="card rank">
-        <div class="rank-number">${i + 1}</div>
-        <div>
-          <h3>${escapeHtml(name)}</h3>
-          <div class="meta">Verified ABA points</div>
+    <article class="card rankings-table-card">
+      <div class="rankings-table-head">
+        <span>#</span>
+        <span>Player</span>
+        <span>Pts</span>
+        <span>Played</span>
+        <span>W-D-L</span>
+      </div>
+
+      ${rows.map((row, index) => `
+        <div class="rankings-table-row">
+          <span class="rank-number-mini">${index + 1}</span>
+
+          <span>
+            ${escapeHtml(row.name)}
+            ${row.isExternal ? `<em>External</em>` : ""}
+          </span>
+
+          <strong>${Number(row.totalPoints || 0)}</strong>
+
+          <span>${Number(row.matches || 0)}</span>
+
+          <span>${row.wins}-${row.draws}-${row.losses}</span>
         </div>
-        <strong>${pts}</strong>
-      </article>
-    `).join("")
-    : `<article class="card">No verified points yet.</article>`;
+      `).join("")}
+    </article>
+  `;
 }
 
 function approveActivity(id) {
@@ -4373,6 +4537,14 @@ function bindEvents() {
 
   $("match-sport")?.addEventListener("change", updateMatchVenueOptions);
   $("match-type")?.addEventListener("change", updateMatchLeagueOptions);
+
+  $("rank-sport-filter")?.addEventListener("change", () => {
+    updateRankingFilters();
+    renderRankings();
+  });
+
+  $("rank-league-filter")?.addEventListener("change", renderRankings);
+  $("rank-player-type-filter")?.addEventListener("change", renderRankings);
   document.querySelectorAll(".tab").forEach(btn =>
     btn.addEventListener("click", () => {
       document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
@@ -4388,6 +4560,11 @@ function bindEvents() {
 
       if (btn.dataset.view === "leagues") {
         loadLeagues();
+      }
+
+      if (btn.dataset.view === "rankings") {
+        updateRankingFilters();
+        renderRankings();
       }
 
       if (btn.dataset.view === "admin") {
