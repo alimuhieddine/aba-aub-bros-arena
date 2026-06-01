@@ -941,6 +941,172 @@ function leagueSportMatchesSelection(leagueId, sportId) {
   return league.sport_id === sportId;
 }
 
+
+function leagueMatches(leagueId) {
+  return (allMatches || []).filter(match => match.league_id === leagueId);
+}
+
+function leagueCompletedGames(leagueId) {
+  const gamesById = new Map();
+
+  (allMatches || []).forEach(match => {
+    (match.match_game_sessions || []).forEach(session => {
+      const game = session.match_games;
+
+      if (
+        game?.id &&
+        game.league_id === leagueId &&
+        game.status === "completed"
+      ) {
+        gamesById.set(game.id, game);
+      }
+    });
+  });
+
+  return Array.from(gamesById.values());
+}
+
+function leaguePlayerStandings(leagueId) {
+  const table = new Map();
+
+  leagueMatches(leagueId).forEach(match => {
+    (match.match_member_points || []).forEach(point => {
+      const memberId = point.member_id;
+      if (!memberId) return;
+
+      const current = table.get(memberId) || {
+        memberId,
+        member: point.member,
+        name: memberDisplayName(point.member),
+        points: 0,
+        matches: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0
+      };
+
+      const teamInfo = teamResultForMember(match, memberId);
+      const result = teamInfo.result || "participated";
+
+      current.points += Number(point.total_points || 0);
+      current.matches += 1;
+
+      if (result === "win") current.wins += 1;
+      else if (result === "draw") current.draws += 1;
+      else if (result === "loss") current.losses += 1;
+
+      table.set(memberId, current);
+    });
+  });
+
+  return Array.from(table.values()).sort((a, b) =>
+    b.points - a.points ||
+    b.wins - a.wins ||
+    a.losses - b.losses ||
+    a.name.localeCompare(b.name)
+  );
+}
+
+function leagueTeamGameStandings(leagueId) {
+  const table = new Map();
+
+  leagueCompletedGames(leagueId).forEach(game => {
+    const teamAName = game.team_a_name || "Team A";
+    const teamBName = game.team_b_name || "Team B";
+
+    if (!table.has(teamAName)) {
+      table.set(teamAName, { name: teamAName, played: 0, wins: 0, losses: 0, draws: 0 });
+    }
+
+    if (!table.has(teamBName)) {
+      table.set(teamBName, { name: teamBName, played: 0, wins: 0, losses: 0, draws: 0 });
+    }
+
+    const teamA = table.get(teamAName);
+    const teamB = table.get(teamBName);
+
+    teamA.played += 1;
+    teamB.played += 1;
+
+    if (game.winner_team === "A") {
+      teamA.wins += 1;
+      teamB.losses += 1;
+    } else if (game.winner_team === "B") {
+      teamB.wins += 1;
+      teamA.losses += 1;
+    } else {
+      teamA.draws += 1;
+      teamB.draws += 1;
+    }
+  });
+
+  return Array.from(table.values()).sort((a, b) =>
+    b.wins - a.wins ||
+    a.losses - b.losses ||
+    a.name.localeCompare(b.name)
+  );
+}
+
+function renderLeaguePlayerStandings(leagueId) {
+  const rows = leaguePlayerStandings(leagueId);
+
+  if (!rows.length) {
+    return `<div class="league-standings-empty">No finalized player points yet.</div>`;
+  }
+
+  return `
+    <div class="league-standings">
+      <div class="league-standings-title">Player standings</div>
+
+      <div class="league-standings-head">
+        <span>#</span>
+        <span>Player</span>
+        <span>Pts</span>
+        <span>W-D-L</span>
+      </div>
+
+      ${rows.map((row, index) => `
+        <div class="league-standings-row">
+          <span>${index + 1}</span>
+          <span>${escapeHtml(row.name)}</span>
+          <span><strong>${Number(row.points || 0)}</strong></span>
+          <span>${row.wins}-${row.draws}-${row.losses}</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderLeagueGameStandings(leagueId) {
+  const rows = leagueTeamGameStandings(leagueId);
+
+  if (!rows.length) {
+    return `<div class="league-standings-empty">No completed league games yet.</div>`;
+  }
+
+  return `
+    <div class="league-standings compact-standings">
+      <div class="league-standings-title">Game/team standings</div>
+
+      <div class="league-standings-head">
+        <span>Team</span>
+        <span>P</span>
+        <span>W</span>
+        <span>L</span>
+      </div>
+
+      ${rows.map(row => `
+        <div class="league-standings-row">
+          <span>${escapeHtml(row.name)}</span>
+          <span>${row.played}</span>
+          <span>${row.wins}</span>
+          <span>${row.losses}</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
 function renderLeagues() {
   if (!$("leagueList")) return;
 
@@ -950,15 +1116,11 @@ function renderLeagues() {
   }
 
   $("leagueList").innerHTML = allLeagues.map(league => {
-    const matchesCount = (allMatches || []).filter(match => match.league_id === league.id).length;
-    const gamesCount = (allMatches || []).reduce((count, match) => {
-      return count + (match.match_game_sessions || []).filter(session =>
-        session.match_games?.league_id === league.id
-      ).length;
-    }, 0);
+    const matchesCount = leagueMatches(league.id).length;
+    const gamesCount = leagueCompletedGames(league.id).length;
 
     return `
-      <article class="card">
+      <article class="card league-card">
         <div class="row">
           <div>
             <h3>${escapeHtml(league.name)}</h3>
@@ -971,7 +1133,7 @@ function renderLeagues() {
               ${league.end_date ? ` • Until ${escapeHtml(league.end_date)}` : ""}
             </div>
             <div class="meta">
-              Linked bookings: ${matchesCount} • Games: ${gamesCount}
+              Linked bookings: ${matchesCount} • Completed games: ${gamesCount}
             </div>
           </div>
 
@@ -979,6 +1141,10 @@ function renderLeagues() {
             ${escapeHtml(league.status || "active")}
           </span>
         </div>
+
+        ${renderLeaguePlayerStandings(league.id)}
+
+        ${renderLeagueGameStandings(league.id)}
       </article>
     `;
   }).join("");
@@ -1234,7 +1400,7 @@ async function loadMatches() {
   let result = await supabaseClient
     .from("matches")
     .select(fullSelect)
-    .order("start_time", { ascending: true });
+    .order("created_at", { ascending: false });
 
   if (result.error) {
     console.warn("Full match load failed. Retrying without game/session scoring tables:", result.error.message);
@@ -1242,7 +1408,7 @@ async function loadMatches() {
     result = await supabaseClient
       .from("matches")
       .select(fallbackSelect)
-      .order("start_time", { ascending: true });
+      .order("created_at", { ascending: false });
   }
 
   const { data, error } = result;
