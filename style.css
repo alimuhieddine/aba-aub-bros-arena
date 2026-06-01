@@ -2005,3 +2005,23 @@ main,
     grid-template-columns: 1fr;
   }
 }
+
+
+/* === RATING BOUNDARY LABELS === */
+.rating-label-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rating-label-line small {
+  color: var(--gold);
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255,209,102,.10);
+  border: 1px solid rgba(255,209,102,.20);
+}
