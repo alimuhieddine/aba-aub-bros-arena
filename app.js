@@ -3286,7 +3286,6 @@ function renderTeamAssignmentList(match) {
   updateTeamBalanceStatus();
 }
 
-async 
 function applySuggestedTeams() {
   if (!currentTeamMatchId) {
     alert("No match selected.");
