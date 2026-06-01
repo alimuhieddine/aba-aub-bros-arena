@@ -1910,3 +1910,68 @@ main,
   color: var(--danger) !important;
   border-color: rgba(255,95,103,.35) !important;
 }
+
+
+/* === SPORT PROFILES / RATINGS === */
+.sport-rating-list {
+  display: grid;
+  gap: 8px;
+}
+
+.sport-rating-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px minmax(120px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+}
+
+.sport-rating-row strong {
+  color: var(--text);
+  display: inline-block;
+  margin-right: 5px;
+}
+
+.rating-pill {
+  display: inline-flex;
+  margin-left: 6px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255,209,102,.12);
+  color: var(--gold);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.team-rating-status {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.05);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.team-rating-status.balanced {
+  color: var(--accent);
+  border-color: rgba(36,209,126,.35);
+  background: rgba(36,209,126,.10);
+}
+
+.team-rating-status.unbalanced {
+  color: var(--danger);
+  border-color: rgba(255,95,103,.35);
+  background: rgba(255,95,103,.10);
+}
+
+@media (max-width: 800px) {
+  .sport-rating-row {
+    grid-template-columns: 1fr;
+  }
+}
