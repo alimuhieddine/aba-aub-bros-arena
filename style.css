@@ -1718,3 +1718,188 @@ main,
 #match-league-label {
   transition: opacity .15s ease;
 }
+
+
+/* === LEAGUE STANDINGS === */
+.league-card {
+  gap: 12px;
+}
+
+.league-standings {
+  margin-top: 10px;
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+}
+
+.league-standings-title {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 900;
+  margin-bottom: 3px;
+}
+
+.league-standings-head,
+.league-standings-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 52px 70px;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.compact-standings .league-standings-head,
+.compact-standings .league-standings-row {
+  grid-template-columns: minmax(0, 1fr) 40px 40px 40px;
+}
+
+.league-standings-head {
+  color: var(--muted);
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.league-standings-row {
+  color: var(--muted);
+  padding-top: 4px;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+
+.league-standings-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.league-standings-row strong {
+  color: var(--gold);
+}
+
+.league-standings-empty {
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  background: rgba(255,255,255,.025);
+}
+
+@media (max-width: 800px) {
+  .league-standings-head,
+  .league-standings-row {
+    grid-template-columns: 24px minmax(0, 1fr) 42px 58px;
+    gap: 6px;
+    font-size: 11px;
+  }
+
+  .compact-standings .league-standings-head,
+  .compact-standings .league-standings-row {
+    grid-template-columns: minmax(0, 1fr) 34px 34px 34px;
+  }
+}
+
+
+/* === REAL RANKINGS === */
+.filters-card {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255,255,255,.035);
+}
+
+.ranking-summary-card {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.ranking-summary-card strong {
+  display: block;
+  color: var(--gold);
+  font-size: 20px;
+  margin-top: 3px;
+}
+
+.rankings-table-card {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+}
+
+.rankings-table-head,
+.rankings-table-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 58px 58px 76px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.rankings-table-head {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--line);
+}
+
+.rankings-table-row {
+  color: var(--muted);
+  font-size: 13px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.rankings-table-row:last-child {
+  border-bottom: 0;
+}
+
+.rankings-table-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rankings-table-row strong {
+  color: var(--gold);
+}
+
+.rankings-table-row em {
+  display: inline-flex;
+  margin-left: 5px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: rgba(49,168,255,.12);
+  color: var(--accent2);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.rank-number-mini {
+  color: var(--text);
+  font-weight: 900;
+}
+
+@media (max-width: 800px) {
+  .filters-card {
+    grid-template-columns: 1fr;
+  }
+
+  .ranking-summary-card {
+    grid-template-columns: 1fr;
+  }
+
+  .rankings-table-head,
+  .rankings-table-row {
+    grid-template-columns: 28px minmax(0, 1fr) 48px 44px 58px;
+    gap: 6px;
+    font-size: 11px;
+  }
+}
