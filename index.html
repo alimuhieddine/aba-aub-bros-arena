@@ -123,8 +123,36 @@
 
       <section id="rankings" class="view">
         <div class="section-head">
-          <h2>ABA Rankings</h2>
-          <span class="pill">Weekly form</span>
+          <div>
+            <h2>ABA Rankings</h2>
+            <p class="hint">Based on finalized match points.</p>
+          </div>
+          <span class="pill">Live points</span>
+        </div>
+
+        <div class="filters-card">
+          <label>
+            Sport
+            <select id="rank-sport-filter">
+              <option value="all">All sports</option>
+            </select>
+          </label>
+
+          <label>
+            League
+            <select id="rank-league-filter">
+              <option value="all">All leagues</option>
+            </select>
+          </label>
+
+          <label>
+            Player type
+            <select id="rank-player-type-filter">
+              <option value="all">All players</option>
+              <option value="members">Members only</option>
+              <option value="external">External only</option>
+            </select>
+          </label>
         </div>
 
         <div id="rankingList" class="stack"></div>
