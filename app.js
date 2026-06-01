@@ -4434,6 +4434,145 @@ function profileStatsForMemberSport(memberId, sportId, currentMatch) {
   return stats;
 }
 
+
+function clampNumber(value, min, max) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) return min;
+
+  return Math.min(max, Math.max(min, number));
+}
+
+function roundTo(value, decimals = 2) {
+  const factor = 10 ** decimals;
+  return Math.round(Number(value || 0) * factor) / factor;
+}
+
+function padelRatingDeltaForResult(result, reliability) {
+  const cleanReliability = clampNumber(reliability, 0, 100);
+  const reliabilityFactor = clampNumber(1.25 - (cleanReliability / 100), 0.25, 1.25);
+
+  let baseDelta = 0;
+
+  if (result === "win") baseDelta = 0.10;
+  if (result === "loss") baseDelta = -0.08;
+  if (result === "draw") baseDelta = 0.02;
+
+  return roundTo(baseDelta * reliabilityFactor, 2);
+}
+
+async function updatePadelRatingMovementAfterMatch(match) {
+  if (!match?.id || !isPadelMatch(match)) return true;
+
+  const inInvitations = inPlayerInvitations(match);
+  const uniqueMemberIds = Array.from(new Set(
+    inInvitations.map(inv => inv.member_id).filter(Boolean)
+  ));
+
+  if (!uniqueMemberIds.length) return true;
+
+  const { data: existingAdjustments, error: adjustmentsError } = await supabaseClient
+    .from("member_sport_rating_adjustments")
+    .select("id,match_id,member_id,sport_id,adjustment")
+    .eq("match_id", match.id)
+    .eq("sport_id", match.sport_id);
+
+  if (adjustmentsError) {
+    alert(adjustmentsError.message);
+    return false;
+  }
+
+  const alreadyAdjusted = new Set((existingAdjustments || []).map(row => row.member_id));
+  const skillRows = [];
+  const profileRows = [];
+  const adjustmentRows = [];
+
+  uniqueMemberIds.forEach(memberId => {
+    if (alreadyAdjusted.has(memberId)) return;
+
+    const result = teamResultForMember(match, memberId).result || "draw";
+    const oldLevel = skillRatingForMember(memberId, match.sport_id, "playtomic_level", 3.5);
+    const oldReliability = skillRatingForMember(memberId, match.sport_id, "reliability", 50);
+    const delta = padelRatingDeltaForResult(result, oldReliability);
+    const newLevel = roundTo(clampNumber(oldLevel + delta, 0, 7), 2);
+    const newReliability = roundTo(clampNumber(oldReliability + 3, 0, 100), 0);
+
+    skillRows.push(
+      {
+        member_id: memberId,
+        sport_id: match.sport_id,
+        skill_key: "playtomic_level",
+        skill_label: "Playtomic level",
+        rating: newLevel,
+        skill_value: null
+      },
+      {
+        member_id: memberId,
+        sport_id: match.sport_id,
+        skill_key: "reliability",
+        skill_label: "Reliability %",
+        rating: newReliability,
+        skill_value: null
+      }
+    );
+
+    profileRows.push({
+      member_id: memberId,
+      sport_id: match.sport_id,
+      rating: newLevel,
+      overall_rating: newLevel,
+      rating_system: "playtomic"
+    });
+
+    adjustmentRows.push({
+      match_id: match.id,
+      member_id: memberId,
+      sport_id: match.sport_id,
+      adjustment: delta,
+      old_rating: oldLevel,
+      new_rating: newLevel,
+      reason: result
+    });
+  });
+
+  if (!adjustmentRows.length) return true;
+
+  const { error: skillsError } = await supabaseClient
+    .from("member_sport_skill_ratings")
+    .upsert(skillRows, {
+      onConflict: "member_id,sport_id,skill_key"
+    });
+
+  if (skillsError) {
+    alert(skillsError.message);
+    return false;
+  }
+
+  const { error: profilesError } = await supabaseClient
+    .from("member_sport_profiles")
+    .upsert(profileRows, {
+      onConflict: "member_id,sport_id"
+    });
+
+  if (profilesError) {
+    alert(profilesError.message);
+    return false;
+  }
+
+  const { error: insertAdjustmentsError } = await supabaseClient
+    .from("member_sport_rating_adjustments")
+    .insert(adjustmentRows);
+
+  if (insertAdjustmentsError) {
+    alert(insertAdjustmentsError.message);
+    return false;
+  }
+
+  await loadSportProfiles();
+
+  return true;
+}
+
 async function updateMemberSportProfileStats(match) {
   if (!match?.id || !match.sport_id) return true;
 
@@ -4758,7 +4897,11 @@ async function finalizeCurrentMatchResult() {
 
   if (!profilesUpdated) return;
 
-  alert("Match result finalized, points saved, and sport profiles updated.");
+  const ratingsUpdated = await updatePadelRatingMovementAfterMatch(refreshedMatchForPoints);
+
+  if (!ratingsUpdated) return;
+
+  alert("Match result finalized, points saved, sport profiles updated, and padel ratings adjusted.");
 
   $("scoreModal")?.close();
   currentScoreMatchId = null;
