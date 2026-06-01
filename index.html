@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=77" />
+  <link rel="stylesheet" href="style.css?v=78" />
 </head>
 
 <body>
@@ -209,6 +209,26 @@
         </div>
 
         <div id="pendingMembersList" class="stack"></div>
+
+        <div class="section-head">
+          <div>
+            <h2>Sport Ratings</h2>
+            <p class="hint">Set player ratings by sport for future team suggestions.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <label>
+            Sport
+            <select id="rating-sport-filter">
+              <option value="">Select sport</option>
+            </select>
+          </label>
+
+          <div id="sportRatingList" class="sport-rating-list">
+            Select a sport to edit ratings.
+          </div>
+        </div>
 
         <div class="section-head">
           <div>
@@ -492,6 +512,14 @@
         Team A: 0 • Team B: 0
       </div>
 
+      <div id="team-rating-status" class="team-rating-status">
+        Ratings: Team A 0 • Team B 0
+      </div>
+
+      <button id="suggest-teams-btn" class="secondary-btn full" type="button">
+        Suggest Balanced Teams
+      </button>
+
       <button id="save-teams-btn" class="primary-btn full" type="button">
         Save Teams
       </button>
@@ -643,6 +671,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=77"></script>
+  <script src="app.js?v=78"></script>
 </body>
 </html>
