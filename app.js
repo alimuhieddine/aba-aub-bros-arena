@@ -560,6 +560,7 @@ let allSportProfiles = [];
 let allPositionRatings = [];
 let currentExternalMatchId = null;
 let currentTeamMatchId = null;
+let currentTeamEditScope = "full";
 let currentScoreMatchId = null;
 let allPendingGames = [];
 
@@ -2111,6 +2112,52 @@ function canManageMatch(match) {
   return isCurrentUserAdmin() || match.created_by === currentProfile?.id;
 }
 
+
+function teamSideForTeam(match, team) {
+  const teams = match.match_teams || [];
+  return team?.color || (teams[0]?.id === team?.id ? "A" : teams[1]?.id === team?.id ? "B" : "");
+}
+
+function captainSidesForCurrentUser(match) {
+  const myId = cleanUuidValue(currentProfile?.id);
+  if (!myId) return [];
+
+  const sides = [];
+
+  (match.match_teams || []).forEach((team, index) => {
+    const side = teamSideForTeam(match, team) || (index === 0 ? "A" : "B");
+    const isCaptain = (team.match_team_players || []).some(player =>
+      player.is_captain && cleanUuidValue(player.member_id) === myId
+    );
+
+    if (isCaptain && side) sides.push(side);
+  });
+
+  return sides;
+}
+
+function canEditFormation(match) {
+  if (!match || !isSoccerMatch(match)) return false;
+  if (getMatchDisplayStatus(match) === "cancelled") return false;
+
+  return canManageMatch(match) || captainSidesForCurrentUser(match).length > 0;
+}
+
+function allowedFormationSides(match) {
+  if (canManageMatch(match) || currentTeamEditScope === "full") return ["A", "B"];
+  return captainSidesForCurrentUser(match);
+}
+
+function isFormationOnlyMode() {
+  return currentTeamEditScope === "formation";
+}
+
+function playerSideFromTeamId(match, teamId) {
+  const teams = match.match_teams || [];
+  const team = teams.find(item => item.id === teamId);
+  return team ? teamSideForTeam(match, team) : "";
+}
+
 function inPlayerNames(match) {
   const invitations = match.match_invitations || [];
 
@@ -2502,6 +2549,9 @@ function updateCaptainSelectors() {
   if (!teamBPlayers.some(player => player.memberId === previousB)) {
     captainBSelect.value = "";
   }
+
+  captainASelect.disabled = isFormationOnlyMode();
+  captainBSelect.disabled = isFormationOnlyMode();
 }
 
 function teamFormationCounts(assignments, side) {
@@ -3084,6 +3134,18 @@ function renderMatches() {
         }
 
         ${
+          !canManageMatch(match) && canEditFormation(match) && (match.match_teams || []).length
+            ? `
+              <div class="actions">
+                <button class="small-btn" onclick="openTeamAssignment('${match.id}', 'formation')">
+                  Edit Formation
+                </button>
+              </div>
+            `
+            : ""
+        }
+
+        ${
           canManageMatch(match)
             ? `
               <div class="actions">
@@ -3097,8 +3159,16 @@ function renderMatches() {
 
                 ${
                   isTeamEditable(match) && counts.inCount >= 2
-                    ? `<button class="small-btn" onclick="openTeamAssignment('${match.id}')">
+                    ? `<button class="small-btn" onclick="openTeamAssignment('${match.id}', 'full')">
                         Assign Teams
+                      </button>`
+                    : ""
+                }
+
+                ${
+                  canEditFormation(match) && (match.match_teams || []).length
+                    ? `<button class="small-btn" onclick="openTeamAssignment('${match.id}', 'formation')">
+                        Edit Formation
                       </button>`
                     : ""
                 }
@@ -3835,6 +3905,8 @@ function renderTeamAssignmentList(match) {
   const assignedMap = currentTeamByMemberId(match);
   const playerMap = currentTeamPlayerByMemberId(match);
   const showFormation = isSoccerMatch(match);
+  const formationOnly = isFormationOnlyMode();
+  const editableSides = allowedFormationSides(match);
 
   if (!players.length) {
     box.innerHTML = `<div class="hint">No IN players yet.</div>`;
@@ -3872,6 +3944,8 @@ function renderTeamAssignmentList(match) {
               name="team-choice-${memberId}"
               value="A"
               data-member-id="${memberId}"
+              data-team-player-id="${teamPlayer?.id || ""}"
+              ${formationOnly ? "disabled" : ""}
               ${selectedSide === "A" ? "checked" : ""}
             >
             <span>A</span>
@@ -3883,6 +3957,8 @@ function renderTeamAssignmentList(match) {
               name="team-choice-${memberId}"
               value="B"
               data-member-id="${memberId}"
+              data-team-player-id="${teamPlayer?.id || ""}"
+              ${formationOnly ? "disabled" : ""}
               ${selectedSide === "B" ? "checked" : ""}
             >
             <span>B</span>
@@ -3894,6 +3970,8 @@ function renderTeamAssignmentList(match) {
               name="team-choice-${memberId}"
               value=""
               data-member-id="${memberId}"
+              data-team-player-id="${teamPlayer?.id || ""}"
+              ${formationOnly ? "disabled" : ""}
               ${selectedSide === "" ? "checked" : ""}
             >
             <span>Unassigned</span>
@@ -3904,7 +3982,13 @@ function renderTeamAssignmentList(match) {
           showFormation
             ? `
               <div class="formation-choice">
-                <select class="formation-position-select" data-member-id="${memberId}">
+                <select
+                  class="formation-position-select"
+                  data-member-id="${memberId}"
+                  data-team-player-id="${teamPlayer?.id || ""}"
+                  data-team-side="${selectedSide}"
+                  ${formationOnly && !editableSides.includes(selectedSide) ? "disabled" : ""}
+                >
                   ${soccerPositionOptions(selectedPosition)}
                 </select>
 
@@ -4016,22 +4100,37 @@ function applySuggestedTeams() {
   updateTeamBalanceStatus();
 }
 
-function openTeamAssignment(matchId) {
-  const match = allMatches.find(m => m.id === matchId);
+function openTeamAssignment(matchId, scope = "full") {
+  const safeMatchId = cleanUuidValue(matchId);
+  const match = allMatches.find(m => m.id === safeMatchId);
 
   if (!match) {
     alert("Match not found.");
     return;
   }
 
-  if (!canManageMatch(match)) {
-    alert("Only the match creator or admin can assign teams.");
-    return;
-  }
+  currentTeamEditScope = scope === "formation" ? "formation" : "full";
 
-  if (!isTeamEditable(match)) {
-    alert("Teams cannot be edited for cancelled matches.");
-    return;
+  if (isFormationOnlyMode()) {
+    if (!canEditFormation(match)) {
+      alert("Only captains, the match creator, or admin can edit formation.");
+      return;
+    }
+
+    if (hasSubmittedScore(match)) {
+      const ok = confirm("Changing formation after result finalization will recalculate soccer position ratings. Continue?");
+      if (!ok) return;
+    }
+  } else {
+    if (!canManageMatch(match)) {
+      alert("Only the match creator or admin can assign teams.");
+      return;
+    }
+
+    if (!isTeamEditable(match)) {
+      alert("Teams cannot be edited for cancelled matches.");
+      return;
+    }
   }
 
   const players = inPlayerInvitations(match);
@@ -4041,16 +4140,33 @@ function openTeamAssignment(matchId) {
     return;
   }
 
-  currentTeamMatchId = matchId;
+  currentTeamMatchId = safeMatchId;
 
   const teams = match.match_teams || [];
 
-  if ($("team-a-name")) $("team-a-name").value = teams[0]?.name || "Team A";
-  if ($("team-b-name")) $("team-b-name").value = teams[1]?.name || "Team B";
+  if ($("team-a-name")) {
+    $("team-a-name").value = teams[0]?.name || "Team A";
+    $("team-a-name").disabled = isFormationOnlyMode();
+  }
+
+  if ($("team-b-name")) {
+    $("team-b-name").value = teams[1]?.name || "Team B";
+    $("team-b-name").disabled = isFormationOnlyMode();
+  }
+
+  if ($("suggest-teams-btn")) {
+    $("suggest-teams-btn").style.display = isFormationOnlyMode() ? "none" : "";
+  }
 
   if ($("team-match-label")) {
-    $("team-match-label").textContent =
-      `${match.title || "Match"} — assign ${players.length} IN player(s).`;
+    $("team-match-label").textContent = isFormationOnlyMode()
+      ? `${match.title || "Match"} — edit formation only.`
+      : `${match.title || "Match"} — assign ${players.length} IN player(s).`;
+  }
+
+  const submitBtn = $("save-teams-btn");
+  if (submitBtn) {
+    submitBtn.textContent = isFormationOnlyMode() ? "Save Formation" : "Save Teams";
   }
 
   renderTeamAssignmentList(match);
@@ -4074,7 +4190,9 @@ function collectTeamAssignments() {
 
     if (!memberId) return;
 
-    const position = document.querySelector(`.formation-position-select[data-member-id="${memberId}"]`)?.value || "";
+    const positionSelect = document.querySelector(`.formation-position-select[data-member-id="${memberId}"]`);
+    const position = positionSelect?.value || "";
+    const teamPlayerId = positionSelect?.dataset.teamPlayerId || input.dataset.teamPlayerId || "";
     const captain = (value === "A" && memberId === captainA) || (value === "B" && memberId === captainB);
 
     if (value === "A") teamA.push(memberId);
@@ -4084,6 +4202,7 @@ function collectTeamAssignments() {
       memberId,
       team: value,
       position,
+      teamPlayerId,
       isCaptain: captain
     });
   });
@@ -4154,6 +4273,90 @@ async function recalculatePointsAfterTeamEdit(matchId) {
   return await saveMatchMemberPoints(refreshedMatch);
 }
 
+
+async function recalculateSoccerRatingsAfterFormationEdit(matchId) {
+  await loadMatches();
+
+  const refreshedMatch = allMatches.find(m => m.id === matchId);
+
+  if (!refreshedMatch || !isSoccerMatch(refreshedMatch) || !hasSubmittedScore(refreshedMatch)) {
+    return true;
+  }
+
+  const { teamA, teamB } = getTwoMatchTeams(refreshedMatch);
+
+  if (!teamA || !teamB) return true;
+
+  const scoreA = Number(teamA.score || 0);
+  const scoreB = Number(teamB.score || 0);
+  const resultA = teamA.result || (scoreA > scoreB ? "win" : scoreA < scoreB ? "loss" : "draw");
+  const resultB = teamB.result || (scoreB > scoreA ? "win" : scoreB < scoreA ? "loss" : "draw");
+
+  return await saveSoccerPositionRatingAdjustments(refreshedMatch, scoreA, scoreB, resultA, resultB);
+}
+
+async function saveFormationOnly(match, assignments) {
+  const allowedSides = allowedFormationSides(match);
+  const assignedPlayers = assignments.all.filter(player =>
+    player.team && allowedSides.includes(player.team)
+  );
+
+  if (!assignedPlayers.length) {
+    alert("No editable players for your captain side.");
+    return false;
+  }
+
+  const missingPosition = assignedPlayers.find(player => !player.position);
+
+  if (missingPosition) {
+    alert("Every player in your editable team must have a formation position.");
+    return false;
+  }
+
+  for (const side of allowedSides) {
+    const counts = teamFormationCounts(assignments, side);
+    const error = validateSoccerFormationSide(counts, `Team ${side}`);
+
+    if (error) {
+      alert(error);
+      return false;
+    }
+  }
+
+  for (const player of assignedPlayers) {
+    if (!player.teamPlayerId) continue;
+
+    const { error } = await supabaseClient
+      .from("match_team_players")
+      .update({
+        formation_position: player.position
+      })
+      .eq("id", player.teamPlayerId);
+
+    if (error) {
+      alert(error.message);
+      return false;
+    }
+  }
+
+  if (hasSubmittedScore(match)) {
+    const recalculated = await recalculateSoccerRatingsAfterFormationEdit(match.id);
+    if (!recalculated) return false;
+
+    alert("Formation saved and soccer ratings recalculated.");
+  } else {
+    alert("Formation saved.");
+  }
+
+  $("teamModal")?.close();
+  currentTeamMatchId = null;
+  currentTeamEditScope = "full";
+
+  await loadMatches();
+
+  return true;
+}
+
 async function saveTeams() {
   const teamMatchId = cleanUuidValue(currentTeamMatchId);
 
@@ -4169,6 +4372,18 @@ async function saveTeams() {
     return;
   }
 
+  const assignments = collectTeamAssignments();
+
+  if (isFormationOnlyMode()) {
+    if (!canEditFormation(match)) {
+      alert("Only captains, the match creator, or admin can save formation.");
+      return;
+    }
+
+    await saveFormationOnly(match, assignments);
+    return;
+  }
+
   if (!canManageMatch(match)) {
     alert("Only the match creator or admin can save teams.");
     return;
@@ -4181,7 +4396,6 @@ async function saveTeams() {
 
   const teamAName = $("team-a-name")?.value.trim() || "Team A";
   const teamBName = $("team-b-name")?.value.trim() || "Team B";
-  const assignments = collectTeamAssignments();
 
   const teamCountDifference = Math.abs(assignments.teamA.length - assignments.teamB.length);
 
@@ -4349,6 +4563,7 @@ async function saveTeams() {
 
   $("teamModal")?.close();
   currentTeamMatchId = null;
+  currentTeamEditScope = "full";
 
   await loadMatches();
 }
