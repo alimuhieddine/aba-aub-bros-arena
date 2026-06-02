@@ -2308,3 +2308,40 @@ main,
     justify-content: flex-start;
   }
 }
+
+
+/* === TEAM POINTS RIGHT SIDE === */
+.enhanced-team-summary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.team-summary-left {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.team-points-earned {
+  justify-self: end;
+  white-space: nowrap;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,209,102,.35);
+  background: rgba(255,209,102,.10);
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+@media (max-width: 700px) {
+  .enhanced-team-summary-row {
+    grid-template-columns: 1fr;
+  }
+
+  .team-points-earned {
+    justify-self: start;
+  }
+}
