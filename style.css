@@ -3172,3 +3172,157 @@ main,
     white-space: normal;
   }
 }
+
+
+/* === MATCH DETAIL SECTION COLLAPSIBLES === */
+.match-detail-sections {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.match-detail-section {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.025);
+  overflow: hidden;
+}
+
+.match-detail-section-toggle {
+  width: 100%;
+  border: 0;
+  background: rgba(255,255,255,.045);
+  color: var(--text);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+  text-align: left;
+  font-weight: 900;
+}
+
+.match-detail-section-toggle b {
+  color: var(--gold);
+  font-size: 12px;
+}
+
+.match-detail-section-toggle:hover {
+  background: rgba(255,255,255,.075);
+}
+
+.match-detail-section-body {
+  padding: 8px;
+}
+
+.formation-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.formation-detail-team {
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255,255,255,.03);
+  display: grid;
+  gap: 6px;
+}
+
+.formation-detail-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 8px;
+  padding-top: 5px;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+
+.formation-detail-row span {
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.formation-detail-row b {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.match-points-detail-list {
+  display: grid;
+  gap: 6px;
+}
+
+.match-points-detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+
+.match-points-detail-row span {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.match-points-detail-row em {
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.match-points-detail-row b {
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+/* === PLAYER PROFILE CLOSE BUTTON FIX === */
+#playerProfileModal .modal-head {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-right: 46px;
+}
+
+#playerProfileModal .modal-close-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 900;
+  z-index: 2;
+}
+
+#playerProfileModal .modal-close-btn:hover {
+  transform: scale(1.04);
+}
+
+@media (max-width: 800px) {
+  .formation-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .match-points-detail-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
