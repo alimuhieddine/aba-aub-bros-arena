@@ -2872,19 +2872,24 @@ function teamResultLine(match, team) {
   `;
 }
 
-function teamPlayerChips(team) {
+function teamPlayerChips(team, match = null) {
   const players = team.players || [];
 
   if (!players.length) return "No players assigned";
 
-  return players.map(player => `
-    <span class="team-player-chip">
-      ${player.formationPosition ? `<small>${escapeHtml(player.formationPosition)}</small>` : ""}
-      ${player.memberId ? playerLinkHtml(player.memberId, player.name, "inline-player-link") : escapeHtml(player.name)}
-      ${player.isCaptain ? `<b>C</b>` : ""}
-      ${player.isExternal ? `<em>External</em>` : ""}
-    </span>
-  `).join("");
+  return players.map(player => {
+    const ratingChange = match ? ratingChangeForPlayer(match, player.memberId, player.formationPosition) : null;
+
+    return `
+      <span class="team-player-chip">
+        ${player.formationPosition ? `<small class="position-chip">${escapeHtml(player.formationPosition)}</small>` : ""}
+        ${player.memberId ? playerLinkHtml(player.memberId, player.name, "inline-player-link") : escapeHtml(player.name)}
+        ${ratingChangeInlineHtml(ratingChange)}
+        ${player.isCaptain ? `<b>C</b>` : ""}
+        ${player.isExternal ? `<em>External</em>` : ""}
+      </span>
+    `;
+  }).join("");
 }
 
 function renderTeamsSummary(match) {
@@ -2906,7 +2911,7 @@ function renderTeamsSummary(match) {
               </div>
 
               <span class="team-members-line">
-                ${teamPlayerChips(team)}
+                ${teamPlayerChips(team, match)}
               </span>
             </div>
 
@@ -3853,171 +3858,92 @@ function resetMatchFilters() {
 
 
 
-const MATCH_SECTION_DEFAULTS = {
-  teams: true,
-  result: true,
-  formation: false,
-  ratings: false
-};
 
-function matchSectionStorageKey(matchId, sectionKey) {
-  return `match_section_${matchId}_${sectionKey}`;
+const MATCH_FORMATION_DEFAULT_OPEN = false;
+
+function matchFormationStorageKey(matchId) {
+  return `match_formation_open_${matchId}`;
 }
 
-function isMatchSectionOpen(matchId, sectionKey) {
-  const saved = localStorage.getItem(matchSectionStorageKey(matchId, sectionKey));
+function isMatchFormationOpen(matchId) {
+  const saved = localStorage.getItem(matchFormationStorageKey(matchId));
 
   if (saved === "open") return true;
   if (saved === "closed") return false;
 
-  return Boolean(MATCH_SECTION_DEFAULTS[sectionKey]);
+  return MATCH_FORMATION_DEFAULT_OPEN;
 }
 
-function toggleMatchSection(matchId, sectionKey) {
-  const nextOpen = !isMatchSectionOpen(matchId, sectionKey);
+function toggleMatchFormation(matchId) {
+  const nextOpen = !isMatchFormationOpen(matchId);
 
-  localStorage.setItem(
-    matchSectionStorageKey(matchId, sectionKey),
-    nextOpen ? "open" : "closed"
-  );
+  localStorage.setItem(matchFormationStorageKey(matchId), nextOpen ? "open" : "closed");
 
   renderMatches();
 }
 
-function renderMatchDetailSection(match, sectionKey, title, contentHtml) {
-  if (!contentHtml) return "";
+function ratingChangeForPlayer(match, memberId, fallbackPosition = "") {
+  const cleanMemberId = cleanUuidValue(memberId);
 
-  const open = isMatchSectionOpen(match.id, sectionKey);
+  if (!cleanMemberId) return null;
+
+  const cleanFallbackPosition = normalizeSoccerPosition(fallbackPosition);
+
+  const rows = (match.match_position_rating_adjustments || []).filter(row =>
+    cleanUuidValue(row.member_id) === cleanMemberId
+  );
+
+  if (!rows.length) return null;
+
+  const preferred = cleanFallbackPosition
+    ? rows.find(row => normalizeSoccerPosition(row.position_name) === cleanFallbackPosition)
+    : null;
+
+  const row = preferred || rows[0];
+
+  const before = Number(row.rating_before ?? 0);
+  const after = Number(row.rating_after ?? 0);
+  const delta = after - before;
+
+  if (!Number.isFinite(before) || !Number.isFinite(after)) return null;
+
+  return {
+    position: normalizeSoccerPosition(row.position_name) || row.position_name || "",
+    before,
+    after,
+    delta
+  };
+}
+
+function ratingChangeInlineHtml(change) {
+  if (!change) return "";
+
+  const deltaText = `${change.delta >= 0 ? "+" : ""}${change.delta.toFixed(2)}`;
 
   return `
-    <div class="match-detail-section ${open ? "open" : "closed"}">
-      <button class="match-detail-section-toggle" type="button" onclick="toggleMatchSection('${match.id}', '${sectionKey}')">
-        <span>${escapeHtml(title)}</span>
+    <small class="inline-rating-change ${change.delta >= 0 ? "positive" : "negative"}">
+      ${escapeHtml(change.position)} ${change.before.toFixed(1)}→${change.after.toFixed(1)} (${deltaText})
+    </small>
+  `;
+}
+
+function renderFormationSection(match) {
+  const content = renderTeamsSummary(match);
+
+  if (!content) return "";
+
+  const open = isMatchFormationOpen(match.id);
+
+  return `
+    <div class="match-formation-section ${open ? "open" : "closed"}">
+      <button class="match-formation-toggle" type="button" onclick="toggleMatchFormation('${match.id}')">
+        <span>Formation</span>
         <b>${open ? "▼" : "▶"}</b>
       </button>
 
-      ${
-        open
-          ? `<div class="match-detail-section-body">${contentHtml}</div>`
-          : ""
-      }
+      ${open ? `<div class="match-formation-body">${content}</div>` : ""}
     </div>
   `;
-}
-
-function renderFormationDetails(match) {
-  if (!isSoccerMatch(match)) return "";
-
-  const teams = teamAssignments(match);
-
-  if (!teams.length) return "";
-
-  return `
-    <div class="formation-details-grid">
-      ${teams.map(team => {
-        const byPosition = new Map();
-
-        SOCCER_POSITIONS.forEach(position => byPosition.set(position, []));
-
-        (team.players || []).forEach(player => {
-          const position = normalizeSoccerPosition(player.formationPosition) || "Unassigned";
-
-          if (!byPosition.has(position)) byPosition.set(position, []);
-          byPosition.get(position).push(player);
-        });
-
-        return `
-          <div class="formation-detail-team">
-            <strong>${escapeHtml(team.name || "Team")}</strong>
-
-            ${Array.from(byPosition.entries()).map(([position, players]) => `
-              <div class="formation-detail-row">
-                <span>${escapeHtml(position)}</span>
-                <b>
-                  ${
-                    players.length
-                      ? players.map(player =>
-                          `${player.memberId ? playerLinkHtml(player.memberId, player.name, "inline-player-link") : escapeHtml(player.name)}${player.isCaptain ? " (C)" : ""}${player.isExternal ? " (External)" : ""}`
-                        ).join(", ")
-                      : "-"
-                  }
-                </b>
-              </div>
-            `).join("")}
-          </div>
-        `;
-      }).join("")}
-    </div>
-  `;
-}
-
-function renderMatchPointsDetails(match) {
-  const points = (match.match_member_points || [])
-    .filter(point => point.member_id)
-    .sort((a, b) =>
-      Number(b.total_points || b.base_points || 0) - Number(a.total_points || a.base_points || 0) ||
-      memberDisplayName(a.member).localeCompare(memberDisplayName(b.member))
-    );
-
-  if (!points.length) return "";
-
-  return `
-    <div class="match-points-detail-list">
-      ${points.map(point => {
-        const member = point.member || memberById(point.member_id);
-        const teamInfo = teamResultForMember(match, point.member_id);
-        const total = Number(point.total_points ?? point.base_points ?? 0);
-
-        return `
-          <div class="match-points-detail-row">
-            <span>
-              ${point.member_id ? playerLinkHtml(point.member_id, memberDisplayName(member), "inline-player-link") : escapeHtml(memberDisplayName(member))}
-              <em>${escapeHtml(teamInfo.result || "played")}</em>
-            </span>
-            <b>+${total} pts</b>
-          </div>
-        `;
-      }).join("")}
-    </div>
-  `;
-}
-
-function renderMatchSections(match) {
-  const teamsHtml = renderTeamsSummary(match);
-  const resultHtml = renderScoreSummary(match);
-  const formationHtml = renderFormationDetails(match);
-  const ratingsHtml = renderRatingChanges(match);
-
-  const sections = [
-    renderMatchDetailSection(match, "teams", "Teams", teamsHtml),
-    renderMatchDetailSection(match, "result", "Result", resultHtml),
-    renderMatchDetailSection(match, "formation", "Formation", formationHtml),
-    renderMatchDetailSection(match, "ratings", "Rating changes", ratingsHtml)
-  ].filter(Boolean);
-
-  return sections.length
-    ? `<div class="match-detail-sections">${sections.join("")}</div>`
-    : "";
-}
-
-function collapseAllMatchCards() {
-  filteredMatches().forEach(match => {
-    Object.keys(MATCH_SECTION_DEFAULTS).forEach(sectionKey => {
-      localStorage.setItem(matchSectionStorageKey(match.id, sectionKey), "closed");
-    });
-  });
-
-  renderMatches();
-}
-
-function expandAllMatchCards() {
-  filteredMatches().forEach(match => {
-    Object.keys(MATCH_SECTION_DEFAULTS).forEach(sectionKey => {
-      localStorage.setItem(matchSectionStorageKey(match.id, sectionKey), "open");
-    });
-  });
-
-  renderMatches();
 }
 
 function renderMatches() {
@@ -4061,6 +3987,7 @@ function renderMatches() {
     const userIsIn = currentVoteStatus === "in";
     const canVoteThisMatch = Boolean(invitation || isCreator || isAdmin);
     const conflictingVoteMatch = !userIsIn && votingOpen ? voteInTimeConflict(match) : null;
+    const teamsAssigned = matchHasTeamsAssigned(match);
 
     return `
       <article class="card">
@@ -4100,9 +4027,11 @@ function renderMatches() {
               • Invited: ${counts.invitedCount}
             </div>
 
-            <div class="meta">
-              IN players: ${inPlayerNames(match).length ? escapeHtml(inPlayerNames(match).join(", ")) : "-"}
-            </div>
+            ${
+              !teamsAssigned
+                ? `<div class="meta">IN players: ${inPlayerNames(match).length ? escapeHtml(inPlayerNames(match).join(", ")) : "-"}</div>`
+                : ""
+            }
 
             ${
               conflictingVoteMatch
@@ -4110,13 +4039,11 @@ function renderMatches() {
                 : ""
             }
 
-            ${renderTeamsSummary(match)}
+            ${renderFormationSection(match)}
 
             ${renderScoreSummary(match)}
 
             ${renderPointsSummary(match)}
-
-            ${renderRatingChanges(match)}
 
             ${
               externalCount && canManageMatch(match) && matchEditable
