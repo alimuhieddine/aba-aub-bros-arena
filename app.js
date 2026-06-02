@@ -2210,6 +2210,57 @@ function teamAssignments(match) {
   }));
 }
 
+
+function teamPointText(match, team) {
+  const pointsByMember = new Map();
+
+  (match.match_member_points || []).forEach(point => {
+    if (point.member_id) {
+      pointsByMember.set(point.member_id, Number(point.total_points || 0));
+    }
+  });
+
+  const pointValues = (team.match_team_players || [])
+    .map(player => pointsByMember.get(player.member_id))
+    .filter(value => Number.isFinite(value));
+
+  const uniquePointValues = Array.from(new Set(pointValues));
+
+  if (!uniquePointValues.length) return "";
+
+  return uniquePointValues.length === 1
+    ? `+${uniquePointValues[0]} pts each`
+    : uniquePointValues.map(value => `+${value}`).join(" / ");
+}
+
+function teamResultLine(match, team) {
+  if (!hasSubmittedScore(match)) return "";
+
+  const score = Number(team.score || 0);
+  const result = team.result || "-";
+  const pointsText = teamPointText(match, team);
+
+  return `
+    <span class="team-result-pill ${escapeHtml(result)}">
+      ${score} • ${escapeHtml(result)}
+      ${pointsText ? ` • ${escapeHtml(pointsText)}` : ""}
+    </span>
+  `;
+}
+
+function teamPlayerChips(team) {
+  const players = team.players || [];
+
+  if (!players.length) return "No players assigned";
+
+  return players.map(player => `
+    <span class="team-player-chip">
+      ${escapeHtml(player.name)}
+      ${player.isExternal ? `<em>External</em>` : ""}
+    </span>
+  `).join("");
+}
+
 function renderTeamsSummary(match) {
   const teams = teamAssignments(match);
 
@@ -2218,14 +2269,14 @@ function renderTeamsSummary(match) {
   return `
     <div class="teams-summary">
       ${teams.map(team => `
-        <div class="team-summary-row">
-          <strong>${escapeHtml(team.name || "Team")}</strong>
-          <span>
-            ${
-              team.players.length
-                ? escapeHtml(team.players.map(player => player.name).join(", "))
-                : "No players assigned"
-            }
+        <div class="team-summary-row enhanced-team-summary-row">
+          <div class="team-summary-main">
+            <strong>${escapeHtml(team.name || "Team")}</strong>
+            ${teamResultLine(match, team)}
+          </div>
+
+          <span class="team-members-line">
+            ${teamPlayerChips(team)}
           </span>
         </div>
       `).join("")}
@@ -2818,83 +2869,64 @@ function hasSubmittedScore(match) {
 }
 
 function renderScoreSummary(match) {
-  const teams = match.match_teams || [];
-
-  if (!teams.length || !hasSubmittedScore(match)) return "";
+  if (!hasSubmittedScore(match)) return "";
 
   const sessionGames = matchSessionGames(match);
   const legacyPadelSets = scoreEntries(match, "padel_set")
     .filter(entry => !entry.game_id)
     .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0));
 
-  return `
-    <div class="score-summary">
-      ${teams.map(team => `
-        <div class="score-summary-row">
-          <strong>${escapeHtml(team.name || "Team")}</strong>
-          <span>${Number(team.score || 0)}</span>
-          <em>${escapeHtml(team.result || "-")}</em>
+  const padelDetails = isPadelMatch(match)
+    ? sessionGames.length
+      ? `
+        <div class="padel-score-summary">
+          ${sessionGames.map((game, index) => {
+            const gameSets = scoreEntriesForGame(match, game.id)
+              .filter(entry => entry.entry_type === "padel_set")
+              .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0));
+
+            return `
+              <div>
+                <strong>${escapeHtml(game.title || `Game ${index + 1}`)}</strong>
+                — ${escapeHtml(padelGameStatusLabel(game, gameSets))}
+                ${game.winner_team ? ` • Winner: Team ${escapeHtml(game.winner_team)}` : ""}
+              </div>
+              ${gameSets.map(set => `
+                <div>
+                  Set ${Number(set.set_number || 0)}:
+                  ${Number(set.team_a_score || 0)}-${Number(set.team_b_score || 0)}
+                  ${set.is_completed ? "" : " incomplete"}
+                </div>
+              `).join("")}
+            `;
+          }).join("")}
         </div>
-      `).join("")}
-
-      ${
-        sessionGames.length
-          ? isPadelMatch(match)
-            ? `
-              <div class="padel-score-summary">
-                ${sessionGames.map((game, index) => {
-                  const gameSets = scoreEntriesForGame(match, game.id)
-                    .filter(entry => entry.entry_type === "padel_set")
-                    .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0));
-
-                  return `
-                    <div>
-                      <strong>${escapeHtml(game.title || `Game ${index + 1}`)}</strong>
-                      — ${escapeHtml(padelGameStatusLabel(game, gameSets))}
-                      ${game.winner_team ? ` • Winner: Team ${escapeHtml(game.winner_team)}` : ""}
-                    </div>
-                    ${gameSets.map(set => `
-                      <div>
-                        Set ${Number(set.set_number || 0)}:
-                        ${Number(set.team_a_score || 0)}-${Number(set.team_b_score || 0)}
-                        ${set.is_completed ? "" : " incomplete"}
-                      </div>
-                    `).join("")}
-                  `;
-                }).join("")}
+      `
+      : legacyPadelSets.length
+        ? `
+          <div class="padel-score-summary">
+            ${legacyPadelSets.map(set => `
+              <div>
+                Set ${Number(set.set_number || 0)}:
+                ${Number(set.team_a_score || 0)}-${Number(set.team_b_score || 0)}
+                ${set.is_completed ? "" : " incomplete"}
               </div>
-            `
-            : `
-              <div class="padel-score-summary">
-                ${sessionGames.slice(0, 1).map(game => `
-                  <div>
-                    <strong>${escapeHtml(game.title || "Game")}</strong>
-                    — completed
-                    ${game.winner_team && game.winner_team !== "draw" ? ` • Winner: Team ${escapeHtml(game.winner_team)}` : ""}
-                  </div>
-                `).join("")}
-              </div>
-            `
-          : legacyPadelSets.length
-            ? `
-              <div class="padel-score-summary">
-                ${legacyPadelSets.map(set => `
-                  <div>
-                    Set ${Number(set.set_number || 0)}:
-                    ${Number(set.team_a_score || 0)}-${Number(set.team_b_score || 0)}
-                    ${set.is_completed ? "" : " incomplete"}
-                  </div>
-                `).join("")}
-              </div>
-            `
-            : ""
-      }
+            `).join("")}
+          </div>
+        `
+        : ""
+    : "";
 
-      ${
-        match.notes
-          ? `<div class="score-notes">${escapeHtml(match.notes)}</div>`
-          : ""
-      }
+  const notes = match.notes
+    ? `<div class="score-notes">${escapeHtml(match.notes)}</div>`
+    : "";
+
+  if (!padelDetails && !notes) return "";
+
+  return `
+    <div class="score-summary compact-score-summary">
+      ${padelDetails}
+      ${notes}
     </div>
   `;
 }
@@ -4886,55 +4918,7 @@ async function saveMatchMemberPoints(match) {
 }
 
 function renderPointsSummary(match) {
-  if (!match.match_member_points || !match.match_member_points.length) return "";
-
-  const teams = match.match_teams || [];
-
-  if (!teams.length) return "";
-
-  const pointsByMember = new Map();
-
-  (match.match_member_points || []).forEach(point => {
-    if (point.member_id) {
-      pointsByMember.set(point.member_id, Number(point.total_points || 0));
-    }
-  });
-
-  const rows = teams.map(team => {
-    const players = team.match_team_players || [];
-    const pointValues = players
-      .map(player => pointsByMember.get(player.member_id))
-      .filter(value => Number.isFinite(value));
-
-    const uniquePointValues = Array.from(new Set(pointValues));
-
-    return {
-      team,
-      playerCount: players.length,
-      pointText: uniquePointValues.length === 1
-        ? `+${uniquePointValues[0]} each`
-        : uniquePointValues.length
-          ? uniquePointValues.map(value => `+${value}`).join(" / ")
-          : "-"
-    };
-  });
-
-  if (!rows.length) return "";
-
-  return `
-    <div class="points-summary">
-      <strong>Points earned</strong>
-      ${rows.map(row => `
-        <div class="points-row">
-          <span>
-            ${escapeHtml(row.team.name || "Team")}
-            ${row.playerCount ? `(${row.playerCount} player${row.playerCount === 1 ? "" : "s"})` : ""}
-          </span>
-          <b>${escapeHtml(row.pointText)}</b>
-        </div>
-      `).join("")}
-    </div>
-  `;
+  return "";
 }
 
 
@@ -5381,9 +5365,7 @@ async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, result
 
     const { error } = await supabaseClient
       .from("match_position_rating_adjustments")
-      .upsert(finalAdjustmentRows, {
-        onConflict: "match_id,member_id,sport_id"
-      });
+      .insert(finalAdjustmentRows);
 
     if (error) {
       alert(error.message);
