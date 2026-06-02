@@ -2211,6 +2211,20 @@ function teamPointText(match, team) {
     : uniquePointValues.map(value => `+${value}`).join(" / ");
 }
 
+
+function teamScoreResultLine(match, team) {
+  if (!hasSubmittedScore(match)) return "";
+
+  const score = Number(team.score || 0);
+  const result = team.result || "-";
+
+  return `
+    <span class="team-result-pill ${escapeHtml(result)}">
+      ${score} • ${escapeHtml(result)}
+    </span>
+  `;
+}
+
 function teamResultLine(match, team) {
   if (!hasSubmittedScore(match)) return "";
 
@@ -2246,18 +2260,30 @@ function renderTeamsSummary(match) {
 
   return `
     <div class="teams-summary">
-      ${teams.map(team => `
-        <div class="team-summary-row enhanced-team-summary-row">
-          <div class="team-summary-main">
-            <strong>${escapeHtml(team.name || "Team")}</strong>
-            ${teamResultLine(match, team)}
-          </div>
+      ${teams.map(team => {
+        const pointsText = teamPointText(match, team);
 
-          <span class="team-members-line">
-            ${teamPlayerChips(team)}
-          </span>
-        </div>
-      `).join("")}
+        return `
+          <div class="team-summary-row enhanced-team-summary-row">
+            <div class="team-summary-left">
+              <div class="team-summary-main">
+                <strong>${escapeHtml(team.name || "Team")}</strong>
+                ${teamScoreResultLine(match, team)}
+              </div>
+
+              <span class="team-members-line">
+                ${teamPlayerChips(team)}
+              </span>
+            </div>
+
+            ${
+              pointsText
+                ? `<div class="team-points-earned">${escapeHtml(pointsText)}</div>`
+                : ""
+            }
+          </div>
+        `;
+      }).join("")}
     </div>
   `;
 }
