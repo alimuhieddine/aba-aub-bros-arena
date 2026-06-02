@@ -2229,3 +2229,82 @@ main,
     white-space: normal;
   }
 }
+
+
+/* === INLINE TEAM RESULTS === */
+.enhanced-team-summary-row {
+  align-items: flex-start;
+}
+
+.team-summary-main {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.team-result-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.05);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: capitalize;
+}
+
+.team-result-pill.win {
+  color: var(--accent);
+  border-color: rgba(36,209,126,.35);
+  background: rgba(36,209,126,.10);
+}
+
+.team-result-pill.loss {
+  color: var(--danger);
+  border-color: rgba(255,95,103,.35);
+  background: rgba(255,95,103,.10);
+}
+
+.team-result-pill.draw {
+  color: var(--gold);
+  border-color: rgba(255,209,102,.35);
+  background: rgba(255,209,102,.10);
+}
+
+.team-members-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
+.team-player-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.team-player-chip em {
+  display: inline-flex;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: rgba(49,168,255,.12);
+  color: var(--accent2);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.compact-score-summary {
+  margin-top: 8px;
+}
+
+@media (max-width: 700px) {
+  .team-members-line {
+    justify-content: flex-start;
+  }
+}
