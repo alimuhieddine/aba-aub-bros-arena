@@ -2950,42 +2950,14 @@ function renderMatches() {
             ${renderPointsSummary(match)}
 
             ${
-              isFull
-                ? `<div class="meta">Match is full.</div>`
+              externalCount && canManageMatch(match) && matchEditable
+                ? `<div class="meta"><button class="tiny-btn" onclick="openExternalPlayersModal('${match.id}')">Manage external players</button></div>`
                 : ""
             }
 
             ${
-              externalCount
-                ? `
-                  <div class="external-list">
-                    <div class="meta">External players:</div>
-                    ${externalInvitations.map(inv => {
-                      const player = invitationMember(inv);
-                      const playerName = invitationMemberDisplayName(inv);
-
-                      return `
-                        <div class="external-player-row">
-                          <span>${escapeHtml(playerName)}</span>
-
-                          ${
-                            canManageMatch(match) && matchEditable
-                              ? `
-                                <button class="tiny-btn" onclick="renameExternalMember('${player?.id || ""}', '${match.id}', '${jsString(playerName)}')">
-                                  Rename
-                                </button>
-
-                                <button class="tiny-btn danger" onclick="removeExternalMemberFromMatch('${inv.id}', '${match.id}')">
-                                  Remove
-                                </button>
-                              `
-                              : ""
-                          }
-                        </div>
-                      `;
-                    }).join("")}
-                  </div>
-                `
+              isFull
+                ? `<div class="meta">Match is full.</div>`
                 : ""
             }
 
@@ -5300,10 +5272,31 @@ async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, result
     }
   }
 
-  if (adjustmentRows.length) {
+  const finalAdjustmentRows = Array.from(
+    new Map(
+      adjustmentRows.map(row => [
+        `${row.match_id}|${row.member_id}|${row.sport_id}`,
+        row
+      ])
+    ).values()
+  );
+
+  if (finalAdjustmentRows.length) {
+    // Defensive delete first because some Supabase/PostgREST schemas use a composite
+    // primary key for match_id/member_id/sport_id and may still reject duplicate rows
+    // if old adjustment rows were not fully removed.
+    const cleanMatchId = cleanUuidValue(match.id);
+
+    if (cleanMatchId) {
+      await supabaseClient
+        .from("match_position_rating_adjustments")
+        .delete()
+        .eq("match_id", cleanMatchId);
+    }
+
     const { error } = await supabaseClient
       .from("match_position_rating_adjustments")
-      .upsert(adjustmentRows, {
+      .upsert(finalAdjustmentRows, {
         onConflict: "match_id,member_id,sport_id"
       });
 
