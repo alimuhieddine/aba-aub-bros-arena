@@ -1572,8 +1572,97 @@ function leagueCompletedGames(leagueId) {
   return Array.from(gamesById.values());
 }
 
+
+function leagueRatingDeltaByMember(leagueId) {
+  const table = new Map();
+
+  leagueMatches(leagueId).forEach(match => {
+    (match.match_position_rating_adjustments || []).forEach(row => {
+      const memberId = cleanUuidValue(row.member_id);
+      if (!memberId) return;
+
+      const before = Number(row.rating_before ?? 0);
+      const after = Number(row.rating_after ?? 0);
+      const delta = Number.isFinite(before) && Number.isFinite(after)
+        ? after - before
+        : Number(row.adjustment || 0);
+
+      table.set(memberId, Number((Number(table.get(memberId) || 0) + delta).toFixed(3)));
+    });
+  });
+
+  return table;
+}
+
+function leaguePositionLeaders(leagueId) {
+  const league = leagueById(leagueId);
+  const sportId = league?.sport_id;
+  const rowsByPosition = new Map();
+
+  SOCCER_POSITIONS.forEach(position => rowsByPosition.set(position, []));
+
+  if (!sportId) return rowsByPosition;
+
+  (allPositionRatings || [])
+    .filter(row => row.sport_id === sportId)
+    .forEach(row => {
+      const position = normalizeSoccerPosition(row.position_name);
+      if (!rowsByPosition.has(position)) return;
+
+      rowsByPosition.get(position).push({
+        memberId: row.member_id,
+        name: memberDisplayName(row.members),
+        rating: Number(row.rating || 0),
+        gamesPlayed: Number(row.games_played || 0),
+        isExternal: Boolean(row.members?.is_external)
+      });
+    });
+
+  rowsByPosition.forEach((rows, position) => {
+    rows.sort((a, b) =>
+      b.rating - a.rating ||
+      b.gamesPlayed - a.gamesPlayed ||
+      a.name.localeCompare(b.name)
+    );
+
+    rowsByPosition.set(position, rows.slice(0, 5));
+  });
+
+  return rowsByPosition;
+}
+
+function leagueScoreText(match) {
+  const { teamA, teamB } = getTwoMatchTeams(match);
+
+  if (!teamA || !teamB || !hasSubmittedScore(match)) return "-";
+
+  return `${teamA.name || "Team A"} ${Number(teamA.score || 0)} - ${Number(teamB.score || 0)} ${teamB.name || "Team B"}`;
+}
+
+function leagueWinnerText(match) {
+  const { teamA, teamB } = getTwoMatchTeams(match);
+
+  if (!teamA || !teamB || !hasSubmittedScore(match)) return "-";
+
+  if (teamA.result === "win") return teamA.name || "Team A";
+  if (teamB.result === "win") return teamB.name || "Team B";
+
+  return "Draw";
+}
+
+function leagueMatchHistoryRows(leagueId) {
+  return leagueMatches(leagueId)
+    .filter(match =>
+      hasSubmittedScore(match) ||
+      getMatchDisplayStatus(match) === "finished" ||
+      getMatchDisplayStatus(match) === "completed"
+    )
+    .sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+}
+
 function leaguePlayerStandings(leagueId) {
   const table = new Map();
+  const ratingDeltas = leagueRatingDeltaByMember(leagueId);
 
   leagueMatches(leagueId).forEach(match => {
     (match.match_member_points || []).forEach(point => {
@@ -1588,7 +1677,8 @@ function leaguePlayerStandings(leagueId) {
         matches: 0,
         wins: 0,
         draws: 0,
-        losses: 0
+        losses: 0,
+        ratingDelta: 0
       };
 
       const teamInfo = teamResultForMember(match, memberId);
@@ -1601,6 +1691,8 @@ function leaguePlayerStandings(leagueId) {
       else if (result === "draw") current.draws += 1;
       else if (result === "loss") current.losses += 1;
 
+      current.ratingDelta = Number(ratingDeltas.get(memberId) || 0);
+
       table.set(memberId, current);
     });
   });
@@ -1609,6 +1701,7 @@ function leaguePlayerStandings(leagueId) {
     b.points - a.points ||
     b.wins - a.wins ||
     a.losses - b.losses ||
+    b.ratingDelta - a.ratingDelta ||
     a.name.localeCompare(b.name)
   );
 }
@@ -1661,24 +1754,33 @@ function renderLeaguePlayerStandings(leagueId) {
   }
 
   return `
-    <div class="league-standings">
+    <div class="league-standings league-player-standings">
       <div class="league-standings-title">Player standings</div>
 
-      <div class="league-standings-head">
+      <div class="league-standings-head league-player-head">
         <span>#</span>
         <span>Player</span>
-        <span>Pts</span>
+        <span>P</span>
         <span>W-D-L</span>
+        <span>Pts</span>
+        <span>Rating +/-</span>
       </div>
 
-      ${rows.map((row, index) => `
-        <div class="league-standings-row">
-          <span>${index + 1}</span>
-          <span>${escapeHtml(row.name)}</span>
-          <span><strong>${Number(row.points || 0)}</strong></span>
-          <span>${row.wins}-${row.draws}-${row.losses}</span>
-        </div>
-      `).join("")}
+      ${rows.map((row, index) => {
+        const delta = Number(row.ratingDelta || 0);
+        const deltaText = `${delta >= 0 ? "+" : ""}${delta.toFixed(2)}`;
+
+        return `
+          <div class="league-standings-row league-player-row">
+            <span>${index + 1}</span>
+            <span>${escapeHtml(row.name)}</span>
+            <span>${row.matches}</span>
+            <span>${row.wins}-${row.draws}-${row.losses}</span>
+            <span><strong>${Number(row.points || 0)}</strong></span>
+            <span class="${delta >= 0 ? "positive" : "negative"}">${deltaText}</span>
+          </div>
+        `;
+      }).join("")}
     </div>
   `;
 }
@@ -1692,20 +1794,22 @@ function renderLeagueGameStandings(leagueId) {
 
   return `
     <div class="league-standings compact-standings">
-      <div class="league-standings-title">Game/team standings</div>
+      <div class="league-standings-title">Team/game standings</div>
 
-      <div class="league-standings-head">
+      <div class="league-standings-head league-team-head">
         <span>Team</span>
         <span>P</span>
         <span>W</span>
+        <span>D</span>
         <span>L</span>
       </div>
 
       ${rows.map(row => `
-        <div class="league-standings-row">
+        <div class="league-standings-row league-team-row">
           <span>${escapeHtml(row.name)}</span>
           <span>${row.played}</span>
           <span>${row.wins}</span>
+          <span>${row.draws}</span>
           <span>${row.losses}</span>
         </div>
       `).join("")}
@@ -1713,6 +1817,75 @@ function renderLeagueGameStandings(leagueId) {
   `;
 }
 
+
+
+function renderLeaguePositionLeaders(leagueId) {
+  const league = leagueById(leagueId);
+  const sportName = String(league?.sports?.name || "").toLowerCase();
+
+  if (!sportName.includes("soccer") && !sportName.includes("football")) return "";
+
+  const leaders = leaguePositionLeaders(leagueId);
+
+  return `
+    <div class="league-standings league-position-leaders">
+      <div class="league-standings-title">Soccer position leaders</div>
+
+      <div class="league-position-grid">
+        ${SOCCER_POSITIONS.map(position => {
+          const rows = leaders.get(position) || [];
+
+          return `
+            <div class="league-position-box">
+              <div class="league-position-title">${position}</div>
+
+              ${
+                rows.length
+                  ? rows.map((row, index) => `
+                    <div class="league-position-row">
+                      <span>${index + 1}</span>
+                      <strong>${escapeHtml(row.name)}</strong>
+                      <b>${row.rating.toFixed(1)}</b>
+                    </div>
+                  `).join("")
+                  : `<div class="hint">No ${position} ratings yet.</div>`
+              }
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderLeagueMatchHistory(leagueId) {
+  const rows = leagueMatchHistoryRows(leagueId);
+
+  if (!rows.length) {
+    return `<div class="league-standings-empty">No league match history yet.</div>`;
+  }
+
+  return `
+    <div class="league-standings league-history">
+      <div class="league-standings-title">League match history</div>
+
+      ${rows.map(match => `
+        <div class="league-history-row">
+          <div>
+            <strong>${escapeHtml(match.title || "Match")}</strong>
+            <span>${escapeHtml(fmtDate(match.start_time))}</span>
+            <em>${escapeHtml(match.sports?.name || "-")} • ${escapeHtml(match.venues?.name || "-")}</em>
+          </div>
+
+          <div class="league-history-score">
+            <b>${escapeHtml(leagueScoreText(match))}</b>
+            <span>${escapeHtml(leagueWinnerText(match))}</span>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
 
 function canManageLeague(league) {
   return isCurrentUserAdmin() || league.created_by === currentProfile?.id;
@@ -1883,9 +2056,15 @@ function renderLeagues() {
             : ""
         }
 
-        ${renderLeaguePlayerStandings(league.id)}
+        <div class="league-dashboard-grid">
+          ${renderLeaguePlayerStandings(league.id)}
 
-        ${renderLeagueGameStandings(league.id)}
+          ${renderLeagueGameStandings(league.id)}
+        </div>
+
+        ${renderLeaguePositionLeaders(league.id)}
+
+        ${renderLeagueMatchHistory(league.id)}
       </article>
     `;
   }).join("");
