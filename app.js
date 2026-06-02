@@ -3852,46 +3852,162 @@ function resetMatchFilters() {
 }
 
 
-const MATCH_CARD_DEFAULTS = {
-  active: true,
-  upcoming: true,
-  full: true,
-  playing: true,
-  result_pending: true,
-  completed: false,
-  cancelled: false
+
+const MATCH_SECTION_DEFAULTS = {
+  teams: true,
+  result: true,
+  formation: false,
+  points: false,
+  ratings: false
 };
 
-function matchCardStorageKey(matchId) {
-  return `match_card_open_${matchId}`;
+function matchSectionStorageKey(matchId, sectionKey) {
+  return `match_section_${matchId}_${sectionKey}`;
 }
 
-function isMatchCardOpen(match) {
-  const saved = localStorage.getItem(matchCardStorageKey(match.id));
+function isMatchSectionOpen(matchId, sectionKey) {
+  const saved = localStorage.getItem(matchSectionStorageKey(matchId, sectionKey));
 
   if (saved === "open") return true;
   if (saved === "closed") return false;
 
-  const status = matchStatusFilterValue(match);
-
-  return MATCH_CARD_DEFAULTS[status] ?? true;
+  return Boolean(MATCH_SECTION_DEFAULTS[sectionKey]);
 }
 
-function toggleMatchCard(matchId) {
-  const match = (allMatches || []).find(item => item.id === matchId);
+function toggleMatchSection(matchId, sectionKey) {
+  const nextOpen = !isMatchSectionOpen(matchId, sectionKey);
 
-  if (!match) return;
-
-  const nextOpen = !isMatchCardOpen(match);
-
-  localStorage.setItem(matchCardStorageKey(matchId), nextOpen ? "open" : "closed");
+  localStorage.setItem(
+    matchSectionStorageKey(matchId, sectionKey),
+    nextOpen ? "open" : "closed"
+  );
 
   renderMatches();
 }
 
+function renderMatchDetailSection(match, sectionKey, title, contentHtml) {
+  if (!contentHtml) return "";
+
+  const open = isMatchSectionOpen(match.id, sectionKey);
+
+  return `
+    <div class="match-detail-section ${open ? "open" : "closed"}">
+      <button class="match-detail-section-toggle" type="button" onclick="toggleMatchSection('${match.id}', '${sectionKey}')">
+        <span>${escapeHtml(title)}</span>
+        <b>${open ? "▼" : "▶"}</b>
+      </button>
+
+      ${
+        open
+          ? `<div class="match-detail-section-body">${contentHtml}</div>`
+          : ""
+      }
+    </div>
+  `;
+}
+
+function renderFormationDetails(match) {
+  if (!isSoccerMatch(match)) return "";
+
+  const teams = teamAssignments(match);
+
+  if (!teams.length) return "";
+
+  return `
+    <div class="formation-details-grid">
+      ${teams.map(team => {
+        const byPosition = new Map();
+
+        SOCCER_POSITIONS.forEach(position => byPosition.set(position, []));
+
+        (team.players || []).forEach(player => {
+          const position = normalizeSoccerPosition(player.formationPosition) || "Unassigned";
+
+          if (!byPosition.has(position)) byPosition.set(position, []);
+          byPosition.get(position).push(player);
+        });
+
+        return `
+          <div class="formation-detail-team">
+            <strong>${escapeHtml(team.name || "Team")}</strong>
+
+            ${Array.from(byPosition.entries()).map(([position, players]) => `
+              <div class="formation-detail-row">
+                <span>${escapeHtml(position)}</span>
+                <b>
+                  ${
+                    players.length
+                      ? players.map(player =>
+                          `${player.memberId ? playerLinkHtml(player.memberId, player.name, "inline-player-link") : escapeHtml(player.name)}${player.isCaptain ? " (C)" : ""}${player.isExternal ? " (External)" : ""}`
+                        ).join(", ")
+                      : "-"
+                  }
+                </b>
+              </div>
+            `).join("")}
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderMatchPointsDetails(match) {
+  const points = (match.match_member_points || [])
+    .filter(point => point.member_id)
+    .sort((a, b) =>
+      Number(b.total_points || b.base_points || 0) - Number(a.total_points || a.base_points || 0) ||
+      memberDisplayName(a.member).localeCompare(memberDisplayName(b.member))
+    );
+
+  if (!points.length) return "";
+
+  return `
+    <div class="match-points-detail-list">
+      ${points.map(point => {
+        const member = point.member || memberById(point.member_id);
+        const teamInfo = teamResultForMember(match, point.member_id);
+        const total = Number(point.total_points ?? point.base_points ?? 0);
+
+        return `
+          <div class="match-points-detail-row">
+            <span>
+              ${point.member_id ? playerLinkHtml(point.member_id, memberDisplayName(member), "inline-player-link") : escapeHtml(memberDisplayName(member))}
+              <em>${escapeHtml(teamInfo.result || "played")}</em>
+            </span>
+            <b>+${total} pts</b>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderMatchSections(match) {
+  const teamsHtml = renderTeamsSummary(match);
+  const resultHtml = renderScoreSummary(match);
+  const formationHtml = renderFormationDetails(match);
+  const pointsHtml = renderMatchPointsDetails(match);
+  const ratingsHtml = renderRatingChanges(match);
+
+  const sections = [
+    renderMatchDetailSection(match, "teams", "Teams", teamsHtml),
+    renderMatchDetailSection(match, "result", "Result", resultHtml),
+    renderMatchDetailSection(match, "formation", "Formation", formationHtml),
+    renderMatchDetailSection(match, "points", "Points", pointsHtml),
+    renderMatchDetailSection(match, "ratings", "Rating changes", ratingsHtml)
+  ].filter(Boolean);
+
+  return sections.length
+    ? `<div class="match-detail-sections">${sections.join("")}</div>`
+    : "";
+}
+
 function collapseAllMatchCards() {
   filteredMatches().forEach(match => {
-    localStorage.setItem(matchCardStorageKey(match.id), "closed");
+    Object.keys(MATCH_SECTION_DEFAULTS).forEach(sectionKey => {
+      localStorage.setItem(matchSectionStorageKey(match.id, sectionKey), "closed");
+    });
   });
 
   renderMatches();
@@ -3899,7 +4015,9 @@ function collapseAllMatchCards() {
 
 function expandAllMatchCards() {
   filteredMatches().forEach(match => {
-    localStorage.setItem(matchCardStorageKey(match.id), "open");
+    Object.keys(MATCH_SECTION_DEFAULTS).forEach(sectionKey => {
+      localStorage.setItem(matchSectionStorageKey(match.id, sectionKey), "open");
+    });
   });
 
   renderMatches();
@@ -3946,16 +4064,12 @@ function renderMatches() {
     const userIsIn = currentVoteStatus === "in";
     const canVoteThisMatch = Boolean(invitation || isCreator || isAdmin);
     const conflictingVoteMatch = !userIsIn && votingOpen ? voteInTimeConflict(match) : null;
-    const cardOpen = isMatchCardOpen(match);
 
     return `
-      <article class="card match-collapsible-card ${cardOpen ? "open" : "closed"}">
+      <article class="card match-card">
         <div class="row match-card-head">
           <div>
-            <button class="match-card-toggle" type="button" onclick="toggleMatchCard('${match.id}')">
-              <span>${cardOpen ? "▼" : "▶"}</span>
-              <h3>${escapeHtml(match.title || "Untitled match")}</h3>
-            </button>
+            <h3>${escapeHtml(match.title || "Untitled match")}</h3>
 
             <div class="meta">
               ${escapeHtml(match.sports?.name || "-")}
@@ -3963,7 +4077,6 @@ function renderMatches() {
               • ${fmtDate(match.start_time)}
             </div>
 
-            ${cardOpen ? `
             ${
               match.league_id
                 ? `<div class="meta">🏆 League: ${escapeHtml(leagueNameForId(match.league_id) || "Linked league")}</div>`
@@ -4000,14 +4113,6 @@ function renderMatches() {
                 : ""
             }
 
-            ${renderTeamsSummary(match)}
-
-            ${renderScoreSummary(match)}
-
-            ${renderPointsSummary(match)}
-
-            ${renderRatingChanges(match)}
-
             ${
               externalCount && canManageMatch(match) && matchEditable
                 ? `<div class="meta"><button class="tiny-btn" onclick="openExternalPlayersModal('${match.id}')">Manage external players</button></div>`
@@ -4031,7 +4136,6 @@ function renderMatches() {
                 ? `<div class="meta">${escapeHtml(match.notes)}</div>`
                 : ""
             }
-            ` : ""}
           </div>
 
           <span class="pill ${getMatchStatusClass(displayStatus, isFull)}">
@@ -4039,8 +4143,10 @@ function renderMatches() {
           </span>
         </div>
 
+        ${renderMatchSections(match)}
+
         ${
-         cardOpen && canVoteThisMatch && votingOpen
+         canVoteThisMatch && votingOpen
             ? `
               <div class="actions">
                 <button
@@ -4070,7 +4176,7 @@ function renderMatches() {
         }
 
         ${
-          cardOpen && !canManageMatch(match) && canEditFormation(match) && (match.match_teams || []).length
+          !canManageMatch(match) && canEditFormation(match) && (match.match_teams || []).length
             ? `
               <div class="actions">
                 <button class="small-btn" onclick="openTeamAssignment('${match.id}', 'formation')">
@@ -4082,7 +4188,7 @@ function renderMatches() {
         }
 
         ${
-          cardOpen && canManageMatch(match)
+          canManageMatch(match)
             ? `
               <div class="actions">
                 ${
@@ -4140,6 +4246,7 @@ function renderMatches() {
     `;
   }).join("");
 }
+
 
 function toDateTimeLocal(iso) {
   if (!iso) return "";
