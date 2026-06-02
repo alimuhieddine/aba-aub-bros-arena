@@ -3930,19 +3930,49 @@ function ratingChangeInlineHtml(change) {
   `;
 }
 
-function formationSectionTitle(match) {
+function formationSectionTitleParts(match) {
   const { teamA, teamB } = getTwoMatchTeams(match);
 
-  if (!teamA || !teamB) return "Game Stats";
-
-  const teamAName = teamA.name || "Team A";
-  const teamBName = teamB.name || "Team B";
-
-  if (hasSubmittedScore(match)) {
-    return `Game Stats: ${teamAName} ${Number(teamA.score || 0)} - ${Number(teamB.score || 0)} ${teamBName}`;
+  if (!teamA || !teamB) {
+    return {
+      teamAName: "",
+      teamBName: "",
+      scoreA: null,
+      scoreB: null,
+      hasScore: false
+    };
   }
 
-  return `Game Stats: ${teamAName} - ${teamBName}`;
+  return {
+    teamAName: teamA.name || "Team A",
+    teamBName: teamB.name || "Team B",
+    scoreA: Number(teamA.score || 0),
+    scoreB: Number(teamB.score || 0),
+    hasScore: hasSubmittedScore(match)
+  };
+}
+
+function formationSectionTitleHtml(match) {
+  const parts = formationSectionTitleParts(match);
+
+  if (!parts.teamAName || !parts.teamBName) {
+    return `<span class="game-stats-label">Game Stats</span>`;
+  }
+
+  return `
+    <span class="game-stats-title">
+      <span class="game-stats-label">Game Stats</span>
+      <span class="game-stats-team">${escapeHtml(parts.teamAName)}</span>
+      ${
+        parts.hasScore
+          ? `<span class="game-stats-score">${parts.scoreA}</span>
+             <span class="game-stats-dash">-</span>
+             <span class="game-stats-score">${parts.scoreB}</span>`
+          : `<span class="game-stats-dash">-</span>`
+      }
+      <span class="game-stats-team">${escapeHtml(parts.teamBName)}</span>
+    </span>
+  `;
 }
 
 function renderFormationSection(match) {
@@ -3951,12 +3981,12 @@ function renderFormationSection(match) {
   if (!content) return "";
 
   const open = isMatchFormationOpen(match.id);
-  const title = formationSectionTitle(match);
+  const titleHtml = formationSectionTitleHtml(match);
 
   return `
     <div class="match-formation-section ${open ? "open" : "closed"}">
       <button class="match-formation-toggle" type="button" onclick="toggleMatchFormation('${match.id}')">
-        <span>${escapeHtml(title)}</span>
+        ${titleHtml}
         <b>${open ? "▼" : "▶"}</b>
       </button>
 
