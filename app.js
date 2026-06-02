@@ -4543,6 +4543,10 @@ function renderTeamAssignmentList(match) {
     input.addEventListener("change", updateTeamBalanceStatus);
   });
 
+  if (!isSoccerMatch(match)) {
+    clearSuggestedFormationSummary();
+  }
+
   updateCaptainSelectors();
   updateTeamBalanceStatus();
 }
@@ -4760,6 +4764,85 @@ function soccerBalanceSummaryText(suggestion) {
   return `Soccer balance: GK ${profileA.gkStrength.toFixed(1)}-${profileB.gkStrength.toFixed(1)} • DEF ${profileA.defStrength.toFixed(1)}-${profileB.defStrength.toFixed(1)} • ATT ${profileA.attStrength.toFixed(1)}-${profileB.attStrength.toFixed(1)} • Gap ${gap.toFixed(2)}`;
 }
 
+
+function memberNameByIdForMatch(match, memberId) {
+  const inv = inPlayerInvitations(match).find(item =>
+    cleanUuidValue(item.member_id) === cleanUuidValue(memberId)
+  );
+
+  return inv ? invitationMemberDisplayName(inv) : memberId;
+}
+
+function formationSummaryRows(match, memberIds, positions, sportId) {
+  const order = ["GK", "DEF", "MID", "ATT"];
+
+  return order.map(position => {
+    const players = memberIds
+      .filter(memberId => normalizeSoccerPosition(positions.get(memberId)) === position)
+      .map(memberId => {
+        const rating = positionRatingForMember(memberId, sportId, position);
+        return `${memberNameByIdForMatch(match, memberId)} (${rating.toFixed(1)})`;
+      });
+
+    return {
+      position,
+      text: players.length ? players.join(", ") : "-"
+    };
+  });
+}
+
+function renderSuggestedFormationSummary(match, suggestion) {
+  const box = $("suggested-formation-summary");
+
+  if (!box) return;
+
+  if (!suggestion || !isSoccerMatch(match)) {
+    box.style.display = "none";
+    box.innerHTML = "";
+    return;
+  }
+
+  const rowsA = formationSummaryRows(match, suggestion.teamA, suggestion.positionsA, match.sport_id);
+  const rowsB = formationSummaryRows(match, suggestion.teamB, suggestion.positionsB, match.sport_id);
+
+  box.style.display = "";
+
+  box.innerHTML = `
+    <div class="suggested-formation-title">Suggested soccer formation</div>
+
+    <div class="suggested-formation-grid">
+      <div class="suggested-formation-team">
+        <strong>${escapeHtml($("team-a-name")?.value || "Team A")}</strong>
+        ${rowsA.map(row => `
+          <div class="suggested-formation-row">
+            <span>${escapeHtml(row.position)}</span>
+            <b>${escapeHtml(row.text)}</b>
+          </div>
+        `).join("")}
+      </div>
+
+      <div class="suggested-formation-team">
+        <strong>${escapeHtml($("team-b-name")?.value || "Team B")}</strong>
+        ${rowsB.map(row => `
+          <div class="suggested-formation-row">
+            <span>${escapeHtml(row.position)}</span>
+            <b>${escapeHtml(row.text)}</b>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function clearSuggestedFormationSummary() {
+  const box = $("suggested-formation-summary");
+
+  if (!box) return;
+
+  box.style.display = "none";
+  box.innerHTML = "";
+}
+
 function applySuggestedTeams() {
   if (!currentTeamMatchId) {
     alert("No match selected.");
@@ -4861,6 +4944,8 @@ function applySuggestedTeams() {
     if ($("team-a-captain")) $("team-a-captain").value = captainA || "";
     if ($("team-b-captain")) $("team-b-captain").value = captainB || "";
 
+    renderSuggestedFormationSummary(match, soccerSuggestion);
+
     const ratingStatus = $("team-rating-status");
 
     if (ratingStatus) {
@@ -4947,6 +5032,7 @@ function openTeamAssignment(matchId, scope = "full") {
     submitBtn.textContent = isFormationOnlyMode() ? "Save Formation" : "Save Teams";
   }
 
+  clearSuggestedFormationSummary();
   renderTeamAssignmentList(match);
   updateTeamBalanceStatus();
 
