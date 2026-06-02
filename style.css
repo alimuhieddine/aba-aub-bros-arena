@@ -3748,3 +3748,40 @@ main,
   background: rgba(255,95,103,.12) !important;
   color: var(--danger) !important;
 }
+
+
+/* === GAME STATS HEADING UPDATE === */
+.game-stats-heading-simple {
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+  font-size: 22px;
+  line-height: 1.1;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.game-stats-label-simple {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+  color: var(--text) !important;
+  font-size: 22px !important;
+  line-height: 1.1 !important;
+  font-weight: 950 !important;
+  letter-spacing: 0 !important;
+}
+
+.game-stats-team-simple {
+  font-size: 13px;
+}
+
+@media (max-width: 520px) {
+  .game-stats-heading-simple,
+  .game-stats-label-simple {
+    width: 100%;
+    font-size: 20px !important;
+  }
+}
