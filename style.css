@@ -2708,3 +2708,68 @@ main,
 #team-rating-status {
   line-height: 1.35;
 }
+
+
+/* === SUGGESTED SOCCER FORMATION SUMMARY === */
+.suggested-formation-summary {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid rgba(255,209,102,.30);
+  border-radius: 14px;
+  background: rgba(255,209,102,.075);
+}
+
+.suggested-formation-title {
+  color: var(--gold);
+  font-weight: 900;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.suggested-formation-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.suggested-formation-team {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.035);
+}
+
+.suggested-formation-team > strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.suggested-formation-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding-top: 5px;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+
+.suggested-formation-row span {
+  color: var(--gold);
+  font-weight: 900;
+  font-size: 11px;
+}
+
+.suggested-formation-row b {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 800px) {
+  .suggested-formation-grid {
+    grid-template-columns: 1fr;
+  }
+}
