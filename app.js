@@ -2441,6 +2441,61 @@ function myInvitation(match) {
   );
 }
 
+
+function matchTimeIntervalsOverlap(matchA, matchB) {
+  if (!matchA?.start_time || !matchA?.end_time || !matchB?.start_time || !matchB?.end_time) {
+    return false;
+  }
+
+  const startA = new Date(matchA.start_time).getTime();
+  const endA = new Date(matchA.end_time).getTime();
+  const startB = new Date(matchB.start_time).getTime();
+  const endB = new Date(matchB.end_time).getTime();
+
+  if (![startA, endA, startB, endB].every(Number.isFinite)) return false;
+
+  return startA < endB && endA > startB;
+}
+
+function userIsInMatch(match, memberId = currentProfile?.id) {
+  const cleanMemberId = cleanUuidValue(memberId);
+
+  if (!match || !cleanMemberId) return false;
+
+  const invitation = (match.match_invitations || []).find(inv =>
+    cleanUuidValue(inv.member_id) === cleanMemberId
+  );
+
+  if (invitation?.status === "in") return true;
+
+  const hasCreatorInvitation = (match.match_invitations || []).some(inv =>
+    cleanUuidValue(inv.member_id) === cleanUuidValue(match.created_by) &&
+    inv.status !== "removed"
+  );
+
+  return cleanUuidValue(match.created_by) === cleanMemberId && !hasCreatorInvitation;
+}
+
+function voteInTimeConflict(match) {
+  const cleanMatchId = cleanUuidValue(match?.id);
+
+  if (!match || !cleanMatchId) return null;
+
+  return (allMatches || []).find(otherMatch => {
+    const otherId = cleanUuidValue(otherMatch.id);
+
+    if (!otherId || otherId === cleanMatchId) return false;
+    if (!userIsInMatch(otherMatch)) return false;
+    if (getMatchDisplayStatus(otherMatch) === "cancelled") return false;
+
+    return matchTimeIntervalsOverlap(match, otherMatch);
+  }) || null;
+}
+
+function timeConflictMessage(match, conflictingMatch) {
+  return `You are already IN for "${conflictingMatch.title || "another match"}" (${fmtDate(conflictingMatch.start_time)} → ${fmtDate(conflictingMatch.end_time)}). You cannot vote IN for "${match.title || "this match"}" because the times overlap.`;
+}
+
 function canManageMatch(match) {
   return isCurrentUserAdmin() || match.created_by === currentProfile?.id;
 }
@@ -3431,6 +3486,7 @@ function renderMatches() {
     const isFull = maxPlayers && filledCount >= maxPlayers;
     const userIsIn = currentVoteStatus === "in";
     const canVoteThisMatch = Boolean(invitation || isCreator || isAdmin);
+    const conflictingVoteMatch = !userIsIn && votingOpen ? voteInTimeConflict(match) : null;
 
     return `
       <article class="card">
@@ -3471,6 +3527,12 @@ function renderMatches() {
             <div class="meta">
               IN players: ${inPlayerNames(match).length ? escapeHtml(inPlayerNames(match).join(", ")) : "-"}
             </div>
+
+            ${
+              conflictingVoteMatch
+                ? `<div class="meta conflict-warning">Time conflict with: ${escapeHtml(conflictingVoteMatch.title || "another match")}</div>`
+                : ""
+            }
 
             ${renderTeamsSummary(match)}
 
@@ -3517,7 +3579,7 @@ function renderMatches() {
                 <button
                   class="small-btn ${currentVoteStatus === "in" ? "selected-vote" : ""}"
                   onclick="voteMatch('${match.id}', 'in')"
-                  ${isFull && !userIsIn ? "disabled" : ""}
+                  ${(isFull && !userIsIn) || conflictingVoteMatch ? "disabled" : ""}
                 >
                   I'm In
                 </button>
@@ -3912,6 +3974,15 @@ async function voteMatch(matchId, newStatus) {
   const maxPlayers = Number(match.max_players || 0);
   const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
   const userIsCurrentlyIn = currentVoteStatus === "in";
+
+  if (newStatus === "in" && !userIsCurrentlyIn) {
+    const conflictingMatch = voteInTimeConflict(match);
+
+    if (conflictingMatch) {
+      alert(timeConflictMessage(match, conflictingMatch));
+      return;
+    }
+  }
 
   if (newStatus === "in" && maxPlayers && filledCount >= maxPlayers && !userIsCurrentlyIn) {
     alert("This match is already full. You can vote Maybe or Out.");
@@ -6021,21 +6092,27 @@ async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, result
   );
 
   if (finalAdjustmentRows.length) {
-    // Defensive delete first because some Supabase/PostgREST schemas use a composite
-    // primary key for match_id/member_id/sport_id and may still reject duplicate rows
-    // if old adjustment rows were not fully removed.
+    // Save one adjustment row per match + member + sport.
+    // Use upsert because the DB has a unique/primary key on these columns, and
+    // editing a result/formation can recalculate the same player's row.
     const cleanMatchId = cleanUuidValue(match.id);
 
     if (cleanMatchId) {
-      await supabaseClient
+      const { error: deleteError } = await supabaseClient
         .from("match_position_rating_adjustments")
         .delete()
         .eq("match_id", cleanMatchId);
+
+      if (deleteError) {
+        console.warn("Could not clear previous rating adjustments before upsert:", deleteError.message);
+      }
     }
 
     const { error } = await supabaseClient
       .from("match_position_rating_adjustments")
-      .insert(finalAdjustmentRows);
+      .upsert(finalAdjustmentRows, {
+        onConflict: "match_id,member_id,sport_id"
+      });
 
     if (error) {
       alert(error.message);
