@@ -2150,3 +2150,82 @@ main,
 .points-summary .points-row b {
   white-space: nowrap;
 }
+
+
+/* === RATING CHANGE AUDIT === */
+.rating-changes-summary {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+}
+
+.rating-changes-summary > strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.rating-change-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255,255,255,.06);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.rating-change-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rating-change-row small {
+  display: inline-flex;
+  margin-left: 5px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255,209,102,.12);
+  color: var(--gold);
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.rating-change-row em {
+  display: inline-flex;
+  margin-left: 5px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: rgba(49,168,255,.12);
+  color: var(--accent2);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.rating-change-row b {
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.rating-change-row b.positive {
+  color: var(--accent);
+}
+
+.rating-change-row b.negative {
+  color: var(--danger);
+}
+
+@media (max-width: 700px) {
+  .rating-change-row {
+    grid-template-columns: 1fr;
+  }
+
+  .rating-change-row b {
+    white-space: normal;
+  }
+}
