@@ -1,2152 +1,6528 @@
-:root {
-  --bg: #07111f;
-  --card: #0f1c2e;
-  --card2: #13243a;
-  --text: #eef6ff;
-  --muted: #93a7bf;
-  --line: rgba(255,255,255,.1);
-  --accent: #24d17e;
-  --accent2: #31a8ff;
-  --danger: #ff5f67;
-  --gold: #ffd166;
-}
-
-* {
-  box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
-}
-
-html {
-  touch-action: manipulation;
-  -webkit-text-size-adjust: 100%;
-}
+const SUPABASE_URL = "https://welleqrjtlullhbdhive.supabase.co";
+const SUPABASE_KEY = "sb_publishable_e_Pu1JLmyXBKJnMvR5guXQ_GzvFcdK-";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-  background: radial-gradient(circle at top, #123763 0, var(--bg) 48%);
-  color: var(--text);
-  min-height: 100vh;
-  overflow-x: hidden;
-}
+const $ = (id) => document.getElementById(id);
 
-.app-shell {
-  max-width: 980px;
-  margin: 0 auto;
-  padding: 18px 14px 90px;
-}
+const STORAGE_KEY = "aba_phase1_data";
 
-.hero {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 24px;
-  border: 1px solid var(--line);
-  border-radius: 28px;
-  background: linear-gradient(135deg, rgba(36,209,126,.18), rgba(49,168,255,.16));
-  box-shadow: 0 16px 48px rgba(0,0,0,.28);
-}
 
-.brand {
-  min-width: 0;
-}
+function cleanUuidValue(value) {
+  if (value === null || value === undefined) return null;
 
-.eyebrow {
-  margin: 0;
-  color: var(--accent);
-  font-weight: 800;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  font-size: 12px;
-}
+  const text = String(value).trim();
 
-h1 {
-  margin: 2px 0;
-  font-size: 56px;
-  line-height: .9;
-}
+  if (!text || text.toLowerCase() === "null" || text.toLowerCase() === "undefined") {
+    return null;
+  }
 
-.tagline {
-  margin: 0;
-  color: var(--muted);
+  return text;
 }
 
-.hero-auth {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+function isValidUuidValue(value) {
+  return Boolean(cleanUuidValue(value));
 }
 
-.hero-auth input {
-  width: 150px;
-  height: 34px;
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(2, 12, 28, 0.75);
-  color: white;
-  padding: 0 10px;
-  font-size: 16px;
-  outline: none;
+function futureDate(days, hour) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  d.setHours(hour, 0, 0, 0);
+  return d.toISOString();
 }
 
-.hero-auth input::placeholder {
-  color: rgba(255,255,255,0.55);
-}
+const demoData = {
+  leagues: [
+    { id: crypto.randomUUID(), name: "ABA Padel League", sport: "Padel", format: "Doubles race to 10", createdAt: Date.now() },
+    { id: crypto.randomUUID(), name: "Friday Football Table", sport: "Soccer", format: "5v5 weekly ranking", createdAt: Date.now() }
+  ],
+  matches: [
+    { id: crypto.randomUUID(), sport: "Padel", title: "Wolf & Fox vs Green Pigs", type: "League", date: futureDate(2, 20), venue: "The Padict Club", address: "Beirut", comments: ["Revenge match loading 😂"] },
+    { id: crypto.randomUUID(), sport: "Soccer", title: "ABA Friday 5v5", type: "Friendly", date: futureDate(5, 21), venue: "AUB Green Field", address: "AUB, Beirut", comments: [] }
+  ],
+  activities: [
+    { id: crypto.randomUUID(), player: "Ali", sport: "Padel", activity: "90 min padel session", proof: "Smartwatch screenshot", points: 15, approvals: ["Committee 1", "Committee 2"], createdAt: Date.now() - 86400000 },
+    { id: crypto.randomUUID(), player: "Hammoudi", sport: "Gym", activity: "Leg day + cardio", proof: "Gym photo", points: 10, approvals: ["Committee 1"], createdAt: Date.now() - 3600000 }
+  ]
+};
 
-.auth-actions {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-}
+async function loadSportsOptions() {
+  if (!isCurrentUserAdmin()) return;
 
-.primary-btn,
-.secondary-btn,
-.ghost-btn,
-.small-btn {
-  font: inherit;
-  cursor: pointer;
-}
+  const { data, error } = await supabaseClient
+    .from("sports")
+    .select("id,name")
+    .order("name", { ascending: true });
 
-.primary-btn,
-.secondary-btn {
-  height: 34px;
-  padding: 0 14px;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 800;
-  white-space: nowrap;
-}
+  if (error) {
+    alert(error.message);
+    return;
+  }
 
-.primary-btn {
-  border: none;
-  background: linear-gradient(90deg, #2fd28b, #36a8f5);
-  color: #05101c;
-}
+  allSports = data || [];
 
-.secondary-btn {
-  background: rgba(255,255,255,0.06);
-  color: white;
-  border: 1px solid rgba(255,255,255,0.18);
-}
+  const box = $("venue-sports-options");
+  if (!box) return;
 
-.logged-in-box {
-  flex-direction: column;
-  align-items: flex-end !important;
-  justify-content: flex-start;
-  gap: 8px;
-}
+  if (allSports.length === 0) {
+    box.innerHTML = "No sports found.";
+    return;
+  }
 
-.logged-user {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  text-align: right;
+  box.innerHTML = allSports.map(sport => `
+    <label class="sport-chip">
+      <input type="checkbox" value="${sport.id}" class="venue-sport-checkbox">
+      <span>${escapeHtml(sport.name)}</span>
+    </label>
+  `).join("");
 }
-
-.logged-label {
-  font-size: 10px;
-  color: var(--muted);
-  line-height: 1;
+function getSelectedVenueSportIds() {
+  return Array.from(document.querySelectorAll(".venue-sport-checkbox"))
+    .filter(cb => cb.checked)
+    .map(cb => cb.value);
 }
 
-#current-user {
-  font-size: 12px;
-  font-weight: 600;
-  color: white;
-  line-height: 1.25;
-  white-space: nowrap;
-}
+function setSelectedVenueSports(sportIds) {
+  const selected = new Set(sportIds || []);
 
-#logout-btn {
-  width: 70px;
-  min-width: 70px;
-  height: 26px;
-  align-self: flex-end !important;
-  font-size: 11px;
-  padding: 0;
+  document.querySelectorAll(".venue-sport-checkbox").forEach(cb => {
+    cb.checked = selected.has(cb.value);
+  });
 }
 
-.ghost-btn {
-  border: 0;
-  border-radius: 14px;
-  padding: 10px 14px;
-  font-weight: 800;
-  background: rgba(255,255,255,.08);
-  color: var(--text);
-}
+async function saveVenueSports(venueId, sportIds) {
+  if (!venueId) {
+    alert("Venue id missing. Cannot save sports.");
+    return false;
+  }
 
-.small-btn {
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.06);
-  color: var(--text);
-  padding: 8px 10px;
-  border-radius: 12px;
-}
+  const { error: deleteError } = await supabaseClient
+    .from("venue_sports")
+    .delete()
+    .eq("venue_id", venueId);
+
+  if (deleteError) {
+    alert(deleteError.message);
+    return false;
+  }
+
+  if (!sportIds || sportIds.length === 0) {
+    return true;
+  }
+
+  const rows = sportIds.map(sportId => ({
+    venue_id: venueId,
+    sport_id: sportId
+  }));
+
+  const { error: insertError } = await supabaseClient
+    .from("venue_sports")
+    .insert(rows);
+
+  if (insertError) {
+    alert(insertError.message);
+    return false;
+  }
+
+  return true;
+}
+
+async function loadVenues() {
+  if (!isCurrentUserAdmin()) return;
+
+  const { data, error } = await supabaseClient
+    .from("venues")
+    .select(`
+      id,
+      name,
+      address,
+      google_maps_url,
+      image_url,
+      is_active,
+      created_at,
+      venue_sports (
+        sport_id,
+        sports (
+          id,
+          name
+        )
+      )
+    `)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  allVenues = data || [];
+  const box = $("venuesList");
+  if (!box) return;
+
+  if (!data || data.length === 0) {
+    box.innerHTML = `<article class="card">No venues added yet.</article>`;
+    return;
+  }
+
+  box.innerHTML = data.map(venue => {
+    const sportNames = (venue.venue_sports || [])
+      .map(vs => vs.sports?.name)
+      .filter(Boolean);
+
+    const sportIds = (venue.venue_sports || [])
+      .map(vs => vs.sport_id)
+      .filter(Boolean);
+
+   
 
-.tabs {
-  position: sticky;
-  top: 0;
-  z-index: 4;
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  margin: 16px 0;
-  padding: 8px;
-  border-radius: 20px;
-  background: rgba(7,17,31,.88);
-  backdrop-filter: blur(12px);
-}
+    return `
+  <article class="card venue-card">
+    <div class="venue-row">
+
+      <div class="venue-thumb">
+        ${
+          venue.image_url
+            ? `<img src="${escapeHtml(venue.image_url)}" alt="${escapeHtml(venue.name || "Venue")}">`
+            : `<div class="venue-placeholder">No Image</div>`
+        }
+      </div>
+
+      <div class="venue-info">
+        <div class="venue-main">
+          <h3>${escapeHtml(venue.name || "Unnamed venue")}</h3>
+          <div class="meta">${escapeHtml(venue.address || "-")}</div>
+          <div class="meta">
+            Sports: ${sportNames.length ? escapeHtml(sportNames.join(", ")) : "-"}
+          </div>
+          ${
+            venue.google_maps_url
+              ? `<div class="meta"><a href="${escapeHtml(venue.google_maps_url)}" target="_blank">Open Map</a></div>`
+              : ""
+          }
+        </div>
 
-.tab,
-button {
-  font: inherit;
-}
+        <div class="venue-side">
+          <span class="pill ${venue.is_active ? "green" : "red"}">
+            ${venue.is_active ? "Active" : "Inactive"}
+          </span>
 
-.tab {
-  border: 0;
-  color: var(--muted);
-  background: transparent;
-  padding: 11px 14px;
-  border-radius: 14px;
-  white-space: nowrap;
-}
+          <button
+            class="small-btn"
+            onclick="editVenue('${venue.id}')"
+          >
+            Edit
+          </button>
 
-.tab.active {
-  background: var(--card2);
-  color: var(--text);
-}
+          <button
+            class="small-btn"
+            onclick="toggleVenueActive('${venue.id}', ${venue.is_active})"
+          >
+            ${venue.is_active ? "Deactivate" : "Reactivate"}
+          </button>
+        </div>
+      </div>
 
-.view {
-  display: none;
+    </div>
+  </article>
+`;
+  }).join("");
 }
 
-.active-view {
-  display: block;
+function clearVenueForm() {
+  if ($("venue-name")) $("venue-name").value = "";
+  if ($("venue-address")) $("venue-address").value = "";
+  if ($("venue-google-maps-url")) $("venue-google-maps-url").value = "";
+  if ($("venue-map-url")) $("venue-map-url").value = "";
+  if ($("venue-image-url")) $("venue-image-url").value = "";
+
+  setSelectedVenueSports([]);
+
+  editingVenueId = null;
+
+  const btn = $("add-venue-btn");
+  if (btn) btn.textContent = "Add Venue";
 }
 
-.section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 18px 0 12px;
-}
+function editVenue(id) {
+  const venue = allVenues.find(v => v.id === id);
 
-h2,
-h3 {
-  margin: 0;
-}
+  if (!venue) {
+    alert("Venue not found.");
+    return;
+  }
 
-.grid.two {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
+  editingVenueId = id;
 
-.stack {
-  display: grid;
-  gap: 12px;
-}
+  if ($("venue-name")) $("venue-name").value = venue.name || "";
+  if ($("venue-address")) $("venue-address").value = venue.address || "";
+  if ($("venue-google-maps-url")) $("venue-google-maps-url").value = venue.google_maps_url || "";
+  if ($("venue-map-url")) $("venue-map-url").value = venue.google_maps_url || "";
+  if ($("venue-image-url")) $("venue-image-url").value = venue.image_url || "";
 
-.card {
-  border: 1px solid var(--line);
-  border-radius: 22px;
-  padding: 16px;
-  background: rgba(15,28,46,.92);
-  box-shadow: 0 10px 28px rgba(0,0,0,.18);
-}
+  const sportIds = (venue.venue_sports || [])
+    .map(vs => vs.sport_id)
+    .filter(Boolean);
 
-.stat-card span {
-  color: var(--muted);
-  display: block;
-  margin-bottom: 6px;
-}
+  setSelectedVenueSports(sportIds);
 
-.stat-card strong {
-  font-size: 34px;
-}
+  const btn = $("add-venue-btn");
+  if (btn) btn.textContent = "Update Venue";
 
-.row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
+  $("venue-name")?.scrollIntoView({
+    behavior: "smooth",
+    block: "center"
+  });
 }
 
-.meta {
-  color: var(--muted);
-  font-size: 13px;
-  margin-top: 6px;
-}
+async function toggleVenueActive(id, currentStatus) {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin access required.");
+    return;
+  }
 
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.08);
-  color: var(--muted);
-  font-size: 12px;
-}
+  const { error } = await supabaseClient
+    .from("venues")
+    .update({
+      is_active: !currentStatus
+    })
+    .eq("id", id);
 
-.pill.green {
-  color: var(--accent);
-  background: rgba(36,209,126,.12);
-}
+  if (error) {
+    alert(error.message);
+    return;
+  }
 
-.pill.blue {
-  color: var(--accent2);
-  background: rgba(49,168,255,.12);
+  await loadVenues();
 }
 
-.pill.red {
-  color: var(--danger);
-  background: rgba(255,95,103,.12);
-}
+async function saveVenue() {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin access required.");
+    return;
+  }
 
-.full {
-  width: 100%;
-  margin-top: 8px;
-}
+  const name = $("venue-name")?.value.trim() || "";
+  const address = $("venue-address")?.value.trim() || "";
+  const googleMapsUrl =
+    $("venue-google-maps-url")?.value.trim() ||
+    $("venue-map-url")?.value.trim() ||
+    "";
+  const imageUrl = $("venue-image-url")?.value.trim() || "";
 
-.hint {
-  color: var(--muted);
-  margin-top: 4px;
-  font-size: 13px;
-}
+  if (!name) {
+    alert("Venue name is required.");
+    return;
+  }
 
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-}
+  const venue = {
+    name,
+    address,
+    google_maps_url: googleMapsUrl,
+    image_url: imageUrl
+  };
 
-.profile-actions {
-  justify-content: center;
-}
+  let result;
 
-#profile-action-btn {
-  min-width: 150px;
-  justify-content: center;
-  display: inline-flex;
-  align-items: center;
-}
+  if (editingVenueId) {
+    result = await supabaseClient
+      .from("venues")
+      .update(venue)
+      .eq("id", editingVenueId)
+      .select();
+  } else {
+    result = await supabaseClient
+      .from("venues")
+      .insert({
+        ...venue,
+        is_active: true
+      })
+      .select();
+  }
 
-.rank {
-  display: grid;
-  grid-template-columns: 34px 1fr auto;
-  gap: 12px;
-  align-items: center;
-}
+  const { data, error } = result;
 
-.rank-number {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: rgba(255,255,255,.08);
-  font-weight: 900;
-}
+  console.log("SAVE VENUE DATA:", data);
+  console.log("SAVE VENUE ERROR:", error);
 
-label {
-  display: grid;
-  gap: 7px;
-  margin: 14px 0;
-  color: var(--muted);
-  font-size: 13px;
-}
+  if (error) {
+    alert(error.message);
+    return;
+  }
 
-input,
-select,
-textarea {
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: #07111f;
-  color: var(--text);
-  padding: 12px;
-  outline: none;
-  font-size: 16px;
-}
+  const venueId = editingVenueId || data?.[0]?.id;
+  const selectedSportIds = getSelectedVenueSportIds();
 
-input:disabled,
-select:disabled,
-textarea:disabled {
-  opacity: .72;
-  color: var(--muted);
-  -webkit-text-fill-color: var(--muted);
-}
+  const sportsSaved = await saveVenueSports(venueId, selectedSportIds);
+  if (!sportsSaved) return;
 
-.hero-auth input {
-  width: 150px;
-  height: 34px;
-  padding: 0 10px;
-  border-radius: 10px;
-  background: rgba(2, 12, 28, 0.75);
-  font-size: 16px;
-}
+  const wasEditing = Boolean(editingVenueId);
 
-.comment-box {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-}
+  clearVenueForm();
 
-.comment-box input {
-  flex: 1;
+  alert(wasEditing ? "Venue updated." : "Venue added.");
+  await loadVenues();
 }
 
-.comment {
-  color: var(--muted);
-  font-size: 13px;
-  padding-top: 6px;
-}
 
-.modal {
-  border: 0;
-  padding: 0;
-  border-radius: 24px;
-  background: transparent;
-  width: min(92vw, 480px);
+function isCurrentUserAdmin() {
+  return currentProfile &&
+    currentProfile.role === "admin" &&
+    currentProfile.approval_status === "approved";
 }
 
-.modal::backdrop {
-  background: rgba(0,0,0,.62);
-  backdrop-filter: blur(4px);
-}
+function cacheProfileAccess(profile) {
+  if (!profile) {
+    localStorage.removeItem("aba_user_access");
+    return;
+  }
 
-.modal-card {
-  background: var(--card);
-  color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 24px;
-  padding: 20px;
-  position: relative;
+  localStorage.setItem(
+    "aba_user_access",
+    JSON.stringify({
+      role: profile.role,
+      approval_status: profile.approval_status
+    })
+  );
 }
+async function loadPendingMembers() {
+  if (!isCurrentUserAdmin()) return;
 
-.close {
-  position: absolute;
-  right: 14px;
-  top: 12px;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  font-size: 28px;
-}
+  const { data, error } = await supabaseClient
+    .from("members")
+    .select("id,first_name,last_name,display_name,email,phone,birth_date,approval_status,created_at")
+    .eq("approval_status", "pending")
+    .order("created_at", { ascending: false });
 
-@media (max-width: 800px) {
-  .app-shell {
-    padding: 10px;
+  if (error) {
+    alert(error.message);
+    return;
   }
 
-  .hero {
-    display: grid;
-    grid-template-columns: 1fr 1.6fr;
-    gap: 14px;
-    align-items: center;
-    padding: 18px;
-    border-radius: 24px;
-  }
+  const box = $("pendingMembersList");
+  if (!box) return;
 
-  .eyebrow {
-    font-size: 9px;
+  if (!data || data.length === 0) {
+    box.innerHTML = `<article class="card">No pending profiles.</article>`;
+    return;
   }
 
-  h1 {
-    font-size: 58px;
-    line-height: .85;
-    margin-bottom: 8px;
-  }
+  box.innerHTML = data.map(member => `
+    <article class="card">
+      <div class="row">
+        <div>
+          <h3>${escapeHtml(member.display_name || "Unnamed")}</h3>
+          <div class="meta">
+            ${escapeHtml(member.first_name || "")}
+            ${escapeHtml(member.last_name || "")}
+          </div>
+          <div class="meta">${escapeHtml(member.email || "")}</div>
+          <div class="meta">Phone: ${escapeHtml(member.phone || "-")}</div>
+          <div class="meta">Birth Date: ${escapeHtml(member.birth_date || "-")}</div>
+        </div>
 
-  .tagline {
-    font-size: 11px;
-  }
+        <span class="pill red">Pending</span>
+      </div>
 
-  .hero-auth {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-  }
+      <div class="actions">
+        <button class="small-btn" onclick="reviewMember('${member.id}', 'approved')">
+          Approve
+        </button>
 
-  .hero-auth input {
-    width: 100%;
-    height: 34px;
-    padding: 0 10px;
-    border-radius: 10px;
-    font-size: 16px;
-  }
+        <button class="small-btn" onclick="reviewMember('${member.id}', 'rejected')">
+          Reject
+        </button>
+      </div>
+    </article>
+  `).join("");
+}
 
-  .auth-actions {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 12px;
-    margin-top: 6px;
-    padding-top: 0;
-  }
 
-  .auth-actions button,
-  .hero-auth button {
-    width: 80px;
-    min-width: 80px;
-    height: 28px;
-    flex: 0 0 auto;
-    padding: 0;
-    border-radius: 9px;
-    font-size: 12px;
-    font-weight: 700;
+async function reviewMember(memberId, decision) {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin access required.");
+    return;
   }
 
-  .logged-in-box {
-    align-items: flex-end !important;
-    gap: 6px;
-  }
+  const { error } = await supabaseClient
+    .from("members")
+    .update({
+      approval_status: decision,
+      registration_status: decision,
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: currentProfile.id
+    })
+    .eq("id", memberId);
 
-  .logged-user {
-    align-items: flex-end;
-    text-align: right;
+  if (error) {
+    alert(error.message);
+    return;
   }
 
-  .logged-label {
-    font-size: 8px;
-  }
+  alert(`Member ${decision}.`);
+  await loadPendingMembers();
+}
 
-  #current-user {
-    font-size: 10px;
-    white-space: nowrap;
-    overflow: visible;
-    text-overflow: unset;
-    max-width: none;
-  }
 
-  #logout-btn {
-    width: 60px;
-    min-width: 60px;
-    height: 24px;
-    align-self: flex-end !important;
-    font-size: 10px;
-  }
 
-  .tabs {
-    margin-top: 12px;
-  }
 
-  .tab {
-    font-size: 14px;
-    padding: 10px 14px;
-  }
 
-  .grid.two {
-    grid-template-columns: 1fr 1fr;
-  }
-}
 
-@media (max-width: 380px) {
-  h1 {
-    font-size: 50px;
-  }
 
-  .hero {
-    grid-template-columns: 1fr 1.7fr;
-    gap: 10px;
-    padding: 14px;
-  }
 
-  .hero-auth input {
-    height: 32px;
-  }
 
-  .auth-actions {
-    gap: 10px;
-  }
 
-  .auth-actions button,
-  .hero-auth button {
-    width: 72px;
-    min-width: 72px;
-    height: 26px;
-    font-size: 11px;
-  }
-}
-/* iPhone Safari autofill prevention/fix */
-.hero-auth input,
-.hero-auth input:-webkit-autofill,
-.hero-auth input:-webkit-autofill:hover,
-.hero-auth input:-webkit-autofill:focus,
-.hero-auth input:-webkit-autofill:active {
-  height: 34px !important;
-  min-height: 34px !important;
-  max-height: 34px !important;
 
-  font-size: 16px !important;
-  line-height: normal !important;
 
-  padding: 0 10px !important;
 
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
 
-  background: rgba(2, 12, 28, 0.75) !important;
+function applyAccessUI() {
+  const appTabs = ["dashboard", "leagues", "matches", "activities", "rankings"];
+  const status = currentProfile?.approval_status;
 
-  box-shadow: 0 0 0 1000px #07111f inset !important;
-  -webkit-box-shadow: 0 0 0 1000px #07111f inset !important;
+  // Hide normal app tabs by default for logged-in users until approved.
+  appTabs.forEach(viewId => {
+    const tab = document.querySelector(`[data-view="${viewId}"]`);
+    if (tab) tab.style.display = "none";
+  });
 
-  border: 1px solid rgba(255,255,255,0.12) !important;
-  border-radius: 10px !important;
+  // Hide Admin tab by default.
+  document.querySelectorAll(".admin-only").forEach(el => {
+    el.style.display = "none";
+  });
 
-  transition: background-color 9999s ease-in-out 0s;
-}
+  // No profile yet, pending, rejected, or suspended: Account only.
+  if (!currentProfile || status === "pending" || status === "rejected" || status === "suspended") {
+    const accountTab = document.querySelector('[data-view="account"]');
+    const accountView = $("account");
 
-.hero-auth {
-  gap: 12px !important;
-}
+    document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
+    document.querySelectorAll(".view").forEach(view => view.classList.remove("active-view"));
 
+    if (accountTab) accountTab.classList.add("active");
+    if (accountView) accountView.classList.add("active-view");
+    return;
+  }
 
-/* =========================================================
-   CLEAN VENUE + SPORTS STYLES
-   Keep this block at the bottom of style.css.
-   ========================================================= */
+  // Approved users can see the normal app tabs.
+  if (status === "approved") {
+    appTabs.forEach(viewId => {
+      const tab = document.querySelector(`[data-view="${viewId}"]`);
+      if (tab) tab.style.display = "";
+    });
+  }
 
-/* Sports checkboxes */
-.checkbox-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 6px;
-  max-width: 100%;
+  // Approved admins can see the Admin tab.
+  if (isCurrentUserAdmin()) {
+    document.querySelectorAll(".admin-only").forEach(el => {
+      el.style.display = "";
+    });
+  }
 }
 
-.checkbox-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  width: auto;
-  margin: 0;
-  padding: 7px 10px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: rgba(255,255,255,0.05);
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 700;
-}
+function resetAppTabsForLoggedOut() {
+  ["dashboard", "leagues", "matches", "activities", "rankings"].forEach(viewId => {
+    const tab = document.querySelector(`[data-view="${viewId}"]`);
+    if (tab) tab.style.display = "";
+  });
 
-.checkbox-item input {
-  width: auto;
-  margin: 0;
-  padding: 0;
+  document.querySelectorAll(".admin-only").forEach(el => {
+    el.style.display = "none";
+  });
 }
 
-/* Venue list cards */
-.venue-card {
-  width: 100%;
-  max-width: 100%;
-  overflow: hidden;
-  padding: 12px;
-}
+function loadData() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (!saved) return structuredClone(demoData);
 
-.venue-row {
-  width: 100%;
-  max-width: 100%;
-  display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
-  gap: 14px;
-  align-items: center;
-  overflow: hidden;
+  try {
+    return JSON.parse(saved);
+  } catch {
+    return structuredClone(demoData);
+  }
 }
 
-.venue-thumb {
-  width: 112px;
-  height: 112px;
-  min-width: 112px;
-  max-width: 112px;
-  border-radius: 18px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,0.06);
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-.venue-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
+let state = loadData();
+let currentProfile = null;
+let profileIsEditing = false;
+let editingVenueId = null;
+let allSports = [];
+let allVenues = [];
+let allMatches = [];
+let allLeagues = [];
+let editingLeagueId = null;
+let editingMatchId = null;
+let allMembers = [];
+let allExternalMembers = [];
+let allSportProfiles = [];
+let allPositionRatings = [];
+let currentExternalMatchId = null;
+let currentTeamMatchId = null;
+let currentScoreMatchId = null;
+let allPendingGames = [];
 
-/* Text side */
-.venue-info {
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-}
 
-.venue-info .row {
-  width: 100%;
-  max-width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: start;
-  overflow: hidden;
-}
 
-.venue-info .row > div:first-child {
-  min-width: 0;
-  overflow: hidden;
-}
 
-.venue-info h3 {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+function updateLeagueSportOptions() {
+  const select = $("league-sport");
+  if (!select) return;
 
-.venue-info .meta {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  select.innerHTML = `
+    <option value="">Select sport</option>
+    ${(allSports || []).map(sport => `
+      <option value="${sport.id}">${escapeHtml(sport.name)}</option>
+    `).join("")}
+  `;
 }
 
-.venue-info .pill {
-  white-space: nowrap;
-  flex-shrink: 0;
+function isLeagueMatchSelected() {
+  return $("match-type")?.value === "league";
 }
 
-.venue-info .actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
+function updateMatchLeagueOptions() {
+  const label = $("match-league-label");
+  const select = $("match-league");
+  const sportId = $("match-sport")?.value || "";
 
-.venue-info .actions .small-btn,
-.venue-card .small-btn {
-  height: 22px;
-  min-height: 22px;
-  width: auto;
-  min-width: 0;
-  padding: 0 8px;
-  border-radius: 7px;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 22px;
-}
+  if (!label || !select) return;
 
-/* Prevent page/card horizontal scroll */
-html,
-body,
-.app-shell,
-main,
-.view,
-.stack,
-.card {
-  max-width: 100%;
-}
+  const show = isLeagueMatchSelected();
+  label.style.display = show ? "" : "none";
 
-/* iPhone / mobile */
-@media (max-width: 800px) {
-  html,
-  body {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: hidden;
+  if (!show) {
+    select.value = "";
+    return;
   }
 
-  .app-shell {
-    width: 100%;
-    max-width: 100%;
-    padding-left: 10px;
-    padding-right: 10px;
-    overflow-x: hidden;
-  }
+  const activeLeagues = (allLeagues || []).filter(league =>
+    (!sportId || league.sport_id === sportId) &&
+    (league.status || "active") === "active"
+  );
 
-  main,
-  .view,
-  #admin,
-  #venuesList,
-  #pendingMembersList {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: hidden;
-  }
+  select.innerHTML = activeLeagues.length
+    ? `
+      <option value="">Select league</option>
+      ${activeLeagues.map(league => `
+        <option value="${league.id}">${escapeHtml(league.name)}</option>
+      `).join("")}
+    `
+    : `<option value="">No active league for this sport</option>`;
+}
 
-  #admin .card {
-    width: 100%;
-    max-width: 100%;
-    overflow: hidden;
-  }
 
-  #admin input,
-  #admin select,
-  #admin textarea {
-    width: 100%;
-    max-width: 100%;
-  }
 
-  .venue-card {
-    padding: 10px;
-  }
+async function loadPositionRatings() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") return [];
 
-  .venue-row {
-    grid-template-columns: 82px minmax(0, 1fr);
-    gap: 10px;
-  }
+  const { data, error } = await supabaseClient
+    .from("member_sport_position_ratings")
+    .select(`
+      id,
+      member_id,
+      sport_id,
+      position_name,
+      rating,
+      games_played,
+      created_at,
+      updated_at,
+      members (
+        id,
+        first_name,
+        last_name,
+        display_name,
+        email,
+        is_external
+      ),
+      sports (
+        id,
+        name
+      )
+    `);
 
-  .venue-thumb {
-    width: 82px;
-    height: 82px;
-    min-width: 82px;
-    max-width: 82px;
-    border-radius: 14px;
+  if (error) {
+    console.warn("Could not load position ratings:", error.message);
+    allPositionRatings = [];
+    return [];
   }
 
-  .venue-info h3 {
-    font-size: 17px;
-    line-height: 1.1;
-  }
+  allPositionRatings = data || [];
+  return allPositionRatings;
+}
 
-  .venue-info .meta {
-    font-size: 12px;
-    line-height: 1.25;
-    margin-top: 4px;
-  }
+function positionRatingForMember(memberId, sportId, positionName) {
+  const cleanPosition = normalizeSoccerPosition(positionName);
 
-  .venue-info .pill {
-    font-size: 10px;
-    padding: 4px 7px;
-  }
+  const ratingRow = (allPositionRatings || []).find(row =>
+    row.member_id === memberId &&
+    row.sport_id === sportId &&
+    normalizeSoccerPosition(row.position_name) === cleanPosition
+  );
 
-  .venue-info .actions {
-    gap: 5px;
-    margin-top: 6px;
-  }
+  const rating = Number(ratingRow?.rating);
 
-  .venue-info .actions .small-btn,
-  .venue-card .small-btn {
-    height: 20px;
-    min-height: 20px;
-    padding: 0 6px;
-    border-radius: 6px;
-    font-size: 9px;
-    line-height: 20px;
-  }
+  if (Number.isFinite(rating) && rating > 0) return rating;
 
-  .checkbox-list {
-    gap: 7px;
-  }
+  return memberSportRating(memberId, sportId);
+}
 
-  .checkbox-item {
-    padding: 6px 9px;
-    font-size: 12px;
-  }
+function soccerPositionRankingRows(sportId, positionName) {
+  const cleanPosition = normalizeSoccerPosition(positionName);
+
+  const rows = (allPositionRatings || [])
+    .filter(row =>
+      row.sport_id === sportId &&
+      normalizeSoccerPosition(row.position_name) === cleanPosition
+    )
+    .map(row => ({
+      memberId: row.member_id,
+      member: row.members,
+      name: memberDisplayName(row.members),
+      isExternal: Boolean(row.members?.is_external),
+      rating: Number(row.rating || 0),
+      gamesPlayed: Number(row.games_played || 0)
+    }))
+    .filter(row => row.memberId && row.rating > 0);
+
+  return rows.sort((a, b) =>
+    b.rating - a.rating ||
+    b.gamesPlayed - a.gamesPlayed ||
+    a.name.localeCompare(b.name)
+  );
 }
 
-/* Very small iPhones */
-@media (max-width: 380px) {
-  .venue-row {
-    grid-template-columns: 74px minmax(0, 1fr);
-    gap: 8px;
-  }
+function selectedRankingSport() {
+  const sportId = $("rank-sport-filter")?.value || "all";
+  if (sportId !== "all") return sportId;
 
-  .venue-thumb {
-    width: 74px;
-    height: 74px;
-    min-width: 74px;
-    max-width: 74px;
-  }
+  const soccerSport = (allSports || []).find(sport =>
+    String(sport.name || "").toLowerCase().includes("soccer") ||
+    String(sport.name || "").toLowerCase().includes("football")
+  );
 
-  .venue-info h3 {
-    font-size: 15px;
-  }
+  return soccerSport?.id || "";
+}
 
-  .venue-info .meta {
-    font-size: 11px;
-  }
+function selectedRankingSportName() {
+  const sportId = selectedRankingSport();
+  const sport = (allSports || []).find(s => s.id === sportId);
+
+  return sport?.name || "";
 }
-/* === FIX SUPPORTED SPORTS CHECKBOX OVERLAP === */
+
+function shouldShowSoccerPositionRankings() {
+  const sportId = selectedRankingSport();
+
+  if (!sportId) return false;
 
-.checkbox-list {
-  display: grid !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  gap: 10px !important;
-  width: 100% !important;
+  const sport = (allSports || []).find(s => s.id === sportId);
+  const name = String(sport?.name || "").toLowerCase();
+
+  return name.includes("soccer") || name.includes("football");
 }
 
-.checkbox-item {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  gap: 8px !important;
+function renderPositionRankings() {
+  if (!shouldShowSoccerPositionRankings()) return "";
 
-  width: 100% !important;
-  min-width: 0 !important;
-  height: 36px !important;
+  const sportId = selectedRankingSport();
+  const sportName = selectedRankingSportName() || "Soccer";
 
-  padding: 0 12px !important;
-  margin: 0 !important;
+  return `
+    <article class="card position-rankings-card">
+      <div class="section-head mini-section-head">
+        <div>
+          <h3>Position Rankings</h3>
+          <p class="hint">${escapeHtml(sportName)} position-specific ratings.</p>
+        </div>
+      </div>
 
-  border: 1px solid var(--line) !important;
-  border-radius: 999px !important;
-  background: rgba(255,255,255,0.05) !important;
+      <div class="position-ranking-grid">
+        ${SOCCER_POSITIONS.map(position => {
+          const rows = soccerPositionRankingRows(sportId, position);
 
-  color: var(--text) !important;
-  font-size: 13px !important;
-  font-weight: 700 !important;
+          return `
+            <div class="position-ranking-box">
+              <div class="position-ranking-title">${escapeHtml(position)}</div>
 
-  overflow: hidden !important;
-  white-space: nowrap !important;
+              ${
+                rows.length
+                  ? rows.slice(0, 10).map((row, index) => `
+                    <div class="position-ranking-row">
+                      <span>${index + 1}</span>
+                      <strong>${escapeHtml(row.name)}</strong>
+                      ${row.isExternal ? `<em>External</em>` : ""}
+                      <b>${row.rating.toFixed(1)}</b>
+                    </div>
+                  `).join("")
+                  : `<div class="hint">No ${escapeHtml(position)} ratings yet.</div>`
+              }
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </article>
+  `;
 }
 
-.checkbox-item input[type="checkbox"] {
-  appearance: auto !important;
-  -webkit-appearance: checkbox !important;
+async function loadSportProfiles() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") return [];
 
-  width: 16px !important;
-  min-width: 16px !important;
-  max-width: 16px !important;
+  const { data, error } = await supabaseClient
+    .from("member_sport_profiles")
+    .select(`
+      id,
+      member_id,
+      sport_id,
+      rating,
+      preferred_position,
+      games_played,
+      wins,
+      losses,
+      draws,
+      total_points,
+      members (
+        id,
+        first_name,
+        last_name,
+        display_name,
+        email,
+        is_external
+      ),
+      sports (
+        id,
+        name
+      )
+    `);
 
-  height: 16px !important;
-  min-height: 16px !important;
-  max-height: 16px !important;
+  if (error) {
+    console.warn("Could not load sport profiles:", error.message);
+    allSportProfiles = [];
+    return [];
+  }
 
-  margin: 0 !important;
-  padding: 0 !important;
-  flex: 0 0 16px !important;
+  allSportProfiles = data || [];
+  return allSportProfiles;
 }
-/* === CLEAN SUPPORTED SPORTS CHIPS === */
 
-#venue-sports-options.checkbox-list {
-  display: grid !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  gap: 10px !important;
-  width: 100% !important;
-  max-width: 100% !important;
+function sportProfileForMember(memberId, sportId) {
+  return (allSportProfiles || []).find(profile =>
+    profile.member_id === memberId && profile.sport_id === sportId
+  ) || null;
 }
 
-.sport-chip {
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
+function memberSportRating(memberId, sportId) {
+  const profile = sportProfileForMember(memberId, sportId);
+  const rating = Number(profile?.rating);
+
+  return Number.isFinite(rating) && rating > 0 ? rating : 5;
+}
 
-  width: 100% !important;
-  min-width: 0 !important;
-  height: 38px !important;
+function memberSportPosition(memberId, sportId) {
+  const profile = sportProfileForMember(memberId, sportId);
+  return profile?.preferred_position || "";
+}
 
-  gap: 8px !important;
-  padding: 0 12px !important;
-  margin: 0 !important;
+function updateRatingSportOptions() {
+  const select = $("rating-sport-filter");
+  if (!select) return;
 
-  border: 1px solid var(--line) !important;
-  border-radius: 999px !important;
-  background: rgba(255,255,255,0.05) !important;
+  const current = select.value || "";
 
-  color: var(--text) !important;
-  font-size: 13px !important;
-  font-weight: 700 !important;
+  select.innerHTML = `
+    <option value="">Select sport</option>
+    ${(allSports || []).map(sport => `
+      <option value="${sport.id}">${escapeHtml(sport.name)}</option>
+    `).join("")}
+  `;
 
-  overflow: hidden !important;
-  white-space: nowrap !important;
+  if (Array.from(select.options).some(option => option.value === current)) {
+    select.value = current;
+  }
 }
 
-.sport-chip input[type="checkbox"] {
-  appearance: auto !important;
-  -webkit-appearance: checkbox !important;
+function approvedRatingMembers() {
+  const byId = new Map();
 
-  width: 16px !important;
-  min-width: 16px !important;
-  max-width: 16px !important;
+  (allMembers || []).forEach(member => {
+    if (member?.id) byId.set(member.id, member);
+  });
 
-  height: 16px !important;
-  min-height: 16px !important;
-  max-height: 16px !important;
+  (allSportProfiles || []).forEach(profile => {
+    if (profile.members?.id) byId.set(profile.members.id, profile.members);
+  });
 
-  padding: 0 !important;
-  margin: 0 !important;
+  if (currentProfile?.id) byId.set(currentProfile.id, currentProfile);
 
-  flex: 0 0 16px !important;
+  return Array.from(byId.values())
+    .filter(member => member?.id)
+    .sort((a, b) => memberDisplayName(a).localeCompare(memberDisplayName(b)));
 }
 
-.sport-chip span {
-  display: block !important;
-  flex: 1 1 auto !important;
-  min-width: 0 !important;
+function renderSportRatingManager() {
+  const box = $("sportRatingList");
+  if (!box) return;
 
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-}
+  const sportId = cleanUuidValue($("rating-sport-filter")?.value) || "";
+  const selectedSport = (allSports || []).find(sport => sport.id === sportId);
+  const isSoccer = String(selectedSport?.name || "").toLowerCase().includes("soccer") ||
+    String(selectedSport?.name || "").toLowerCase().includes("football");
 
-@media (max-width: 800px) {
-  #venue-sports-options.checkbox-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 9px !important;
+  if (!sportId) {
+    box.innerHTML = `<div class="hint">Select a sport to edit ratings.</div>`;
+    return;
   }
 
-  .sport-chip {
-    height: 36px !important;
-    padding: 0 10px !important;
-    gap: 7px !important;
-    font-size: 12px !important;
-  }
+  const members = approvedRatingMembers();
 
-  .sport-chip input[type="checkbox"] {
-    width: 15px !important;
-    min-width: 15px !important;
-    max-width: 15px !important;
-    height: 15px !important;
-    min-height: 15px !important;
-    max-height: 15px !important;
-    flex: 0 0 15px !important;
+  if (!members.length) {
+    box.innerHTML = `<div class="hint">No approved members found.</div>`;
+    return;
   }
-}
-.checkbox-item span {
-  min-width: 0 !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-}
-/* === VENUE SIDE ACTION COLUMN === */
 
-.venue-info {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr) auto !important;
-  gap: 10px !important;
-  align-items: start !important;
-}
+  box.innerHTML = members.map(member => {
+    const profile = sportProfileForMember(member.id, sportId);
+    const rating = profile?.rating ?? "";
+    const position = normalizeSoccerPosition(profile?.preferred_position) || profile?.preferred_position || "";
 
-.venue-main {
-  min-width: 0 !important;
-  overflow: hidden !important;
-}
+    const positionInputs = isSoccer
+      ? `
+        <div class="position-rating-inputs">
+          ${SOCCER_POSITIONS.map(positionName => {
+            const positionRating = positionRatingForMember(member.id, sportId, positionName);
 
-.venue-side {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: flex-end !important;
-  gap: 6px !important;
-  min-width: 76px !important;
-}
+            return `
+              <label>
+                ${positionName}
+                <input
+                  class="position-rating-input"
+                  data-position="${positionName}"
+                  type="number"
+                  min="1"
+                  max="10"
+                  step="0.1"
+                  value="${Number(positionRating || 5).toFixed(1)}"
+                >
+              </label>
+            `;
+          }).join("")}
+        </div>
+      `
+      : "";
 
-.venue-side .pill {
-  width: fit-content !important;
-  white-space: nowrap !important;
-}
+    return `
+      <div class="sport-rating-row" data-member-id="${member.id}">
+        <div>
+          <strong>${escapeHtml(memberDisplayName(member))}</strong>
+          ${member.is_external ? `<span class="mini-pill">External</span>` : ""}
+        </div>
 
-.venue-side .small-btn {
-  width: 76px !important;
-  height: 22px !important;
-  min-height: 22px !important;
-  padding: 0 !important;
-  border-radius: 7px !important;
-  font-size: 10px !important;
-  line-height: 22px !important;
-  text-align: center !important;
-}
+        <label>
+          Overall
+          <input
+            class="sport-rating-input"
+            type="number"
+            min="1"
+            max="10"
+            step="0.1"
+            value="${escapeHtml(String(rating))}"
+            placeholder="5"
+          >
+        </label>
+
+        <label>
+          Preferred
+          <select class="sport-position-input">
+            ${preferredPositionOptions(position, isSoccer)}
+          </select>
+        </label>
 
-.venue-main h3,
-.venue-main .meta {
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
+        ${positionInputs}
+
+        <button class="small-btn" type="button" onclick="saveMemberSportProfile('${member.id}')">
+          Save
+        </button>
+      </div>
+    `;
+  }).join("");
 }
 
-@media (max-width: 800px) {
-  .venue-info {
-    grid-template-columns: minmax(0, 1fr) 68px !important;
-    gap: 7px !important;
+async function saveMemberSportProfile(memberId) {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin only.");
+    return;
   }
 
-  .venue-side {
-    min-width: 68px !important;
-    gap: 5px !important;
-  }
+  const sportId = $("rating-sport-filter")?.value || "";
+  const row = document.querySelector(`.sport-rating-row[data-member-id="${memberId}"]`);
 
-  .venue-side .small-btn {
-    width: 68px !important;
-    height: 20px !important;
-    min-height: 20px !important;
-    font-size: 8.5px !important;
-    line-height: 20px !important;
+  if (!sportId || !row) {
+    alert("Select a sport first.");
+    return;
   }
 
-  .venue-side .pill {
-    font-size: 9px !important;
-    padding: 3px 6px !important;
-  }
-}
+  const rating = Number(row.querySelector(".sport-rating-input")?.value || 5);
+  const rawPreferredPosition = row.querySelector(".sport-position-input")?.value || "";
+  const preferredPosition = normalizeSoccerPosition(rawPreferredPosition) || rawPreferredPosition || null;
 
-/* Make Active/Inactive label same width as Edit/Deactivate buttons */
-.venue-side {
-  align-items: stretch !important;
-}
+  if (!Number.isFinite(rating) || rating < 1 || rating > 10) {
+    alert("Overall rating must be between 1 and 10.");
+    return;
+  }
 
-.venue-side .pill,
-.venue-side .small-btn {
-  width: 76px !important;
-  min-width: 76px !important;
-  max-width: 76px !important;
-  justify-content: center !important;
-  text-align: center !important;
-}
+  const { error } = await supabaseClient
+    .from("member_sport_profiles")
+    .upsert({
+      member_id: memberId,
+      sport_id: sportId,
+      rating,
+      preferred_position: preferredPosition
+    }, {
+      onConflict: "member_id,sport_id"
+    });
 
-@media (max-width: 800px) {
-  .venue-side .pill,
-  .venue-side .small-btn {
-    width: 68px !important;
-    min-width: 68px !important;
-    max-width: 68px !important;
+  if (error) {
+    alert(error.message);
+    return;
   }
-}
-.selected-vote {
-  background: rgba(36,209,126,.22) !important;
-  color: var(--accent) !important;
-  border-color: rgba(36,209,126,.65) !important;
-}
-
-.selected-vote-red {
-  background: rgba(255,95,103,.18) !important;
-  color: var(--danger) !important;
-  border-color: rgba(255,95,103,.6) !important;
-}
 
-.small-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-.selected-vote {
-  background: rgba(36,209,126,.22) !important;
-  color: var(--accent) !important;
-  border-color: rgba(36,209,126,.65) !important;
-}
+  const positionInputs = Array.from(row.querySelectorAll(".position-rating-input"));
 
-.selected-vote-red {
-  background: rgba(255,95,103,.18) !important;
-  color: var(--danger) !important;
-  border-color: rgba(255,95,103,.6) !important;
-}
+  if (positionInputs.length) {
+    const positionRows = [];
 
-.small-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
+    for (const input of positionInputs) {
+      const positionName = normalizeSoccerPosition(input.dataset.position);
+      const positionRating = Number(input.value || 5);
 
-/* === MATCH VOTE SELECTED STATE === */
-/* Add this block at the bottom of style.css */
+      if (!positionName) continue;
 
-.selected-vote {
-  background: rgba(36,209,126,.22) !important;
-  color: var(--accent) !important;
-  border-color: rgba(36,209,126,.65) !important;
-}
+      if (!Number.isFinite(positionRating) || positionRating < 1 || positionRating > 10) {
+        alert(`${positionName} rating must be between 1 and 10.`);
+        return;
+      }
 
-.selected-vote-red {
-  background: rgba(255,95,103,.18) !important;
-  color: var(--danger) !important;
-  border-color: rgba(255,95,103,.6) !important;
-}
+      positionRows.push({
+        member_id: memberId,
+        sport_id: sportId,
+        position_name: positionName,
+        rating: positionRating
+      });
+    }
 
-.small-btn:disabled {
-  opacity: 0.45 !important;
-  cursor: not-allowed !important;
-}
+    if (positionRows.length) {
+      const { error: positionError } = await supabaseClient
+        .from("member_sport_position_ratings")
+        .upsert(positionRows, {
+          onConflict: "member_id,sport_id,position_name"
+        });
 
-/* === EXTERNAL PLAYERS MANAGEMENT === */
-/* Add this block to the bottom of style.css */
+      if (positionError) {
+        alert(positionError.message);
+        return;
+      }
+    }
+  }
 
-.external-list {
-  margin-top: 8px;
-  display: grid;
-  gap: 6px;
+  await loadSportProfiles();
+  await loadPositionRatings();
+  await loadPositionRatings();
+  renderSportRatingManager();
+  renderRankings();
 }
 
-.external-player-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+async function loadMatchFormOptions() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") return;
 
-  padding: 6px 8px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255,255,255,0.04);
-}
+  const { data: sportsData, error: sportsError } = await supabaseClient
+    .from("sports")
+    .select("id,name")
+    .order("name", { ascending: true });
 
-.external-player-row span {
-  flex: 1 1 auto;
-  min-width: 130px;
-  color: var(--muted);
-  font-size: 12px;
-}
+  if (sportsError) {
+    alert(sportsError.message);
+    return;
+  }
 
-.tiny-btn {
-  height: 22px;
-  min-height: 22px;
-  padding: 0 8px;
-  border-radius: 7px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,0.07);
-  color: var(--text);
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 22px;
-}
+  const { data: venuesData, error: venuesError } = await supabaseClient
+    .from("venues")
+    .select(`
+      id,
+      name,
+      address,
+      is_active,
+      venue_sports (
+        sport_id
+      )
+    `)
+    .eq("is_active", true)
+    .order("name", { ascending: true });
 
-.tiny-btn.danger {
-  color: var(--danger);
-  border-color: rgba(255,95,103,.45);
-  background: rgba(255,95,103,.10);
-}
+  if (venuesError) {
+    alert(venuesError.message);
+    return;
+  }
+
+  const { data: leaguesData, error: leaguesError } = await supabaseClient
+    .from("leagues")
+    .select(`
+      id,
+      name,
+      sport_id,
+      format,
+      status,
+      start_date,
+      end_date,
+      created_by,
+      created_at,
+      sports (
+        id,
+        name
+      )
+    `)
+    .eq("status", "active")
+    .order("created_at", { ascending: false });
 
-@media (max-width: 800px) {
-  .external-player-row {
-    gap: 5px;
-    padding: 6px;
+  if (leaguesError) {
+    console.warn("Could not load active leagues:", leaguesError.message);
   }
 
-  .external-player-row span {
-    font-size: 11px;
-    min-width: 100px;
+  const { data: membersData, error: membersError } = await supabaseClient
+    .from("members")
+    .select("id,first_name,last_name,display_name,email,phone,is_external")
+    .eq("approval_status", "approved")
+    .eq("is_active", true)
+    .order("display_name", { ascending: true });
+
+  if (membersError) {
+    alert(membersError.message);
+    return;
   }
+
+  allSports = sportsData || [];
+  allVenues = venuesData || [];
+  allLeagues = leaguesData || allLeagues || [];
+ allMembers = (membersData || []).filter(member =>
+  member.id !== currentProfile?.id &&
+  !member.is_external
+);
 
-  .tiny-btn {
-    height: 20px;
-    min-height: 20px;
-    padding: 0 6px;
-    font-size: 9px;
-    line-height: 20px;
+  await loadSportProfiles();
+  const sportSelect = $("match-sport");
+  if (sportSelect) {
+    sportSelect.innerHTML = `
+      <option value="">Select sport</option>
+      ${allSports.map(s => `
+        <option value="${s.id}">${escapeHtml(s.name)}</option>
+      `).join("")}
+    `;
   }
+
+  updateLeagueSportOptions();
+  updateRatingSportOptions();
+  updateRankingFilters();
+  updateMatchLeagueOptions();
+
+  renderMatchInviteOptions();
+  updateMatchVenueOptions();
 }
 
+function updateMatchVenueOptions() {
+  const sportId = $("match-sport")?.value || "";
+  const venueSelect = $("match-venue");
 
-/* === EXTERNAL PLAYER PICKER MODAL === */
+  if (!venueSelect) return;
 
-.external-picker-list {
-  max-height: 230px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
+  const filteredVenues = sportId
+    ? allVenues.filter(v =>
+        (v.venue_sports || []).some(vs => vs.sport_id === sportId)
+      )
+    : allVenues;
 
-.external-new-box {
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-}
+  venueSelect.innerHTML = `
+    <option value="">Select venue</option>
+    ${filteredVenues.map(v => `
+      <option value="${v.id}">
+        ${escapeHtml(v.name)}${v.address ? " — " + escapeHtml(v.address) : ""}
+      </option>
+    `).join("")}
+  `;
 
-.disabled-chip {
-  opacity: .55;
+  updateMatchLeagueOptions();
 }
 
-.disabled-chip input {
-  cursor: not-allowed;
+function memberDisplayName(member) {
+  return member?.display_name ||
+    `${member?.first_name || ""} ${member?.last_name || ""}`.trim() ||
+    member?.email ||
+    "Unnamed";
 }
 
-.external-list {
-  margin-top: 8px;
-  display: grid;
-  gap: 6px;
-}
+function renderMatchInviteOptions(selectedIds = []) {
+  const box = $("match-invite-options");
+  if (!box) return;
 
-.external-player-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  padding: 6px 8px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255,255,255,0.04);
-}
+  const selected = new Set(selectedIds || []);
 
-.external-player-row span {
-  flex: 1 1 auto;
-  min-width: 130px;
-  color: var(--muted);
-  font-size: 12px;
-}
+  if (!allMembers || allMembers.length === 0) {
+    box.innerHTML = "No approved members found.";
+    return;
+  }
 
-.tiny-btn {
-  height: 22px;
-  min-height: 22px;
-  padding: 0 8px;
-  border-radius: 7px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,0.07);
-  color: var(--text);
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 22px;
+  box.innerHTML = allMembers.map(member => `
+    <label class="sport-chip">
+      <input
+        type="checkbox"
+        value="${member.id}"
+        class="match-invite-checkbox"
+        ${selected.has(member.id) ? "checked" : ""}
+      >
+      <span>${escapeHtml(memberDisplayName(member))}</span>
+    </label>
+  `).join("");
 }
 
-.tiny-btn.danger {
-  color: var(--danger);
-  border-color: rgba(255,95,103,.45);
-  background: rgba(255,95,103,.10);
+function getSelectedInviteMemberIds() {
+  return Array.from(document.querySelectorAll(".match-invite-checkbox"))
+    .filter(cb => cb.checked)
+    .map(cb => cb.value);
 }
 
-@media (max-width: 800px) {
-  .external-picker-list {
-    max-height: 210px;
-  }
+async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingVotes = false) {
+  const safeMatchId = cleanUuidValue(matchId);
 
-  .external-player-row {
-    gap: 5px;
-    padding: 6px;
+  if (!safeMatchId) {
+    alert("Cannot save invitations: match id is missing.");
+    return false;
   }
 
-  .external-player-row span {
-    font-size: 11px;
-    min-width: 100px;
+  if (!matchId) {
+    alert("Match id missing. Cannot save invitations.");
+    return false;
   }
+
+  /*
+    Only real registered members should receive voting invitations.
+    External players are handled separately through Add External,
+    and they are automatically inserted as status = "in".
+  */
+  const realMemberIds = (allMembers || [])
+    .filter(member => !member.is_external)
+    .map(member => member.id);
+
+  const uniqueInvitedIds = Array.from(new Set(invitedMemberIds || []))
+    .filter(id =>
+      id &&
+      id !== currentProfile?.id &&
+      realMemberIds.includes(id)
+    );
+
+  if (!preserveExistingVotes) {
+    const creatorRow = {
+      match_id: safeMatchId,
+      member_id: currentProfile.id,
+      invited_by: currentProfile.id,
+      status: "in"
+    };
 
-  .tiny-btn {
-    height: 20px;
-    min-height: 20px;
-    padding: 0 6px;
-    font-size: 9px;
-    line-height: 20px;
+    const invitedRows = uniqueInvitedIds.map(memberId => ({
+      match_id: safeMatchId,
+      member_id: memberId,
+      invited_by: currentProfile.id,
+      status: "invited"
+    }));
+
+    const { error } = await supabaseClient
+      .from("match_invitations")
+      .upsert([creatorRow, ...invitedRows], {
+        onConflict: "match_id,member_id"
+      });
+
+    if (error) {
+      alert(error.message);
+      return false;
+    }
+
+    return true;
   }
-}
 
+  const match = allMatches.find(m => m.id === matchId);
+  const existingInvitations = match?.match_invitations || [];
+  const existingIds = existingInvitations.map(inv => inv.member_id);
 
-/* === MATCH DATE/TIME AM-PM SELECTS === */
-.match-date-time-grid {
-  margin-top: 2px;
-}
+  /*
+    Remove only real member invitations that were unchecked.
+    Do NOT remove external players here because they are managed
+    from the Add External modal.
+  */
+  const idsToRemove = existingInvitations
+    .filter(inv => {
+      const member = invitationMember(inv);
+      return (
+        inv.member_id !== currentProfile?.id &&
+        !member?.is_external &&
+        !uniqueInvitedIds.includes(inv.member_id)
+      );
+    })
+    .map(inv => inv.member_id);
 
-.match-date-time-grid label {
-  margin-top: 10px;
-  margin-bottom: 6px;
-}
+  const idsToAdd = uniqueInvitedIds.filter(id => !existingIds.includes(id));
 
-.ampm-time-row select {
-  cursor: pointer;
-}
+  if (idsToRemove.length > 0) {
+    const { error: removeError } = await supabaseClient
+      .from("match_invitations")
+      .update({
+        status: "removed",
+        updated_at: new Date().toISOString()
+      })
+      .eq("match_id", safeMatchId)
+      .in("member_id", idsToRemove);
 
-@media (max-width: 800px) {
-  .match-date-time-grid {
-    grid-template-columns: 1fr 1fr !important;
-    gap: 10px !important;
+    if (removeError) {
+      alert(removeError.message);
+      return false;
+    }
   }
-}
 
+  if (idsToAdd.length > 0) {
+    const rows = idsToAdd.map(memberId => ({
+      match_id: safeMatchId,
+      member_id: memberId,
+      invited_by: currentProfile.id,
+      status: "invited"
+    }));
 
-/* === MATCH DYNAMIC STATUS === */
-.pill.gold {
-  color: var(--gold);
-  background: rgba(255,209,102,.14);
-}
+    const { error: addError } = await supabaseClient
+      .from("match_invitations")
+      .insert(rows);
 
+    if (addError) {
+      alert(addError.message);
+      return false;
+    }
+  }
 
-/* === AM/PM SPLIT TIME SELECTORS === */
-.ampm-time-row {
-  display: grid;
-  grid-template-columns: minmax(52px, .8fr) auto minmax(52px, .8fr) minmax(68px, 1fr);
-  align-items: center;
-  gap: 6px;
+  return true;
 }
+
+
+const fmtDate = (iso) =>
+  new Date(iso).toLocaleString([], {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 
-.ampm-time-row span {
-  text-align: center;
-  color: var(--muted);
-  font-weight: 900;
+function escapeHtml(str) {
+  return String(str ?? "").replace(/[&<>"]/g, s => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;"
+  }[s]));
 }
 
-.ampm-time-row select {
-  padding-left: 8px;
-  padding-right: 8px;
-  cursor: pointer;
+function jsString(str) {
+  return String(str ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "");
 }
 
-@media (max-width: 800px) {
-  .ampm-time-row {
-    grid-template-columns: minmax(48px, .8fr) auto minmax(48px, .8fr) minmax(62px, 1fr);
-    gap: 5px;
+function render() {
+  if ($("todayLabel")) {
+    $("todayLabel").textContent =
+      new Date().toLocaleDateString([], {
+        weekday: "long",
+        month: "short",
+        day: "numeric"
+      });
   }
 
-  .ampm-time-row select {
-    padding-left: 6px;
-    padding-right: 6px;
-    font-size: 15px;
-  }
+  renderStats();
+  renderFeed();
+  renderLeagues();
+  renderMatches();
+  renderActivities();
+  renderRankings();
 }
 
+function renderStats() {
+  if (!$("verifiedCount") || !$("pendingCount")) return;
 
-/* === TEAM ASSIGNMENT === */
-.team-modal-card {
-  width: min(92vw, 620px);
+  const verified = state.activities.filter(a => a.approvals.length >= 2).length;
+  $("verifiedCount").textContent = verified;
+  $("pendingCount").textContent = state.activities.length - verified;
 }
 
-.team-assignment-list {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
-  max-height: 330px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
+function renderFeed() {
+  if (!$("feedList")) return;
 
-.team-player-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.04);
-}
+  const items = [
+    ...state.matches.map(m => ({ kind: "match", time: new Date(m.date).getTime(), data: m })),
+    ...state.activities.map(a => ({ kind: "activity", time: a.createdAt, data: a }))
+  ].sort((a, b) => b.time - a.time).slice(0, 8);
 
-.team-player-name {
-  min-width: 0;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 700;
+  $("feedList").innerHTML =
+    items.map(item =>
+      item.kind === "match"
+        ? matchCard(item.data, true)
+        : activityCard(item.data, true)
+    ).join("");
 }
 
-.team-choice {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
 
-.team-choice-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin: 0;
-  padding: 5px 7px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: rgba(255,255,255,.05);
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
+function leagueById(leagueId) {
+  if (!leagueId) return null;
+  return (allLeagues || []).find(league => league.id === leagueId) || null;
 }
 
-.team-choice-chip input {
-  width: 13px;
-  height: 13px;
-  margin: 0;
-  padding: 0;
+function leagueNameForId(leagueId) {
+  const league = leagueById(leagueId);
+  return league?.name || "";
 }
 
-.teams-summary {
-  margin-top: 10px;
-  display: grid;
-  gap: 6px;
+function leagueSportMatchesSelection(leagueId, sportId) {
+  const league = leagueById(leagueId);
+  if (!league || !sportId) return false;
+  return league.sport_id === sportId;
 }
 
-.team-summary-row {
-  display: grid;
-  grid-template-columns: 90px minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-  padding: 7px 8px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255,255,255,.035);
-  color: var(--muted);
-  font-size: 12px;
-}
 
-.team-summary-row strong {
-  color: var(--text);
+function leagueMatches(leagueId) {
+  return (allMatches || []).filter(match => match.league_id === leagueId);
 }
 
-.mini-pill {
-  display: inline-flex;
-  margin-left: 5px;
-  padding: 2px 5px;
-  border-radius: 999px;
-  background: rgba(49,168,255,.12);
-  color: var(--accent2);
-  font-size: 9px;
-  font-weight: 900;
-}
+function leagueCompletedGames(leagueId) {
+  const gamesById = new Map();
 
-@media (max-width: 800px) {
-  .team-player-row {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
+  (allMatches || []).forEach(match => {
+    (match.match_game_sessions || []).forEach(session => {
+      const game = session.match_games;
 
-  .team-choice {
-    justify-content: flex-start;
-  }
+      if (
+        game?.id &&
+        game.league_id === leagueId &&
+        game.status === "completed"
+      ) {
+        gamesById.set(game.id, game);
+      }
+    });
+  });
 
-  .team-summary-row {
-    grid-template-columns: 1fr;
-    gap: 3px;
-  }
+  return Array.from(gamesById.values());
 }
 
+function leaguePlayerStandings(leagueId) {
+  const table = new Map();
 
-/* === TEAM BALANCE STATUS === */
-.team-balance-status {
-  margin-top: 10px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.05);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-  text-align: center;
-}
+  leagueMatches(leagueId).forEach(match => {
+    (match.match_member_points || []).forEach(point => {
+      const memberId = point.member_id;
+      if (!memberId) return;
 
-.team-balance-status.balanced {
-  color: var(--accent);
-  border-color: rgba(36,209,126,.35);
-  background: rgba(36,209,126,.10);
-}
+      const current = table.get(memberId) || {
+        memberId,
+        member: point.member,
+        name: memberDisplayName(point.member),
+        points: 0,
+        matches: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0
+      };
 
-.team-balance-status.unbalanced {
-  color: var(--danger);
-  border-color: rgba(255,95,103,.35);
-  background: rgba(255,95,103,.10);
-}
+      const teamInfo = teamResultForMember(match, memberId);
+      const result = teamInfo.result || "participated";
 
+      current.points += Number(point.total_points || 0);
+      current.matches += 1;
 
-/* === SCORE SUBMISSION === */
-.score-modal-card {
-  width: min(92vw, 560px);
-}
+      if (result === "win") current.wins += 1;
+      else if (result === "draw") current.draws += 1;
+      else if (result === "loss") current.losses += 1;
 
-.score-summary {
-  margin-top: 10px;
-  display: grid;
-  gap: 6px;
-}
+      table.set(memberId, current);
+    });
+  });
 
-.score-summary-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 8px;
-  align-items: center;
-  padding: 7px 8px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255,255,255,.035);
-  font-size: 12px;
+  return Array.from(table.values()).sort((a, b) =>
+    b.points - a.points ||
+    b.wins - a.wins ||
+    a.losses - b.losses ||
+    a.name.localeCompare(b.name)
+  );
 }
 
-.score-summary-row strong {
-  color: var(--text);
-}
+function leagueTeamGameStandings(leagueId) {
+  const table = new Map();
 
-.score-summary-row span {
-  color: var(--gold);
-  font-weight: 900;
-  font-size: 15px;
-}
+  leagueCompletedGames(leagueId).forEach(game => {
+    const teamAName = game.team_a_name || "Team A";
+    const teamBName = game.team_b_name || "Team B";
 
-.score-summary-row em {
-  color: var(--muted);
-  font-style: normal;
-  text-transform: uppercase;
-  font-weight: 900;
-  font-size: 10px;
-}
+    if (!table.has(teamAName)) {
+      table.set(teamAName, { name: teamAName, played: 0, wins: 0, losses: 0, draws: 0 });
+    }
 
-.score-notes {
-  padding: 7px 8px;
-  border-radius: 12px;
-  background: rgba(255,255,255,.03);
-  color: var(--muted);
-  font-size: 12px;
-}
+    if (!table.has(teamBName)) {
+      table.set(teamBName, { name: teamBName, played: 0, wins: 0, losses: 0, draws: 0 });
+    }
 
+    const teamA = table.get(teamAName);
+    const teamB = table.get(teamBName);
 
-/* === SPORT-SPECIFIC SCORING === */
-.padel-set-grid {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) minmax(0, 1fr) 54px;
-  gap: 8px;
-  align-items: center;
-  margin-top: 8px;
-}
+    teamA.played += 1;
+    teamB.played += 1;
 
-.padel-set-grid input[type="number"] {
-  padding: 10px;
-}
+    if (game.winner_team === "A") {
+      teamA.wins += 1;
+      teamB.losses += 1;
+    } else if (game.winner_team === "B") {
+      teamB.wins += 1;
+      teamA.losses += 1;
+    } else {
+      teamA.draws += 1;
+      teamB.draws += 1;
+    }
+  });
 
-.padel-set-grid input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  margin: 0 auto;
+  return Array.from(table.values()).sort((a, b) =>
+    b.wins - a.wins ||
+    a.losses - b.losses ||
+    a.name.localeCompare(b.name)
+  );
 }
 
-.padel-set-head {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-  margin-top: 10px;
-}
+function renderLeaguePlayerStandings(leagueId) {
+  const rows = leaguePlayerStandings(leagueId);
 
-.score-preview {
-  margin-top: 10px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.05);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-  text-align: center;
-}
+  if (!rows.length) {
+    return `<div class="league-standings-empty">No finalized player points yet.</div>`;
+  }
 
-.score-preview.balanced {
-  color: var(--accent);
-  border-color: rgba(36,209,126,.35);
-  background: rgba(36,209,126,.10);
-}
+  return `
+    <div class="league-standings">
+      <div class="league-standings-title">Player standings</div>
 
-.score-preview.unbalanced {
-  color: var(--danger);
-  border-color: rgba(255,95,103,.35);
-  background: rgba(255,95,103,.10);
-}
+      <div class="league-standings-head">
+        <span>#</span>
+        <span>Player</span>
+        <span>Pts</span>
+        <span>W-D-L</span>
+      </div>
 
-.padel-score-summary {
-  padding: 7px 8px;
-  border-radius: 12px;
-  background: rgba(255,255,255,.03);
-  color: var(--muted);
-  font-size: 12px;
-  display: grid;
-  gap: 3px;
+      ${rows.map((row, index) => `
+        <div class="league-standings-row">
+          <span>${index + 1}</span>
+          <span>${escapeHtml(row.name)}</span>
+          <span><strong>${Number(row.points || 0)}</strong></span>
+          <span>${row.wins}-${row.draws}-${row.losses}</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
 }
 
-@media (max-width: 800px) {
-  .padel-set-grid {
-    grid-template-columns: 32px minmax(0, 1fr) minmax(0, 1fr) 46px;
-    gap: 6px;
-  }
+function renderLeagueGameStandings(leagueId) {
+  const rows = leagueTeamGameStandings(leagueId);
 
-  .padel-set-grid input[type="number"] {
-    padding: 9px 7px;
+  if (!rows.length) {
+    return `<div class="league-standings-empty">No completed league games yet.</div>`;
   }
-}
 
+  return `
+    <div class="league-standings compact-standings">
+      <div class="league-standings-title">Game/team standings</div>
 
-/* === MATCH GAMES SCORING === */
-#padel-pending-game-label {
-  transition: opacity .15s ease;
-}
+      <div class="league-standings-head">
+        <span>Team</span>
+        <span>P</span>
+        <span>W</span>
+        <span>L</span>
+      </div>
 
-.padel-score-summary strong {
-  color: var(--text);
+      ${rows.map(row => `
+        <div class="league-standings-row">
+          <span>${escapeHtml(row.name)}</span>
+          <span>${row.played}</span>
+          <span>${row.wins}</span>
+          <span>${row.losses}</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
 }
 
 
-/* === MULTI-GAME RESULT ACTIONS === */
-.score-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+function canManageLeague(league) {
+  return isCurrentUserAdmin() || league.created_by === currentProfile?.id;
 }
 
-.score-actions button {
-  width: 100%;
+function leagueHasLinkedData(leagueId) {
+  return leagueMatches(leagueId).length > 0 || leagueCompletedGames(leagueId).length > 0;
 }
 
-@media (max-width: 800px) {
-  .score-actions {
-    grid-template-columns: 1fr;
+async function openEditLeague(leagueId) {
+  const league = leagueById(leagueId);
+
+  if (!league) {
+    alert("League not found.");
+    return;
   }
-}
 
+  if (!canManageLeague(league)) {
+    alert("Only the league creator or admin can edit this league.");
+    return;
+  }
 
-/* === RESULT EDITING / DELETE GAME === */
-.danger-btn {
-  border-color: rgba(255,95,103,.45) !important;
-  color: var(--danger) !important;
-  background: rgba(255,95,103,.10) !important;
-}
+  editingLeagueId = leagueId;
 
+  await loadSportsOptions();
+  updateLeagueSportOptions();
 
-/* === POINTS SUMMARY === */
-.points-summary {
-  margin-top: 10px;
-  display: grid;
-  gap: 6px;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255,255,255,.035);
-  color: var(--muted);
-  font-size: 12px;
-}
+  const form = $("leagueForm");
+  if (!form) return;
 
-.points-summary > strong {
-  color: var(--text);
-}
+  form.elements["name"].value = league.name || "";
+  form.elements["sport_id"].value = league.sport_id || "";
+  form.elements["format"].value = league.format || "";
+  form.elements["status"].value = league.status || "active";
+  form.elements["start_date"].value = league.start_date || "";
+  form.elements["end_date"].value = league.end_date || "";
 
-.points-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-}
+  const title = form.querySelector("h3");
+  if (title) title.textContent = "Edit League";
 
-.points-row span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
+  const submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.textContent = "Save League";
 
-.points-row b {
-  color: var(--gold);
-  font-size: 13px;
+  $("leagueModal")?.showModal();
 }
 
+async function deleteLeague(leagueId) {
+  const league = leagueById(leagueId);
 
-/* === LEAGUE SELECTOR === */
-#match-league-label {
-  transition: opacity .15s ease;
-}
+  if (!league) {
+    alert("League not found.");
+    return;
+  }
 
+  if (!canManageLeague(league)) {
+    alert("Only the league creator or admin can delete this league.");
+    return;
+  }
 
-/* === LEAGUE STANDINGS === */
-.league-card {
-  gap: 12px;
-}
+  if (leagueHasLinkedData(leagueId)) {
+    alert("This league already has linked matches or games. Mark it as completed instead of deleting it.");
+    return;
+  }
 
-.league-standings {
-  margin-top: 10px;
-  display: grid;
-  gap: 5px;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.035);
-}
+  const ok = confirm(`Delete league "${league.name}"?`);
+  if (!ok) return;
 
-.league-standings-title {
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 900;
-  margin-bottom: 3px;
-}
+  const { error } = await supabaseClient
+    .from("leagues")
+    .delete()
+    .eq("id", leagueId);
 
-.league-standings-head,
-.league-standings-row {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 52px 70px;
-  gap: 8px;
-  align-items: center;
-  font-size: 12px;
-}
+  if (error) {
+    alert(error.message);
+    return;
+  }
 
-.compact-standings .league-standings-head,
-.compact-standings .league-standings-row {
-  grid-template-columns: minmax(0, 1fr) 40px 40px 40px;
-}
+  alert("League deleted.");
 
-.league-standings-head {
-  color: var(--muted);
-  font-weight: 900;
-  text-transform: uppercase;
-  font-size: 10px;
+  await loadLeagues();
+  await loadMatchFormOptions();
 }
 
-.league-standings-row {
-  color: var(--muted);
-  padding-top: 4px;
-  border-top: 1px solid rgba(255,255,255,.06);
-}
+async function markLeagueCompleted(leagueId) {
+  const league = leagueById(leagueId);
 
-.league-standings-row span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
+  if (!league) {
+    alert("League not found.");
+    return;
+  }
 
-.league-standings-row strong {
-  color: var(--gold);
-}
+  if (!canManageLeague(league)) {
+    alert("Only the league creator or admin can complete this league.");
+    return;
+  }
 
-.league-standings-empty {
-  margin-top: 10px;
-  padding: 8px;
-  border: 1px dashed var(--line);
-  border-radius: 12px;
-  color: var(--muted);
-  font-size: 12px;
-  background: rgba(255,255,255,.025);
-}
+  const ok = confirm(`Mark "${league.name}" as completed? It will no longer appear when creating league matches.`);
+  if (!ok) return;
 
-@media (max-width: 800px) {
-  .league-standings-head,
-  .league-standings-row {
-    grid-template-columns: 24px minmax(0, 1fr) 42px 58px;
-    gap: 6px;
-    font-size: 11px;
-  }
+  const { error } = await supabaseClient
+    .from("leagues")
+    .update({
+      status: "completed"
+    })
+    .eq("id", leagueId);
 
-  .compact-standings .league-standings-head,
-  .compact-standings .league-standings-row {
-    grid-template-columns: minmax(0, 1fr) 34px 34px 34px;
+  if (error) {
+    alert(error.message);
+    return;
   }
-}
 
+  alert("League completed.");
 
-/* === REAL RANKINGS === */
-.filters-card {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: rgba(255,255,255,.035);
+  await loadLeagues();
+  await loadMatchFormOptions();
 }
 
-.ranking-summary-card {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
+function renderLeagues() {
+  if (!$("leagueList")) return;
 
-.ranking-summary-card strong {
-  display: block;
-  color: var(--gold);
-  font-size: 20px;
-  margin-top: 3px;
-}
+  if (!allLeagues || allLeagues.length === 0) {
+    $("leagueList").innerHTML = `<article class="card">No leagues created yet.</article>`;
+    return;
+  }
 
-.rankings-table-card {
-  display: grid;
-  gap: 0;
-  overflow: hidden;
-}
+  $("leagueList").innerHTML = allLeagues.map(league => {
+    const matchesCount = leagueMatches(league.id).length;
+    const gamesCount = leagueCompletedGames(league.id).length;
 
-.rankings-table-head,
-.rankings-table-row {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 58px 58px 76px;
-  gap: 8px;
-  align-items: center;
-  padding: 8px 0;
-}
+    return `
+      <article class="card league-card">
+        <div class="row">
+          <div>
+            <h3>${escapeHtml(league.name)}</h3>
+            <div class="meta">
+              ${escapeHtml(league.sports?.name || "-")}
+              • ${escapeHtml(league.format || "Open format")}
+            </div>
+            <div class="meta">
+              ${league.start_date ? `From ${escapeHtml(league.start_date)}` : ""}
+              ${league.end_date ? ` • Until ${escapeHtml(league.end_date)}` : ""}
+            </div>
+            <div class="meta">
+              Linked bookings: ${matchesCount} • Completed games: ${gamesCount}
+            </div>
+          </div>
 
-.rankings-table-head {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 900;
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--line);
-}
+          <span class="pill ${league.status === "completed" ? "blue" : "green"}">
+            ${escapeHtml(league.status || "active")}
+          </span>
+        </div>
 
-.rankings-table-row {
-  color: var(--muted);
-  font-size: 13px;
-  border-bottom: 1px solid rgba(255,255,255,.06);
-}
+        ${
+          canManageLeague(league)
+            ? `
+              <div class="actions">
+                <button class="small-btn" onclick="openEditLeague('${league.id}')">Edit League</button>
 
-.rankings-table-row:last-child {
-  border-bottom: 0;
+                ${
+                  league.status !== "completed"
+                    ? `<button class="small-btn" onclick="markLeagueCompleted('${league.id}')">Complete</button>`
+                    : ""
+                }
+
+                <button class="small-btn danger-text-btn" onclick="deleteLeague('${league.id}')">Delete</button>
+              </div>
+            `
+            : ""
+        }
+
+        ${renderLeaguePlayerStandings(league.id)}
+
+        ${renderLeagueGameStandings(league.id)}
+      </article>
+    `;
+  }).join("");
+}
+
+async function loadLeagues() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") return;
+
+  const { data, error } = await supabaseClient
+    .from("leagues")
+    .select(`
+      id,
+      name,
+      sport_id,
+      format,
+      status,
+      start_date,
+      end_date,
+      created_by,
+      created_at,
+      sports (
+        id,
+        name
+      )
+    `)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.warn("Could not load leagues:", error.message);
+    allLeagues = [];
+    renderLeagues();
+    return;
+  }
+
+  allLeagues = data || [];
+  renderLeagues();
+  updateMatchLeagueOptions();
+  updateRankingFilters();
+  renderRankings();
+}
+
+function matchCard(m, compact = false) {
+  return `
+    <article class="card">
+      <div class="row">
+        <div>
+          <h3>${escapeHtml(m.title)}</h3>
+          <div class="meta">${escapeHtml(m.sport)} • ${escapeHtml(m.type)} • ${fmtDate(m.date)}</div>
+          <div class="meta">📍 ${escapeHtml(m.venue)} ${m.address ? "— " + escapeHtml(m.address) : ""}</div>
+        </div>
+        <span class="pill green">Scheduled</span>
+      </div>
+      ${compact ? "" : commentSection(m)}
+    </article>
+  `;
+}
+
+
+async function loadMatches() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") return;
+
+  const fullSelect = `
+      id,
+      sport_id,
+      venue_id,
+      league_id,
+      created_by,
+      max_players,
+      required_players,
+      external_players_count,
+      visibility,
+      team_status,
+      score_status,
+      title,
+      match_type,
+      start_time,
+      end_time,
+      status,
+      notes,
+      created_at,
+      sports (
+        id,
+        name
+      ),
+      venues (
+        id,
+        name,
+        address,
+        google_maps_url,
+        image_url
+      ),
+      match_invitations (
+        id,
+        member_id,
+        invited_by,
+        status,
+        member:members!match_invitations_member_id_fkey (
+          id,
+          first_name,
+          last_name,
+          display_name,
+          email,
+          is_external
+        )
+      ),
+      match_teams (
+        id,
+        name,
+        color,
+        score,
+        result,
+        match_team_players (
+          id,
+          member_id,
+          is_external,
+          formation_position,
+          is_captain,
+          formation_position,
+          is_captain,
+          member:members!match_team_players_member_id_fkey (
+            id,
+            first_name,
+            last_name,
+            display_name,
+            email,
+            is_external
+          )
+        )
+      ),
+      match_score_entries (
+        id,
+        game_id,
+        entry_type,
+        game_number,
+        set_number,
+        team_a_score,
+        team_b_score,
+        is_completed,
+        notes
+      ),
+      match_game_sessions (
+        id,
+        game_id,
+        match_games (
+          id,
+          sport_id,
+          league_id,
+          title,
+          status,
+          team_a_name,
+          team_b_name,
+          team_a_score,
+          team_b_score,
+          winner_team,
+          created_by,
+          created_at
+        )
+      ),
+      match_member_points (
+        id,
+        member_id,
+        base_points,
+        difficulty_factor,
+        consistency_bonus,
+        total_points,
+        member:members!match_member_points_member_id_fkey (
+          id,
+          first_name,
+          last_name,
+          display_name,
+          email,
+          is_external
+        )
+      )
+    `;
+
+  const fallbackSelect = `
+      id,
+      sport_id,
+      venue_id,
+      league_id,
+      created_by,
+      max_players,
+      required_players,
+      external_players_count,
+      visibility,
+      team_status,
+      score_status,
+      title,
+      match_type,
+      start_time,
+      end_time,
+      status,
+      notes,
+      created_at,
+      sports (
+        id,
+        name
+      ),
+      venues (
+        id,
+        name,
+        address,
+        google_maps_url,
+        image_url
+      ),
+      match_invitations (
+        id,
+        member_id,
+        invited_by,
+        status,
+        member:members!match_invitations_member_id_fkey (
+          id,
+          first_name,
+          last_name,
+          display_name,
+          email,
+          is_external
+        )
+      ),
+      match_teams (
+        id,
+        name,
+        color,
+        score,
+        result,
+        match_team_players (
+          id,
+          member_id,
+          is_external,
+          formation_position,
+          is_captain,
+          formation_position,
+          is_captain,
+          member:members!match_team_players_member_id_fkey (
+            id,
+            first_name,
+            last_name,
+            display_name,
+            email,
+            is_external
+          )
+        )
+      ),
+      match_member_points (
+        id,
+        member_id,
+        base_points,
+        difficulty_factor,
+        consistency_bonus,
+        total_points,
+        member:members!match_member_points_member_id_fkey (
+          id,
+          first_name,
+          last_name,
+          display_name,
+          email,
+          is_external
+        )
+      )
+    `;
+
+  let result = await supabaseClient
+    .from("matches")
+    .select(fullSelect)
+    .order("created_at", { ascending: false });
+
+  if (result.error) {
+    console.warn("Full match load failed. Retrying without game/session scoring tables:", result.error.message);
+
+    result = await supabaseClient
+      .from("matches")
+      .select(fallbackSelect)
+      .order("created_at", { ascending: false });
+  }
+
+  const { data, error } = result;
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  const myId = currentProfile?.id;
+
+  allMatches = (data || []).filter(match =>
+    isCurrentUserAdmin() ||
+    match.created_by === myId ||
+    (match.match_invitations || []).some(inv =>
+      inv.member_id === myId && inv.status !== "removed"
+    )
+  );
+
+  renderMatches();
+  renderLeagues();
+  renderRankings();
+}
+
+function invitationCounts(match) {
+  const invitations = match.match_invitations || [];
+  const hasCreatorInvitation = invitations.some(inv =>
+    inv.member_id === match.created_by && inv.status !== "removed"
+  );
+
+  let inCount = invitations.filter(inv => inv.status === "in").length;
+
+  if (match.created_by && !hasCreatorInvitation) {
+    inCount += 1;
+  }
+
+  return {
+    inCount,
+    maybeCount: invitations.filter(inv => inv.status === "maybe").length,
+    outCount: invitations.filter(inv => inv.status === "out").length,
+    invitedCount: invitations.filter(inv => inv.status === "invited").length
+  };
+}
+
+function invitationMember(invitation) {
+  return invitation?.member || null;
+}
+
+function invitationMemberDisplayName(invitation) {
+  const member = invitationMember(invitation);
+
+  return member?.display_name ||
+    `${member?.first_name || ""} ${member?.last_name || ""}`.trim() ||
+    member?.email ||
+    "Unnamed";
+}
+
+function isExternalInvitation(invitation) {
+  return Boolean(invitationMember(invitation)?.is_external);
+}
+
+function externalPlayerInvitations(match) {
+  return (match.match_invitations || []).filter(inv =>
+    inv.status === "in" && isExternalInvitation(inv)
+  );
+}
+
+function externalPlayerCount(match) {
+  return externalPlayerInvitations(match).length;
+}
+
+function filledPlayerCount(match) {
+  return invitationCounts(match).inCount;
+}
+
+function remainingSpots(match) {
+  const maxPlayers = Number(match.max_players || 0);
+  if (!maxPlayers) return null;
+
+  return Math.max(0, maxPlayers - filledPlayerCount(match));
+}
+
+function myInvitation(match) {
+  return (match.match_invitations || []).find(inv =>
+    inv.member_id === currentProfile?.id
+  );
+}
+
+function canManageMatch(match) {
+  return isCurrentUserAdmin() || match.created_by === currentProfile?.id;
+}
+
+function inPlayerNames(match) {
+  const invitations = match.match_invitations || [];
+
+  const names = invitations
+    .filter(inv => inv.status === "in")
+    .map(inv => invitationMemberDisplayName(inv))
+    .filter(Boolean);
+
+  const hasCreatorInvitation = invitations.some(inv =>
+    inv.member_id === match.created_by && inv.status !== "removed"
+  );
+
+  if (match.created_by && !hasCreatorInvitation) {
+    names.unshift("Creator");
+  }
+
+  return names;
+}
+
+
+function getMatchDisplayStatus(match) {
+  if (match.status === "cancelled") return "cancelled";
+  if (match.status === "completed") return "completed";
+
+  const now = new Date();
+  const start = new Date(match.start_time);
+  const end = new Date(match.end_time);
+
+  if (now >= start && now <= end) return "playing";
+  if (now > end) return "finished";
+
+  return match.status || "open_for_votes";
+}
+
+function getMatchStatusClass(displayStatus, isFull) {
+  if (displayStatus === "cancelled") return "red";
+  if (displayStatus === "playing") return "gold";
+  if (displayStatus === "finished" || displayStatus === "completed") return "blue";
+  if (isFull) return "blue";
+  return "green";
+}
+
+function isVotingOpenForMatch(match) {
+  const displayStatus = getMatchDisplayStatus(match);
+  return displayStatus !== "cancelled" &&
+    displayStatus !== "playing" &&
+    displayStatus !== "finished" &&
+    displayStatus !== "completed" &&
+    new Date(match.start_time) > new Date();
+}
+
+function isMatchEditable(match) {
+  return getMatchDisplayStatus(match) !== "cancelled" &&
+    new Date(match.start_time) > new Date();
+}
+
+
+function inPlayerInvitations(match) {
+  return (match.match_invitations || []).filter(inv =>
+    inv.status === "in" && invitationMember(inv)
+  );
+}
+
+function teamAssignments(match) {
+  const teams = match.match_teams || [];
+
+  return teams.map(team => ({
+    ...team,
+    players: (team.match_team_players || []).map(tp => ({
+      teamPlayerId: tp.id,
+      memberId: tp.member_id,
+      name: memberDisplayName(tp.member),
+      isExternal: Boolean(tp.member?.is_external)
+    }))
+  }));
+}
+
+function renderTeamsSummary(match) {
+  const teams = teamAssignments(match);
+
+  if (!teams.length) return "";
+
+  return `
+    <div class="teams-summary">
+      ${teams.map(team => `
+        <div class="team-summary-row">
+          <strong>${escapeHtml(team.name || "Team")}</strong>
+          <span>
+            ${
+              team.players.length
+                ? escapeHtml(team.players.map(player => player.name).join(", "))
+                : "No players assigned"
+            }
+          </span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function currentTeamByMemberId(match) {
+  const map = new Map();
+
+  (match.match_teams || []).forEach(team => {
+    (team.match_team_players || []).forEach(tp => {
+      if (tp.member_id) map.set(tp.member_id, team.id);
+    });
+  });
+
+  return map;
+}
+
+
+
+
+function currentTeamPlayerByMemberId(match) {
+  const map = new Map();
+
+  (match.match_teams || []).forEach(team => {
+    (team.match_team_players || []).forEach(tp => {
+      if (tp.member_id) {
+        map.set(tp.member_id, {
+          ...tp,
+          team_id: team.id,
+          team_color: team.color
+        });
+      }
+    });
+  });
+
+  return map;
+}
+
+function isSoccerMatch(match) {
+  return sportName(match).includes("soccer") ||
+    sportName(match).includes("football");
+}
+
+const SOCCER_POSITIONS = ["GK", "DEF", "MID", "ATT"];
+
+function soccerPositionOptions(selected = "") {
+  return `
+    <option value="">Position</option>
+    ${SOCCER_POSITIONS.map(position => `
+      <option value="${position}" ${selected === position ? "selected" : ""}>
+        ${position}
+      </option>
+    `).join("")}
+  `;
+}
+
+function preferredPositionOptions(selected = "", isSoccer = false) {
+  const cleanSelected = normalizeSoccerPosition(selected) || String(selected || "").trim();
+
+  if (isSoccer) {
+    return `
+      <option value="">No preference</option>
+      ${SOCCER_POSITIONS.map(position => `
+        <option value="${position}" ${cleanSelected === position ? "selected" : ""}>
+          ${position}
+        </option>
+      `).join("")}
+    `;
+  }
+
+  return `
+    <option value="">No preference</option>
+    <option value="General" ${cleanSelected === "General" ? "selected" : ""}>General</option>
+  `;
+}
+
+
+function normalizeSoccerPosition(position) {
+  const clean = String(position || "").trim().toUpperCase();
+
+  if (clean === "GOALKEEPER" || clean === "KEEPER") return "GK";
+  if (clean === "DEFENDER" || clean === "DEFENCE" || clean === "DEFENSE") return "DEF";
+  if (clean === "MIDFIELDER" || clean === "CENTER" || clean === "CM") return "MID";
+  if (clean === "ATTACKER" || clean === "STRIKER" || clean === "FORWARD" || clean === "FW") return "ATT";
+
+  return SOCCER_POSITIONS.includes(clean) ? clean : "";
+}
+
+function soccerFormationTemplate(playerCount) {
+  if (playerCount <= 4) return ["GK", "DEF", "MID", "ATT"].slice(0, playerCount);
+  if (playerCount === 5) return ["GK", "DEF", "MID", "ATT", "ATT"];
+  if (playerCount === 6) return ["GK", "DEF", "DEF", "MID", "ATT", "ATT"];
+  if (playerCount === 7) return ["GK", "DEF", "DEF", "MID", "MID", "ATT", "ATT"];
+  if (playerCount === 8) return ["GK", "DEF", "DEF", "DEF", "MID", "MID", "ATT", "ATT"];
+  if (playerCount === 9) return ["GK", "DEF", "DEF", "DEF", "MID", "MID", "MID", "ATT", "ATT"];
+  if (playerCount === 10) return ["GK", "DEF", "DEF", "DEF", "MID", "MID", "MID", "ATT", "ATT", "ATT"];
+
+  const positions = ["GK"];
+  let remaining = playerCount - 1;
+  const cycle = ["DEF", "MID", "ATT"];
+
+  while (remaining > 0) {
+    positions.push(cycle[(positions.length - 1) % cycle.length]);
+    remaining -= 1;
+  }
+
+  return positions;
+}
+
+function positionWeight(position, memberId, sportId) {
+  const preferred = normalizeSoccerPosition(memberSportPosition(memberId, sportId));
+  const rating = positionRatingForMember(memberId, sportId, position);
+  let score = rating;
+
+  if (preferred && preferred === position) score += 2;
+  if (position === "GK" && preferred !== "GK") score -= 1;
+
+  return score;
+}
+
+function assignSoccerPositionsToTeam(memberIds, sportId) {
+  const template = soccerFormationTemplate(memberIds.length);
+  const available = [...memberIds];
+  const assignment = new Map();
+
+  template.forEach(position => {
+    if (!available.length) return;
+
+    let bestIndex = 0;
+    let bestScore = -Infinity;
+
+    available.forEach((memberId, index) => {
+      const score = positionWeight(position, memberId, sportId);
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = index;
+      }
+    });
+
+    const [memberId] = available.splice(bestIndex, 1);
+    assignment.set(memberId, position);
+  });
+
+  return assignment;
+}
+
+
+
+function selectedTeamForMember(memberId) {
+  return document.querySelector(`#team-assignment-list input[name="team-choice-${memberId}"]:checked`)?.value || "";
+}
+
+function captainSelectOptionsForTeam(teamMembers, selectedCaptainId = "") {
+  return `
+    <option value="">Select captain</option>
+    ${teamMembers.map(player => `
+      <option value="${player.memberId}" ${selectedCaptainId === player.memberId ? "selected" : ""}>
+        ${escapeHtml(player.name)}
+      </option>
+    `).join("")}
+  `;
 }
 
-.rankings-table-row span {
-  min-width: 0;
-  overflow-wrap: anywhere;
+function existingCaptainBySide(match, side) {
+  const teams = match?.match_teams || [];
+  const team = teams.find(t => t.color === side) || (side === "A" ? teams[0] : teams[1]);
+
+  const captain = (team?.match_team_players || []).find(player => player.is_captain);
+  return captain?.member_id || "";
 }
 
-.rankings-table-row strong {
-  color: var(--gold);
+function assignedPlayersForCaptainSelect(match, side) {
+  const assignments = collectTeamAssignments();
+
+  return assignments.all
+    .filter(player => player.team === side)
+    .map(player => {
+      const inv = inPlayerInvitations(match).find(item => item.member_id === player.memberId);
+      return {
+        memberId: player.memberId,
+        name: inv ? invitationMemberDisplayName(inv) : player.memberId
+      };
+    });
 }
+
+function updateCaptainSelectors() {
+  const wrapper = $("captain-selectors");
+  const captainASelect = $("team-a-captain");
+  const captainBSelect = $("team-b-captain");
+  const match = allMatches.find(m => m.id === currentTeamMatchId);
+
+  if (!wrapper || !captainASelect || !captainBSelect || !match) return;
+
+  if (!isSoccerMatch(match)) {
+    wrapper.style.display = "none";
+    captainASelect.value = "";
+    captainBSelect.value = "";
+    return;
+  }
+
+  wrapper.style.display = "";
+
+  const previousA = captainASelect.value || existingCaptainBySide(match, "A");
+  const previousB = captainBSelect.value || existingCaptainBySide(match, "B");
+
+  const teamAPlayers = assignedPlayersForCaptainSelect(match, "A");
+  const teamBPlayers = assignedPlayersForCaptainSelect(match, "B");
+
+  captainASelect.innerHTML = captainSelectOptionsForTeam(teamAPlayers, previousA);
+  captainBSelect.innerHTML = captainSelectOptionsForTeam(teamBPlayers, previousB);
+
+  if (!teamAPlayers.some(player => player.memberId === previousA)) {
+    captainASelect.value = "";
+  }
 
-.rankings-table-row em {
-  display: inline-flex;
-  margin-left: 5px;
-  padding: 2px 5px;
-  border-radius: 999px;
-  background: rgba(49,168,255,.12);
-  color: var(--accent2);
-  font-size: 9px;
-  font-style: normal;
-  font-weight: 900;
+  if (!teamBPlayers.some(player => player.memberId === previousB)) {
+    captainBSelect.value = "";
+  }
 }
+
+function teamFormationCounts(assignments, side) {
+  const players = assignments.all.filter(player => player.team === side);
+  const counts = {
+    total: players.length,
+    GK: 0,
+    DEF: 0,
+    MID: 0,
+    ATT: 0
+  };
+
+  players.forEach(player => {
+    const position = normalizeSoccerPosition(player.position);
+    if (counts[position] !== undefined) counts[position] += 1;
+  });
 
-.rank-number-mini {
-  color: var(--text);
-  font-weight: 900;
+  return counts;
 }
+
+function validateSoccerFormationSide(counts, sideLabel) {
+  if (counts.total < 5) {
+    return `${sideLabel} needs at least 5 players for the required soccer formation rules.`;
+  }
+
+  if (counts.GK !== 1) {
+    return `${sideLabel} must have exactly 1 GK.`;
+  }
 
-@media (max-width: 800px) {
-  .filters-card {
-    grid-template-columns: 1fr;
+  if (counts.DEF < 2) {
+    return `${sideLabel} must have at least 2 DEF players.`;
   }
 
-  .ranking-summary-card {
-    grid-template-columns: 1fr;
+  if (counts.MID < 1) {
+    return `${sideLabel} must have at least 1 MID player.`;
   }
+
+  if (counts.ATT < 1) {
+    return `${sideLabel} must have at least 1 ATT player.`;
+  }
+
+  return "";
+}
+
+function soccerMidHybridAdjustment({ attackAdjustment = 0, defenseAdjustment = 0, resultModifier = 0 } = {}) {
+  // Fair MID rule for later automatic rating updates:
+  // MID is hybrid: 60% attack contribution + 40% defense contribution + match result.
+  // This rewards midfielders for helping goals scored, while still accounting for goals conceded.
+  return (0.6 * attackAdjustment) + (0.4 * defenseAdjustment) + resultModifier;
+}
+
+function updateFormationStatus() {
+  const status = $("formation-status");
+  if (!status) return;
+
+  const match = allMatches.find(m => m.id === currentTeamMatchId);
 
-  .rankings-table-head,
-  .rankings-table-row {
-    grid-template-columns: 28px minmax(0, 1fr) 48px 44px 58px;
-    gap: 6px;
-    font-size: 11px;
+  if (!match || !isSoccerMatch(match)) {
+    status.textContent = "Formation: available for soccer matches.";
+    status.classList.remove("balanced", "unbalanced");
+    return;
   }
+
+  updateCaptainSelectors();
+
+  const assignments = collectTeamAssignments();
+  const countsA = teamFormationCounts(assignments, "A");
+  const countsB = teamFormationCounts(assignments, "B");
+  const missingPositions = assignments.all.filter(player =>
+    player.team && !player.position
+  ).length;
+
+  const captainA = $("team-a-captain")?.value || "";
+  const captainB = $("team-b-captain")?.value || "";
+
+  const errorA = validateSoccerFormationSide(countsA, "Team A");
+  const errorB = validateSoccerFormationSide(countsB, "Team B");
+
+  const parts = [
+    `Team A: GK ${countsA.GK}, DEF ${countsA.DEF}, MID ${countsA.MID}, ATT ${countsA.ATT}`,
+    `Team B: GK ${countsB.GK}, DEF ${countsB.DEF}, MID ${countsB.MID}, ATT ${countsB.ATT}`
+  ];
+
+  if (missingPositions) parts.push(`Missing positions: ${missingPositions}`);
+  if (!captainA) parts.push("Team A captain missing");
+  if (!captainB) parts.push("Team B captain missing");
+  if (errorA) parts.push(errorA);
+  if (errorB) parts.push(errorB);
+
+  status.textContent = `Formation: ${parts.join(" • ")}`;
+
+  const ok = !missingPositions && !errorA && !errorB && captainA && captainB;
+  status.classList.toggle("balanced", Boolean(ok));
+  status.classList.toggle("unbalanced", !ok);
+}
+
+function sportName(match) {
+  return String(match.sports?.name || "").toLowerCase();
+}
+
+function isPadelMatch(match) {
+  return sportName(match).includes("padel");
+}
+
+function isSimpleScoreMatch(match) {
+  return !isPadelMatch(match);
+}
+
+function scoreEntries(match, entryType = null) {
+  const entries = match.match_score_entries || [];
+
+  return entryType
+    ? entries.filter(entry => entry.entry_type === entryType)
+    : entries;
+}
+
+function padelSetInputs() {
+  return [1, 2, 3].map(setNumber => {
+    const aRaw = $(`padel-set-${setNumber}-a`)?.value;
+    const bRaw = $(`padel-set-${setNumber}-b`)?.value;
+    const completed = Boolean($(`padel-set-${setNumber}-completed`)?.checked);
+
+    const hasAnyValue = aRaw !== "" || bRaw !== "";
+    const a = aRaw === "" ? null : Number(aRaw);
+    const b = bRaw === "" ? null : Number(bRaw);
+
+    return {
+      setNumber,
+      teamAScore: a,
+      teamBScore: b,
+      isCompleted: completed,
+      hasAnyValue
+    };
+  });
 }
+
+function calculatePadelSetResult(sets) {
+  let teamASetWins = 0;
+  let teamBSetWins = 0;
+
+  const validSets = [];
+
+  for (const set of sets) {
+    if (!set.hasAnyValue) continue;
 
+    if (
+      set.teamAScore === null ||
+      set.teamBScore === null ||
+      !Number.isInteger(set.teamAScore) ||
+      !Number.isInteger(set.teamBScore) ||
+      set.teamAScore < 0 ||
+      set.teamBScore < 0
+    ) {
+      return {
+        error: "Padel set scores must be whole numbers equal to or greater than 0."
+      };
+    }
 
-/* === LEAGUE MANAGEMENT === */
-.danger-text-btn {
-  color: var(--danger) !important;
-  border-color: rgba(255,95,103,.35) !important;
+    if (set.isCompleted && !isValidCompletedPadelSet(set.teamAScore, set.teamBScore)) {
+      return {
+        error: `Set ${set.setNumber} cannot be marked complete with ${set.teamAScore}-${set.teamBScore}. Valid completed set scores are 6-0 to 6-4, 7-5, 7-6 for tie-break sets, or 8-6 / 9-7 / 10-8 etc. for advantage sets.`
+      };
+    }
+
+    validSets.push(set);
+
+    if (set.isCompleted) {
+      if (set.teamAScore > set.teamBScore) teamASetWins += 1;
+      if (set.teamBScore > set.teamAScore) teamBSetWins += 1;
+    }
+  }
+
+  if (validSets.length === 0) {
+    return {
+      error: "Enter at least one padel set."
+    };
+  }
+
+  return {
+    teamASetWins,
+    teamBSetWins,
+    validSets
+  };
 }
+
+function updatePadelScorePreview() {
+  const preview = $("padel-score-preview");
+  if (!preview) return;
+
+  const result = calculatePadelSetResult(padelSetInputs());
 
+  if (result.error) {
+    preview.textContent = result.error;
+    preview.classList.add("unbalanced");
+    preview.classList.remove("balanced");
+    return;
+  }
 
-/* === SPORT PROFILES / RATINGS === */
-.sport-rating-list {
-  display: grid;
-  gap: 8px;
+  preview.textContent = `Sets: ${result.teamASetWins} - ${result.teamBSetWins}`;
+  preview.classList.add("balanced");
+  preview.classList.remove("unbalanced");
 }
+
+function setScoreMode(match) {
+  const simpleSection = $("simple-score-section");
+  const padelSection = $("padel-score-section");
 
-.sport-rating-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 90px minmax(120px, 1fr) auto;
-  gap: 8px;
-  align-items: end;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.035);
+  if (!simpleSection || !padelSection) return;
+
+  if (isPadelMatch(match)) {
+    simpleSection.style.display = "none";
+    padelSection.style.display = "";
+  } else {
+    simpleSection.style.display = "";
+    padelSection.style.display = "none";
+  }
 }
 
-.sport-rating-row strong {
-  color: var(--text);
-  display: inline-block;
-  margin-right: 5px;
+
+function matchSessionGames(match) {
+  const byId = new Map();
+
+  (match.match_game_sessions || [])
+    .map(session => session.match_games)
+    .filter(Boolean)
+    .forEach(game => {
+      if (game?.id && !byId.has(game.id)) {
+        byId.set(game.id, game);
+      }
+    });
+
+  return Array.from(byId.values());
 }
 
-.rating-pill {
-  display: inline-flex;
-  margin-left: 6px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: rgba(255,209,102,.12);
-  color: var(--gold);
-  font-size: 10px;
-  font-weight: 900;
+function scoreEntriesForGame(match, gameId) {
+  return (match.match_score_entries || []).filter(entry =>
+    entry.game_id === gameId
+  );
 }
+
+async function loadPendingPadelGames(match) {
+  const linkedGames = matchSessionGames(match);
 
-.team-rating-status {
-  margin-top: 8px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.05);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-  text-align: center;
+  const { data, error } = await supabaseClient
+    .from("match_games")
+    .select("id,sport_id,league_id,title,status,team_a_name,team_b_name,team_a_score,team_b_score,winner_team,created_by,created_at")
+    .eq("sport_id", match.sport_id)
+    .eq("status", "in_progress")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    alert(error.message);
+    allPendingGames = linkedGames;
+    return allPendingGames;
+  }
+
+  const byId = new Map();
+
+  linkedGames.forEach(game => {
+    if (game?.id) byId.set(game.id, game);
+  });
+
+  (data || []).forEach(game => {
+    if (game?.id && !byId.has(game.id)) byId.set(game.id, game);
+  });
+
+  allPendingGames = Array.from(byId.values());
+
+  return allPendingGames;
 }
+
+function renderPendingGameOptions() {
+  const select = $("padel-pending-game");
+  if (!select) return;
 
-.team-rating-status.balanced {
-  color: var(--accent);
-  border-color: rgba(36,209,126,.35);
-  background: rgba(36,209,126,.10);
+  if (!allPendingGames.length) {
+    select.innerHTML = `<option value="">No games found</option>`;
+    return;
+  }
+
+  select.innerHTML = `
+    <option value="">Select game</option>
+    ${allPendingGames.map(game => `
+      <option value="${game.id}">
+        ${escapeHtml(game.title || "Game")} — ${escapeHtml(game.status || "-")}
+      </option>
+    `).join("")}
+  `;
 }
 
-.team-rating-status.unbalanced {
-  color: var(--danger);
-  border-color: rgba(255,95,103,.35);
-  background: rgba(255,95,103,.10);
+function setPadelGameModeUI() {
+  const mode = $("padel-game-mode")?.value || "new";
+  const label = $("padel-pending-game-label");
+  const deleteBtn = $("delete-game-btn");
+
+  if (label) label.style.display = mode === "continue" ? "" : "none";
+  if (deleteBtn) deleteBtn.style.display = mode === "continue" ? "" : "none";
 }
 
-@media (max-width: 800px) {
-  .sport-rating-row {
-    grid-template-columns: 1fr;
+function clearPadelSetInputs() {
+  for (const setNumber of [1, 2, 3]) {
+    if ($(`padel-set-${setNumber}-a`)) $(`padel-set-${setNumber}-a`).value = "";
+    if ($(`padel-set-${setNumber}-b`)) $(`padel-set-${setNumber}-b`).value = "";
+    if ($(`padel-set-${setNumber}-completed`)) $(`padel-set-${setNumber}-completed`).checked = false;
   }
+
+  updatePadelScorePreview();
 }
+
+async function loadPendingGameScoreIntoForm(gameId) {
+  if (!gameId) {
+    clearPadelSetInputs();
+    return;
+  }
+
+  const game = allPendingGames.find(g => g.id === gameId);
+
+  if ($("padel-game-title")) {
+    $("padel-game-title").value = game?.title || "Continued Game";
+  }
+
+  const { data, error } = await supabaseClient
+    .from("match_score_entries")
+    .select("id,game_id,entry_type,game_number,set_number,team_a_score,team_b_score,is_completed,notes")
+    .eq("game_id", gameId)
+    .eq("entry_type", "padel_set")
+    .order("set_number", { ascending: true });
+
+  if (error) {
+    alert(error.message);
+    clearPadelSetInputs();
+    return;
+  }
 
+  clearPadelSetInputs();
 
-/* === SOCCER FORMATIONS === */
-.formation-choice {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-  margin-top: 8px;
+  (data || []).forEach(entry => {
+    const setNumber = Number(entry.set_number || 0);
+    if (![1, 2, 3].includes(setNumber)) return;
+
+    if ($(`padel-set-${setNumber}-a`)) $(`padel-set-${setNumber}-a`).value = Number(entry.team_a_score || 0);
+    if ($(`padel-set-${setNumber}-b`)) $(`padel-set-${setNumber}-b`).value = Number(entry.team_b_score || 0);
+    if ($(`padel-set-${setNumber}-completed`)) $(`padel-set-${setNumber}-completed`).checked = Boolean(entry.is_completed);
+  });
+
+  updatePadelScorePreview();
 }
 
-.formation-choice select {
-  max-width: 120px;
-  min-height: 36px;
-  padding: 7px 9px;
+function padelGameWinnerFromSets(padelResult) {
+  if (padelResult.teamASetWins >= 2) return "A";
+  if (padelResult.teamBSetWins >= 2) return "B";
+  return null;
 }
 
-.captain-select-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  padding: 7px 10px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: rgba(255,255,255,.05);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
+function canSubmitScore(match) {
+  const displayStatus = getMatchDisplayStatus(match);
+
+  return canManageMatch(match) &&
+    displayStatus !== "cancelled" &&
+    (
+      displayStatus === "finished" ||
+      displayStatus === "completed" ||
+      match.score_status === "submitted"
+    );
 }
 
-.captain-select-label input {
-  width: auto;
-  margin: 0;
+function hasSubmittedScore(match) {
+  return match.score_status === "submitted" || match.status === "completed";
 }
+
+function renderScoreSummary(match) {
+  const teams = match.match_teams || [];
 
-.formation-status {
-  margin-top: 8px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.05);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-  text-align: center;
+  if (!teams.length || !hasSubmittedScore(match)) return "";
+
+  const sessionGames = matchSessionGames(match);
+  const legacyPadelSets = scoreEntries(match, "padel_set")
+    .filter(entry => !entry.game_id)
+    .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0));
+
+  return `
+    <div class="score-summary">
+      ${teams.map(team => `
+        <div class="score-summary-row">
+          <strong>${escapeHtml(team.name || "Team")}</strong>
+          <span>${Number(team.score || 0)}</span>
+          <em>${escapeHtml(team.result || "-")}</em>
+        </div>
+      `).join("")}
+
+      ${
+        sessionGames.length
+          ? isPadelMatch(match)
+            ? `
+              <div class="padel-score-summary">
+                ${sessionGames.map((game, index) => {
+                  const gameSets = scoreEntriesForGame(match, game.id)
+                    .filter(entry => entry.entry_type === "padel_set")
+                    .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0));
+
+                  return `
+                    <div>
+                      <strong>${escapeHtml(game.title || `Game ${index + 1}`)}</strong>
+                      — ${escapeHtml(padelGameStatusLabel(game, gameSets))}
+                      ${game.winner_team ? ` • Winner: Team ${escapeHtml(game.winner_team)}` : ""}
+                    </div>
+                    ${gameSets.map(set => `
+                      <div>
+                        Set ${Number(set.set_number || 0)}:
+                        ${Number(set.team_a_score || 0)}-${Number(set.team_b_score || 0)}
+                        ${set.is_completed ? "" : " incomplete"}
+                      </div>
+                    `).join("")}
+                  `;
+                }).join("")}
+              </div>
+            `
+            : `
+              <div class="padel-score-summary">
+                ${sessionGames.slice(0, 1).map(game => `
+                  <div>
+                    <strong>${escapeHtml(game.title || "Game")}</strong>
+                    — completed
+                    ${game.winner_team && game.winner_team !== "draw" ? ` • Winner: Team ${escapeHtml(game.winner_team)}` : ""}
+                  </div>
+                `).join("")}
+              </div>
+            `
+          : legacyPadelSets.length
+            ? `
+              <div class="padel-score-summary">
+                ${legacyPadelSets.map(set => `
+                  <div>
+                    Set ${Number(set.set_number || 0)}:
+                    ${Number(set.team_a_score || 0)}-${Number(set.team_b_score || 0)}
+                    ${set.is_completed ? "" : " incomplete"}
+                  </div>
+                `).join("")}
+              </div>
+            `
+            : ""
+      }
+
+      ${
+        match.notes
+          ? `<div class="score-notes">${escapeHtml(match.notes)}</div>`
+          : ""
+      }
+    </div>
+  `;
 }
+
 
-.formation-status.balanced {
-  color: var(--accent);
-  border-color: rgba(36,209,126,.35);
-  background: rgba(36,209,126,.10);
+function isTeamEditable(match) {
+  const displayStatus = getMatchDisplayStatus(match);
+
+  return canManageMatch(match) &&
+    displayStatus !== "cancelled";
 }
+
+function renderMatches() {
+  if (!$("matchList")) return;
+
+  if (!allMatches || allMatches.length === 0) {
+    $("matchList").innerHTML = `<article class="card">No matches scheduled yet.</article>`;
+    return;
+  }
+
+  $("matchList").innerHTML = allMatches.map(match => {
+    const displayStatus = getMatchDisplayStatus(match);
+    const isCancelled = displayStatus === "cancelled";
+    const isFuture = new Date(match.start_time) > new Date();
+    const votingOpen = isVotingOpenForMatch(match);
+    const matchEditable = isMatchEditable(match);
+    const counts = invitationCounts(match);
+    const externalInvitations = externalPlayerInvitations(match);
+    const externalCount = externalInvitations.length;
+    const filledCount = counts.inCount;
+    const invitation = myInvitation(match);
+    const isCreator = String(match.created_by || "") === String(currentProfile?.id || "");
+    const isAdmin = isCurrentUserAdmin();
+    const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
+
+    const maxPlayers = Number(match.max_players || 0);
+    const spotsLabel = maxPlayers
+      ? `${filledCount}/${maxPlayers} filled`
+      : `${filledCount} filled`;
+
+    const isFull = maxPlayers && filledCount >= maxPlayers;
+    const userIsIn = currentVoteStatus === "in";
+    const canVoteThisMatch = Boolean(invitation || isCreator || isAdmin);
+
+    return `
+      <article class="card">
+        <div class="row">
+          <div>
+            <h3>${escapeHtml(match.title || "Untitled match")}</h3>
+
+            <div class="meta">
+              ${escapeHtml(match.sports?.name || "-")}
+              • ${escapeHtml(match.match_type || "-")}
+              • ${fmtDate(match.start_time)}
+            </div>
+
+            ${
+              match.league_id
+                ? `<div class="meta">🏆 League: ${escapeHtml(leagueNameForId(match.league_id) || "Linked league")}</div>`
+                : ""
+            }
+
+            <div class="meta">
+              Time: ${fmtDate(match.start_time)} → ${fmtDate(match.end_time)}
+            </div>
+
+            <div class="meta">
+              📍 ${escapeHtml(match.venues?.name || "-")}
+              ${match.venues?.address ? "— " + escapeHtml(match.venues.address) : ""}
+            </div>
+
+            <div class="meta">
+              Players: ${spotsLabel}
+              • IN: ${counts.inCount}
+              • External: ${externalCount}
+              • Maybe: ${counts.maybeCount}
+              • Out: ${counts.outCount}
+              • Invited: ${counts.invitedCount}
+            </div>
+
+            <div class="meta">
+              IN players: ${inPlayerNames(match).length ? escapeHtml(inPlayerNames(match).join(", ")) : "-"}
+            </div>
+
+            ${renderTeamsSummary(match)}
+
+            ${renderScoreSummary(match)}
+
+            ${renderPointsSummary(match)}
+
+            ${
+              externalCount && canManageMatch(match) && matchEditable
+                ? `<div class="meta"><button class="tiny-btn" onclick="openExternalPlayersModal('${match.id}')">Manage external players</button></div>`
+                : ""
+            }
+
+            ${
+              isFull
+                ? `<div class="meta">Match is full.</div>`
+                : ""
+            }
+
+            ${
+              match.venues?.google_maps_url
+                ? `<div class="meta"><a href="${escapeHtml(match.venues.google_maps_url)}" target="_blank">Open Map</a></div>`
+                : ""
+            }
+
+            ${
+              match.notes
+                ? `<div class="meta">${escapeHtml(match.notes)}</div>`
+                : ""
+            }
+          </div>
+
+          <span class="pill ${getMatchStatusClass(displayStatus, isFull)}">
+            ${escapeHtml(isFull && displayStatus === "open_for_votes" ? "full" : displayStatus)}
+          </span>
+        </div>
+
+        ${
+         canVoteThisMatch && votingOpen
+            ? `
+              <div class="actions">
+                <button
+                  class="small-btn ${currentVoteStatus === "in" ? "selected-vote" : ""}"
+                  onclick="voteMatch('${match.id}', 'in')"
+                  ${isFull && !userIsIn ? "disabled" : ""}
+                >
+                  I'm In
+                </button>
+
+                <button
+                  class="small-btn ${currentVoteStatus === "maybe" ? "selected-vote" : ""}"
+                  onclick="voteMatch('${match.id}', 'maybe')"
+                >
+                  Maybe
+                </button>
+
+                <button
+                  class="small-btn ${currentVoteStatus === "out" ? "selected-vote-red" : ""}"
+                  onclick="voteMatch('${match.id}', 'out')"
+                >
+                  Out
+                </button>
+              </div>
+            `
+            : ""
+        }
+
+        ${
+          canManageMatch(match)
+            ? `
+              <div class="actions">
+                ${
+                  canSubmitScore(match)
+                    ? `<button class="small-btn" onclick="openScoreSubmission('${match.id}')">
+                        ${hasSubmittedScore(match) ? "Edit Result" : "Add Result"}
+                      </button>`
+                    : ""
+                }
+
+                ${
+                  isTeamEditable(match) && counts.inCount >= 2
+                    ? `<button class="small-btn" onclick="openTeamAssignment('${match.id}')">
+                        Assign Teams
+                      </button>`
+                    : ""
+                }
+
+                ${
+                  matchEditable && !isFull
+                    ? `<button class="small-btn" onclick="openExternalPlayerPicker('${match.id}')">
+                        Add External
+                      </button>`
+                    : ""
+                }
+
+                <button class="small-btn" onclick="editMatch('${match.id}')">
+                  Edit
+                </button>
 
-.formation-status.unbalanced {
-  color: var(--danger);
-  border-color: rgba(255,95,103,.35);
-  background: rgba(255,95,103,.10);
+                <button class="small-btn" onclick="deleteOrCancelMatch('${match.id}')">
+                  ${isFuture ? "Delete" : "Cancel"}
+                </button>
+              </div>
+            `
+            : ""
+        }
+      </article>
+    `;
+  }).join("");
 }
 
+function toDateTimeLocal(iso) {
+  if (!iso) return "";
 
-.captain-select-label select {
-  min-height: 34px;
-  padding: 6px 9px;
-  margin-top: 4px;
+  const d = new Date(iso);
+  const offset = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - offset * 60000);
+
+  return local.toISOString().slice(0, 16);
 }
 
+function pad2(num) {
+  return String(num).padStart(2, "0");
+}
 
-/* === POSITION-SPECIFIC RANKINGS === */
-.position-rating-inputs {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(64px, 1fr));
-  gap: 6px;
+function toLocalDateValue(date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }
 
-.position-rating-inputs label {
-  font-size: 10px;
+function toAmPmLabel(hour, minute = 0) {
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const h12 = hour % 12 || 12;
+  return `${h12}:${pad2(minute)} ${suffix}`;
 }
+
+function populateMatchTimeSelects() {
+  const startHour = $("match-start-hour");
+  const startMinute = $("match-start-minute");
+  const endHour = $("match-end-hour");
+  const endMinute = $("match-end-minute");
+
+  if (!startHour || !startMinute || !endHour || !endMinute) return;
+
+  if (startHour.options.length && startMinute.options.length) return;
+
+  const hourOptions = Array.from({ length: 12 }, (_, i) => {
+    const hour = i + 1;
+    return `<option value="${hour}">${hour}</option>`;
+  }).join("");
+
+  const minuteOptions = Array.from({ length: 60 }, (_, minute) => {
+    return `<option value="${pad2(minute)}">${pad2(minute)}</option>`;
+  }).join("");
+
+  startHour.innerHTML = hourOptions;
+  endHour.innerHTML = hourOptions;
 
-.position-ranking-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  startMinute.innerHTML = minuteOptions;
+  endMinute.innerHTML = minuteOptions;
 }
 
-.position-ranking-box {
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.035);
+function setTimeParts(prefix, hour24, minute = 0) {
+  const hourSelect = $(`${prefix}-hour`);
+  const minuteSelect = $(`${prefix}-minute`);
+  const ampmSelect = $(`${prefix}-ampm`);
+
+  if (!hourSelect || !minuteSelect || !ampmSelect) return;
+
+  const ampm = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 || 12;
+
+  hourSelect.value = String(hour12);
+
+  const cleanMinute = Math.max(0, Math.min(59, Number(minute) || 0));
+
+  minuteSelect.value = pad2(cleanMinute);
+  ampmSelect.value = ampm;
 }
+
+function readTimeParts(prefix) {
+  const hour = Number($(`${prefix}-hour`)?.value || 0);
+  const minute = Number($(`${prefix}-minute`)?.value || 0);
+  const ampm = $(`${prefix}-ampm`)?.value || "AM";
+
+  if (!hour || hour < 1 || hour > 12) return null;
+
+  let hour24 = hour % 12;
+  if (ampm === "PM") hour24 += 12;
 
-.position-ranking-title {
-  color: var(--gold);
-  font-weight: 900;
-  margin-bottom: 6px;
+  return {
+    hour24,
+    minute
+  };
 }
 
-.position-ranking-row {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto 42px;
-  gap: 5px;
-  align-items: center;
-  padding: 5px 0;
-  border-top: 1px solid rgba(255,255,255,.06);
-  color: var(--muted);
-  font-size: 12px;
+function setDefaultMatchDateTimes() {
+  populateMatchTimeSelects();
+
+  const today = new Date();
+
+  if ($("match-start-date")) $("match-start-date").value = toLocalDateValue(today);
+  setTimeParts("match-start", 18, 0);
+
+  if ($("match-end-date")) $("match-end-date").value = toLocalDateValue(today);
+  setTimeParts("match-end", 19, 30);
 }
+
+function setMatchDateTimeFields(startIso, endIso) {
+  populateMatchTimeSelects();
 
-.position-ranking-row strong {
-  color: var(--text);
-  min-width: 0;
-  overflow-wrap: anywhere;
+  const start = startIso ? new Date(startIso) : new Date();
+  const end = endIso ? new Date(endIso) : new Date(start.getTime() + 90 * 60000);
+
+  if ($("match-start-date")) $("match-start-date").value = toLocalDateValue(start);
+  setTimeParts("match-start", start.getHours(), start.getMinutes());
+
+  if ($("match-end-date")) $("match-end-date").value = toLocalDateValue(end);
+  setTimeParts("match-end", end.getHours(), end.getMinutes());
 }
+
+function getMatchDateTimeValues() {
+  const startDate = $("match-start-date")?.value || "";
+  const endDate = $("match-end-date")?.value || "";
+  const startParts = readTimeParts("match-start");
+  const endParts = readTimeParts("match-end");
+
+  if (!startDate || !endDate || !startParts || !endParts) {
+    alert("Please choose match start and end date/time.");
+    return null;
+  }
+
+  const startTimeValue = new Date(`${startDate}T${pad2(startParts.hour24)}:${pad2(startParts.minute)}:00`);
+  const endTimeValue = new Date(`${endDate}T${pad2(endParts.hour24)}:${pad2(endParts.minute)}:00`);
+
+  if (Number.isNaN(startTimeValue.getTime()) || Number.isNaN(endTimeValue.getTime())) {
+    alert("Invalid match date or time.");
+    return null;
+  }
+
+  if (startTimeValue <= new Date()) {
+    alert("Match start time must be in the future.");
+    return null;
+  }
+
+  if (endTimeValue <= startTimeValue) {
+    alert("End time must be after start time.");
+    return null;
+  }
 
-.position-ranking-row b {
-  color: var(--gold);
+  return {
+    startTime: startTimeValue,
+    endTime: endTimeValue
+  };
 }
+
+
+async function editMatch(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can edit this match.");
+    return;
+  }
+
+  if (!isMatchEditable(match)) {
+    alert("You can only edit match details before the match starts.");
+    return;
+  }
+
+  editingMatchId = matchId;
+
+  await loadMatchFormOptions();
+
+  if ($("match-sport")) {
+    $("match-sport").value = match.sport_id || match.sports?.id || "";
+  }
+
+  updateMatchVenueOptions();
+
+  if ($("match-venue")) {
+    $("match-venue").value = match.venue_id || match.venues?.id || "";
+  }
+
+  const form = $("matchForm");
+  if (!form) return;
 
-.position-ranking-row em {
-  font-size: 8px;
-  font-style: normal;
-  color: var(--accent2);
+  form.elements["title"].value = match.title || "";
+  form.elements["match_type"].value = match.match_type || "friendly";
+  updateMatchLeagueOptions();
+
+  if (form.elements["league_id"]) {
+    form.elements["league_id"].value = match.league_id || "";
+  }
+  form.elements["required_players"].value = match.required_players || match.max_players || 4;
+  if (form.elements["max_players"]) form.elements["max_players"].value = match.max_players || match.required_players || 4;
+  setMatchDateTimeFields(match.start_time, match.end_time);
+  form.elements["notes"].value = match.notes || "";
+
+  const invitedIds = (match.match_invitations || [])
+    .filter(inv => inv.member_id !== currentProfile?.id && inv.status !== "removed")
+    .map(inv => inv.member_id);
+
+  renderMatchInviteOptions(invitedIds);
+
+  const submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.textContent = "Update Match";
+
+  $("matchModal")?.showModal();
 }
+
+async function deleteOrCancelMatch(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can delete/cancel this match.");
+    return;
+  }
+
+  if (match.status === "cancelled") {
+    alert("This match is already cancelled.");
+    return;
+  }
+
+  const isFuture = new Date(match.start_time) > new Date();
+
+  if (isFuture) {
+    const ok = confirm("This match is still upcoming. Delete it completely?");
+    if (!ok) return;
+
+    const { error } = await supabaseClient
+      .from("matches")
+      .delete()
+      .eq("id", matchId);
 
-.mini-section-head {
-  margin-bottom: 8px;
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    alert("Match deleted.");
+  } else {
+    const ok = confirm("This match time has passed. Mark it as cancelled instead?");
+    if (!ok) return;
+
+    const { error } = await supabaseClient
+      .from("matches")
+      .update({
+        status: "cancelled"
+      })
+      .eq("id", matchId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    alert("Match marked as cancelled.");
+  }
+
+  await loadMatches();
 }
+
+async function voteMatch(matchId, newStatus) {
+  if (!currentProfile || currentProfile.approval_status !== "approved") {
+    alert("Approved members only.");
+    return;
+  }
+
+  const match = allMatches.find(m => m.id === matchId);
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  let invitation = myInvitation(match);
+  const isCreator = match.created_by === currentProfile?.id;
+
+  if (!invitation && !isCreator) {
+    alert("You are not invited to this match.");
+    return;
+  }
+
+  const displayStatus = getMatchDisplayStatus(match);
+
+  if (displayStatus === "cancelled") {
+    alert("This match is cancelled.");
+    return;
+  }
 
-@media (max-width: 900px) {
-  .position-ranking-grid {
-    grid-template-columns: 1fr;
+  if (displayStatus === "playing") {
+    alert("Voting is closed because the match is currently playing.");
+    return;
   }
 
-  .position-rating-inputs {
-    grid-template-columns: repeat(2, minmax(64px, 1fr));
+  if (displayStatus === "finished" || displayStatus === "completed") {
+    alert("Voting is closed because the match has finished.");
+    return;
   }
+
+  if (new Date(match.start_time) <= new Date()) {
+    alert("Voting is closed because the match time has passed.");
+    return;
+  }
+
+  const counts = invitationCounts(match);
+  const filledCount = counts.inCount;
+  const maxPlayers = Number(match.max_players || 0);
+  const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
+  const userIsCurrentlyIn = currentVoteStatus === "in";
+
+  if (newStatus === "in" && maxPlayers && filledCount >= maxPlayers && !userIsCurrentlyIn) {
+    alert("This match is already full. You can vote Maybe or Out.");
+    return;
+  }
+
+  if (!invitation && isCreator) {
+    const { data, error } = await supabaseClient
+      .from("match_invitations")
+      .upsert({
+        match_id: matchId,
+        member_id: currentProfile.id,
+        invited_by: currentProfile.id,
+        status: newStatus
+      }, {
+        onConflict: "match_id,member_id"
+      })
+      .select()
+      .single();
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    match.match_invitations = match.match_invitations || [];
+    match.match_invitations.push(data);
+    invitation = data;
+  } else {
+    const updatePayload = {
+      status: newStatus,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabaseClient
+      .from("match_invitations")
+      .update(updatePayload)
+      .eq("id", invitation.id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    invitation.status = newStatus;
+  }
+
+  renderMatches();
+  await loadMatches();
 }
+
+async function loadExternalMembersForPicker(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
 
+  const { data, error } = await supabaseClient
+    .from("members")
+    .select("id,first_name,last_name,display_name,email,phone,is_external")
+    .eq("is_external", true)
+    .eq("is_active", true)
+    .eq("approval_status", "approved")
+    .order("display_name", { ascending: true });
 
-/* === STANDARDIZED PREFERRED POSITION SELECT === */
-.sport-rating-row select.sport-position-input {
-  min-height: 38px;
-  padding: 8px 10px;
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  const alreadyLinkedIds = new Set(
+    (match.match_invitations || [])
+      .filter(inv => inv.status !== "removed")
+      .map(inv => inv.member_id)
+  );
+
+  allExternalMembers = data || [];
+
+  const box = $("external-player-options");
+  if (!box) return;
+
+  if (allExternalMembers.length === 0) {
+    box.innerHTML = `<div class="hint">No external players saved yet. Create one below.</div>`;
+    return;
+  }
+
+  box.innerHTML = allExternalMembers.map(member => {
+    const alreadyInMatch = alreadyLinkedIds.has(member.id);
+
+    return `
+      <label class="sport-chip ${alreadyInMatch ? "disabled-chip" : ""}">
+        <input
+          type="checkbox"
+          value="${member.id}"
+          class="external-player-checkbox"
+          ${alreadyInMatch ? "disabled" : ""}
+        >
+        <span>
+          ${escapeHtml(memberDisplayName(member))}
+          ${alreadyInMatch ? " — already added" : ""}
+        </span>
+      </label>
+    `;
+  }).join("");
 }
+
+async function openExternalPlayerPicker(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can add external players.");
+    return;
+  }
+
+  if (!isMatchEditable(match)) {
+    alert("You can only add external players before the match starts.");
+    return;
+  }
+
+  const remaining = remainingSpots(match);
+  if (remaining !== null && remaining <= 0) {
+    alert("This match is already full.");
+    return;
+  }
+
+  currentExternalMatchId = matchId;
+
+  if ($("external-player-match-label")) {
+    $("external-player-match-label").textContent =
+      remaining === null
+        ? "Select existing external players, or create a new external profile."
+        : `Remaining spots: ${remaining}. Select existing external players, or create a new external profile.`;
+  }
 
+  if ($("new-external-name")) $("new-external-name").value = "";
+  if ($("new-external-phone")) $("new-external-phone").value = "";
+  if ($("new-external-email")) $("new-external-email").value = "";
 
-/* === TEAM CAPTAIN SELECTORS === */
-.captain-selectors {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 8px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.035);
+  await loadExternalMembersForPicker(matchId);
+
+  $("externalPlayerModal")?.showModal();
 }
 
-.captain-selectors select {
-  min-height: 38px;
-  padding: 8px 10px;
+function getSelectedExternalMemberIds() {
+  return Array.from(document.querySelectorAll(".external-player-checkbox"))
+    .filter(cb => cb.checked && !cb.disabled)
+    .map(cb => cb.value);
 }
+
+async function addExternalMemberIdsToMatch(matchId, memberIds) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return false;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can add external players.");
+    return false;
+  }
+
+  const uniqueIds = Array.from(new Set(memberIds || [])).filter(Boolean);
+
+  if (uniqueIds.length === 0) {
+    alert("Select at least one external player.");
+    return false;
+  }
+
+  const remaining = remainingSpots(match);
+
+  if (remaining !== null && uniqueIds.length > remaining) {
+    alert(`You can only add ${remaining} external player(s).`);
+    return false;
+  }
 
-@media (max-width: 800px) {
-  .captain-selectors {
-    grid-template-columns: 1fr;
+  const rows = uniqueIds.map(memberId => ({
+    match_id: matchId,
+    member_id: memberId,
+    invited_by: currentProfile.id,
+    status: "in"
+  }));
+
+  const { error } = await supabaseClient
+    .from("match_invitations")
+    .upsert(rows, {
+      onConflict: "match_id,member_id"
+    });
+
+  if (error) {
+    alert(error.message);
+    return false;
   }
+
+  await loadMatches();
+  await loadExternalMembersForPicker(matchId);
+
+  return true;
 }
+
+async function addSelectedExternalPlayers() {
+  if (!currentExternalMatchId) {
+    alert("No match selected.");
+    return;
+  }
+
+  const selectedIds = getSelectedExternalMemberIds();
+  const ok = await addExternalMemberIdsToMatch(currentExternalMatchId, selectedIds);
+
+  if (!ok) return;
 
+  alert(`${selectedIds.length} external player(s) added.`);
+}
 
-/* === COMPACT TEAM POINTS === */
-.points-summary .points-row b {
-  white-space: nowrap;
+function nextExternalDisplayNumber() {
+  return allExternalMembers.length + 1;
 }
+
+async function createExternalPlayerProfile() {
+  if (!currentExternalMatchId) {
+    alert("No match selected.");
+    return;
+  }
+
+  const name = $("new-external-name")?.value.trim() || "";
+  const phone = $("new-external-phone")?.value.trim() || "";
+  const email = $("new-external-email")?.value.trim() || "";
+
+  if (!name) {
+    alert("External player name is required.");
+    return;
+  }
+
+  const existing = allExternalMembers.find(member => {
+    const display = String(member.display_name || "").toLowerCase();
+    const first = String(member.first_name || "").toLowerCase();
+    const cleaned = name.toLowerCase();
+
+    return display === cleaned ||
+      first === cleaned ||
+      display.includes(`(${cleaned})`);
+  });
+
+  if (existing) {
+    const useExisting = confirm(`${memberDisplayName(existing)} already exists. Add this existing external player to the match?`);
+    if (!useExisting) return;
+
+    const ok = await addExternalMemberIdsToMatch(currentExternalMatchId, [existing.id]);
+    if (ok) {
+      if ($("new-external-name")) $("new-external-name").value = "";
+      if ($("new-external-phone")) $("new-external-phone").value = "";
+      if ($("new-external-email")) $("new-external-email").value = "";
+    }
+    return;
+  }
+
+  const displayName = `External ${nextExternalDisplayNumber()} (${name})`;
+
+  const { data, error } = await supabaseClient
+    .from("members")
+    .insert({
+      first_name: name,
+      last_name: "",
+      display_name: displayName,
+      email: email || null,
+      phone: phone || null,
+      birth_date: null,
+      auth_user_id: null,
+      is_external: true,
+      is_active: true,
+      role: "member",
+      approval_status: "approved",
+      registration_status: "approved"
+    })
+    .select("id,first_name,last_name,display_name,email,phone,is_external")
+    .single();
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  allExternalMembers.push(data);
+
+  const ok = await addExternalMemberIdsToMatch(currentExternalMatchId, [data.id]);
+  if (!ok) return;
+
+  if ($("new-external-name")) $("new-external-name").value = "";
+  if ($("new-external-phone")) $("new-external-phone").value = "";
+  if ($("new-external-email")) $("new-external-email").value = "";
+
+  alert(`${memberDisplayName(data)} created and added.`);
+}
+
+async function renameExternalMember(memberId, matchId, currentName) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can rename external players.");
+    return;
+  }
+
+  if (!isMatchEditable(match)) {
+    alert("You can only rename external players before the match starts.");
+    return;
+  }
+
+  if (!memberId) {
+    alert("External member id missing.");
+    return;
+  }
+
+  const newName = prompt("Edit external player display name:", currentName || "");
+
+  if (newName === null) return;
+
+  const cleanName = newName.trim();
+
+  if (!cleanName) {
+    alert("Name cannot be empty.");
+    return;
+  }
+
+  const { error } = await supabaseClient
+    .from("members")
+    .update({
+      display_name: cleanName
+    })
+    .eq("id", memberId)
+    .eq("is_external", true);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  await loadMatches();
+}
+
+async function removeExternalMemberFromMatch(invitationId, matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can remove external players.");
+    return;
+  }
+
+  if (!isMatchEditable(match)) {
+    alert("You can only remove external players before the match starts.");
+    return;
+  }
+
+  const ok = confirm("Remove this external player from this match?");
+  if (!ok) return;
+
+  const { error } = await supabaseClient
+    .from("match_invitations")
+    .update({
+      status: "removed",
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", invitationId);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  await loadMatches();
+}
+
+
+function renderTeamAssignmentList(match) {
+  const box = $("team-assignment-list");
+  if (!box) return;
+
+  const players = inPlayerInvitations(match);
+  const teams = match.match_teams || [];
+  const teamA = teams[0] || null;
+  const teamB = teams[1] || null;
+  const assignedMap = currentTeamByMemberId(match);
+  const playerMap = currentTeamPlayerByMemberId(match);
+  const showFormation = isSoccerMatch(match);
+
+  if (!players.length) {
+    box.innerHTML = `<div class="hint">No IN players yet.</div>`;
+    return;
+  }
+
+  box.innerHTML = players.map(inv => {
+    const member = invitationMember(inv);
+    const memberId = member?.id || inv.member_id;
+    const selectedTeamId = assignedMap.get(memberId) || "";
+    const teamPlayer = playerMap.get(memberId);
+    const selectedSide =
+      teamA && selectedTeamId === teamA.id ? "A" :
+      teamB && selectedTeamId === teamB.id ? "B" :
+      "";
+
+    const preferredPosition = normalizeSoccerPosition(memberSportPosition(memberId, match.sport_id));
+    const selectedPosition = teamPlayer?.formation_position || preferredPosition || "";
+    const rating = selectedPosition
+      ? positionRatingForMember(memberId, match.sport_id, selectedPosition)
+      : memberSportRating(memberId, match.sport_id);
+
+    return `
+      <div class="team-player-row">
+        <div class="team-player-name">
+          ${escapeHtml(invitationMemberDisplayName(inv))}
+          ${member?.is_external ? `<span class="mini-pill">External</span>` : ""}
+          <span class="rating-pill">R ${Number(rating).toFixed(1)}${preferredPosition ? ` • ${escapeHtml(preferredPosition)}` : ""}</span>
+        </div>
+
+        <div class="team-choice">
+          <label class="team-choice-chip">
+            <input
+              type="radio"
+              name="team-choice-${memberId}"
+              value="A"
+              data-member-id="${memberId}"
+              ${selectedSide === "A" ? "checked" : ""}
+            >
+            <span>A</span>
+          </label>
+
+          <label class="team-choice-chip">
+            <input
+              type="radio"
+              name="team-choice-${memberId}"
+              value="B"
+              data-member-id="${memberId}"
+              ${selectedSide === "B" ? "checked" : ""}
+            >
+            <span>B</span>
+          </label>
+
+          <label class="team-choice-chip">
+            <input
+              type="radio"
+              name="team-choice-${memberId}"
+              value=""
+              data-member-id="${memberId}"
+              ${selectedSide === "" ? "checked" : ""}
+            >
+            <span>Unassigned</span>
+          </label>
+        </div>
+
+        ${
+          showFormation
+            ? `
+              <div class="formation-choice">
+                <select class="formation-position-select" data-member-id="${memberId}">
+                  ${soccerPositionOptions(selectedPosition)}
+                </select>
+
+
+              </div>
+            `
+            : ""
+        }
+      </div>
+    `;
+  }).join("");
+
+  document.querySelectorAll("#team-assignment-list input[type='radio']").forEach(input => {
+    input.addEventListener("change", () => {
+      updateCaptainSelectors();
+      updateTeamBalanceStatus();
+    });
+  });
+
+  document.querySelectorAll(".formation-position-select").forEach(input => {
+    input.addEventListener("change", updateTeamBalanceStatus);
+  });
+
+  updateCaptainSelectors();
+  updateTeamBalanceStatus();
+}
+
+function applySuggestedTeams() {
+  if (!currentTeamMatchId) {
+    alert("No match selected.");
+    return;
+  }
+
+  const match = allMatches.find(m => m.id === currentTeamMatchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  const players = inPlayerInvitations(match).map(inv => {
+    const member = invitationMember(inv);
+    const memberId = member?.id || inv.member_id;
+
+    return {
+      memberId,
+      rating: memberSportRating(memberId, match.sport_id)
+    };
+  }).filter(player => player.memberId);
+
+  if (players.length < 2) {
+    alert("At least 2 IN players are needed.");
+    return;
+  }
+
+  players.sort((a, b) => b.rating - a.rating);
+
+  const teamA = [];
+  const teamB = [];
+  let ratingA = 0;
+  let ratingB = 0;
+
+  players.forEach(player => {
+    if (
+      teamA.length < Math.ceil(players.length / 2) &&
+      (ratingA <= ratingB || teamB.length >= Math.floor(players.length / 2))
+    ) {
+      teamA.push(player.memberId);
+      ratingA += player.rating;
+    } else {
+      teamB.push(player.memberId);
+      ratingB += player.rating;
+    }
+  });
+
+  document.querySelectorAll("#team-assignment-list input[type='radio']").forEach(input => {
+    const memberId = input.dataset.memberId;
+
+    if (!memberId) return;
+
+    input.checked =
+      (teamA.includes(memberId) && input.value === "A") ||
+      (teamB.includes(memberId) && input.value === "B");
+  });
+
+  if (isSoccerMatch(match)) {
+    const positionsA = assignSoccerPositionsToTeam(teamA, match.sport_id);
+    const positionsB = assignSoccerPositionsToTeam(teamB, match.sport_id);
+
+    document.querySelectorAll(".formation-position-select").forEach(select => {
+      const memberId = select.dataset.memberId;
+      select.value = positionsA.get(memberId) || positionsB.get(memberId) || "";
+    });
+
+    const captainA = [...teamA].sort((a, b) =>
+      memberSportRating(b, match.sport_id) - memberSportRating(a, match.sport_id)
+    )[0];
+
+    const captainB = [...teamB].sort((a, b) =>
+      memberSportRating(b, match.sport_id) - memberSportRating(a, match.sport_id)
+    )[0];
+
+    updateCaptainSelectors();
+
+    if ($("team-a-captain")) $("team-a-captain").value = captainA || "";
+    if ($("team-b-captain")) $("team-b-captain").value = captainB || "";
+  }
+
+  updateTeamBalanceStatus();
+}
+
+function openTeamAssignment(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can assign teams.");
+    return;
+  }
+
+  if (!isTeamEditable(match)) {
+    alert("Teams cannot be edited for cancelled matches.");
+    return;
+  }
+
+  const players = inPlayerInvitations(match);
+
+  if (players.length < 2) {
+    alert("At least 2 IN players are needed to assign teams.");
+    return;
+  }
+
+  currentTeamMatchId = matchId;
+
+  const teams = match.match_teams || [];
+
+  if ($("team-a-name")) $("team-a-name").value = teams[0]?.name || "Team A";
+  if ($("team-b-name")) $("team-b-name").value = teams[1]?.name || "Team B";
+
+  if ($("team-match-label")) {
+    $("team-match-label").textContent =
+      `${match.title || "Match"} — assign ${players.length} IN player(s).`;
+  }
+
+  renderTeamAssignmentList(match);
+  updateTeamBalanceStatus();
+
+  $("teamModal")?.showModal();
+}
+
+function collectTeamAssignments() {
+  const choices = Array.from(document.querySelectorAll("#team-assignment-list input[type='radio']:checked"));
+
+  const teamA = [];
+  const teamB = [];
+  const all = [];
+  const captainA = $("team-a-captain")?.value || "";
+  const captainB = $("team-b-captain")?.value || "";
+
+  choices.forEach(input => {
+    const memberId = input.dataset.memberId;
+    const value = input.value;
+
+    if (!memberId) return;
+
+    const position = document.querySelector(`.formation-position-select[data-member-id="${memberId}"]`)?.value || "";
+    const captain = (value === "A" && memberId === captainA) || (value === "B" && memberId === captainB);
+
+    if (value === "A") teamA.push(memberId);
+    if (value === "B") teamB.push(memberId);
+
+    all.push({
+      memberId,
+      team: value,
+      position,
+      isCaptain: captain
+    });
+  });
+
+  return {
+    teamA,
+    teamB,
+    all
+  };
+}
+
+
+function updateTeamBalanceStatus() {
+  const status = $("team-balance-status");
+  const ratingStatus = $("team-rating-status");
+  const assignments = collectTeamAssignments();
+
+  const difference = Math.abs(assignments.teamA.length - assignments.teamB.length);
+  const isBalanced =
+    assignments.teamA.length > 0 &&
+    assignments.teamB.length > 0 &&
+    difference <= 1;
+
+  if (status) {
+    status.textContent = `Team A: ${assignments.teamA.length} • Team B: ${assignments.teamB.length}`;
+
+    status.classList.toggle("balanced", isBalanced);
+    status.classList.toggle("unbalanced", !isBalanced);
+  }
+
+  if (ratingStatus) {
+    const match = allMatches.find(m => m.id === currentTeamMatchId);
+    const sportId = match?.sport_id;
+
+    const ratingA = assignments.teamA.reduce((sum, memberId) =>
+      sum + memberSportRating(memberId, sportId), 0
+    );
+
+    const ratingB = assignments.teamB.reduce((sum, memberId) =>
+      sum + memberSportRating(memberId, sportId), 0
+    );
+
+    const diff = Math.abs(ratingA - ratingB);
+
+    ratingStatus.textContent =
+      `Ratings: Team A ${ratingA.toFixed(1)} • Team B ${ratingB.toFixed(1)} • Diff ${diff.toFixed(1)}`;
+
+    ratingStatus.classList.toggle("balanced", diff <= 1.5 && isBalanced);
+    ratingStatus.classList.toggle("unbalanced", !(diff <= 1.5 && isBalanced));
+  }
+
+  updateFormationStatus();
+}
+
+
+async function recalculatePointsAfterTeamEdit(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match || match.score_status !== "submitted") return true;
+
+  // Reload the match after team save so team/result assignments are current.
+  await loadMatches();
+
+  const refreshedMatch = allMatches.find(m => m.id === matchId);
+
+  if (!refreshedMatch || refreshedMatch.score_status !== "submitted") return true;
+
+  return await saveMatchMemberPoints(refreshedMatch);
+}
+
+async function saveTeams() {
+  const teamMatchId = cleanUuidValue(currentTeamMatchId);
+
+  if (!teamMatchId) {
+    alert("No match selected.");
+    return;
+  }
+
+  const match = allMatches.find(m => m.id === teamMatchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("Only the match creator or admin can save teams.");
+    return;
+  }
+
+  if (!isTeamEditable(match)) {
+    alert("Teams cannot be saved for cancelled matches.");
+    return;
+  }
+
+  const teamAName = $("team-a-name")?.value.trim() || "Team A";
+  const teamBName = $("team-b-name")?.value.trim() || "Team B";
+  const assignments = collectTeamAssignments();
+
+  const teamCountDifference = Math.abs(assignments.teamA.length - assignments.teamB.length);
+
+  if (assignments.teamA.length === 0 || assignments.teamB.length === 0) {
+    alert("Both teams must have at least one player.");
+    return;
+  }
+
+  if (teamCountDifference > 1) {
+    alert("Teams must be balanced. The number of players in Team A and Team B can differ by maximum 1 player.");
+    return;
+  }
+
+  if (isSoccerMatch(match)) {
+    const assignedPlayers = assignments.all.filter(player => player.team);
+
+    const missingPosition = assignedPlayers.find(player => !player.position);
+
+    if (missingPosition) {
+      alert("For soccer, every assigned player must have a formation position.");
+      return;
+    }
+
+    const countsA = teamFormationCounts(assignments, "A");
+    const countsB = teamFormationCounts(assignments, "B");
+    const formationErrorA = validateSoccerFormationSide(countsA, "Team A");
+    const formationErrorB = validateSoccerFormationSide(countsB, "Team B");
+
+    if (formationErrorA || formationErrorB) {
+      alert(formationErrorA || formationErrorB);
+      return;
+    }
+
+    const captainA = $("team-a-captain")?.value || "";
+    const captainB = $("team-b-captain")?.value || "";
+
+    if (!captainA || !captainB) {
+      alert("For soccer, select one captain for Team A and one captain for Team B.");
+      return;
+    }
+
+    if (!assignments.teamA.includes(captainA) || !assignments.teamB.includes(captainB)) {
+      alert("Each captain must belong to the correct team.");
+      return;
+    }
+  }
+
+  const existingTeamIds = (match.match_teams || []).map(team => team.id);
+
+  if (existingTeamIds.length > 0) {
+    const { error: deletePlayersError } = await supabaseClient
+      .from("match_team_players")
+      .delete()
+      .in("match_team_id", existingTeamIds);
+
+    if (deletePlayersError) {
+      alert(deletePlayersError.message);
+      return;
+    }
+
+    const { error: deleteTeamsError } = await supabaseClient
+      .from("match_teams")
+      .delete()
+      .eq("match_id", teamMatchId);
+
+    if (deleteTeamsError) {
+      alert(deleteTeamsError.message);
+      return;
+    }
+  }
+
+  const { data: teamsData, error: teamsError } = await supabaseClient
+    .from("match_teams")
+    .insert([
+      {
+        match_id: teamMatchId,
+        name: teamAName,
+        color: "A",
+        score: 0,
+        result: null
+      },
+      {
+        match_id: teamMatchId,
+        name: teamBName,
+        color: "B",
+        score: 0,
+        result: null
+      }
+    ])
+    .select("id,name,color");
+
+  if (teamsError) {
+    alert(teamsError.message);
+    return;
+  }
+
+  const teamAId = teamsData?.find(team => team.color === "A")?.id || teamsData?.[0]?.id;
+  const teamBId = teamsData?.find(team => team.color === "B")?.id || teamsData?.[1]?.id;
+
+  const invitationByMemberId = new Map(
+    inPlayerInvitations(match).map(inv => [inv.member_id, inv])
+  );
+
+  const detailsByMemberId = new Map(
+    assignments.all.map(player => [player.memberId, player])
+  );
+
+  const playerRows = [
+    ...assignments.teamA.map(memberId => {
+      const details = detailsByMemberId.get(memberId) || {};
+
+      return {
+        match_team_id: teamAId,
+        member_id: memberId,
+        is_external: Boolean(invitationByMemberId.get(memberId)?.member?.is_external),
+        formation_position: isSoccerMatch(match) ? details.position || null : null,
+        is_captain: isSoccerMatch(match) ? Boolean(details.isCaptain) : false
+      };
+    }),
+    ...assignments.teamB.map(memberId => {
+      const details = detailsByMemberId.get(memberId) || {};
+
+      return {
+        match_team_id: teamBId,
+        member_id: memberId,
+        is_external: Boolean(invitationByMemberId.get(memberId)?.member?.is_external),
+        formation_position: isSoccerMatch(match) ? details.position || null : null,
+        is_captain: isSoccerMatch(match) ? Boolean(details.isCaptain) : false
+      };
+    })
+  ];
+
+  if (playerRows.length > 0) {
+    const { error: playersError } = await supabaseClient
+      .from("match_team_players")
+      .insert(playerRows);
+
+    if (playersError) {
+      alert(playersError.message);
+      return;
+    }
+  }
+
+  const { error: matchUpdateError } = await supabaseClient
+    .from("matches")
+    .update({
+      team_status: "assigned"
+    })
+    .eq("id", teamMatchId);
+
+  if (matchUpdateError) {
+    alert(matchUpdateError.message);
+    return;
+  }
+
+  if (match.score_status === "submitted") {
+    const pointsUpdated = await recalculatePointsAfterTeamEdit(teamMatchId);
+
+    if (!pointsUpdated) return;
+
+    alert("Teams saved and points recalculated.");
+  } else {
+    alert("Teams saved.");
+  }
+
+  $("teamModal")?.close();
+  currentTeamMatchId = null;
+
+  await loadMatches();
+}
+
+
+function getTwoMatchTeams(match) {
+  const teams = match.match_teams || [];
+
+  return {
+    teamA: teams[0] || null,
+    teamB: teams[1] || null
+  };
+}
+
+async function openScoreSubmission(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canSubmitScore(match)) {
+    alert("Result can only be added or edited after the match is finished. Make sure teams are assigned first.");
+    return;
+  }
+
+  const { teamA, teamB } = getTwoMatchTeams(match);
+
+  if (!teamA || !teamB) {
+    alert("Assign teams before adding or editing the result.");
+    return;
+  }
+
+  currentScoreMatchId = matchId;
+
+  if ($("score-match-label")) {
+    const leagueName = leagueNameForId(match.league_id);
+    $("score-match-label").textContent =
+      `${match.title || "Match result"} — ${match.sports?.name || ""}${leagueName ? " — League: " + leagueName : ""}`;
+  }
+
+  if ($("score-team-a-label")) $("score-team-a-label").textContent = `${teamA.name || "Team A"} score`;
+  if ($("score-team-b-label")) $("score-team-b-label").textContent = `${teamB.name || "Team B"} score`;
+
+  if ($("padel-team-a-head")) $("padel-team-a-head").textContent = teamA.name || "Team A";
+  if ($("padel-team-b-head")) $("padel-team-b-head").textContent = teamB.name || "Team B";
+
+  if ($("score-team-a")) $("score-team-a").value = Number(teamA.score || 0);
+  if ($("score-team-b")) $("score-team-b").value = Number(teamB.score || 0);
+  if ($("score-summary")) $("score-summary").value = match.notes || "";
+
+  setScoreMode(match);
+
+  if (isPadelMatch(match)) {
+    await loadPendingPadelGames(match);
+    renderPendingGameOptions();
+
+    if ($("padel-game-mode")) $("padel-game-mode").value = "new";
+    setPadelGameModeUI();
+
+    const nextGameNumber = matchSessionGames(match).length + 1;
+    if ($("padel-game-title")) $("padel-game-title").value = `Game ${nextGameNumber}`;
+
+    clearPadelSetInputs();
+  } else {
+    if ($("score-team-a")) $("score-team-a").value = Number(teamA.score || 0);
+    if ($("score-team-b")) $("score-team-b").value = Number(teamB.score || 0);
+  }
+
+  $("scoreModal")?.showModal();
+}
+
+
+function finalizableMatchGames(match) {
+  return matchSessionGames(match).filter(game => game.status === "completed");
+}
+
+function completedGameScoreForMatch(match, extraGame = null) {
+  let games = finalizableMatchGames(match);
+
+  if (extraGame) {
+    games = games.filter(game => game.id !== extraGame.id);
+
+    if (extraGame.status === "completed") {
+      games.push(extraGame);
+    }
+  }
+
+  return {
+    teamA: games.filter(game => game.winner_team === "A").length,
+    teamB: games.filter(game => game.winner_team === "B").length
+  };
+}
+
+
+function isValidCompletedPadelSet(scoreA, scoreB) {
+  if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB)) return false;
+  if (scoreA < 0 || scoreB < 0) return false;
+  if (scoreA === scoreB) return false;
+
+  const high = Math.max(scoreA, scoreB);
+  const low = Math.min(scoreA, scoreB);
+  const diff = high - low;
+
+  // Standard set: 6 games with at least 2 games difference.
+  // Examples: 6-0, 6-1, 6-2, 6-3, 6-4.
+  if (high === 6) {
+    return low <= 4;
+  }
+
+  // 7-5 is a normal advantage finish.
+  // 7-6 is a tie-break set score.
+  if (high === 7) {
+    return low === 5 || low === 6;
+  }
+
+  // Advantage/no-tiebreak continuation after 6-6.
+  // Examples: 8-6, 9-7, 10-8, 11-9...
+  if (high > 7) {
+    return diff === 2;
+  }
+
+  return false;
+}
+
+function shouldAutoCompletePadelSet(scoreA, scoreB) {
+  return isValidCompletedPadelSet(scoreA, scoreB);
+}
+
+function autoCompletePadelSet(setNumber) {
+  const aRaw = $(`padel-set-${setNumber}-a`)?.value;
+  const bRaw = $(`padel-set-${setNumber}-b`)?.value;
+  const completedBox = $(`padel-set-${setNumber}-completed`);
+
+  if (!completedBox || aRaw === "" || bRaw === "") return;
+
+  const scoreA = Number(aRaw);
+  const scoreB = Number(bRaw);
+
+  if (shouldAutoCompletePadelSet(scoreA, scoreB)) {
+    completedBox.checked = true;
+  }
+}
+
+function autoCompleteAllPadelSets() {
+  [1, 2, 3].forEach(autoCompletePadelSet);
+  updatePadelScorePreview();
+}
+
+function padelGameStatusLabel(game, gameSets = []) {
+  if (!game) return "";
+
+  const completedSets = gameSets.filter(set => Boolean(set.is_completed)).length;
+  const incompleteSets = gameSets.filter(set => !set.is_completed).length;
+  const unstartedSets = Math.max(0, 3 - gameSets.length);
+
+  if (game.status === "completed") {
+    return "completed";
+  }
+
+  if (incompleteSets > 0) {
+    return `incomplete — ${incompleteSets} incomplete set${incompleteSets === 1 ? "" : "s"}`;
+  }
+
+  if (unstartedSets > 0) {
+    return `incomplete — ${unstartedSets} remaining unstarted set${unstartedSets === 1 ? "" : "s"}`;
+  }
+
+  return "incomplete";
+}
+
+async function deleteSelectedGameFromResults() {
+  if (!currentScoreMatchId) {
+    alert("No match selected.");
+    return;
+  }
+
+  const match = allMatches.find(m => m.id === currentScoreMatchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canSubmitScore(match)) {
+    alert("Games can only be deleted while editing results.");
+    return;
+  }
+
+  if (!isPadelMatch(match)) {
+    alert("Delete Game is currently for padel games only.");
+    return;
+  }
+
+  const mode = $("padel-game-mode")?.value || "new";
+  const gameId = $("padel-pending-game")?.value || "";
+
+  if (mode !== "continue" || !gameId) {
+    alert("Choose Edit / Continue Game and select a game to delete.");
+    return;
+  }
+
+  const game = allPendingGames.find(g => g.id === gameId);
+  const ok = confirm(`Delete ${game?.title || "this game"} from results? This removes its saved sets too.`);
+
+  if (!ok) return;
+
+  const { error: deleteGameError } = await supabaseClient
+    .from("match_games")
+    .delete()
+    .eq("id", gameId);
+
+  if (deleteGameError) {
+    alert(deleteGameError.message);
+    return;
+  }
+
+  alert("Game deleted.");
+
+  await loadMatches();
+
+  const refreshedMatch = allMatches.find(m => m.id === currentScoreMatchId);
+  if (!refreshedMatch) {
+    $("scoreModal")?.close();
+    currentScoreMatchId = null;
+    return;
+  }
+
+  await loadPendingPadelGames(refreshedMatch);
+  renderPendingGameOptions();
+
+  if ($("padel-game-mode")) $("padel-game-mode").value = "new";
+  setPadelGameModeUI();
+
+  const nextGameNumber = matchSessionGames(refreshedMatch).length + 1;
+  if ($("padel-game-title")) $("padel-game-title").value = `Game ${nextGameNumber}`;
+
+  clearPadelSetInputs();
+}
+
+async function savePadelGameOnly() {
+  const scoreMatchId = cleanUuidValue(currentScoreMatchId);
+
+  if (!scoreMatchId) {
+    alert("No match selected.");
+    return null;
+  }
+
+  const match = allMatches.find(m => m.id === scoreMatchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return null;
+  }
+
+  if (!canSubmitScore(match)) {
+    alert("Game can only be saved/edited after the match is finished and teams are assigned.");
+    return null;
+  }
+
+  if (!isPadelMatch(match)) {
+    alert("Save Game is currently for padel games only.");
+    return null;
+  }
+
+  const { teamA, teamB } = getTwoMatchTeams(match);
+
+  if (!teamA || !teamB) {
+    alert("Assign teams before saving a game.");
+    return null;
+  }
+
+  const mode = $("padel-game-mode")?.value || "new";
+  const gameTitle = $("padel-game-title")?.value.trim() || "Padel Game";
+  const padelResult = calculatePadelSetResult(padelSetInputs());
+
+  if (padelResult.error) {
+    alert(padelResult.error);
+    return null;
+  }
+
+  let gameId = null;
+  const winnerTeam = padelGameWinnerFromSets(padelResult);
+  const gameStatus = winnerTeam ? "completed" : "in_progress";
+
+  if (mode === "continue") {
+    gameId = $("padel-pending-game")?.value || "";
+
+    if (!gameId) {
+      alert("Select a pending game to continue.");
+      return null;
+    }
+
+    const { error: gameUpdateError } = await supabaseClient
+      .from("match_games")
+      .update({
+        title: gameTitle,
+        team_a_name: teamA.name || "Team A",
+        team_b_name: teamB.name || "Team B",
+        team_a_score: padelResult.teamASetWins,
+        team_b_score: padelResult.teamBSetWins,
+        winner_team: winnerTeam,
+        status: gameStatus
+      })
+      .eq("id", gameId);
+
+    if (gameUpdateError) {
+      alert(gameUpdateError.message);
+      return null;
+    }
+  } else {
+    const { data: gameData, error: gameError } = await supabaseClient
+      .from("match_games")
+      .insert({
+        sport_id: match.sport_id,
+        league_id: match.league_id || null,
+        title: gameTitle,
+        status: gameStatus,
+        team_a_name: teamA.name || "Team A",
+        team_b_name: teamB.name || "Team B",
+        team_a_score: padelResult.teamASetWins,
+        team_b_score: padelResult.teamBSetWins,
+        winner_team: winnerTeam,
+        created_by: currentProfile.id
+      })
+      .select("id")
+      .single();
+
+    if (gameError) {
+      alert(gameError.message);
+      return null;
+    }
+
+    gameId = gameData.id;
+  }
+
+  const { error: sessionError } = await supabaseClient
+    .from("match_game_sessions")
+    .upsert({
+      match_id: scoreMatchId,
+      game_id: gameId
+    }, {
+      onConflict: "match_id,game_id"
+    });
+
+  if (sessionError) {
+    alert(sessionError.message);
+    return null;
+  }
+
+  const { error: deleteEntriesError } = await supabaseClient
+    .from("match_score_entries")
+    .delete()
+    .eq("game_id", gameId);
+
+  if (deleteEntriesError) {
+    alert(deleteEntriesError.message);
+    return null;
+  }
+
+  const scoreRows = padelResult.validSets.map(set => ({
+    match_id: scoreMatchId,
+    game_id: gameId,
+    sport_id: match.sport_id,
+    entry_type: "padel_set",
+    game_number: null,
+    set_number: set.setNumber,
+    team_a_score: set.teamAScore,
+    team_b_score: set.teamBScore,
+    is_completed: set.isCompleted,
+    notes: null
+  }));
+
+  const { error: entriesError } = await supabaseClient
+    .from("match_score_entries")
+    .insert(scoreRows);
+
+  if (entriesError) {
+    alert(entriesError.message);
+    return null;
+  }
+
+  const score = completedGameScoreForMatch(match, {
+    id: gameId,
+    status: gameStatus,
+    winner_team: winnerTeam
+  });
+
+  const resultA = score.teamA > score.teamB ? "win" : score.teamA < score.teamB ? "loss" : "draw";
+  const resultB = score.teamB > score.teamA ? "win" : score.teamB < score.teamA ? "loss" : "draw";
+
+  const { error: teamAError } = await supabaseClient
+    .from("match_teams")
+    .update({
+      score: score.teamA,
+      result: resultA
+    })
+    .eq("id", teamA.id);
+
+  if (teamAError) {
+    alert(teamAError.message);
+    return null;
+  }
+
+  const { error: teamBError } = await supabaseClient
+    .from("match_teams")
+    .update({
+      score: score.teamB,
+      result: resultB
+    })
+    .eq("id", teamB.id);
+
+  if (teamBError) {
+    alert(teamBError.message);
+    return null;
+  }
+
+  const summary = $("score-summary")?.value.trim() || null;
+
+  const { error: matchError } = await supabaseClient
+    .from("matches")
+    .update({
+      score_status: "in_progress",
+      notes: summary
+    })
+    .eq("id", scoreMatchId);
+
+  if (matchError) {
+    alert(matchError.message);
+    return null;
+  }
+
+  return {
+    gameId,
+    gameStatus,
+    winnerTeam,
+    score
+  };
+}
+
+async function saveCurrentGameAndStayOpen() {
+  const saved = await savePadelGameOnly();
+
+  if (!saved) return;
+
+  alert(saved.gameStatus === "completed" ? "Game saved as completed." : "Game saved as pending.");
+
+  await loadMatches();
+
+  const match = allMatches.find(m => m.id === currentScoreMatchId);
+  if (!match) return;
+
+  await loadPendingPadelGames(match);
+  renderPendingGameOptions();
+
+  if ($("padel-game-mode")) $("padel-game-mode").value = "new";
+  setPadelGameModeUI();
+
+  const nextGameNumber = matchSessionGames(match).length + 1;
+  if ($("padel-game-title")) $("padel-game-title").value = `Game ${nextGameNumber}`;
+
+  clearPadelSetInputs();
+}
+
+
+function teamResultForMember(match, memberId) {
+  const teams = match.match_teams || [];
+
+  for (const team of teams) {
+    const players = team.match_team_players || [];
+    const found = players.some(player => player.member_id === memberId);
+
+    if (found) {
+      return {
+        team,
+        result: team.result || "draw"
+      };
+    }
+  }
+
+  return {
+    team: null,
+    result: "participated"
+  };
+}
+
+function pointBreakdownForResult(result) {
+  const basePoints = 10;
+  let resultBonus = 0;
+
+  if (result === "win") resultBonus = 5;
+  if (result === "draw") resultBonus = 2;
+
+  return {
+    basePoints,
+    difficultyFactor: 1,
+    consistencyBonus: resultBonus,
+    totalPoints: basePoints + resultBonus
+  };
+}
+
+async function saveMatchMemberPoints(match) {
+  if (!match?.id) return false;
+
+  const matchId = cleanUuidValue(match.id);
+  const sportId = cleanUuidValue(match.sport_id);
+
+  if (!matchId || !sportId) {
+    alert("Cannot save points: match or sport id is missing.");
+    return false;
+  }
+
+  const inInvitations = inPlayerInvitations(match);
+  const uniqueInvitationsByMember = new Map();
+
+  inInvitations.forEach(inv => {
+    const memberId = cleanUuidValue(inv?.member_id);
+
+    if (memberId && !uniqueInvitationsByMember.has(memberId)) {
+      uniqueInvitationsByMember.set(memberId, {
+        ...inv,
+        member_id: memberId
+      });
+    }
+  });
+
+  const uniqueInvitations = Array.from(uniqueInvitationsByMember.values());
+
+  if (!uniqueInvitations.length) {
+    console.warn("No IN players found for points calculation.");
+    return true;
+  }
+
+  const rows = uniqueInvitations.map(inv => {
+    const memberId = cleanUuidValue(inv.member_id);
+    const playerTeam = teamResultForMember(match, memberId);
+    const points = pointBreakdownForResult(playerTeam.result);
+
+    return {
+      match_id: matchId,
+      member_id: memberId,
+      sport_id: sportId,
+      base_points: points.basePoints,
+      difficulty_factor: points.difficultyFactor,
+      consistency_bonus: points.consistencyBonus
+    };
+  }).filter(row =>
+    isValidUuidValue(row.match_id) &&
+    isValidUuidValue(row.member_id) &&
+    isValidUuidValue(row.sport_id)
+  );
+
+  if (!rows.length) {
+    console.warn("No valid point rows to save.");
+    return true;
+  }
+
+  const { error: upsertError } = await supabaseClient
+    .from("match_member_points")
+    .upsert(rows, {
+      onConflict: "match_id,member_id"
+    });
+
+  if (upsertError) {
+    alert(upsertError.message);
+    return false;
+  }
+
+  return true;
+}
+
+function renderPointsSummary(match) {
+  if (!match.match_member_points || !match.match_member_points.length) return "";
+
+  const teams = match.match_teams || [];
+
+  if (!teams.length) return "";
+
+  const pointsByMember = new Map();
+
+  (match.match_member_points || []).forEach(point => {
+    if (point.member_id) {
+      pointsByMember.set(point.member_id, Number(point.total_points || 0));
+    }
+  });
+
+  const rows = teams.map(team => {
+    const players = team.match_team_players || [];
+    const pointValues = players
+      .map(player => pointsByMember.get(player.member_id))
+      .filter(value => Number.isFinite(value));
+
+    const uniquePointValues = Array.from(new Set(pointValues));
+
+    return {
+      team,
+      playerCount: players.length,
+      pointText: uniquePointValues.length === 1
+        ? `+${uniquePointValues[0]} each`
+        : uniquePointValues.length
+          ? uniquePointValues.map(value => `+${value}`).join(" / ")
+          : "-"
+    };
+  });
+
+  if (!rows.length) return "";
+
+  return `
+    <div class="points-summary">
+      <strong>Points earned</strong>
+      ${rows.map(row => `
+        <div class="points-row">
+          <span>
+            ${escapeHtml(row.team.name || "Team")}
+            ${row.playerCount ? `(${row.playerCount} player${row.playerCount === 1 ? "" : "s"})` : ""}
+          </span>
+          <b>${escapeHtml(row.pointText)}</b>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function soccerAttackBaseAdjustment(goalsFor) {
+  if (goalsFor <= 0) return -0.25;
+  if (goalsFor === 1) return -0.05;
+  if (goalsFor === 2) return 0.10;
+  if (goalsFor === 3) return 0.20;
+  return 0.35;
+}
+
+function soccerDefenseBaseAdjustment(goalsAgainst) {
+  if (goalsAgainst <= 0) return 0.30;
+  if (goalsAgainst === 1) return 0.10;
+  if (goalsAgainst === 2) return 0;
+  if (goalsAgainst === 3) return -0.15;
+  return -0.30;
+}
+
+function soccerResultModifier(result) {
+  if (result === "win") return 0.10;
+  if (result === "loss") return -0.10;
+  return 0;
+}
+
+function soccerOpponentStrengthModifier(baseAdjustment, opponentStrength) {
+  if (!Number.isFinite(opponentStrength)) return 0;
+
+  if (baseAdjustment > 0) {
+    if (opponentStrength >= 7.5) return 0.08;
+    if (opponentStrength <= 5.5) return -0.05;
+  }
+
+  if (baseAdjustment < 0) {
+    if (opponentStrength >= 7.5) return 0.06;
+    if (opponentStrength <= 5.5) return -0.08;
+  }
+
+  return 0;
+}
+
+function soccerTeamUnitStrength(team, sportId, positions) {
+  const playersByMemberPosition = new Map();
+
+  (team?.match_team_players || []).forEach(player => {
+    const position = normalizeSoccerPosition(player.formation_position);
+    const memberId = cleanUuidValue(player.member_id);
+
+    if (memberId && positions.includes(position)) {
+      playersByMemberPosition.set(`${memberId}|${position}`, {
+        ...player,
+        member_id: memberId,
+        formation_position: position
+      });
+    }
+  });
+
+  const matching = Array.from(playersByMemberPosition.values());
+
+  if (!matching.length) return 5;
+
+  const total = matching.reduce((sum, player) => {
+    const position = normalizeSoccerPosition(player.formation_position);
+    return sum + positionRatingForMember(player.member_id, sportId, position);
+  }, 0);
+
+  return total / matching.length;
+}
+
+function soccerPlayerAdjustmentForPosition(position, attackAdjustment, defenseAdjustment, resultModifier) {
+  const cleanPosition = normalizeSoccerPosition(position);
+
+  if (cleanPosition === "GK" || cleanPosition === "DEF") {
+    return defenseAdjustment + resultModifier;
+  }
+
+  if (cleanPosition === "MID") {
+    return soccerMidHybridAdjustment({
+      attackAdjustment,
+      defenseAdjustment,
+      resultModifier
+    });
+  }
+
+  if (cleanPosition === "ATT") {
+    return attackAdjustment + resultModifier;
+  }
+
+  return resultModifier;
+}
+
+function soccerRatingRowsForTeam(team, opponentTeam, sportId, goalsFor, goalsAgainst, result) {
+  const opponentAttackStrength = soccerTeamUnitStrength(opponentTeam, sportId, ["MID", "ATT"]);
+  const opponentDefenseStrength = soccerTeamUnitStrength(opponentTeam, sportId, ["GK", "DEF"]);
+
+  const rawAttackAdjustment = soccerAttackBaseAdjustment(goalsFor);
+  const rawDefenseAdjustment = soccerDefenseBaseAdjustment(goalsAgainst);
+
+  const attackAdjustment =
+    rawAttackAdjustment + soccerOpponentStrengthModifier(rawAttackAdjustment, opponentDefenseStrength);
+
+  const defenseAdjustment =
+    rawDefenseAdjustment + soccerOpponentStrengthModifier(rawDefenseAdjustment, opponentAttackStrength);
+
+  const resultModifier = soccerResultModifier(result);
+
+  const uniquePlayers = new Map();
+
+  (team.match_team_players || []).forEach(player => {
+    const memberId = cleanUuidValue(player.member_id);
+    const position = normalizeSoccerPosition(player.formation_position);
+
+    if (memberId && position) {
+      uniquePlayers.set(`${memberId}|${position}`, {
+        ...player,
+        member_id: memberId,
+        formation_position: position
+      });
+    }
+  });
+
+  return Array.from(uniquePlayers.values())
+    .map(player => {
+      const position = normalizeSoccerPosition(player.formation_position);
+
+      const adjustment = clampNumber(
+        soccerPlayerAdjustmentForPosition(position, attackAdjustment, defenseAdjustment, resultModifier),
+        -0.35,
+        0.35
+      );
+
+      return {
+        member_id: player.member_id,
+        sport_id: sportId,
+        position_name: position,
+        adjustment
+      };
+    })
+    .filter(Boolean);
+}
+
+function currentPositionRatingRow(memberId, sportId, positionName) {
+  const cleanPosition = normalizeSoccerPosition(positionName);
+
+  return (allPositionRatings || []).find(row =>
+    row.member_id === memberId &&
+    row.sport_id === sportId &&
+    normalizeSoccerPosition(row.position_name) === cleanPosition
+  ) || null;
+}
+
+async function applyPositionRatingDelta(memberId, sportId, positionName, delta, gamesDelta) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  const cleanSportId = cleanUuidValue(sportId);
+  const cleanPosition = normalizeSoccerPosition(positionName);
+
+  if (!cleanMemberId || !cleanSportId || !cleanPosition) {
+    console.warn("Skipping invalid position rating row:", { memberId, sportId, positionName });
+    return {
+      ok: true,
+      skipped: true
+    };
+  }
+
+  const existing = currentPositionRatingRow(cleanMemberId, cleanSportId, cleanPosition);
+  const ratingBefore = Number(existing?.rating || positionRatingForMember(cleanMemberId, cleanSportId, cleanPosition) || 5);
+  const currentGames = Number(existing?.games_played || 0);
+
+  const ratingAfter = clampNumber(ratingBefore + Number(delta || 0), 1, 10);
+  const nextGamesPlayed = Math.max(0, currentGames + Number(gamesDelta || 0));
+
+  const { error } = await supabaseClient
+    .from("member_sport_position_ratings")
+    .upsert({
+      member_id: cleanMemberId,
+      sport_id: cleanSportId,
+      position_name: cleanPosition,
+      rating: Number(ratingAfter.toFixed(2)),
+      games_played: nextGamesPlayed,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: "member_id,sport_id,position_name"
+    });
+
+  if (error) {
+    alert(error.message);
+    return {
+      ok: false
+    };
+  }
+
+  await loadPositionRatings();
+
+  return {
+    ok: true,
+    ratingBefore,
+    ratingAfter
+  };
+}
+
+
+async function setPositionRatingValue(memberId, sportId, positionName, ratingValue, gamesDelta) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  const cleanSportId = cleanUuidValue(sportId);
+  const cleanPosition = normalizeSoccerPosition(positionName);
+
+  if (!cleanMemberId || !cleanSportId || !cleanPosition) {
+    console.warn("Skipping invalid position rating rollback row:", { memberId, sportId, positionName });
+    return true;
+  }
+
+  const existing = currentPositionRatingRow(cleanMemberId, cleanSportId, cleanPosition);
+  const currentGames = Number(existing?.games_played || 0);
+  const nextGamesPlayed = Math.max(0, currentGames + Number(gamesDelta || 0));
+  const nextRating = clampNumber(Number(ratingValue || 5), 1, 10);
+
+  const { error } = await supabaseClient
+    .from("member_sport_position_ratings")
+    .upsert({
+      member_id: cleanMemberId,
+      sport_id: cleanSportId,
+      position_name: cleanPosition,
+      rating: Number(nextRating.toFixed(2)),
+      games_played: nextGamesPlayed,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: "member_id,sport_id,position_name"
+    });
+
+  if (error) {
+    alert(error.message);
+    return false;
+  }
+
+  await loadPositionRatings();
+  return true;
+}
+
+async function rollbackPreviousSoccerRatingAdjustments(matchId) {
+  const { data, error } = await supabaseClient
+    .from("match_position_rating_adjustments")
+    .select("id,member_id,sport_id,position_name,adjustment,rating_before,rating_after")
+    .eq("match_id", matchId);
+
+  if (error) {
+    alert(error.message);
+    return false;
+  }
+
+  for (const row of data || []) {
+    let ok = false;
+
+    if (row.rating_before !== null && row.rating_before !== undefined) {
+      ok = await setPositionRatingValue(
+        row.member_id,
+        row.sport_id,
+        row.position_name,
+        Number(row.rating_before),
+        -1
+      );
+    } else {
+      const result = await applyPositionRatingDelta(
+        row.member_id,
+        row.sport_id,
+        row.position_name,
+        -Number(row.adjustment || 0),
+        -1
+      );
+
+      ok = Boolean(result?.ok);
+    }
+
+    if (!ok) return false;
+  }
+
+  if ((data || []).length) {
+    const { error: deleteError } = await supabaseClient
+      .from("match_position_rating_adjustments")
+      .delete()
+      .eq("match_id", matchId);
+
+    if (deleteError) {
+      alert(deleteError.message);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+
+function dedupeSoccerRatingRows(rows) {
+  const byKey = new Map();
+
+  (rows || []).forEach(row => {
+    const memberId = cleanUuidValue(row.member_id);
+    const sportId = cleanUuidValue(row.sport_id);
+    const position = normalizeSoccerPosition(row.position_name);
+
+    if (!memberId || !sportId || !position) return;
+
+    const key = `${memberId}|${sportId}`;
+
+    // DB adjustment rows are unique per match + member + sport.
+    // Keep only one position update per player per match to avoid duplicate-key errors.
+    const nextAdjustment = Number(row.adjustment || 0);
+    const current = byKey.get(key);
+
+    if (!current || Math.abs(nextAdjustment) > Math.abs(Number(current.adjustment || 0))) {
+      byKey.set(key, {
+        member_id: memberId,
+        sport_id: sportId,
+        position_name: position,
+        adjustment: clampNumber(nextAdjustment, -0.35, 0.35)
+      });
+    }
+  });
+
+  return Array.from(byKey.values());
+}
+
+async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, resultA, resultB) {
+  if (!isSoccerMatch(match)) return true;
+
+  const { teamA, teamB } = getTwoMatchTeams(match);
+
+  if (!teamA || !teamB) return true;
+
+  await loadPositionRatings();
+
+  const rolledBack = await rollbackPreviousSoccerRatingAdjustments(match.id);
+  if (!rolledBack) return false;
+
+  const rows = dedupeSoccerRatingRows([
+    ...soccerRatingRowsForTeam(teamA, teamB, match.sport_id, scoreA, scoreB, resultA),
+    ...soccerRatingRowsForTeam(teamB, teamA, match.sport_id, scoreB, scoreA, resultB)
+  ]);
+
+  if (!rows.length) return true;
+
+  const adjustmentRows = [];
+
+  for (const row of rows) {
+    const result = await applyPositionRatingDelta(
+      row.member_id,
+      row.sport_id,
+      row.position_name,
+      Number(row.adjustment || 0),
+      1
+    );
+
+    if (!result?.ok) return false;
+
+    const cleanMatchId = cleanUuidValue(match.id);
+    const cleanMemberId = cleanUuidValue(row.member_id);
+    const cleanSportId = cleanUuidValue(row.sport_id);
+    const cleanPosition = normalizeSoccerPosition(row.position_name);
+
+    if (cleanMatchId && cleanMemberId && cleanSportId && cleanPosition && !result?.skipped) {
+      adjustmentRows.push({
+        match_id: cleanMatchId,
+        member_id: cleanMemberId,
+        sport_id: cleanSportId,
+        position_name: cleanPosition,
+        adjustment: Number(Number(row.adjustment || 0).toFixed(3)),
+        rating_before: Number(Number(result.ratingBefore).toFixed(2)),
+        rating_after: Number(Number(result.ratingAfter).toFixed(2))
+      });
+    }
+  }
+
+  const finalAdjustmentRows = Array.from(
+    new Map(
+      adjustmentRows.map(row => [
+        `${row.match_id}|${row.member_id}|${row.sport_id}`,
+        row
+      ])
+    ).values()
+  );
+
+  if (finalAdjustmentRows.length) {
+    // Defensive delete first because some Supabase/PostgREST schemas use a composite
+    // primary key for match_id/member_id/sport_id and may still reject duplicate rows
+    // if old adjustment rows were not fully removed.
+    const cleanMatchId = cleanUuidValue(match.id);
+
+    if (cleanMatchId) {
+      await supabaseClient
+        .from("match_position_rating_adjustments")
+        .delete()
+        .eq("match_id", cleanMatchId);
+    }
+
+    const { error } = await supabaseClient
+      .from("match_position_rating_adjustments")
+      .upsert(finalAdjustmentRows, {
+        onConflict: "match_id,member_id,sport_id"
+      });
+
+    if (error) {
+      alert(error.message);
+      return false;
+    }
+  }
+
+  await loadPositionRatings();
+  renderSportRatingManager();
+  renderRankings();
+
+  return true;
+}
+
+
+async function cleanupSimpleMatchGames(match) {
+  if (isPadelMatch(match)) return true;
+
+  const existingGames = matchSessionGames(match);
+  const existingGameIds = existingGames.map(game => game.id).filter(Boolean);
+
+  if (!existingGameIds.length) return true;
+
+  const { error: entriesError } = await supabaseClient
+    .from("match_score_entries")
+    .delete()
+    .in("game_id", existingGameIds);
+
+  if (entriesError) {
+    alert(entriesError.message);
+    return false;
+  }
+
+  const { error: sessionsError } = await supabaseClient
+    .from("match_game_sessions")
+    .delete()
+    .eq("match_id", match.id);
+
+  if (sessionsError) {
+    alert(sessionsError.message);
+    return false;
+  }
+
+  const { error: gamesError } = await supabaseClient
+    .from("match_games")
+    .delete()
+    .in("id", existingGameIds);
+
+  if (gamesError) {
+    alert(gamesError.message);
+    return false;
+  }
+
+  return true;
+}
+
+async function finalizeCurrentMatchResult() {
+  const scoreMatchId = cleanUuidValue(currentScoreMatchId);
+
+  if (!scoreMatchId) {
+    alert("No match selected.");
+    return;
+  }
+
+  const match = allMatches.find(m => m.id === scoreMatchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canSubmitScore(match)) {
+    alert("Result can only be finalized after the match is finished.");
+    return;
+  }
+
+  const { teamA, teamB } = getTwoMatchTeams(match);
+
+  if (!teamA || !teamB) {
+    alert("Assign teams before finalizing the result.");
+    return;
+  }
+
+  const summary = $("score-summary")?.value.trim() || null;
+  let scoreA = Number(teamA.score || 0);
+  let scoreB = Number(teamB.score || 0);
+
+  if (isPadelMatch(match)) {
+    const savedGame = await savePadelGameOnly();
+
+    if (!savedGame) return;
+
+    scoreA = savedGame.score.teamA;
+    scoreB = savedGame.score.teamB;
+  } else {
+    scoreA = Number($("score-team-a")?.value || 0);
+    scoreB = Number($("score-team-b")?.value || 0);
+
+    if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB) || scoreA < 0 || scoreB < 0) {
+      alert("Scores must be whole numbers equal to or greater than 0.");
+      return;
+    }
+
+    const winnerTeam = scoreA > scoreB ? "A" : scoreB > scoreA ? "B" : "draw";
+
+    const cleanedOldGames = await cleanupSimpleMatchGames(match);
+
+    if (!cleanedOldGames) return;
+
+    const { data: gameData, error: gameError } = await supabaseClient
+      .from("match_games")
+      .insert({
+        sport_id: match.sport_id,
+        league_id: match.league_id || null, // automatically inherited from the booking/match league
+        title: match.title || "Game",
+        status: "completed",
+        team_a_name: teamA.name || "Team A",
+        team_b_name: teamB.name || "Team B",
+        team_a_score: scoreA,
+        team_b_score: scoreB,
+        winner_team: winnerTeam,
+        created_by: currentProfile.id
+      })
+      .select("id")
+      .single();
+
+    if (gameError) {
+      alert(gameError.message);
+      return;
+    }
+
+    const gameId = gameData.id;
+
+    const { error: sessionError } = await supabaseClient
+      .from("match_game_sessions")
+      .upsert({
+        match_id: scoreMatchId,
+        game_id: gameId
+      }, {
+        onConflict: "match_id,game_id"
+      });
+
+    if (sessionError) {
+      alert(sessionError.message);
+      return;
+    }
+
+    const { error: entryError } = await supabaseClient
+      .from("match_score_entries")
+      .insert({
+        match_id: scoreMatchId,
+        game_id: gameId,
+        sport_id: match.sport_id,
+        entry_type: "simple",
+        game_number: 1,
+        set_number: null,
+        team_a_score: scoreA,
+        team_b_score: scoreB,
+        is_completed: true,
+        notes: null
+      });
+
+    if (entryError) {
+      alert(entryError.message);
+      return;
+    }
+  }
+
+  const resultA = scoreA > scoreB ? "win" : scoreA < scoreB ? "loss" : "draw";
+  const resultB = scoreB > scoreA ? "win" : scoreB < scoreA ? "loss" : "draw";
+
+  const { error: teamAError } = await supabaseClient
+    .from("match_teams")
+    .update({
+      score: scoreA,
+      result: resultA
+    })
+    .eq("id", teamA.id);
+
+  if (teamAError) {
+    alert(teamAError.message);
+    return;
+  }
+
+  const { error: teamBError } = await supabaseClient
+    .from("match_teams")
+    .update({
+      score: scoreB,
+      result: resultB
+    })
+    .eq("id", teamB.id);
+
+  if (teamBError) {
+    alert(teamBError.message);
+    return;
+  }
+
+  const { error: matchError } = await supabaseClient
+    .from("matches")
+    .update({
+      status: "completed",
+      score_status: "submitted",
+      notes: summary
+    })
+    .eq("id", scoreMatchId);
+
+  if (matchError) {
+    alert(matchError.message);
+    return;
+  }
+
+  const refreshedMatchForPoints = {
+    ...match,
+    status: "completed",
+    score_status: "submitted",
+    match_teams: (match.match_teams || []).map(team => {
+      if (team.id === teamA.id) {
+        return {
+          ...team,
+          score: scoreA,
+          result: resultA
+        };
+      }
+
+      if (team.id === teamB.id) {
+        return {
+          ...team,
+          score: scoreB,
+          result: resultB
+        };
+      }
+
+      return team;
+    })
+  };
+
+  const pointsSaved = await saveMatchMemberPoints(refreshedMatchForPoints);
+
+  if (!pointsSaved) return;
+
+  const ratingsSaved = await saveSoccerPositionRatingAdjustments(
+    refreshedMatchForPoints,
+    scoreA,
+    scoreB,
+    resultA,
+    resultB
+  );
+
+  if (!ratingsSaved) return;
+
+  alert(isSoccerMatch(refreshedMatchForPoints)
+    ? "Match result finalized, points saved, and soccer position ratings updated."
+    : "Match result finalized and points saved.");
+
+  $("scoreModal")?.close();
+  currentScoreMatchId = null;
+
+  await loadMatches();
+}
+
+async function saveScore() {
+  await finalizeCurrentMatchResult();
+}
+
+function commentSection(m) {
+  return `
+    <div class="comments">
+      ${(m.comments || []).map(c => `<div class="comment">💬 ${escapeHtml(c)}</div>`).join("")}
+    </div>
+    <div class="comment-box">
+      <input id="comment-${m.id}" placeholder="Add banter/comment...">
+      <button class="small-btn" onclick="addComment('${m.id}')">Send</button>
+    </div>
+  `;
+}
+
+function activityCard(a, compact = false) {
+  const verified = a.approvals.length >= 2;
+
+  return `
+    <article class="card">
+      <div class="row">
+        <div>
+          <h3>${escapeHtml(a.player)} — ${escapeHtml(a.activity)}</h3>
+          <div class="meta">${escapeHtml(a.sport)} • ${a.points} pts • Proof: ${escapeHtml(a.proof || "not attached yet")}</div>
+          <div class="meta">Approvals: ${a.approvals.length}/2</div>
+        </div>
+        <span class="pill ${verified ? "green" : "red"}">${verified ? "Verified" : "Pending"}</span>
+      </div>
+      ${compact || verified ? "" : `<div class="actions"><button class="small-btn" onclick="approveActivity('${a.id}')">Committee approve</button></div>`}
+    </article>
+  `;
+}
+
+function renderActivities() {
+  if (!$("activityList")) return;
+  $("activityList").innerHTML = state.activities.map(a => activityCard(a)).join("");
+}
+
+
+function updateRankingFilters() {
+  const sportSelect = $("rank-sport-filter");
+  const leagueSelect = $("rank-league-filter");
+
+  if (sportSelect) {
+    const current = sportSelect.value || "all";
+
+    sportSelect.innerHTML = `
+      <option value="all">All sports</option>
+      ${(allSports || []).map(sport => `
+        <option value="${sport.id}">${escapeHtml(sport.name)}</option>
+      `).join("")}
+    `;
+
+    sportSelect.value = Array.from(sportSelect.options).some(option => option.value === current)
+      ? current
+      : "all";
+  }
+
+  if (leagueSelect) {
+    const current = leagueSelect.value || "all";
+    const selectedSport = sportSelect?.value || "all";
+
+    const leagues = (allLeagues || []).filter(league =>
+      selectedSport === "all" || league.sport_id === selectedSport
+    );
+
+    leagueSelect.innerHTML = `
+      <option value="all">All leagues</option>
+      <option value="none">Friendly / no league</option>
+      ${leagues.map(league => `
+        <option value="${league.id}">${escapeHtml(league.name)}</option>
+      `).join("")}
+    `;
+
+    leagueSelect.value = Array.from(leagueSelect.options).some(option => option.value === current)
+      ? current
+      : "all";
+  }
+}
+
+function rankingFilteredMatches() {
+  const sportId = $("rank-sport-filter")?.value || "all";
+  const leagueId = $("rank-league-filter")?.value || "all";
+
+  return (allMatches || []).filter(match => {
+    if (match.score_status !== "submitted" && match.status !== "completed") return false;
+    if (sportId !== "all" && match.sport_id !== sportId) return false;
+
+    if (leagueId === "none" && match.league_id) return false;
+    if (leagueId !== "all" && leagueId !== "none" && match.league_id !== leagueId) return false;
+
+    return true;
+  });
+}
+
+function rankingRows() {
+  const playerType = $("rank-player-type-filter")?.value || "all";
+  const table = new Map();
+
+  rankingFilteredMatches().forEach(match => {
+    (match.match_member_points || []).forEach(point => {
+      const member = point.member;
+      const memberId = point.member_id;
+
+      if (!memberId || !member) return;
+
+      if (playerType === "members" && member.is_external) return;
+      if (playerType === "external" && !member.is_external) return;
+
+      const current = table.get(memberId) || {
+        memberId,
+        member,
+        name: memberDisplayName(member),
+        isExternal: Boolean(member.is_external),
+        totalPoints: 0,
+        basePoints: 0,
+        bonusPoints: 0,
+        matches: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        sports: new Set(),
+        leagues: new Set()
+      };
+
+      const teamInfo = teamResultForMember(match, memberId);
+      const result = teamInfo.result || "participated";
+
+      current.totalPoints += Number(point.total_points || 0);
+      current.basePoints += Number(point.base_points || 0);
+      current.bonusPoints += Number(point.consistency_bonus || 0);
+      current.matches += 1;
+
+      if (result === "win") current.wins += 1;
+      else if (result === "draw") current.draws += 1;
+      else if (result === "loss") current.losses += 1;
+
+      if (match.sports?.name) current.sports.add(match.sports.name);
+      if (match.league_id) current.leagues.add(match.league_id);
+
+      table.set(memberId, current);
+    });
+  });
+
+  return Array.from(table.values()).sort((a, b) =>
+    b.totalPoints - a.totalPoints ||
+    b.wins - a.wins ||
+    b.matches - a.matches ||
+    a.name.localeCompare(b.name)
+  );
+}
+
+function rankingSummary(rows) {
+  const totalPlayers = rows.length;
+  const totalPoints = rows.reduce((sum, row) => sum + Number(row.totalPoints || 0), 0);
+  const totalMatches = rankingFilteredMatches().length;
+
+  return `
+    <article class="card ranking-summary-card">
+      <div>
+        <div class="meta">Ranked players</div>
+        <strong>${totalPlayers}</strong>
+      </div>
+
+      <div>
+        <div class="meta">Finalized matches</div>
+        <strong>${totalMatches}</strong>
+      </div>
+
+      <div>
+        <div class="meta">Total points</div>
+        <strong>${totalPoints}</strong>
+      </div>
+    </article>
+  `;
+}
+
+function renderRankings() {
+  if (!$("rankingList")) return;
+
+  updateRankingFilters();
+
+  const rows = rankingRows();
+
+  if (!rows.length) {
+    $("rankingList").innerHTML = `
+      ${rankingSummary(rows)}
+      ${renderPositionRankings()}
+      <article class="card">No finalized points for this filter yet.</article>
+    `;
+    return;
+  }
+
+  $("rankingList").innerHTML = `
+    ${rankingSummary(rows)}
+
+    <article class="card rankings-table-card">
+      <div class="rankings-table-head">
+        <span>#</span>
+        <span>Player</span>
+        <span>Pts</span>
+        <span>Played</span>
+        <span>W-D-L</span>
+      </div>
+
+      ${rows.map((row, index) => `
+        <div class="rankings-table-row">
+          <span class="rank-number-mini">${index + 1}</span>
+
+          <span>
+            ${escapeHtml(row.name)}
+            ${row.isExternal ? `<em>External</em>` : ""}
+          </span>
+
+          <strong>${Number(row.totalPoints || 0)}</strong>
+
+          <span>${Number(row.matches || 0)}</span>
+
+          <span>${row.wins}-${row.draws}-${row.losses}</span>
+        </div>
+      `).join("")}
+    </article>
+  `;
+}
+
+function approveActivity(id) {
+  const a = state.activities.find(x => x.id === id);
+  if (!a || a.approvals.length >= 2) return;
+
+  a.approvals.push(`Committee ${a.approvals.length + 1}`);
+  saveData();
+  render();
+}
+
+function addComment(matchId) {
+  const input = $(`comment-${matchId}`);
+  const text = input?.value.trim();
+
+  if (!text) return;
+
+  const m = state.matches.find(x => x.id === matchId);
+  if (!m) return;
+
+  m.comments = m.comments || [];
+  m.comments.push(text);
+
+  saveData();
+  render();
+}
+
+async function testConnection() {
+  const { data, error } = await supabaseClient
+    .from("sports")
+    .select("*");
+
+  console.log("URL:", SUPABASE_URL);
+  console.log("SPORTS DATA:", data);
+  console.log("SPORTS ERROR:", error);
+}
+
+async function signUp(email, password) {
+  if (!email || !password) {
+    alert("Please enter email and password.");
+    return;
+  }
+
+  const { data, error } = await supabaseClient.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: "https://alimuhieddine.github.io/aba-aub-bros-arena/"
+    }
+  });
+
+  if (error) {
+    const message = error.message.toLowerCase();
+
+    if (
+      message.includes("already registered") ||
+      message.includes("already exists") ||
+      message.includes("user already registered") ||
+      message.includes("email")
+    ) {
+      alert("This email is already registered. Please log in or use a different email.");
+      return;
+    }
+
+    alert(error.message);
+    return;
+  }
+
+  /*
+    Supabase sometimes returns a user object without a session
+    when the email already exists or confirmation is required.
+  */
+  if (data?.user && data.user.identities && data.user.identities.length === 0) {
+    alert("This email is already registered. Please log in or use a different email.");
+    return;
+  }
+
+  alert("Check your email and confirm your account.");
+  await refreshAuthUI();
+}
+
+async function login(email, password) {
+  if (!email || !password) {
+    alert("Please enter email and password.");
+    return;
+  }
+
+  const { error } =
+    await supabaseClient.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  await refreshAuthUI();
+}
+
+async function logout() {
+  await supabaseClient.auth.signOut();
+  localStorage.removeItem("aba_user_access");
+  currentProfile = null;
+  clearProfileFields();
+  await refreshAuthUI();
+}
+
+function profileFieldIds() {
+  return [
+    "profile-first-name",
+    "profile-last-name",
+    "profile-display-name",
+    "profile-birth-date",
+    "profile-phone"
+  ];
+}
+
+function clearProfileFields() {
+  profileFieldIds().forEach(id => {
+    const el = $(id);
+    if (el) {
+      el.value = "";
+      el.disabled = true;
+    }
+  });
+
+  if ($("profile-status")) {
+    $("profile-status").textContent = "Login to load your profile.";
+  }
+
+  const btn = $("profile-action-btn");
+  if (btn) {
+    btn.textContent = "Edit Profile";
+    btn.style.display = "inline-flex";
+  }
+
+  profileIsEditing = false;
+}
+
+function setProfileEditing(isEditing) {
+  profileIsEditing = isEditing;
+
+  profileFieldIds().forEach(id => {
+    const el = $(id);
+    if (el) el.disabled = !isEditing;
+  });
+
+  const btn = $("profile-action-btn");
+  if (btn) {
+    btn.textContent = isEditing ? "Save Profile" : "Edit Profile";
+    btn.style.display = "inline-flex";
+  }
+}
+
+function setProfileStatusText(profile) {
+  const status = $("profile-status");
+  if (!status) return;
+
+  if (!profile) {
+    status.textContent = "Complete your profile, then wait for admin approval.";
+    return;
+  }
+
+  const approval = profile.approval_status || "pending";
+  const role = profile.role || "member";
+
+  if (approval === "pending") {
+    status.textContent = "Your profile is waiting for admin approval.";
+    return;
+  }
+
+  if (approval === "rejected") {
+    status.textContent = "Your registration was rejected. Please contact an admin if you think this is a mistake.";
+    return;
+  }
+
+  if (approval === "suspended") {
+    status.textContent = "Your account is suspended. Please contact an admin.";
+    return;
+  }
+
+  status.textContent = `Status: ${approval} • Role: ${role}`;
+}
+
+async function loadMyProfile() {
+  const { data: { user }, error: userError } =
+    await supabaseClient.auth.getUser();
+
+  if (userError || !user) {
+    currentProfile = null;
+    clearProfileFields();
+    return;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("members")
+    .select("id,first_name,last_name,display_name,birth_date,phone,email,is_external,is_active,role,approval_status,registration_status,auth_user_id")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+
+  console.log("MY PROFILE FROM SUPABASE:", data);
+  console.log("PROFILE LOAD ERROR:", error);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  currentProfile = data;
+  cacheProfileAccess(data);
+
+  if (!data) {
+    clearProfileFields();
+    setProfileStatusText(null);
+    setProfileEditing(true);
+    applyAccessUI();
+    return;
+  }
+
+  $("profile-first-name").value = data.first_name || "";
+  $("profile-last-name").value = data.last_name || "";
+  $("profile-display-name").value = data.display_name || "";
+  $("profile-birth-date").value = data.birth_date || "";
+  $("profile-phone").value = data.phone || "";
+
+  setProfileStatusText(data);
+  setProfileEditing(false);
+
+  if (data.approval_status === "rejected" || data.approval_status === "suspended") {
+    profileFieldIds().forEach(id => {
+      const el = $(id);
+      if (el) el.disabled = true;
+    });
+
+    const btn = $("profile-action-btn");
+    if (btn) btn.style.display = "none";
+  }
+
+  applyAccessUI();
+}
+
+async function saveProfile() {
+  const { data: { user }, error: userError } =
+    await supabaseClient.auth.getUser();
+
+  if (userError || !user) {
+    alert("Please login first.");
+    return;
+  }
+
+  const firstName = $("profile-first-name").value.trim();
+  const displayName = $("profile-display-name").value.trim();
+
+  if (!firstName || !displayName) {
+    alert("First Name and Display Name are required.");
+    return;
+  }
+
+  const profile = {
+    auth_user_id: user.id,
+    email: user.email,
+    first_name: firstName,
+    last_name: $("profile-last-name").value.trim(),
+    display_name: displayName,
+    birth_date: $("profile-birth-date").value || null,
+    phone: $("profile-phone").value.trim(),
+    is_external: currentProfile?.is_external ?? false,
+    is_active: currentProfile?.is_active ?? true,
+    role: currentProfile?.role ?? "member",
+    approval_status: currentProfile?.approval_status ?? "pending",
+    registration_status: currentProfile?.registration_status ?? "pending"
+  };
+
+  const { error } = await supabaseClient
+    .from("members")
+    .upsert(profile, { onConflict: "auth_user_id" });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  alert("Profile saved.");
+  await loadMyProfile();
+}
+
+async function refreshAuthUI() {
+  const { data: { session } } =
+    await supabaseClient.auth.getSession();
+
+  if (session) {
+    $("auth-logged-out").style.display = "none";
+    $("auth-logged-in").style.display = "flex";
+    $("current-user").textContent = session.user.email;
+
+    // Show Account tab after login
+    document.querySelectorAll(".auth-only").forEach(el => {
+      el.style.display = "";
+    });
+
+    // Show cached Admin tab immediately, then verify with Supabase profile.
+    // This is only a UI hint. Supabase RLS still protects the data.
+    try {
+      const cachedAccess = JSON.parse(
+        localStorage.getItem("aba_user_access") || "null"
+      );
+
+      if (
+        cachedAccess &&
+        cachedAccess.role === "admin" &&
+        cachedAccess.approval_status === "approved"
+      ) {
+        document.querySelectorAll(".admin-only").forEach(el => {
+          el.style.display = "";
+        });
+      }
+    } catch {
+      localStorage.removeItem("aba_user_access");
+    }
+
+    await loadMyProfile();
+    applyAccessUI();
+if (currentProfile?.approval_status === "approved") {
+  await loadLeagues();
+  await loadSportProfiles();
+  await loadPositionRatings();
+  await loadMatches();
+  restoreActiveTab();
+}
+    if (isCurrentUserAdmin()) {
+      await loadSportsOptions();
+await loadMatchFormOptions();
+await loadPendingMembers();
+await loadVenues();
+await loadMatches();
+    }
+
+    return;
+  }
+
+  // Logged out state
+  $("auth-logged-out").style.display = "flex";
+  $("auth-logged-in").style.display = "none";
+
+  // Hide Account tab when logged out
+  document.querySelectorAll(".auth-only").forEach(el => {
+    el.style.display = "none";
+  });
+
+  // Hide Admin tab when logged out
+  document.querySelectorAll(".admin-only").forEach(el => {
+    el.style.display = "none";
+  });
+
+  localStorage.removeItem("aba_user_access");
+  localStorage.removeItem(ACTIVE_TAB_KEY);
+  currentProfile = null;
+  clearProfileFields();
+
+  setActiveTab("dashboard", false);
+}
+
+
+const ACTIVE_TAB_KEY = "aba_active_tab";
+
+function setActiveTab(viewId, persist = true) {
+  const targetView = $(viewId);
+  const targetTab = document.querySelector(`[data-view="${viewId}"]`);
+
+  if (!targetView || !targetTab) return;
+
+  document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active-view"));
+
+  targetTab.classList.add("active");
+  targetView.classList.add("active-view");
+
+  if (persist) {
+    localStorage.setItem(ACTIVE_TAB_KEY, viewId);
+  }
+
+  if (viewId === "account") {
+    loadMyProfile();
+  }
+
+  if (viewId === "leagues") {
+    loadLeagues();
+  }
+
+  if (viewId === "rankings") {
+    updateRankingFilters();
+    renderRankings();
+  }
+
+  if (viewId === "admin") {
+    loadSportsOptions();
+    loadMatchFormOptions();
+    loadPendingMembers();
+    loadVenues();
+    loadMatches();
+  }
+}
+
+function restoreActiveTab() {
+  const saved = localStorage.getItem(ACTIVE_TAB_KEY) || "dashboard";
+  const view = $(saved) ? saved : "dashboard";
+
+  setActiveTab(view, false);
+}
+
+function bindEvents() {
+  populateMatchTimeSelects();
+  setDefaultMatchDateTimes();
+
+  $("match-sport")?.addEventListener("change", updateMatchVenueOptions);
+  $("match-type")?.addEventListener("change", updateMatchLeagueOptions);
+
+  $("rank-sport-filter")?.addEventListener("change", () => {
+    updateRankingFilters();
+    renderRankings();
+  });
+
+  $("rank-league-filter")?.addEventListener("change", renderRankings);
+  $("rank-player-type-filter")?.addEventListener("change", renderRankings);
+
+  $("rating-sport-filter")?.addEventListener("change", renderSportRatingManager);
+  document.querySelectorAll(".tab").forEach(btn =>
+    btn.addEventListener("click", () => {
+      setActiveTab(btn.dataset.view);
+    })
+  );
+
+ document.querySelectorAll("[data-open]").forEach(btn =>
+  btn.addEventListener("click", async () => {
+    if (btn.dataset.open === "leagueModal") {
+      editingLeagueId = null;
+
+      const form = $("leagueForm");
+      if (form) {
+        form.reset();
+
+        const title = form.querySelector("h3");
+        if (title) title.textContent = "Create League";
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.textContent = "Create League";
+      }
+
+      await loadSportsOptions();
+      await loadLeagues();
+      updateLeagueSportOptions();
+    }
+
+    if (btn.dataset.open === "matchModal") {
+      editingMatchId = null;
+
+      const form = $("matchForm");
+      if (form) {
+        form.reset();
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.textContent = "Create Match";
+      }
+
+      setDefaultMatchDateTimes();
+
+      await loadMatchFormOptions();
+    }
+
+    const modal = $(btn.dataset.open);
+    if (modal) modal.showModal();
+  })
+);
+  if ($("leagueForm")) {
+    $("leagueForm").addEventListener("submit", async e => {
+      const fd = new FormData(e.target);
+
+      if (!currentProfile || currentProfile.approval_status !== "approved") {
+        alert("Approved members only.");
+        return;
+      }
+
+      const payload = {
+        name: fd.get("name"),
+        sport_id: fd.get("sport_id"),
+        format: fd.get("format") || null,
+        status: fd.get("status") || "active",
+        start_date: fd.get("start_date") || null,
+        end_date: fd.get("end_date") || null
+      };
+
+      let result;
+
+      if (editingLeagueId) {
+        result = await supabaseClient
+          .from("leagues")
+          .update(payload)
+          .eq("id", editingLeagueId);
+      } else {
+        result = await supabaseClient
+          .from("leagues")
+          .insert({
+            ...payload,
+            created_by: currentProfile.id
+          });
+      }
+
+      if (result.error) {
+        alert(result.error.message);
+        return;
+      }
+
+      alert(editingLeagueId ? "League updated." : "League created.");
+
+      editingLeagueId = null;
+      e.target.reset();
+
+      const title = e.target.querySelector("h3");
+      if (title) title.textContent = "Create League";
+
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.textContent = "Create League";
+
+      $("leagueModal")?.close();
+
+      await loadLeagues();
+      await loadMatchFormOptions();
+    });
+  }
+
+
+ if ($("matchForm")) {
+  $("matchForm").addEventListener("submit", async e => {
+    const fd = new FormData(e.target);
+
+    if (!currentProfile || currentProfile.approval_status !== "approved") {
+      alert("Approved members only.");
+      return;
+    }
+
+    const requiredPlayers = Number(fd.get("required_players") || 0);
+    const maxPlayers = requiredPlayers;
+    const matchDateTimes = getMatchDateTimeValues();
+
+    if (!matchDateTimes) return;
+
+    if (!requiredPlayers || requiredPlayers < 1) {
+      alert("Required players must be at least 1.");
+      return;
+    }
+
+    if (fd.get("match_type") === "league" && !fd.get("league_id")) {
+      alert("Please select a league for league matches.");
+      return;
+    }
+
+    if (fd.get("match_type") === "league" && !leagueSportMatchesSelection(fd.get("league_id"), fd.get("sport_id"))) {
+      alert("The selected league does not match the selected sport.");
+      return;
+    }
+
+    const selectedInviteIds = getSelectedInviteMemberIds();
+
+    if (!editingMatchId && selectedInviteIds.length + 1 > maxPlayers) {
+      const ok = confirm("You invited more players than the required spots. Players can still vote, but only the first players to vote IN will take the spots. Continue?");
+      if (!ok) return;
+    }
+
+    const match = {
+      sport_id: fd.get("sport_id"),
+      venue_id: fd.get("venue_id"),
+      league_id: fd.get("match_type") === "league" ? (fd.get("league_id") || null) : null,
+      created_by: currentProfile.id,
+      title: fd.get("title"),
+      match_type: fd.get("match_type"),
+      start_time: matchDateTimes.startTime.toISOString(),
+      end_time: matchDateTimes.endTime.toISOString(),
+      status: "open_for_votes",
+      max_players: maxPlayers,
+      required_players: requiredPlayers || maxPlayers,
+      visibility: "invited",
+      team_status: "not_assigned",
+      score_status: "pending",
+      notes: fd.get("notes") || null
+    };
+
+    let result;
+    const activeEditingMatchId = cleanUuidValue(editingMatchId);
+
+    if (activeEditingMatchId) {
+      result = await supabaseClient
+        .from("matches")
+        .update(match)
+        .eq("id", activeEditingMatchId)
+        .select();
+    } else {
+      result = await supabaseClient
+        .from("matches")
+        .insert(match)
+        .select();
+    }
+
+    if (result.error) {
+      alert(result.error.message);
+      return;
+    }
+
+    const matchId = activeEditingMatchId || result.data?.[0]?.id;
+
+    const invitationsSaved = await saveMatchInvitations(
+      matchId,
+      selectedInviteIds,
+      Boolean(activeEditingMatchId)
+    );
+
+    if (!invitationsSaved) return;
+
+    alert(activeEditingMatchId ? "Match updated." : "Match created.");
+
+    editingMatchId = null;
+    e.target.reset();
+    setDefaultMatchDateTimes();
+
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.textContent = "Create Match";
+
+    await loadMatches();
+
+    document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".view").forEach(v => v.classList.remove("active-view"));
+
+    const matchesTab = document.querySelector('[data-view="matches"]');
+    const matchesView = $("matches");
+
+    if (matchesTab) matchesTab.classList.add("active");
+    if (matchesView) matchesView.classList.add("active-view");
+  });
+}
+
+  if ($("activityForm")) {
+    $("activityForm").addEventListener("submit", e => {
+      const fd = new FormData(e.target);
+      state.activities.unshift({
+        id: crypto.randomUUID(),
+        player: fd.get("player"),
+        sport: fd.get("sport"),
+        activity: fd.get("activity"),
+        proof: fd.get("proof"),
+        points: Number(fd.get("points")),
+        approvals: [],
+        createdAt: Date.now()
+      });
+      saveData();
+      e.target.reset();
+      render();
+    });
+  }
+
+  $("profile-action-btn")?.addEventListener("click", async () => {
+    if (profileIsEditing) {
+      await saveProfile();
+    } else {
+      setProfileEditing(true);
+    }
+  });
+
+  $("signup-btn")?.addEventListener("click", () => {
+    signUp($("auth-email").value.trim(), $("auth-password").value);
+  });
+
+  $("login-btn")?.addEventListener("click", () => {
+    login($("auth-email").value.trim(), $("auth-password").value);
+  });
+
+  $("logout-btn")?.addEventListener("click", logout);
+
+  $("add-venue-btn")?.addEventListener("click", saveVenue);
+
+  $("cancel-venue-edit-btn")?.addEventListener("click", clearVenueForm);
+
+  $("add-selected-external-btn")?.addEventListener("click", addSelectedExternalPlayers);
+
+  $("create-external-player-btn")?.addEventListener("click", createExternalPlayerProfile);
+
+  $("suggest-teams-btn")?.addEventListener("click", applySuggestedTeams);
+
+  $("team-a-captain")?.addEventListener("change", updateTeamBalanceStatus);
+  $("team-b-captain")?.addEventListener("change", updateTeamBalanceStatus);
+
+  $("save-teams-btn")?.addEventListener("click", saveTeams);
+
+  $("save-game-btn")?.addEventListener("click", saveCurrentGameAndStayOpen);
+
+  $("delete-game-btn")?.addEventListener("click", deleteSelectedGameFromResults);
+
+  $("save-score-btn")?.addEventListener("click", saveScore);
+
+  document.querySelectorAll("#padel-score-section input").forEach(input => {
+    input.addEventListener("input", () => {
+      const match = input.id.match(/^padel-set-(\d+)-[ab]$/);
+      if (match) autoCompletePadelSet(Number(match[1]));
+      updatePadelScorePreview();
+    });
+
+    input.addEventListener("change", () => {
+      const match = input.id.match(/^padel-set-(\d+)-[ab]$/);
+      if (match) autoCompletePadelSet(Number(match[1]));
+      updatePadelScorePreview();
+    });
+  });
+
+  $("padel-game-mode")?.addEventListener("change", () => {
+    setPadelGameModeUI();
+
+    if ($("padel-game-mode")?.value === "new") {
+      clearPadelSetInputs();
+
+      if ($("padel-game-title")) {
+        const match = allMatches.find(m => m.id === currentScoreMatchId);
+        const nextGameNumber = match ? matchSessionGames(match).length + 1 : 1;
+        $("padel-game-title").value = `Game ${nextGameNumber}`;
+      }
+    }
+  });
+
+  $("padel-pending-game")?.addEventListener("change", e => {
+    loadPendingGameScoreIntoForm(e.target.value);
+  });
+
+  supabaseClient.auth.onAuthStateChange(() => {
+    refreshAuthUI();
+  });
+}
+
+bindEvents();
+render();
+testConnection();
+refreshAuthUI();
+
+setInterval(() => {
+  if (currentProfile?.approval_status === "approved" && allMatches?.length) {
+    renderMatches();
+  }
+}, 60000);
