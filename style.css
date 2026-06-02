@@ -2369,3 +2369,85 @@ main,
 .team-player-row:has(.formation-position-select:disabled) {
   opacity: .75;
 }
+
+
+/* === SORTED TEAM PLAYERS === */
+.team-player-chip small {
+  display: inline-flex;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: rgba(255,209,102,.12);
+  color: var(--gold);
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.team-player-chip b {
+  display: inline-flex;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: rgba(36,209,126,.12);
+  color: var(--accent);
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.team-player-row-A {
+  border-left: 3px solid rgba(36,209,126,.45);
+}
+
+.team-player-row-B {
+  border-left: 3px solid rgba(49,168,255,.45);
+}
+
+.team-player-row-unassigned {
+  border-left: 3px solid rgba(255,255,255,.14);
+}
+
+
+/* === TEAM GROUPED FORMATION EDIT === */
+.team-assignment-group {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.team-assignment-group-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.045);
+  color: var(--text);
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.team-assignment-group-title em {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.team-assignment-group-title-A {
+  border-color: rgba(36,209,126,.30);
+}
+
+.team-assignment-group-title-B {
+  border-color: rgba(49,168,255,.30);
+}
+
+.team-assignment-group-title-unassigned {
+  border-color: rgba(255,255,255,.14);
+}
+
+@media (max-width: 700px) {
+  .team-assignment-group-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
