@@ -3956,21 +3956,19 @@ function formationSectionTitleHtml(match) {
   const parts = formationSectionTitleParts(match);
 
   if (!parts.teamAName || !parts.teamBName) {
-    return `<span class="game-stats-label">Game Stats</span>`;
+    return `<span class="game-stats-title-simple"><span class="game-stats-label-simple">Game Stats</span></span>`;
   }
 
   return `
-    <span class="game-stats-title">
-      <span class="game-stats-label">Game Stats</span>
-      <span class="game-stats-team">${escapeHtml(parts.teamAName)}</span>
+    <span class="game-stats-title-simple">
+      <span class="game-stats-label-simple">Game Stats</span>
+      <span class="game-stats-team-simple">${escapeHtml(parts.teamAName)}</span>
       ${
         parts.hasScore
-          ? `<span class="game-stats-score">${parts.scoreA}</span>
-             <span class="game-stats-dash">-</span>
-             <span class="game-stats-score">${parts.scoreB}</span>`
-          : `<span class="game-stats-dash">-</span>`
+          ? `<span class="game-stats-score-simple">${parts.scoreA} - ${parts.scoreB}</span>`
+          : `<span class="game-stats-score-simple">vs</span>`
       }
-      <span class="game-stats-team">${escapeHtml(parts.teamBName)}</span>
+      <span class="game-stats-team-simple">${escapeHtml(parts.teamBName)}</span>
     </span>
   `;
 }
@@ -4092,8 +4090,6 @@ function renderMatches() {
                 : ""
             }
 
-            ${renderFormationSection(match)}
-
             ${renderScoreSummary(match)}
 
             ${renderPointsSummary(match)}
@@ -4127,6 +4123,8 @@ function renderMatches() {
             ${escapeHtml(isFull && displayStatus === "open_for_votes" ? "full" : displayStatus)}
           </span>
         </div>
+
+        ${renderFormationSection(match)}
 
         ${
          canVoteThisMatch && votingOpen
