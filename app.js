@@ -1848,8 +1848,6 @@ async function loadMatches() {
           is_external,
           formation_position,
           is_captain,
-          formation_position,
-          is_captain,
           member:members!match_team_players_member_id_fkey (
             id,
             first_name,
@@ -1897,24 +1895,6 @@ async function loadMatches() {
         consistency_bonus,
         total_points,
         member:members!match_member_points_member_id_fkey (
-          id,
-          first_name,
-          last_name,
-          display_name,
-          email,
-          is_external
-        )
-      ),
-      match_position_rating_adjustments (
-        id,
-        member_id,
-        sport_id,
-        position_name,
-        adjustment,
-        rating_before,
-        rating_after,
-        created_at,
-        member:members!match_position_rating_adjustments_member_id_fkey (
           id,
           first_name,
           last_name,
@@ -1997,8 +1977,6 @@ async function loadMatches() {
           id,
           member_id,
           is_external,
-          formation_position,
-          is_captain,
           formation_position,
           is_captain,
           member:members!match_team_players_member_id_fkey (
