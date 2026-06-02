@@ -1548,14 +1548,27 @@ function leagueSportMatchesSelection(leagueId, sportId) {
 }
 
 
+function isCancelledMatch(match) {
+  return getMatchDisplayStatus(match) === "cancelled" || match?.status === "cancelled";
+}
+
+function isLeagueCountableMatch(match) {
+  return Boolean(match?.league_id) && !isCancelledMatch(match);
+}
+
 function leagueMatches(leagueId) {
-  return (allMatches || []).filter(match => match.league_id === leagueId);
+  return (allMatches || []).filter(match =>
+    match.league_id === leagueId &&
+    isLeagueCountableMatch(match)
+  );
 }
 
 function leagueCompletedGames(leagueId) {
   const gamesById = new Map();
 
   (allMatches || []).forEach(match => {
+    if (!isLeagueCountableMatch(match)) return;
+
     (match.match_game_sessions || []).forEach(session => {
       const game = session.match_games;
 
@@ -1653,9 +1666,12 @@ function leagueWinnerText(match) {
 function leagueMatchHistoryRows(leagueId) {
   return leagueMatches(leagueId)
     .filter(match =>
-      hasSubmittedScore(match) ||
-      getMatchDisplayStatus(match) === "finished" ||
-      getMatchDisplayStatus(match) === "completed"
+      !isCancelledMatch(match) &&
+      (
+        hasSubmittedScore(match) ||
+        getMatchDisplayStatus(match) === "finished" ||
+        getMatchDisplayStatus(match) === "completed"
+      )
     )
     .sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
 }
@@ -6152,17 +6168,17 @@ function teamResultForMember(match, memberId) {
 }
 
 function pointBreakdownForResult(result) {
-  const basePoints = 10;
-  let resultBonus = 0;
+  let basePoints = 2;
 
-  if (result === "win") resultBonus = 5;
-  if (result === "draw") resultBonus = 2;
+  if (result === "win") basePoints = 10;
+  else if (result === "draw") basePoints = 5;
+  else if (result === "loss") basePoints = 2;
 
   return {
     basePoints,
     difficultyFactor: 1,
-    consistencyBonus: resultBonus,
-    totalPoints: basePoints + resultBonus
+    consistencyBonus: 0,
+    totalPoints: basePoints
   };
 }
 
@@ -6610,6 +6626,58 @@ function dedupeSoccerRatingRows(rows) {
   return Array.from(byKey.values());
 }
 
+
+async function saveMatchPositionRatingAdjustmentRow(row) {
+  const cleanRow = {
+    match_id: cleanUuidValue(row.match_id),
+    member_id: cleanUuidValue(row.member_id),
+    sport_id: cleanUuidValue(row.sport_id),
+    position_name: normalizeSoccerPosition(row.position_name),
+    adjustment: Number(row.adjustment || 0),
+    rating_before: Number(row.rating_before || 0),
+    rating_after: Number(row.rating_after || 0)
+  };
+
+  if (!cleanRow.match_id || !cleanRow.member_id || !cleanRow.sport_id || !cleanRow.position_name) {
+    console.warn("Skipping invalid rating adjustment row:", row);
+    return true;
+  }
+
+  const { error: insertError } = await supabaseClient
+    .from("match_position_rating_adjustments")
+    .insert(cleanRow);
+
+  if (!insertError) return true;
+
+  const duplicate =
+    String(insertError.code || "") === "23505" ||
+    String(insertError.message || "").toLowerCase().includes("duplicate key");
+
+  if (!duplicate) {
+    alert(insertError.message);
+    return false;
+  }
+
+  const { error: updateError } = await supabaseClient
+    .from("match_position_rating_adjustments")
+    .update({
+      position_name: cleanRow.position_name,
+      adjustment: cleanRow.adjustment,
+      rating_before: cleanRow.rating_before,
+      rating_after: cleanRow.rating_after
+    })
+    .eq("match_id", cleanRow.match_id)
+    .eq("member_id", cleanRow.member_id)
+    .eq("sport_id", cleanRow.sport_id);
+
+  if (updateError) {
+    alert(updateError.message);
+    return false;
+  }
+
+  return true;
+}
+
 async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, resultA, resultB) {
   if (!isSoccerMatch(match)) return true;
 
@@ -6670,9 +6738,6 @@ async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, result
   );
 
   if (finalAdjustmentRows.length) {
-    // Save one adjustment row per match + member + sport.
-    // Use upsert because the DB has a unique/primary key on these columns, and
-    // editing a result/formation can recalculate the same player's row.
     const cleanMatchId = cleanUuidValue(match.id);
 
     if (cleanMatchId) {
@@ -6682,19 +6747,14 @@ async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, result
         .eq("match_id", cleanMatchId);
 
       if (deleteError) {
-        console.warn("Could not clear previous rating adjustments before upsert:", deleteError.message);
+        console.warn("Could not clear previous rating adjustments before saving:", deleteError.message);
       }
     }
 
-    const { error } = await supabaseClient
-      .from("match_position_rating_adjustments")
-      .upsert(finalAdjustmentRows, {
-        onConflict: "match_id,member_id,sport_id"
-      });
+    for (const adjustmentRow of finalAdjustmentRows) {
+      const saved = await saveMatchPositionRatingAdjustmentRow(adjustmentRow);
 
-    if (error) {
-      alert(error.message);
-      return false;
+      if (!saved) return false;
     }
   }
 
