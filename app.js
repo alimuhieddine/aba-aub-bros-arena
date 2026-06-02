@@ -4030,7 +4030,7 @@ function renderMatches() {
 
   updateMatchFilterOptions();
 
-  const visibleMatches = filteredMatches();
+  const visibleMatches = typeof filteredMatches === "function" ? filteredMatches() : allMatches;
 
   if (!visibleMatches.length) {
     $("matchList").innerHTML = `<article class="card">No matches match the selected filters.</article>`;
@@ -4063,8 +4063,8 @@ function renderMatches() {
     const conflictingVoteMatch = !userIsIn && votingOpen ? voteInTimeConflict(match) : null;
 
     return `
-      <article class="card match-card">
-        <div class="row match-card-head">
+      <article class="card">
+        <div class="row">
           <div>
             <h3>${escapeHtml(match.title || "Untitled match")}</h3>
 
@@ -4110,6 +4110,14 @@ function renderMatches() {
                 : ""
             }
 
+            ${renderTeamsSummary(match)}
+
+            ${renderScoreSummary(match)}
+
+            ${renderPointsSummary(match)}
+
+            ${renderRatingChanges(match)}
+
             ${
               externalCount && canManageMatch(match) && matchEditable
                 ? `<div class="meta"><button class="tiny-btn" onclick="openExternalPlayersModal('${match.id}')">Manage external players</button></div>`
@@ -4139,8 +4147,6 @@ function renderMatches() {
             ${escapeHtml(isFull && displayStatus === "open_for_votes" ? "full" : displayStatus)}
           </span>
         </div>
-
-        ${renderMatchSections(match)}
 
         ${
          canVoteThisMatch && votingOpen
@@ -8577,8 +8583,6 @@ function bindEvents() {
   $("match-filter-status")?.addEventListener("change", renderMatches);
   $("match-filter-my-status")?.addEventListener("change", renderMatches);
   $("match-filter-reset")?.addEventListener("click", resetMatchFilters);
-  $("match-expand-all")?.addEventListener("click", expandAllMatchCards);
-  $("match-collapse-all")?.addEventListener("click", collapseAllMatchCards);
 
   $("rating-sport-filter")?.addEventListener("change", renderSportRatingManager);
   $("rating-history-position-filter")?.addEventListener("change", renderRatingHistoryModal);
