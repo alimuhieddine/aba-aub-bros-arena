@@ -3956,12 +3956,12 @@ function formationSectionTitleHtml(match) {
   const parts = formationSectionTitleParts(match);
 
   if (!parts.teamAName || !parts.teamBName) {
-    return `<span class="game-stats-title-simple"><span class="game-stats-label-simple">Game Stats</span></span>`;
+    return `<span class="game-stats-title-simple"><span class="game-stats-heading-simple">Game Stats</span></span>`;
   }
 
   return `
     <span class="game-stats-title-simple">
-      <span class="game-stats-label-simple">Game Stats</span>
+      <span class="game-stats-heading-simple">Game Stats</span>
       <span class="game-stats-team-simple">${escapeHtml(parts.teamAName)}</span>
       ${
         parts.hasScore
