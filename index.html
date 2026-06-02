@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=117" />
+  <link rel="stylesheet" href="style.css?v=118" />
 </head>
 
 <body>
@@ -106,6 +106,55 @@
         <div class="section-head">
           <h2>Friendly & League Matches</h2>
           <button class="primary-btn" data-open="matchModal" type="button">+ Match</button>
+        </div>
+
+        <div class="filters-card match-filters-card">
+          <label>
+            Search
+            <input id="match-filter-search" type="search" placeholder="Search title or venue">
+          </label>
+
+          <label>
+            Sport
+            <select id="match-filter-sport">
+              <option value="all">All sports</option>
+            </select>
+          </label>
+
+          <label>
+            League
+            <select id="match-filter-league">
+              <option value="all">All leagues</option>
+            </select>
+          </label>
+
+          <label>
+            Status
+            <select id="match-filter-status">
+              <option value="active">Active / not cancelled</option>
+              <option value="all">All statuses</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="full">Full</option>
+              <option value="playing">Playing now</option>
+              <option value="result_pending">Result pending</option>
+              <option value="completed">Completed / submitted</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </label>
+
+          <label>
+            My status
+            <select id="match-filter-my-status">
+              <option value="all">All</option>
+              <option value="in">I’m IN</option>
+              <option value="maybe">Maybe</option>
+              <option value="out">Out</option>
+              <option value="invited">Invited</option>
+              <option value="not_in">Not IN</option>
+            </select>
+          </label>
+
+          <button id="match-filter-reset" class="secondary-btn" type="button">Reset filters</button>
         </div>
 
         <div id="matchList" class="stack"></div>
@@ -686,7 +735,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=117"></script>
+  <script src="app.js?v=118"></script>
 
 <dialog id="ratingHistoryModal" class="modal wide-modal">
   <form method="dialog" class="modal-card">
