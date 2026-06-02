@@ -867,7 +867,7 @@ function renderSportRatingManager() {
   box.innerHTML = members.map(member => {
     const profile = sportProfileForMember(member.id, sportId);
     const rating = profile?.rating ?? "";
-    const position = profile?.preferred_position || "";
+    const position = normalizeSoccerPosition(profile?.preferred_position) || profile?.preferred_position || "";
 
     const positionInputs = isSoccer
       ? `
@@ -916,12 +916,9 @@ function renderSportRatingManager() {
 
         <label>
           Preferred
-          <input
-            class="sport-position-input"
-            type="text"
-            value="${escapeHtml(position)}"
-            placeholder="${isSoccer ? "GK / DEF / MID / ATT" : "optional"}"
-          >
+          <select class="sport-position-input">
+            ${preferredPositionOptions(position, isSoccer)}
+          </select>
         </label>
 
         ${positionInputs}
@@ -949,7 +946,8 @@ async function saveMemberSportProfile(memberId) {
   }
 
   const rating = Number(row.querySelector(".sport-rating-input")?.value || 5);
-  const preferredPosition = row.querySelector(".sport-position-input")?.value.trim() || null;
+  const rawPreferredPosition = row.querySelector(".sport-position-input")?.value || "";
+  const preferredPosition = normalizeSoccerPosition(rawPreferredPosition) || rawPreferredPosition || null;
 
   if (!Number.isFinite(rating) || rating < 1 || rating > 10) {
     alert("Overall rating must be between 1 and 10.");
@@ -2226,6 +2224,27 @@ function soccerPositionOptions(selected = "") {
   `;
 }
 
+function preferredPositionOptions(selected = "", isSoccer = false) {
+  const cleanSelected = normalizeSoccerPosition(selected) || String(selected || "").trim();
+
+  if (isSoccer) {
+    return `
+      <option value="">No preference</option>
+      ${SOCCER_POSITIONS.map(position => `
+        <option value="${position}" ${cleanSelected === position ? "selected" : ""}>
+          ${position}
+        </option>
+      `).join("")}
+    `;
+  }
+
+  return `
+    <option value="">No preference</option>
+    <option value="General" ${cleanSelected === "General" ? "selected" : ""}>General</option>
+  `;
+}
+
+
 function normalizeSoccerPosition(position) {
   const clean = String(position || "").trim().toUpperCase();
 
@@ -2297,48 +2316,126 @@ function assignSoccerPositionsToTeam(memberIds, sportId) {
 }
 
 
+
 function selectedTeamForMember(memberId) {
   return document.querySelector(`#team-assignment-list input[name="team-choice-${memberId}"]:checked`)?.value || "";
 }
 
-function captainSelectOptions(isCaptain = false) {
+function captainSelectOptionsForTeam(teamMembers, selectedCaptainId = "") {
   return `
-    <option value="">Not captain</option>
-    <option value="captain" ${isCaptain ? "selected" : ""}>Captain</option>
+    <option value="">Select captain</option>
+    ${teamMembers.map(player => `
+      <option value="${player.memberId}" ${selectedCaptainId === player.memberId ? "selected" : ""}>
+        ${escapeHtml(player.name)}
+      </option>
+    `).join("")}
   `;
 }
 
-function enforceSingleCaptainForTeam(changedSelect) {
-  if (!changedSelect || changedSelect.value !== "captain") return;
+function existingCaptainBySide(match, side) {
+  const teams = match?.match_teams || [];
+  const team = teams.find(t => t.color === side) || (side === "A" ? teams[0] : teams[1]);
 
-  const memberId = changedSelect.dataset.memberId;
-  const team = selectedTeamForMember(memberId);
+  const captain = (team?.match_team_players || []).find(player => player.is_captain);
+  return captain?.member_id || "";
+}
 
-  if (!team) {
-    alert("Assign this player to Team A or Team B before selecting captain.");
-    changedSelect.value = "";
-    updateTeamBalanceStatus();
+function assignedPlayersForCaptainSelect(match, side) {
+  const assignments = collectTeamAssignments();
+
+  return assignments.all
+    .filter(player => player.team === side)
+    .map(player => {
+      const inv = inPlayerInvitations(match).find(item => item.member_id === player.memberId);
+      return {
+        memberId: player.memberId,
+        name: inv ? invitationMemberDisplayName(inv) : player.memberId
+      };
+    });
+}
+
+function updateCaptainSelectors() {
+  const wrapper = $("captain-selectors");
+  const captainASelect = $("team-a-captain");
+  const captainBSelect = $("team-b-captain");
+  const match = allMatches.find(m => m.id === currentTeamMatchId);
+
+  if (!wrapper || !captainASelect || !captainBSelect || !match) return;
+
+  if (!isSoccerMatch(match)) {
+    wrapper.style.display = "none";
+    captainASelect.value = "";
+    captainBSelect.value = "";
     return;
   }
 
-  document.querySelectorAll(".captain-select").forEach(select => {
-    if (select === changedSelect || select.value !== "captain") return;
+  wrapper.style.display = "";
 
-    const otherTeam = selectedTeamForMember(select.dataset.memberId);
+  const previousA = captainASelect.value || existingCaptainBySide(match, "A");
+  const previousB = captainBSelect.value || existingCaptainBySide(match, "B");
 
-    if (otherTeam === team) {
-      select.value = "";
-    }
-  });
+  const teamAPlayers = assignedPlayersForCaptainSelect(match, "A");
+  const teamBPlayers = assignedPlayersForCaptainSelect(match, "B");
+
+  captainASelect.innerHTML = captainSelectOptionsForTeam(teamAPlayers, previousA);
+  captainBSelect.innerHTML = captainSelectOptionsForTeam(teamBPlayers, previousB);
+
+  if (!teamAPlayers.some(player => player.memberId === previousA)) {
+    captainASelect.value = "";
+  }
+
+  if (!teamBPlayers.some(player => player.memberId === previousB)) {
+    captainBSelect.value = "";
+  }
 }
 
-function clearCaptainIfUnassigned(memberId) {
-  const team = selectedTeamForMember(memberId);
-  const captainSelect = document.querySelector(`.captain-select[data-member-id="${memberId}"]`);
+function teamFormationCounts(assignments, side) {
+  const players = assignments.all.filter(player => player.team === side);
+  const counts = {
+    total: players.length,
+    GK: 0,
+    DEF: 0,
+    MID: 0,
+    ATT: 0
+  };
 
-  if (!team && captainSelect) {
-    captainSelect.value = "";
+  players.forEach(player => {
+    const position = normalizeSoccerPosition(player.position);
+    if (counts[position] !== undefined) counts[position] += 1;
+  });
+
+  return counts;
+}
+
+function validateSoccerFormationSide(counts, sideLabel) {
+  if (counts.total < 5) {
+    return `${sideLabel} needs at least 5 players for the required soccer formation rules.`;
   }
+
+  if (counts.GK !== 1) {
+    return `${sideLabel} must have exactly 1 GK.`;
+  }
+
+  if (counts.DEF < 2) {
+    return `${sideLabel} must have at least 2 DEF players.`;
+  }
+
+  if (counts.MID < 1) {
+    return `${sideLabel} must have at least 1 MID player.`;
+  }
+
+  if (counts.ATT < 1) {
+    return `${sideLabel} must have at least 1 ATT player.`;
+  }
+
+  return "";
+}
+
+function soccerMidHybridAdjustment({ attackAdjustment = 0, defenseAdjustment = 0, resultModifier = 0 } = {}) {
+  // Fair MID rule for later automatic rating updates:
+  // MID is hybrid: 60% attack contribution + 40% defense contribution + match result.
+  // This rewards midfielders for helping goals scored, while still accounting for goals conceded.
+  return (0.6 * attackAdjustment) + (0.4 * defenseAdjustment) + resultModifier;
 }
 
 function updateFormationStatus() {
@@ -2353,20 +2450,36 @@ function updateFormationStatus() {
     return;
   }
 
+  updateCaptainSelectors();
+
   const assignments = collectTeamAssignments();
-  const teamAPlayers = assignments.teamA.length;
-  const teamBPlayers = assignments.teamB.length;
+  const countsA = teamFormationCounts(assignments, "A");
+  const countsB = teamFormationCounts(assignments, "B");
   const missingPositions = assignments.all.filter(player =>
     player.team && !player.position
   ).length;
-  const captainsA = assignments.all.filter(player => player.team === "A" && player.isCaptain).length;
-  const captainsB = assignments.all.filter(player => player.team === "B" && player.isCaptain).length;
 
-  status.textContent =
-    `Formation: Team A ${teamAPlayers} player(s), captain ${captainsA}/1 • Team B ${teamBPlayers} player(s), captain ${captainsB}/1 • Missing positions ${missingPositions}`;
+  const captainA = $("team-a-captain")?.value || "";
+  const captainB = $("team-b-captain")?.value || "";
 
-  const ok = missingPositions === 0 && captainsA === 1 && captainsB === 1;
-  status.classList.toggle("balanced", ok);
+  const errorA = validateSoccerFormationSide(countsA, "Team A");
+  const errorB = validateSoccerFormationSide(countsB, "Team B");
+
+  const parts = [
+    `Team A: GK ${countsA.GK}, DEF ${countsA.DEF}, MID ${countsA.MID}, ATT ${countsA.ATT}`,
+    `Team B: GK ${countsB.GK}, DEF ${countsB.DEF}, MID ${countsB.MID}, ATT ${countsB.ATT}`
+  ];
+
+  if (missingPositions) parts.push(`Missing positions: ${missingPositions}`);
+  if (!captainA) parts.push("Team A captain missing");
+  if (!captainB) parts.push("Team B captain missing");
+  if (errorA) parts.push(errorA);
+  if (errorB) parts.push(errorB);
+
+  status.textContent = `Formation: ${parts.join(" • ")}`;
+
+  const ok = !missingPositions && !errorA && !errorB && captainA && captainB;
+  status.classList.toggle("balanced", Boolean(ok));
   status.classList.toggle("unbalanced", !ok);
 }
 
@@ -3652,7 +3765,6 @@ function renderTeamAssignmentList(match) {
     const rating = selectedPosition
       ? positionRatingForMember(memberId, match.sport_id, selectedPosition)
       : memberSportRating(memberId, match.sport_id);
-    const isCaptain = Boolean(teamPlayer?.is_captain);
 
     return `
       <div class="team-player-row">
@@ -3705,12 +3817,7 @@ function renderTeamAssignmentList(match) {
                   ${soccerPositionOptions(selectedPosition)}
                 </select>
 
-                <label class="captain-select-label">
-                  Captain
-                  <select class="captain-select" data-member-id="${memberId}">
-                    ${captainSelectOptions(isCaptain)}
-                  </select>
-                </label>
+
               </div>
             `
             : ""
@@ -3721,11 +3828,7 @@ function renderTeamAssignmentList(match) {
 
   document.querySelectorAll("#team-assignment-list input[type='radio']").forEach(input => {
     input.addEventListener("change", () => {
-      clearCaptainIfUnassigned(input.dataset.memberId);
-
-      const captainSelect = document.querySelector(`.captain-select[data-member-id="${input.dataset.memberId}"]`);
-      enforceSingleCaptainForTeam(captainSelect);
-
+      updateCaptainSelectors();
       updateTeamBalanceStatus();
     });
   });
@@ -3734,13 +3837,7 @@ function renderTeamAssignmentList(match) {
     input.addEventListener("change", updateTeamBalanceStatus);
   });
 
-  document.querySelectorAll(".captain-select").forEach(select => {
-    select.addEventListener("change", () => {
-      enforceSingleCaptainForTeam(select);
-      updateTeamBalanceStatus();
-    });
-  });
-
+  updateCaptainSelectors();
   updateTeamBalanceStatus();
 }
 
@@ -3819,10 +3916,10 @@ function applySuggestedTeams() {
       memberSportRating(b, match.sport_id) - memberSportRating(a, match.sport_id)
     )[0];
 
-    document.querySelectorAll(".captain-select").forEach(select => {
-      const memberId = select.dataset.memberId;
-      select.value = memberId === captainA || memberId === captainB ? "captain" : "";
-    });
+    updateCaptainSelectors();
+
+    if ($("team-a-captain")) $("team-a-captain").value = captainA || "";
+    if ($("team-b-captain")) $("team-b-captain").value = captainB || "";
   }
 
   updateTeamBalanceStatus();
@@ -3877,6 +3974,8 @@ function collectTeamAssignments() {
   const teamA = [];
   const teamB = [];
   const all = [];
+  const captainA = $("team-a-captain")?.value || "";
+  const captainB = $("team-b-captain")?.value || "";
 
   choices.forEach(input => {
     const memberId = input.dataset.memberId;
@@ -3885,7 +3984,7 @@ function collectTeamAssignments() {
     if (!memberId) return;
 
     const position = document.querySelector(`.formation-position-select[data-member-id="${memberId}"]`)?.value || "";
-    const captain = document.querySelector(`.captain-select[data-member-id="${memberId}"]`)?.value === "captain";
+    const captain = (value === "A" && memberId === captainA) || (value === "B" && memberId === captainB);
 
     if (value === "A") teamA.push(memberId);
     if (value === "B") teamB.push(memberId);
@@ -4013,11 +4112,26 @@ async function saveTeams() {
       return;
     }
 
-    const captainsA = assignedPlayers.filter(player => player.team === "A" && player.isCaptain).length;
-    const captainsB = assignedPlayers.filter(player => player.team === "B" && player.isCaptain).length;
+    const countsA = teamFormationCounts(assignments, "A");
+    const countsB = teamFormationCounts(assignments, "B");
+    const formationErrorA = validateSoccerFormationSide(countsA, "Team A");
+    const formationErrorB = validateSoccerFormationSide(countsB, "Team B");
 
-    if (captainsA !== 1 || captainsB !== 1) {
-      alert("For soccer, select exactly one captain for Team A and exactly one captain for Team B.");
+    if (formationErrorA || formationErrorB) {
+      alert(formationErrorA || formationErrorB);
+      return;
+    }
+
+    const captainA = $("team-a-captain")?.value || "";
+    const captainB = $("team-b-captain")?.value || "";
+
+    if (!captainA || !captainB) {
+      alert("For soccer, select one captain for Team A and one captain for Team B.");
+      return;
+    }
+
+    if (!assignments.teamA.includes(captainA) || !assignments.teamB.includes(captainB)) {
+      alert("Each captain must belong to the correct team.");
       return;
     }
   }
@@ -5801,6 +5915,9 @@ function bindEvents() {
   $("create-external-player-btn")?.addEventListener("click", createExternalPlayerProfile);
 
   $("suggest-teams-btn")?.addEventListener("click", applySuggestedTeams);
+
+  $("team-a-captain")?.addEventListener("change", updateTeamBalanceStatus);
+  $("team-b-captain")?.addEventListener("change", updateTeamBalanceStatus);
 
   $("save-teams-btn")?.addEventListener("click", saveTeams);
 
