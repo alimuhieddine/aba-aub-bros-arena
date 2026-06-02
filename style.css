@@ -3411,3 +3411,25 @@ main,
   border-color: rgba(255,95,103,.28);
   background: rgba(255,95,103,.08);
 }
+
+
+/* === STACKED INLINE RATING CHANGES UNDER PLAYER NAME === */
+.stacked-player-chip {
+  display: inline-grid;
+  grid-template-columns: 1fr;
+  gap: 3px;
+  align-items: start;
+  vertical-align: top;
+}
+
+.team-player-main-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.stacked-player-chip .inline-rating-change {
+  justify-self: start;
+  margin-left: 44px;
+}
