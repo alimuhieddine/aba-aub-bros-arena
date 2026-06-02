@@ -2912,10 +2912,19 @@ function positionWeight(position, memberId, sportId) {
   return score;
 }
 
-function assignSoccerPositionsToTeam(memberIds, sportId) {
+function assignSoccerPositionsToTeam(memberIds, sportId, forcedGkMemberId = null) {
   const template = soccerFormationTemplate(memberIds.length);
   const available = [...memberIds];
   const assignment = new Map();
+  const cleanForcedGk = cleanUuidValue(forcedGkMemberId);
+
+  const gkIndex = template.indexOf("GK");
+
+  if (cleanForcedGk && available.includes(cleanForcedGk) && gkIndex !== -1) {
+    assignment.set(cleanForcedGk, "GK");
+    available.splice(available.indexOf(cleanForcedGk), 1);
+    template.splice(gkIndex, 1);
+  }
 
   template.forEach(position => {
     if (!available.length) return;
@@ -4538,6 +4547,219 @@ function renderTeamAssignmentList(match) {
   updateTeamBalanceStatus();
 }
 
+
+function combinations(items, choose) {
+  if (choose < 0 || choose > items.length) return [];
+  if (choose === 0) return [[]];
+
+  const result = [];
+
+  function walk(start, combo) {
+    if (combo.length === choose) {
+      result.push([...combo]);
+      return;
+    }
+
+    for (let i = start; i <= items.length - (choose - combo.length); i += 1) {
+      combo.push(items[i]);
+      walk(i + 1, combo);
+      combo.pop();
+    }
+  }
+
+  walk(0, []);
+  return result;
+}
+
+function averageValues(values, fallback = 5) {
+  const clean = (values || []).filter(value => Number.isFinite(Number(value)));
+
+  if (!clean.length) return fallback;
+
+  return clean.reduce((sum, value) => sum + Number(value), 0) / clean.length;
+}
+
+function soccerPlayerRatingBundle(memberId, sportId) {
+  return {
+    memberId,
+    general: memberSportRating(memberId, sportId),
+    GK: positionRatingForMember(memberId, sportId, "GK"),
+    DEF: positionRatingForMember(memberId, sportId, "DEF"),
+    MID: positionRatingForMember(memberId, sportId, "MID"),
+    ATT: positionRatingForMember(memberId, sportId, "ATT")
+  };
+}
+
+function soccerTeamUnitProfile(memberIds, assignment, sportId) {
+  const players = memberIds.map(memberId => {
+    const position = normalizeSoccerPosition(assignment.get(memberId));
+    const ratings = soccerPlayerRatingBundle(memberId, sportId);
+
+    return {
+      memberId,
+      position,
+      ratings
+    };
+  });
+
+  const gkRatings = players
+    .filter(player => player.position === "GK")
+    .map(player => player.ratings.GK);
+
+  const defRatings = players
+    .filter(player => player.position === "DEF")
+    .map(player => player.ratings.DEF);
+
+  const midRatings = players
+    .filter(player => player.position === "MID")
+    .map(player => player.ratings.MID);
+
+  const attRatings = players
+    .filter(player => player.position === "ATT")
+    .map(player => player.ratings.ATT);
+
+  const gkStrength = averageValues(gkRatings, 5);
+  const defAverage = averageValues(defRatings, 5);
+  const midAverage = averageValues(midRatings, 5);
+  const attAverage = averageValues(attRatings, 5);
+  const totalAverage = averageValues(players.map(player => player.ratings.general), 5);
+
+  return {
+    gkStrength,
+    defStrength: gkStrength + defAverage + (0.4 * midAverage),
+    attStrength: attAverage + (0.6 * midAverage),
+    totalAverage,
+    counts: {
+      GK: gkRatings.length,
+      DEF: defRatings.length,
+      MID: midRatings.length,
+      ATT: attRatings.length
+    }
+  };
+}
+
+function soccerTeamBalanceGap(teamA, teamB, positionsA, positionsB, sportId) {
+  const profileA = soccerTeamUnitProfile(teamA, positionsA, sportId);
+  const profileB = soccerTeamUnitProfile(teamB, positionsB, sportId);
+
+  const missingFormationPenalty = [profileA, profileB].reduce((penalty, profile) => {
+    let next = penalty;
+
+    if (profile.counts.GK !== 1) next += 10;
+    if (profile.counts.DEF < 2) next += 5;
+    if (profile.counts.MID < 1) next += 4;
+    if (profile.counts.ATT < 1) next += 4;
+
+    return next;
+  }, 0);
+
+  const gap =
+    (1.2 * Math.abs(profileA.gkStrength - profileB.gkStrength)) +
+    Math.abs(profileA.defStrength - profileB.defStrength) +
+    Math.abs(profileA.attStrength - profileB.attStrength) +
+    (0.5 * Math.abs(profileA.totalAverage - profileB.totalAverage)) +
+    missingFormationPenalty;
+
+  return {
+    gap,
+    profileA,
+    profileB
+  };
+}
+
+function bestSoccerTeamSuggestion(memberIds, sportId) {
+  const cleanIds = Array.from(new Set((memberIds || []).filter(Boolean)));
+
+  if (cleanIds.length < 2) return null;
+
+  const teamASize = Math.ceil(cleanIds.length / 2);
+  const teamBSize = cleanIds.length - teamASize;
+
+  if (teamBSize < 1) return null;
+
+  const gkCandidates = [...cleanIds]
+    .sort((a, b) =>
+      positionRatingForMember(b, sportId, "GK") - positionRatingForMember(a, sportId, "GK") ||
+      memberSportRating(b, sportId) - memberSportRating(a, sportId)
+    )
+    .slice(0, Math.min(cleanIds.length, 8));
+
+  let best = null;
+
+  for (const gkA of gkCandidates) {
+    for (const gkB of gkCandidates) {
+      if (gkA === gkB) continue;
+
+      const remaining = cleanIds.filter(memberId => memberId !== gkA && memberId !== gkB);
+      const neededA = teamASize - 1;
+
+      if (neededA < 0 || neededA > remaining.length) continue;
+
+      combinations(remaining, neededA).forEach(teamARest => {
+        const teamA = [gkA, ...teamARest];
+        const teamASet = new Set(teamA);
+        const teamB = [gkB, ...remaining.filter(memberId => !teamASet.has(memberId))];
+
+        if (teamB.length !== teamBSize) return;
+
+        const positionsA = assignSoccerPositionsToTeam(teamA, sportId, gkA);
+        const positionsB = assignSoccerPositionsToTeam(teamB, sportId, gkB);
+        const balance = soccerTeamBalanceGap(teamA, teamB, positionsA, positionsB, sportId);
+
+        if (!best || balance.gap < best.balance.gap) {
+          best = {
+            teamA,
+            teamB,
+            positionsA,
+            positionsB,
+            balance
+          };
+        }
+      });
+    }
+  }
+
+  if (best) return best;
+
+  // Fallback for very small or unusual player counts.
+  const sorted = [...cleanIds].sort((a, b) =>
+    memberSportRating(b, sportId) - memberSportRating(a, sportId)
+  );
+
+  const teamA = [];
+  const teamB = [];
+
+  sorted.forEach(memberId => {
+    if (teamA.length < teamASize && teamA.length <= teamB.length) {
+      teamA.push(memberId);
+    } else {
+      teamB.push(memberId);
+    }
+  });
+
+  return {
+    teamA,
+    teamB,
+    positionsA: assignSoccerPositionsToTeam(teamA, sportId),
+    positionsB: assignSoccerPositionsToTeam(teamB, sportId),
+    balance: soccerTeamBalanceGap(
+      teamA,
+      teamB,
+      assignSoccerPositionsToTeam(teamA, sportId),
+      assignSoccerPositionsToTeam(teamB, sportId),
+      sportId
+    )
+  };
+}
+
+function soccerBalanceSummaryText(suggestion) {
+  if (!suggestion?.balance) return "";
+
+  const { profileA, profileB, gap } = suggestion.balance;
+
+  return `Soccer balance: GK ${profileA.gkStrength.toFixed(1)}-${profileB.gkStrength.toFixed(1)} • DEF ${profileA.defStrength.toFixed(1)}-${profileB.defStrength.toFixed(1)} • ATT ${profileA.attStrength.toFixed(1)}-${profileB.attStrength.toFixed(1)} • Gap ${gap.toFixed(2)}`;
+}
+
 function applySuggestedTeams() {
   if (!currentTeamMatchId) {
     alert("No match selected.");
@@ -4566,25 +4788,46 @@ function applySuggestedTeams() {
     return;
   }
 
-  players.sort((a, b) => b.rating - a.rating);
+  let teamA = [];
+  let teamB = [];
+  let positionsA = new Map();
+  let positionsB = new Map();
+  let soccerSuggestion = null;
 
-  const teamA = [];
-  const teamB = [];
-  let ratingA = 0;
-  let ratingB = 0;
+  if (isSoccerMatch(match)) {
+    soccerSuggestion = bestSoccerTeamSuggestion(
+      players.map(player => player.memberId),
+      match.sport_id
+    );
 
-  players.forEach(player => {
-    if (
-      teamA.length < Math.ceil(players.length / 2) &&
-      (ratingA <= ratingB || teamB.length >= Math.floor(players.length / 2))
-    ) {
-      teamA.push(player.memberId);
-      ratingA += player.rating;
-    } else {
-      teamB.push(player.memberId);
-      ratingB += player.rating;
+    if (!soccerSuggestion) {
+      alert("Could not suggest soccer teams.");
+      return;
     }
-  });
+
+    teamA = soccerSuggestion.teamA;
+    teamB = soccerSuggestion.teamB;
+    positionsA = soccerSuggestion.positionsA;
+    positionsB = soccerSuggestion.positionsB;
+  } else {
+    players.sort((a, b) => b.rating - a.rating);
+
+    let ratingA = 0;
+    let ratingB = 0;
+
+    players.forEach(player => {
+      if (
+        teamA.length < Math.ceil(players.length / 2) &&
+        (ratingA <= ratingB || teamB.length >= Math.floor(players.length / 2))
+      ) {
+        teamA.push(player.memberId);
+        ratingA += player.rating;
+      } else {
+        teamB.push(player.memberId);
+        ratingB += player.rating;
+      }
+    });
+  }
 
   document.querySelectorAll("#team-assignment-list input[type='radio']").forEach(input => {
     const memberId = input.dataset.memberId;
@@ -4597,12 +4840,12 @@ function applySuggestedTeams() {
   });
 
   if (isSoccerMatch(match)) {
-    const positionsA = assignSoccerPositionsToTeam(teamA, match.sport_id);
-    const positionsB = assignSoccerPositionsToTeam(teamB, match.sport_id);
-
     document.querySelectorAll(".formation-position-select").forEach(select => {
       const memberId = select.dataset.memberId;
-      select.value = positionsA.get(memberId) || positionsB.get(memberId) || "";
+      const position = positionsA.get(memberId) || positionsB.get(memberId) || "";
+
+      select.value = position;
+      select.dataset.teamSide = teamA.includes(memberId) ? "A" : teamB.includes(memberId) ? "B" : "";
     });
 
     const captainA = [...teamA].sort((a, b) =>
@@ -4617,9 +4860,22 @@ function applySuggestedTeams() {
 
     if ($("team-a-captain")) $("team-a-captain").value = captainA || "";
     if ($("team-b-captain")) $("team-b-captain").value = captainB || "";
+
+    const ratingStatus = $("team-rating-status");
+
+    if (ratingStatus) {
+      ratingStatus.textContent = soccerBalanceSummaryText(soccerSuggestion);
+      ratingStatus.classList.add("balanced");
+      ratingStatus.classList.remove("unbalanced");
+    }
   }
 
+  updateCaptainSelectors();
   updateTeamBalanceStatus();
+
+  if (isSoccerMatch(match) && soccerSuggestion && $("team-rating-status")) {
+    $("team-rating-status").textContent = soccerBalanceSummaryText(soccerSuggestion);
+  }
 }
 
 function openTeamAssignment(matchId, scope = "full") {
