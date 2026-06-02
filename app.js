@@ -540,6 +540,7 @@ let editingMatchId = null;
 let allMembers = [];
 let allExternalMembers = [];
 let allSportProfiles = [];
+let allPositionRatings = [];
 let currentExternalMatchId = null;
 let currentTeamMatchId = null;
 let currentScoreMatchId = null;
@@ -594,6 +595,159 @@ function updateMatchLeagueOptions() {
     : `<option value="">No active league for this sport</option>`;
 }
 
+
+
+async function loadPositionRatings() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") return [];
+
+  const { data, error } = await supabaseClient
+    .from("member_sport_position_ratings")
+    .select(`
+      id,
+      member_id,
+      sport_id,
+      position_name,
+      rating,
+      games_played,
+      created_at,
+      updated_at,
+      members (
+        id,
+        first_name,
+        last_name,
+        display_name,
+        email,
+        is_external
+      ),
+      sports (
+        id,
+        name
+      )
+    `);
+
+  if (error) {
+    console.warn("Could not load position ratings:", error.message);
+    allPositionRatings = [];
+    return [];
+  }
+
+  allPositionRatings = data || [];
+  return allPositionRatings;
+}
+
+function positionRatingForMember(memberId, sportId, positionName) {
+  const cleanPosition = normalizeSoccerPosition(positionName);
+
+  const ratingRow = (allPositionRatings || []).find(row =>
+    row.member_id === memberId &&
+    row.sport_id === sportId &&
+    normalizeSoccerPosition(row.position_name) === cleanPosition
+  );
+
+  const rating = Number(ratingRow?.rating);
+
+  if (Number.isFinite(rating) && rating > 0) return rating;
+
+  return memberSportRating(memberId, sportId);
+}
+
+function soccerPositionRankingRows(sportId, positionName) {
+  const cleanPosition = normalizeSoccerPosition(positionName);
+
+  const rows = (allPositionRatings || [])
+    .filter(row =>
+      row.sport_id === sportId &&
+      normalizeSoccerPosition(row.position_name) === cleanPosition
+    )
+    .map(row => ({
+      memberId: row.member_id,
+      member: row.members,
+      name: memberDisplayName(row.members),
+      isExternal: Boolean(row.members?.is_external),
+      rating: Number(row.rating || 0),
+      gamesPlayed: Number(row.games_played || 0)
+    }))
+    .filter(row => row.memberId && row.rating > 0);
+
+  return rows.sort((a, b) =>
+    b.rating - a.rating ||
+    b.gamesPlayed - a.gamesPlayed ||
+    a.name.localeCompare(b.name)
+  );
+}
+
+function selectedRankingSport() {
+  const sportId = $("rank-sport-filter")?.value || "all";
+  if (sportId !== "all") return sportId;
+
+  const soccerSport = (allSports || []).find(sport =>
+    String(sport.name || "").toLowerCase().includes("soccer") ||
+    String(sport.name || "").toLowerCase().includes("football")
+  );
+
+  return soccerSport?.id || "";
+}
+
+function selectedRankingSportName() {
+  const sportId = selectedRankingSport();
+  const sport = (allSports || []).find(s => s.id === sportId);
+
+  return sport?.name || "";
+}
+
+function shouldShowSoccerPositionRankings() {
+  const sportId = selectedRankingSport();
+
+  if (!sportId) return false;
+
+  const sport = (allSports || []).find(s => s.id === sportId);
+  const name = String(sport?.name || "").toLowerCase();
+
+  return name.includes("soccer") || name.includes("football");
+}
+
+function renderPositionRankings() {
+  if (!shouldShowSoccerPositionRankings()) return "";
+
+  const sportId = selectedRankingSport();
+  const sportName = selectedRankingSportName() || "Soccer";
+
+  return `
+    <article class="card position-rankings-card">
+      <div class="section-head mini-section-head">
+        <div>
+          <h3>Position Rankings</h3>
+          <p class="hint">${escapeHtml(sportName)} position-specific ratings.</p>
+        </div>
+      </div>
+
+      <div class="position-ranking-grid">
+        ${SOCCER_POSITIONS.map(position => {
+          const rows = soccerPositionRankingRows(sportId, position);
+
+          return `
+            <div class="position-ranking-box">
+              <div class="position-ranking-title">${escapeHtml(position)}</div>
+
+              ${
+                rows.length
+                  ? rows.slice(0, 10).map((row, index) => `
+                    <div class="position-ranking-row">
+                      <span>${index + 1}</span>
+                      <strong>${escapeHtml(row.name)}</strong>
+                      ${row.isExternal ? `<em>External</em>` : ""}
+                      <b>${row.rating.toFixed(1)}</b>
+                    </div>
+                  `).join("")
+                  : `<div class="hint">No ${escapeHtml(position)} ratings yet.</div>`
+              }
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </article>
+  `;
+}
 
 async function loadSportProfiles() {
   if (!currentProfile || currentProfile.approval_status !== "approved") return [];
@@ -694,6 +848,9 @@ function renderSportRatingManager() {
   if (!box) return;
 
   const sportId = $("rating-sport-filter")?.value || "";
+  const selectedSport = (allSports || []).find(sport => sport.id === sportId);
+  const isSoccer = String(selectedSport?.name || "").toLowerCase().includes("soccer") ||
+    String(selectedSport?.name || "").toLowerCase().includes("football");
 
   if (!sportId) {
     box.innerHTML = `<div class="hint">Select a sport to edit ratings.</div>`;
@@ -712,6 +869,31 @@ function renderSportRatingManager() {
     const rating = profile?.rating ?? "";
     const position = profile?.preferred_position || "";
 
+    const positionInputs = isSoccer
+      ? `
+        <div class="position-rating-inputs">
+          ${SOCCER_POSITIONS.map(positionName => {
+            const positionRating = positionRatingForMember(member.id, sportId, positionName);
+
+            return `
+              <label>
+                ${positionName}
+                <input
+                  class="position-rating-input"
+                  data-position="${positionName}"
+                  type="number"
+                  min="1"
+                  max="10"
+                  step="0.1"
+                  value="${Number(positionRating || 5).toFixed(1)}"
+                >
+              </label>
+            `;
+          }).join("")}
+        </div>
+      `
+      : "";
+
     return `
       <div class="sport-rating-row" data-member-id="${member.id}">
         <div>
@@ -720,7 +902,7 @@ function renderSportRatingManager() {
         </div>
 
         <label>
-          Rating
+          Overall
           <input
             class="sport-rating-input"
             type="number"
@@ -733,14 +915,16 @@ function renderSportRatingManager() {
         </label>
 
         <label>
-          Position
+          Preferred
           <input
             class="sport-position-input"
             type="text"
             value="${escapeHtml(position)}"
-            placeholder="optional"
+            placeholder="${isSoccer ? "GK / DEF / MID / ATT" : "optional"}"
           >
         </label>
+
+        ${positionInputs}
 
         <button class="small-btn" type="button" onclick="saveMemberSportProfile('${member.id}')">
           Save
@@ -768,7 +952,7 @@ async function saveMemberSportProfile(memberId) {
   const preferredPosition = row.querySelector(".sport-position-input")?.value.trim() || null;
 
   if (!Number.isFinite(rating) || rating < 1 || rating > 10) {
-    alert("Rating must be between 1 and 10.");
+    alert("Overall rating must be between 1 and 10.");
     return;
   }
 
@@ -788,8 +972,49 @@ async function saveMemberSportProfile(memberId) {
     return;
   }
 
+  const positionInputs = Array.from(row.querySelectorAll(".position-rating-input"));
+
+  if (positionInputs.length) {
+    const positionRows = [];
+
+    for (const input of positionInputs) {
+      const positionName = normalizeSoccerPosition(input.dataset.position);
+      const positionRating = Number(input.value || 5);
+
+      if (!positionName) continue;
+
+      if (!Number.isFinite(positionRating) || positionRating < 1 || positionRating > 10) {
+        alert(`${positionName} rating must be between 1 and 10.`);
+        return;
+      }
+
+      positionRows.push({
+        member_id: memberId,
+        sport_id: sportId,
+        position_name: positionName,
+        rating: positionRating
+      });
+    }
+
+    if (positionRows.length) {
+      const { error: positionError } = await supabaseClient
+        .from("member_sport_position_ratings")
+        .upsert(positionRows, {
+          onConflict: "member_id,sport_id,position_name"
+        });
+
+      if (positionError) {
+        alert(positionError.message);
+        return;
+      }
+    }
+  }
+
   await loadSportProfiles();
+  await loadPositionRatings();
+  await loadPositionRatings();
   renderSportRatingManager();
+  renderRankings();
 }
 
 async function loadMatchFormOptions() {
@@ -2035,7 +2260,7 @@ function soccerFormationTemplate(playerCount) {
 
 function positionWeight(position, memberId, sportId) {
   const preferred = normalizeSoccerPosition(memberSportPosition(memberId, sportId));
-  const rating = memberSportRating(memberId, sportId);
+  const rating = positionRatingForMember(memberId, sportId, position);
   let score = rating;
 
   if (preferred && preferred === position) score += 2;
@@ -3422,9 +3647,11 @@ function renderTeamAssignmentList(match) {
       teamB && selectedTeamId === teamB.id ? "B" :
       "";
 
-    const rating = memberSportRating(memberId, match.sport_id);
     const preferredPosition = normalizeSoccerPosition(memberSportPosition(memberId, match.sport_id));
     const selectedPosition = teamPlayer?.formation_position || preferredPosition || "";
+    const rating = selectedPosition
+      ? positionRatingForMember(memberId, match.sport_id, selectedPosition)
+      : memberSportRating(memberId, match.sport_id);
     const isCaptain = Boolean(teamPlayer?.is_captain);
 
     return `
@@ -4855,6 +5082,7 @@ function renderRankings() {
   if (!rows.length) {
     $("rankingList").innerHTML = `
       ${rankingSummary(rows)}
+      ${renderPositionRankings()}
       <article class="card">No finalized points for this filter yet.</article>
     `;
     return;
@@ -5214,6 +5442,7 @@ async function refreshAuthUI() {
 if (currentProfile?.approval_status === "approved") {
   await loadLeagues();
   await loadSportProfiles();
+  await loadPositionRatings();
   await loadMatches();
   restoreActiveTab();
 }
