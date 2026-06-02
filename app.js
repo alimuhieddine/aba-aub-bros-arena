@@ -5945,7 +5945,6 @@ function getTwoMatchTeams(match) {
   };
 }
 
-async 
 function finalizedRecalculableMatches() {
   return (allMatches || []).filter(match =>
     !isCancelledMatch(match) &&
