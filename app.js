@@ -3377,6 +3377,23 @@ function padelGameWinnerFromSets(padelResult) {
   return null;
 }
 
+
+function isResultLocked(match) {
+  return hasSubmittedScore(match);
+}
+
+function confirmResultEditLock(match) {
+  if (!isResultLocked(match)) return true;
+
+  return confirm("This result is finalized and locked. Editing it will recalculate points, soccer ratings, rating history, and league standings. Continue?");
+}
+
+function confirmTeamEditAfterFinalized(match) {
+  if (!isResultLocked(match)) return true;
+
+  return confirm("This match already has a finalized result. Editing teams may recalculate points, soccer position ratings, and league standings. Continue?");
+}
+
 function canSubmitScore(match) {
   const displayStatus = getMatchDisplayStatus(match);
 
@@ -3464,6 +3481,118 @@ function isTeamEditable(match) {
     displayStatus !== "cancelled";
 }
 
+
+function minutesUntilMatchStart(match) {
+  const start = new Date(match.start_time).getTime();
+  const now = Date.now();
+
+  if (!Number.isFinite(start)) return null;
+
+  return Math.round((start - now) / 60000);
+}
+
+function matchHasTeamsAssigned(match) {
+  return (match.match_teams || []).some(team =>
+    (team.match_team_players || []).length > 0
+  );
+}
+
+function soccerFormationIssues(match) {
+  if (!isSoccerMatch(match) || !matchHasTeamsAssigned(match)) return [];
+
+  const teams = match.match_teams || [];
+  const issues = [];
+
+  teams.forEach((team, index) => {
+    const side = teamSideForTeam(match, team) || (index === 0 ? "A" : "B");
+    const counts = {
+      total: 0,
+      GK: 0,
+      DEF: 0,
+      MID: 0,
+      ATT: 0
+    };
+
+    (team.match_team_players || []).forEach(player => {
+      counts.total += 1;
+      const position = normalizeSoccerPosition(player.formation_position);
+      if (counts[position] !== undefined) counts[position] += 1;
+    });
+
+    const error = validateSoccerFormationSide(counts, team.name || `Team ${side}`);
+
+    if (error) issues.push(error);
+  });
+
+  return issues;
+}
+
+function matchSmartBadges(match) {
+  const badges = [];
+  const displayStatus = getMatchDisplayStatus(match);
+  const minutesToStart = minutesUntilMatchStart(match);
+  const hasTeams = matchHasTeamsAssigned(match);
+  const formationIssues = soccerFormationIssues(match);
+  const isCaptain = captainSidesForCurrentUser(match).length > 0;
+
+  if (displayStatus === "cancelled") {
+    badges.push({ text: "Cancelled", type: "danger" });
+    return badges;
+  }
+
+  if (hasSubmittedScore(match)) {
+    badges.push({ text: "Result submitted", type: "success" });
+    badges.push({ text: "Result locked", type: "blue" });
+  } else if (displayStatus === "finished" || displayStatus === "completed") {
+    badges.push({ text: "Result pending", type: "danger" });
+  }
+
+  if (minutesToStart !== null && minutesToStart > 0 && minutesToStart <= 120) {
+    badges.push({
+      text: minutesToStart <= 60
+        ? `Starts in ${minutesToStart} min`
+        : `Starts in ${Math.round(minutesToStart / 60)} hr`,
+      type: minutesToStart <= 30 ? "danger" : "gold"
+    });
+  }
+
+  if (!hasTeams && displayStatus !== "cancelled" && displayStatus !== "completed") {
+    if (minutesToStart !== null && minutesToStart <= 180) {
+      badges.push({ text: "Teams not assigned", type: "danger" });
+    } else if (filledPlayerCount(match) >= 2) {
+      badges.push({ text: "Teams needed", type: "gold" });
+    }
+  }
+
+  if (formationIssues.length) {
+    badges.push({ text: "Formation incomplete", type: "danger" });
+  }
+
+  if (isCaptain && isSoccerMatch(match) && hasTeams && displayStatus !== "cancelled") {
+    badges.push({ text: "Captain action available", type: "blue" });
+  }
+
+  if (voteInTimeConflict(match) && !userIsInMatch(match) && isVotingOpenForMatch(match)) {
+    badges.push({ text: "Time conflict", type: "danger" });
+  }
+
+  return badges;
+}
+
+function renderSmartBadges(match) {
+  const badges = matchSmartBadges(match);
+
+  if (!badges.length) return "";
+
+  return `
+    <div class="smart-badges">
+      ${badges.map(badge => `
+        <span class="smart-badge ${escapeHtml(badge.type || "neutral")}">${escapeHtml(badge.text)}</span>
+      `).join("")}
+    </div>
+  `;
+}
+
 function renderMatches() {
   if (!$("matchList")) return;
 
@@ -3523,6 +3652,8 @@ function renderMatches() {
               📍 ${escapeHtml(match.venues?.name || "-")}
               ${match.venues?.address ? "— " + escapeHtml(match.venues.address) : ""}
             </div>
+
+            ${renderSmartBadges(match)}
 
             <div class="meta">
               Players: ${spotsLabel}
@@ -3630,7 +3761,7 @@ function renderMatches() {
                 ${
                   canSubmitScore(match)
                     ? `<button class="small-btn" onclick="openScoreSubmission('${match.id}')">
-                        ${hasSubmittedScore(match) ? "Edit Result" : "Add Result"}
+                        ${hasSubmittedScore(match) ? "Edit Locked Result" : "Add Result"}
                       </button>`
                     : ""
                 }
@@ -3830,6 +3961,11 @@ async function editMatch(matchId) {
 
   if (!canManageMatch(match)) {
     alert("Only the match creator or admin can edit this match.");
+    return;
+  }
+
+  if (isResultLocked(match)) {
+    alert("Match details are locked after result finalization. You can edit the result or formation using their dedicated buttons.");
     return;
   }
 
@@ -5061,6 +5197,10 @@ function openTeamAssignment(matchId, scope = "full") {
       alert("Teams cannot be edited for cancelled matches.");
       return;
     }
+
+    if (isResultLocked(match) && !confirmTeamEditAfterFinalized(match)) {
+      return;
+    }
   }
 
   const players = inPlayerInvitations(match);
@@ -5201,7 +5341,32 @@ async function recalculatePointsAfterTeamEdit(matchId) {
 
   if (!refreshedMatch || refreshedMatch.score_status !== "submitted") return true;
 
-  return await saveMatchMemberPoints(refreshedMatch);
+  const pointsSaved = await saveMatchMemberPoints(refreshedMatch);
+
+  if (!pointsSaved) return false;
+
+  if (isSoccerMatch(refreshedMatch)) {
+    const { teamA, teamB } = getTwoMatchTeams(refreshedMatch);
+
+    if (teamA && teamB) {
+      const scoreA = Number(teamA.score || 0);
+      const scoreB = Number(teamB.score || 0);
+      const resultA = teamA.result || (scoreA > scoreB ? "win" : scoreA < scoreB ? "loss" : "draw");
+      const resultB = teamB.result || (scoreB > scoreA ? "win" : scoreB < scoreA ? "loss" : "draw");
+
+      const ratingsSaved = await saveSoccerPositionRatingAdjustments(
+        refreshedMatch,
+        scoreA,
+        scoreB,
+        resultA,
+        resultB
+      );
+
+      if (!ratingsSaved) return false;
+    }
+  }
+
+  return true;
 }
 
 
@@ -5519,6 +5684,10 @@ async function openScoreSubmission(matchId) {
 
   if (!canSubmitScore(match)) {
     alert("Result can only be added or edited after the match is finished. Make sure teams are assigned first.");
+    return;
+  }
+
+  if (isResultLocked(match) && !confirmResultEditLock(match)) {
     return;
   }
 
@@ -6597,6 +6766,8 @@ async function finalizeCurrentMatchResult() {
     alert("Result can only be finalized after the match is finished.");
     return;
   }
+
+  const wasAlreadyLocked = isResultLocked(match);
 
   const { teamA, teamB } = getTwoMatchTeams(match);
 
