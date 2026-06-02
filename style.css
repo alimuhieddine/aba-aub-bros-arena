@@ -3615,3 +3615,122 @@ main,
     font-size: 15px;
   }
 }
+
+
+/* === SIMPLE FULL-WIDTH GAME STATS BAR === */
+.card > .match-formation-section {
+  width: 100%;
+  max-width: 100%;
+  margin-top: 12px;
+  clear: both;
+}
+
+.match-formation-section {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255,255,255,.025);
+  overflow: hidden;
+}
+
+.match-formation-toggle {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 0;
+  background: rgba(255,255,255,.045);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.match-formation-toggle:hover {
+  background: rgba(255,255,255,.075);
+}
+
+.game-stats-title-simple {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  text-align: left;
+}
+
+.game-stats-label-simple {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(49,168,255,.35);
+  background: rgba(49,168,255,.12);
+  color: var(--accent2);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.game-stats-team-simple {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.game-stats-score-simple {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(36,209,126,.35);
+  background: rgba(36,209,126,.12);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.match-formation-toggle > b {
+  flex: 0 0 auto;
+  color: var(--gold);
+  font-size: 13px;
+  margin-left: auto;
+}
+
+.match-formation-body {
+  width: 100%;
+  max-width: 100%;
+  padding: 10px;
+}
+
+.match-formation-body .teams-summary {
+  width: 100%;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.match-formation-body .team-summary-row {
+  width: 100%;
+  max-width: 100%;
+}
+
+@media (min-width: 760px) {
+  .match-formation-body .teams-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .game-stats-title-simple {
+    gap: 5px;
+  }
+
+  .game-stats-label-simple,
+  .game-stats-team-simple,
+  .game-stats-score-simple {
+    font-size: 12px;
+  }
+}
