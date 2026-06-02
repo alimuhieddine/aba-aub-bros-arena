@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=120" />
+  <link rel="stylesheet" href="style.css?v=122" />
 </head>
 
 <body>
@@ -155,6 +155,10 @@
           </label>
 
           <button id="match-filter-reset" class="secondary-btn" type="button">Reset filters</button>
+
+          <button id="match-expand-all" class="secondary-btn" type="button">Expand all</button>
+
+          <button id="match-collapse-all" class="secondary-btn" type="button">Collapse all</button>
         </div>
 
         <div id="matchList" class="stack"></div>
@@ -762,7 +766,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=120"></script>
+  <script src="app.js?v=122"></script>
 
 <dialog id="ratingHistoryModal" class="modal wide-modal">
   <form method="dialog" class="modal-card">
@@ -797,6 +801,23 @@
 
     <div id="ratingHistoryList" class="rating-history-list">
       Select a player to view history.
+    </div>
+  </form>
+</dialog>
+
+
+<dialog id="playerProfileModal" class="modal wide-modal">
+  <form method="dialog" class="modal-card player-profile-modal-card">
+    <div class="modal-head">
+      <div>
+        <h3 id="player-profile-title">Player Profile</h3>
+        <p id="player-profile-subtitle" class="hint">Points, ratings, and recent matches.</p>
+      </div>
+      <button class="icon-btn modal-close-btn" value="cancel" aria-label="Close player profile">×</button>
+    </div>
+
+    <div id="playerProfileContent" class="player-profile-content">
+      Select a player to view profile.
     </div>
   </form>
 </dialog>
