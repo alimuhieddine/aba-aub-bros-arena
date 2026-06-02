@@ -2221,17 +2221,89 @@ function inPlayerInvitations(match) {
   );
 }
 
+
+function soccerPositionSortValue(position) {
+  const clean = normalizeSoccerPosition(position);
+
+  if (clean === "GK") return 1;
+  if (clean === "DEF") return 2;
+  if (clean === "MID") return 3;
+  if (clean === "ATT") return 4;
+
+  return 9;
+}
+
+function teamSideSortValue(side) {
+  if (side === "A") return 1;
+  if (side === "B") return 2;
+  return 3;
+}
+
+
+function sideLabelForAssignmentSide(side) {
+  if (side === "A") return "Team A";
+  if (side === "B") return "Team B";
+  return "Unassigned";
+}
+
+function preferredSideOrderForCurrentUser(match) {
+  const captainSides = captainSidesForCurrentUser(match);
+
+  if (isFormationOnlyMode() && captainSides.length) {
+    const firstCaptainSide = captainSides[0];
+    return firstCaptainSide === "B" ? ["B", "A", ""] : ["A", "B", ""];
+  }
+
+  return ["A", "B", ""];
+}
+
+function sideOrderValue(side, orderedSides) {
+  const index = orderedSides.indexOf(side);
+  return index === -1 ? 99 : index;
+}
+
+function teamNameForSide(match, side) {
+  const teams = match.match_teams || [];
+  const team =
+    teams.find(item => item.color === side) ||
+    (side === "A" ? teams[0] : side === "B" ? teams[1] : null);
+
+  return team?.name || sideLabelForAssignmentSide(side);
+}
+
+function assignmentGroupHeader(match, side, playersCount) {
+  const teamName = side ? teamNameForSide(match, side) : "Unassigned";
+  const captainSides = captainSidesForCurrentUser(match);
+  const isMyCaptainTeam = isFormationOnlyMode() && captainSides.includes(side);
+
+  return `
+    <div class="team-assignment-group-title team-assignment-group-title-${side || "unassigned"}">
+      <span>${escapeHtml(teamName)}</span>
+      <em>${playersCount} player${playersCount === 1 ? "" : "s"}${isMyCaptainTeam ? " • your team" : ""}</em>
+    </div>
+  `;
+}
+
+function sortTeamPlayers(players) {
+  return [...(players || [])].sort((a, b) =>
+    soccerPositionSortValue(a.formationPosition) - soccerPositionSortValue(b.formationPosition) ||
+    a.name.localeCompare(b.name)
+  );
+}
+
 function teamAssignments(match) {
   const teams = match.match_teams || [];
 
   return teams.map(team => ({
     ...team,
-    players: (team.match_team_players || []).map(tp => ({
+    players: sortTeamPlayers((team.match_team_players || []).map(tp => ({
       teamPlayerId: tp.id,
       memberId: tp.member_id,
       name: memberDisplayName(tp.member),
-      isExternal: Boolean(tp.member?.is_external)
-    }))
+      isExternal: Boolean(tp.member?.is_external),
+      formationPosition: normalizeSoccerPosition(tp.formation_position),
+      isCaptain: Boolean(tp.is_captain)
+    })))
   }));
 }
 
@@ -2294,7 +2366,9 @@ function teamPlayerChips(team) {
 
   return players.map(player => `
     <span class="team-player-chip">
+      ${player.formationPosition ? `<small>${escapeHtml(player.formationPosition)}</small>` : ""}
       ${escapeHtml(player.name)}
+      ${player.isCaptain ? `<b>C</b>` : ""}
       ${player.isExternal ? `<em>External</em>` : ""}
     </span>
   `).join("");
@@ -3913,7 +3987,7 @@ function renderTeamAssignmentList(match) {
     return;
   }
 
-  box.innerHTML = players.map(inv => {
+  const mappedPlayers = players.map(inv => {
     const member = invitationMember(inv);
     const memberId = member?.id || inv.member_id;
     const selectedTeamId = assignedMap.get(memberId) || "";
@@ -3929,77 +4003,121 @@ function renderTeamAssignmentList(match) {
       ? positionRatingForMember(memberId, match.sport_id, selectedPosition)
       : memberSportRating(memberId, match.sport_id);
 
-    return `
-      <div class="team-player-row">
-        <div class="team-player-name">
-          ${escapeHtml(invitationMemberDisplayName(inv))}
-          ${member?.is_external ? `<span class="mini-pill">External</span>` : ""}
-          <span class="rating-pill">R ${Number(rating).toFixed(1)}${preferredPosition ? ` • ${escapeHtml(preferredPosition)}` : ""}</span>
-        </div>
+    return {
+      inv,
+      member,
+      memberId,
+      selectedSide,
+      teamPlayer,
+      preferredPosition,
+      selectedPosition,
+      rating,
+      displayName: invitationMemberDisplayName(inv)
+    };
+  });
 
-        <div class="team-choice">
-          <label class="team-choice-chip">
-            <input
-              type="radio"
-              name="team-choice-${memberId}"
-              value="A"
-              data-member-id="${memberId}"
-              data-team-player-id="${teamPlayer?.id || ""}"
-              ${formationOnly ? "disabled" : ""}
-              ${selectedSide === "A" ? "checked" : ""}
-            >
-            <span>A</span>
-          </label>
+  const orderedSides = preferredSideOrderForCurrentUser(match);
 
-          <label class="team-choice-chip">
-            <input
-              type="radio"
-              name="team-choice-${memberId}"
-              value="B"
-              data-member-id="${memberId}"
-              data-team-player-id="${teamPlayer?.id || ""}"
-              ${formationOnly ? "disabled" : ""}
-              ${selectedSide === "B" ? "checked" : ""}
-            >
-            <span>B</span>
-          </label>
+  mappedPlayers.sort((a, b) =>
+    sideOrderValue(a.selectedSide, orderedSides) - sideOrderValue(b.selectedSide, orderedSides) ||
+    soccerPositionSortValue(a.selectedPosition) - soccerPositionSortValue(b.selectedPosition) ||
+    a.displayName.localeCompare(b.displayName)
+  );
 
-          <label class="team-choice-chip">
-            <input
-              type="radio"
-              name="team-choice-${memberId}"
-              value=""
-              data-member-id="${memberId}"
-              data-team-player-id="${teamPlayer?.id || ""}"
-              ${formationOnly ? "disabled" : ""}
-              ${selectedSide === "" ? "checked" : ""}
-            >
-            <span>Unassigned</span>
-          </label>
-        </div>
+  const groups = orderedSides
+    .map(side => ({
+      side,
+      players: mappedPlayers.filter(player => player.selectedSide === side)
+    }))
+    .filter(group => group.players.length || group.side !== "");
 
-        ${
-          showFormation
-            ? `
-              <div class="formation-choice">
-                <select
-                  class="formation-position-select"
+  box.innerHTML = groups.map(group => `
+    <div class="team-assignment-group team-assignment-group-${group.side || "unassigned"}">
+      ${assignmentGroupHeader(match, group.side, group.players.length)}
+
+      ${group.players.map(player => {
+        const {
+          inv,
+          member,
+          memberId,
+          selectedSide,
+          teamPlayer,
+          preferredPosition,
+          selectedPosition,
+          rating
+        } = player;
+
+        return `
+          <div class="team-player-row team-player-row-${selectedSide || "unassigned"}">
+            <div class="team-player-name">
+              ${escapeHtml(invitationMemberDisplayName(inv))}
+              ${member?.is_external ? `<span class="mini-pill">External</span>` : ""}
+              <span class="rating-pill">R ${Number(rating).toFixed(1)}${preferredPosition ? ` • ${escapeHtml(preferredPosition)}` : ""}</span>
+            </div>
+
+            <div class="team-choice">
+              <label class="team-choice-chip">
+                <input
+                  type="radio"
+                  name="team-choice-${memberId}"
+                  value="A"
                   data-member-id="${memberId}"
                   data-team-player-id="${teamPlayer?.id || ""}"
-                  data-team-side="${selectedSide}"
-                  ${formationOnly && !editableSides.includes(selectedSide) ? "disabled" : ""}
+                  ${formationOnly ? "disabled" : ""}
+                  ${selectedSide === "A" ? "checked" : ""}
                 >
-                  ${soccerPositionOptions(selectedPosition)}
-                </select>
+                <span>A</span>
+              </label>
 
+              <label class="team-choice-chip">
+                <input
+                  type="radio"
+                  name="team-choice-${memberId}"
+                  value="B"
+                  data-member-id="${memberId}"
+                  data-team-player-id="${teamPlayer?.id || ""}"
+                  ${formationOnly ? "disabled" : ""}
+                  ${selectedSide === "B" ? "checked" : ""}
+                >
+                <span>B</span>
+              </label>
 
-              </div>
-            `
-            : ""
-        }
-      </div>
-    `;
-  }).join("");
+              <label class="team-choice-chip">
+                <input
+                  type="radio"
+                  name="team-choice-${memberId}"
+                  value=""
+                  data-member-id="${memberId}"
+                  data-team-player-id="${teamPlayer?.id || ""}"
+                  ${formationOnly ? "disabled" : ""}
+                  ${selectedSide === "" ? "checked" : ""}
+                >
+                <span>Unassigned</span>
+              </label>
+            </div>
+
+            ${
+              showFormation
+                ? `
+                  <div class="formation-choice">
+                    <select
+                      class="formation-position-select"
+                      data-member-id="${memberId}"
+                      data-team-player-id="${teamPlayer?.id || ""}"
+                      data-team-side="${selectedSide}"
+                      ${formationOnly && !editableSides.includes(selectedSide) ? "disabled" : ""}
+                    >
+                      ${soccerPositionOptions(selectedPosition)}
+                    </select>
+                  </div>
+                `
+                : ""
+            }
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `).join("");
 
   document.querySelectorAll("#team-assignment-list input[type='radio']").forEach(input => {
     input.addEventListener("change", () => {
