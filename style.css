@@ -2144,3 +2144,9 @@ main,
     grid-template-columns: 1fr;
   }
 }
+
+
+/* === COMPACT TEAM POINTS === */
+.points-summary .points-row b {
+  white-space: nowrap;
+}
