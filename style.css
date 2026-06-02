@@ -2702,3 +2702,9 @@ main,
   color: var(--danger) !important;
   font-weight: 900;
 }
+
+
+/* === SOCCER-SPECIFIC TEAM BALANCE === */
+#team-rating-status {
+  line-height: 1.35;
+}
