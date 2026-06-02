@@ -3326,3 +3326,16 @@ main,
     flex-direction: column;
   }
 }
+
+
+/* === RESTORED ORIGINAL MATCH LAYOUT === */
+.match-detail-sections,
+.match-detail-section,
+.match-card-toggle {
+  display: initial;
+}
+
+#match-expand-all,
+#match-collapse-all {
+  display: none !important;
+}
