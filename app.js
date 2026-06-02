@@ -1190,6 +1190,13 @@ function getSelectedInviteMemberIds() {
 }
 
 async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingVotes = false) {
+  const safeMatchId = cleanUuidValue(matchId);
+
+  if (!safeMatchId) {
+    alert("Cannot save invitations: match id is missing.");
+    return false;
+  }
+
   if (!matchId) {
     alert("Match id missing. Cannot save invitations.");
     return false;
@@ -1213,14 +1220,14 @@ async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingV
 
   if (!preserveExistingVotes) {
     const creatorRow = {
-      match_id: matchId,
+      match_id: safeMatchId,
       member_id: currentProfile.id,
       invited_by: currentProfile.id,
       status: "in"
     };
 
     const invitedRows = uniqueInvitedIds.map(memberId => ({
-      match_id: matchId,
+      match_id: safeMatchId,
       member_id: memberId,
       invited_by: currentProfile.id,
       status: "invited"
@@ -1269,7 +1276,7 @@ async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingV
         status: "removed",
         updated_at: new Date().toISOString()
       })
-      .eq("match_id", matchId)
+      .eq("match_id", safeMatchId)
       .in("member_id", idsToRemove);
 
     if (removeError) {
@@ -1280,7 +1287,7 @@ async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingV
 
   if (idsToAdd.length > 0) {
     const rows = idsToAdd.map(memberId => ({
-      match_id: matchId,
+      match_id: safeMatchId,
       member_id: memberId,
       invited_by: currentProfile.id,
       status: "invited"
@@ -4102,12 +4109,14 @@ async function recalculatePointsAfterTeamEdit(matchId) {
 }
 
 async function saveTeams() {
-  if (!currentTeamMatchId) {
+  const teamMatchId = cleanUuidValue(currentTeamMatchId);
+
+  if (!teamMatchId) {
     alert("No match selected.");
     return;
   }
 
-  const match = allMatches.find(m => m.id === currentTeamMatchId);
+  const match = allMatches.find(m => m.id === teamMatchId);
 
   if (!match) {
     alert("Match not found.");
@@ -4190,7 +4199,7 @@ async function saveTeams() {
     const { error: deleteTeamsError } = await supabaseClient
       .from("match_teams")
       .delete()
-      .eq("match_id", currentTeamMatchId);
+      .eq("match_id", teamMatchId);
 
     if (deleteTeamsError) {
       alert(deleteTeamsError.message);
@@ -4202,14 +4211,14 @@ async function saveTeams() {
     .from("match_teams")
     .insert([
       {
-        match_id: currentTeamMatchId,
+        match_id: teamMatchId,
         name: teamAName,
         color: "A",
         score: 0,
         result: null
       },
       {
-        match_id: currentTeamMatchId,
+        match_id: teamMatchId,
         name: teamBName,
         color: "B",
         score: 0,
@@ -4275,7 +4284,7 @@ async function saveTeams() {
     .update({
       team_status: "assigned"
     })
-    .eq("id", currentTeamMatchId);
+    .eq("id", teamMatchId);
 
   if (matchUpdateError) {
     alert(matchUpdateError.message);
@@ -4283,7 +4292,7 @@ async function saveTeams() {
   }
 
   if (match.score_status === "submitted") {
-    const pointsUpdated = await recalculatePointsAfterTeamEdit(currentTeamMatchId);
+    const pointsUpdated = await recalculatePointsAfterTeamEdit(teamMatchId);
 
     if (!pointsUpdated) return;
 
@@ -4536,12 +4545,14 @@ async function deleteSelectedGameFromResults() {
 }
 
 async function savePadelGameOnly() {
-  if (!currentScoreMatchId) {
+  const scoreMatchId = cleanUuidValue(currentScoreMatchId);
+
+  if (!scoreMatchId) {
     alert("No match selected.");
     return null;
   }
 
-  const match = allMatches.find(m => m.id === currentScoreMatchId);
+  const match = allMatches.find(m => m.id === scoreMatchId);
 
   if (!match) {
     alert("Match not found.");
@@ -4632,7 +4643,7 @@ async function savePadelGameOnly() {
   const { error: sessionError } = await supabaseClient
     .from("match_game_sessions")
     .upsert({
-      match_id: currentScoreMatchId,
+      match_id: scoreMatchId,
       game_id: gameId
     }, {
       onConflict: "match_id,game_id"
@@ -4654,7 +4665,7 @@ async function savePadelGameOnly() {
   }
 
   const scoreRows = padelResult.validSets.map(set => ({
-    match_id: currentScoreMatchId,
+    match_id: scoreMatchId,
     game_id: gameId,
     sport_id: match.sport_id,
     entry_type: "padel_set",
@@ -4718,7 +4729,7 @@ async function savePadelGameOnly() {
       score_status: "in_progress",
       notes: summary
     })
-    .eq("id", currentScoreMatchId);
+    .eq("id", scoreMatchId);
 
   if (matchError) {
     alert(matchError.message);
@@ -4867,18 +4878,51 @@ async function saveMatchMemberPoints(match) {
 function renderPointsSummary(match) {
   if (!match.match_member_points || !match.match_member_points.length) return "";
 
+  const teams = match.match_teams || [];
+
+  if (!teams.length) return "";
+
+  const pointsByMember = new Map();
+
+  (match.match_member_points || []).forEach(point => {
+    if (point.member_id) {
+      pointsByMember.set(point.member_id, Number(point.total_points || 0));
+    }
+  });
+
+  const rows = teams.map(team => {
+    const players = team.match_team_players || [];
+    const pointValues = players
+      .map(player => pointsByMember.get(player.member_id))
+      .filter(value => Number.isFinite(value));
+
+    const uniquePointValues = Array.from(new Set(pointValues));
+
+    return {
+      team,
+      playerCount: players.length,
+      pointText: uniquePointValues.length === 1
+        ? `+${uniquePointValues[0]} each`
+        : uniquePointValues.length
+          ? uniquePointValues.map(value => `+${value}`).join(" / ")
+          : "-"
+    };
+  });
+
+  if (!rows.length) return "";
+
   return `
     <div class="points-summary">
-      <strong>Points</strong>
-      ${match.match_member_points.map(point => {
-        const memberName = memberDisplayName(point.member);
-        return `
-          <div class="points-row">
-            <span>${escapeHtml(memberName)}</span>
-            <b>${Number(point.total_points || 0)}</b>
-          </div>
-        `;
-      }).join("")}
+      <strong>Points earned</strong>
+      ${rows.map(row => `
+        <div class="points-row">
+          <span>
+            ${escapeHtml(row.team.name || "Team")}
+            ${row.playerCount ? `(${row.playerCount} player${row.playerCount === 1 ? "" : "s"})` : ""}
+          </span>
+          <b>${escapeHtml(row.pointText)}</b>
+        </div>
+      `).join("")}
     </div>
   `;
 }
@@ -5186,11 +5230,10 @@ function dedupeSoccerRatingRows(rows) {
 
     if (!memberId || !sportId || !position) return;
 
-    const key = `${memberId}|${sportId}|${position}`;
+    const key = `${memberId}|${sportId}`;
 
-    // One player can only receive one rating update per position per match.
-    // If duplicate team-player rows exist, keep the largest absolute adjustment
-    // instead of stacking the same match several times.
+    // DB adjustment rows are unique per match + member + sport.
+    // Keep only one position update per player per match to avoid duplicate-key errors.
     const nextAdjustment = Number(row.adjustment || 0);
     const current = byKey.get(key);
 
@@ -5257,13 +5300,17 @@ async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, result
     }
   }
 
-  const { error } = await supabaseClient
-    .from("match_position_rating_adjustments")
-    .insert(adjustmentRows);
+  if (adjustmentRows.length) {
+    const { error } = await supabaseClient
+      .from("match_position_rating_adjustments")
+      .upsert(adjustmentRows, {
+        onConflict: "match_id,member_id,sport_id"
+      });
 
-  if (error) {
-    alert(error.message);
-    return false;
+    if (error) {
+      alert(error.message);
+      return false;
+    }
   }
 
   await loadPositionRatings();
@@ -5316,12 +5363,14 @@ async function cleanupSimpleMatchGames(match) {
 }
 
 async function finalizeCurrentMatchResult() {
-  if (!currentScoreMatchId) {
+  const scoreMatchId = cleanUuidValue(currentScoreMatchId);
+
+  if (!scoreMatchId) {
     alert("No match selected.");
     return;
   }
 
-  const match = allMatches.find(m => m.id === currentScoreMatchId);
+  const match = allMatches.find(m => m.id === scoreMatchId);
 
   if (!match) {
     alert("Match not found.");
@@ -5393,7 +5442,7 @@ async function finalizeCurrentMatchResult() {
     const { error: sessionError } = await supabaseClient
       .from("match_game_sessions")
       .upsert({
-        match_id: currentScoreMatchId,
+        match_id: scoreMatchId,
         game_id: gameId
       }, {
         onConflict: "match_id,game_id"
@@ -5407,7 +5456,7 @@ async function finalizeCurrentMatchResult() {
     const { error: entryError } = await supabaseClient
       .from("match_score_entries")
       .insert({
-        match_id: currentScoreMatchId,
+        match_id: scoreMatchId,
         game_id: gameId,
         sport_id: match.sport_id,
         entry_type: "simple",
@@ -5461,7 +5510,7 @@ async function finalizeCurrentMatchResult() {
       score_status: "submitted",
       notes: summary
     })
-    .eq("id", currentScoreMatchId);
+    .eq("id", scoreMatchId);
 
   if (matchError) {
     alert(matchError.message);
@@ -6327,12 +6376,13 @@ function bindEvents() {
     };
 
     let result;
+    const activeEditingMatchId = cleanUuidValue(editingMatchId);
 
-    if (editingMatchId) {
+    if (activeEditingMatchId) {
       result = await supabaseClient
         .from("matches")
         .update(match)
-        .eq("id", editingMatchId)
+        .eq("id", activeEditingMatchId)
         .select();
     } else {
       result = await supabaseClient
@@ -6346,17 +6396,17 @@ function bindEvents() {
       return;
     }
 
-    const matchId = editingMatchId || result.data?.[0]?.id;
+    const matchId = activeEditingMatchId || result.data?.[0]?.id;
 
     const invitationsSaved = await saveMatchInvitations(
       matchId,
       selectedInviteIds,
-      Boolean(editingMatchId)
+      Boolean(activeEditingMatchId)
     );
 
     if (!invitationsSaved) return;
 
-    alert(editingMatchId ? "Match updated." : "Match created.");
+    alert(activeEditingMatchId ? "Match updated." : "Match created.");
 
     editingMatchId = null;
     e.target.reset();
