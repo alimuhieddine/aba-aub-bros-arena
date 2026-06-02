@@ -3339,3 +3339,75 @@ main,
 #match-collapse-all {
   display: none !important;
 }
+
+
+/* === MATCH FORMATION COLLAPSIBLE + INLINE RATING CHANGES === */
+.match-formation-section {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255,255,255,.025);
+  overflow: hidden;
+}
+
+.match-formation-toggle {
+  width: 100%;
+  border: 0;
+  background: rgba(255,255,255,.045);
+  color: var(--text);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 11px;
+  cursor: pointer;
+  text-align: left;
+  font-weight: 900;
+}
+
+.match-formation-toggle b {
+  color: var(--gold);
+  font-size: 12px;
+}
+
+.match-formation-toggle:hover {
+  background: rgba(255,255,255,.075);
+}
+
+.match-formation-body {
+  padding: 10px;
+}
+
+.team-player-chip {
+  align-items: center;
+  gap: 6px;
+}
+
+.team-player-chip .position-chip {
+  flex: 0 0 auto;
+}
+
+.inline-rating-change {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.25;
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.inline-rating-change.positive {
+  color: var(--accent);
+  border-color: rgba(36,209,126,.28);
+  background: rgba(36,209,126,.08);
+}
+
+.inline-rating-change.negative {
+  color: var(--danger);
+  border-color: rgba(255,95,103,.28);
+  background: rgba(255,95,103,.08);
+}
