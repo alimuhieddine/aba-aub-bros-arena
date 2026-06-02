@@ -4622,6 +4622,16 @@ function soccerTeamUnitProfile(memberIds, assignment, sportId) {
     .filter(player => player.position === "ATT")
     .map(player => player.ratings.ATT);
 
+  const sum = values => values.reduce((total, value) => total + Number(value || 0), 0);
+
+  const gkTotal = sum(gkRatings);
+  const defTotal = sum(defRatings);
+  const midTotal = sum(midRatings);
+  const attTotal = sum(attRatings);
+
+  const midDefTotal = 0.4 * midTotal;
+  const midAttTotal = 0.6 * midTotal;
+
   const gkStrength = averageValues(gkRatings, 5);
   const defAverage = averageValues(defRatings, 5);
   const midAverage = averageValues(midRatings, 5);
@@ -4633,6 +4643,16 @@ function soccerTeamUnitProfile(memberIds, assignment, sportId) {
     defStrength: gkStrength + defAverage + (0.4 * midAverage),
     attStrength: attAverage + (0.6 * midAverage),
     totalAverage,
+    totals: {
+      GK: gkTotal,
+      DEF: defTotal,
+      MID: midTotal,
+      ATT: attTotal,
+      MID_DEF: midDefTotal,
+      MID_ATT: midAttTotal,
+      TEAM_DEF: gkTotal + defTotal + midDefTotal,
+      TEAM_ATT: attTotal + midAttTotal
+    },
     counts: {
       GK: gkRatings.length,
       DEF: defRatings.length,
@@ -4761,7 +4781,7 @@ function soccerBalanceSummaryText(suggestion) {
 
   const { profileA, profileB, gap } = suggestion.balance;
 
-  return `Soccer balance: GK ${profileA.gkStrength.toFixed(1)}-${profileB.gkStrength.toFixed(1)} • DEF ${profileA.defStrength.toFixed(1)}-${profileB.defStrength.toFixed(1)} • ATT ${profileA.attStrength.toFixed(1)}-${profileB.attStrength.toFixed(1)} • Gap ${gap.toFixed(2)}`;
+  return `Soccer balance: GK ${profileA.totals.GK.toFixed(1)}-${profileB.totals.GK.toFixed(1)} • DEF ${profileA.totals.DEF.toFixed(1)}-${profileB.totals.DEF.toFixed(1)} • MID ${profileA.totals.MID.toFixed(1)}-${profileB.totals.MID.toFixed(1)} • ATT ${profileA.totals.ATT.toFixed(1)}-${profileB.totals.ATT.toFixed(1)} • Team DEF ${profileA.totals.TEAM_DEF.toFixed(1)}-${profileB.totals.TEAM_DEF.toFixed(1)} • Team ATT ${profileA.totals.TEAM_ATT.toFixed(1)}-${profileB.totals.TEAM_ATT.toFixed(1)} • Gap ${gap.toFixed(2)}`;
 }
 
 
@@ -4791,6 +4811,47 @@ function formationSummaryRows(match, memberIds, positions, sportId) {
   });
 }
 
+
+function suggestedTeamTotalsHtml(label, profile) {
+  if (!profile?.totals) return "";
+
+  return `
+    <div class="suggested-team-totals">
+      <div class="suggested-team-totals-title">${escapeHtml(label)} totals</div>
+
+      <div class="suggested-total-row">
+        <span>GK</span>
+        <b>${profile.totals.GK.toFixed(1)}</b>
+      </div>
+
+      <div class="suggested-total-row">
+        <span>DEF</span>
+        <b>${profile.totals.DEF.toFixed(1)}</b>
+      </div>
+
+      <div class="suggested-total-row">
+        <span>MID</span>
+        <b>${profile.totals.MID.toFixed(1)}</b>
+      </div>
+
+      <div class="suggested-total-row">
+        <span>ATT</span>
+        <b>${profile.totals.ATT.toFixed(1)}</b>
+      </div>
+
+      <div class="suggested-total-row hybrid">
+        <span>Team DEF</span>
+        <b>${profile.totals.TEAM_DEF.toFixed(1)}</b>
+      </div>
+
+      <div class="suggested-total-row hybrid">
+        <span>Team ATT</span>
+        <b>${profile.totals.TEAM_ATT.toFixed(1)}</b>
+      </div>
+    </div>
+  `;
+}
+
 function renderSuggestedFormationSummary(match, suggestion) {
   const box = $("suggested-formation-summary");
 
@@ -4804,6 +4865,8 @@ function renderSuggestedFormationSummary(match, suggestion) {
 
   const rowsA = formationSummaryRows(match, suggestion.teamA, suggestion.positionsA, match.sport_id);
   const rowsB = formationSummaryRows(match, suggestion.teamB, suggestion.positionsB, match.sport_id);
+  const profileA = suggestion.balance?.profileA;
+  const profileB = suggestion.balance?.profileB;
 
   box.style.display = "";
 
@@ -4819,6 +4882,8 @@ function renderSuggestedFormationSummary(match, suggestion) {
             <b>${escapeHtml(row.text)}</b>
           </div>
         `).join("")}
+
+        ${suggestedTeamTotalsHtml($("team-a-name")?.value || "Team A", profileA)}
       </div>
 
       <div class="suggested-formation-team">
@@ -4829,6 +4894,8 @@ function renderSuggestedFormationSummary(match, suggestion) {
             <b>${escapeHtml(row.text)}</b>
           </div>
         `).join("")}
+
+        ${suggestedTeamTotalsHtml($("team-b-name")?.value || "Team B", profileB)}
       </div>
     </div>
   `;
