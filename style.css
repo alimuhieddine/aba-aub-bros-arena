@@ -2451,3 +2451,83 @@ main,
     flex-direction: column;
   }
 }
+
+
+/* === PLAYER RATING HISTORY === */
+.sport-rating-actions {
+  display: flex;
+  gap: 6px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.rating-history-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.rating-history-position-group {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+}
+
+.rating-history-position-title {
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.rating-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+
+.rating-history-row div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.rating-history-row strong {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.rating-history-row span,
+.rating-history-row em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.rating-history-row b {
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.rating-history-row b.positive {
+  color: var(--accent);
+}
+
+.rating-history-row b.negative {
+  color: var(--danger);
+}
+
+@media (max-width: 700px) {
+  .rating-history-row {
+    grid-template-columns: 1fr;
+  }
+
+  .rating-history-row b {
+    white-space: normal;
+  }
+}
