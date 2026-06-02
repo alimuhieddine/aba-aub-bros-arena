@@ -2661,3 +2661,44 @@ main,
     font-size: 11px;
   }
 }
+
+
+/* === RATING HISTORY CLOSE BUTTON FIX === */
+#ratingHistoryModal .modal-head {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-right: 46px;
+}
+
+#ratingHistoryModal .modal-close-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 900;
+  z-index: 2;
+}
+
+#ratingHistoryModal .modal-close-btn:hover {
+  transform: scale(1.04);
+}
+
+
+/* === VOTE TIME CONFLICT WARNING === */
+.conflict-warning {
+  color: var(--danger) !important;
+  font-weight: 900;
+}
