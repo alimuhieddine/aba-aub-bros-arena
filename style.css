@@ -2113,3 +2113,34 @@ main,
     grid-template-columns: repeat(2, minmax(64px, 1fr));
   }
 }
+
+
+/* === STANDARDIZED PREFERRED POSITION SELECT === */
+.sport-rating-row select.sport-position-input {
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
+
+/* === TEAM CAPTAIN SELECTORS === */
+.captain-selectors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+}
+
+.captain-selectors select {
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
+@media (max-width: 800px) {
+  .captain-selectors {
+    grid-template-columns: 1fr;
+  }
+}
