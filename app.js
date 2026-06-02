@@ -3847,6 +3847,164 @@ function resetMatchFilters() {
   renderMatches();
 }
 
+
+const MATCH_SECTION_DEFAULTS = {
+  details: true,
+  players: false,
+  teams: true,
+  ratings: false,
+  notes: false
+};
+
+function matchSectionStorageKey(matchId, sectionKey) {
+  return `match_section_${matchId}_${sectionKey}`;
+}
+
+function isMatchSectionOpen(matchId, sectionKey) {
+  const saved = localStorage.getItem(matchSectionStorageKey(matchId, sectionKey));
+
+  if (saved === "open") return true;
+  if (saved === "closed") return false;
+
+  return Boolean(MATCH_SECTION_DEFAULTS[sectionKey]);
+}
+
+function toggleMatchSection(matchId, sectionKey) {
+  const nextOpen = !isMatchSectionOpen(matchId, sectionKey);
+
+  localStorage.setItem(
+    matchSectionStorageKey(matchId, sectionKey),
+    nextOpen ? "open" : "closed"
+  );
+
+  renderMatches();
+}
+
+function renderMatchSection(matchId, sectionKey, title, contentHtml) {
+  const content = String(contentHtml || "").trim();
+
+  if (!content) return "";
+
+  const open = isMatchSectionOpen(matchId, sectionKey);
+
+  return `
+    <div class="match-info-section ${open ? "open" : "closed"}">
+      <button class="match-info-toggle" type="button" onclick="toggleMatchSection('${matchId}', '${sectionKey}')">
+        <span>${escapeHtml(title)}</span>
+        <b>${open ? "▼" : "▶"}</b>
+      </button>
+
+      ${
+        open
+          ? `<div class="match-info-body">${content}</div>`
+          : ""
+      }
+    </div>
+  `;
+}
+
+function renderMatchInfoSections(match) {
+  const displayStatus = getMatchDisplayStatus(match);
+  const votingOpen = isVotingOpenForMatch(match);
+  const matchEditable = isMatchEditable(match);
+  const counts = invitationCounts(match);
+  const externalInvitations = externalPlayerInvitations(match);
+  const externalCount = externalInvitations.length;
+  const filledCount = counts.inCount;
+  const invitation = myInvitation(match);
+  const isCreator = String(match.created_by || "") === String(currentProfile?.id || "");
+  const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
+  const maxPlayers = Number(match.max_players || 0);
+  const spotsLabel = maxPlayers
+    ? `${filledCount}/${maxPlayers} filled`
+    : `${filledCount} filled`;
+  const isFull = maxPlayers && filledCount >= maxPlayers;
+  const userIsIn = currentVoteStatus === "in";
+  const conflictingVoteMatch = !userIsIn && votingOpen ? voteInTimeConflict(match) : null;
+
+  const detailsHtml = `
+    ${
+      match.league_id
+        ? `<div class="meta">🏆 League: ${escapeHtml(leagueNameForId(match.league_id) || "Linked league")}</div>`
+        : ""
+    }
+
+    <div class="meta">
+      Time: ${fmtDate(match.start_time)} → ${fmtDate(match.end_time)}
+    </div>
+
+    <div class="meta">
+      📍 ${escapeHtml(match.venues?.name || "-")}
+      ${match.venues?.address ? "— " + escapeHtml(match.venues.address) : ""}
+    </div>
+
+    ${
+      match.venues?.google_maps_url
+        ? `<div class="meta"><a href="${escapeHtml(match.venues.google_maps_url)}" target="_blank">Open Map</a></div>`
+        : ""
+    }
+  `;
+
+  const playersHtml = `
+    <div class="meta">
+      Players: ${spotsLabel}
+      • IN: ${counts.inCount}
+      • External: ${externalCount}
+      • Maybe: ${counts.maybeCount}
+      • Out: ${counts.outCount}
+      • Invited: ${counts.invitedCount}
+    </div>
+
+    <div class="meta">
+      IN players: ${inPlayerNames(match).length ? escapeHtml(inPlayerNames(match).join(", ")) : "-"}
+    </div>
+
+    ${
+      conflictingVoteMatch
+        ? `<div class="meta conflict-warning">Time conflict with: ${escapeHtml(conflictingVoteMatch.title || "another match")}</div>`
+        : ""
+    }
+
+    ${
+      externalCount && canManageMatch(match) && matchEditable
+        ? `<div class="meta"><button class="tiny-btn" onclick="openExternalPlayersModal('${match.id}')">Manage external players</button></div>`
+        : ""
+    }
+
+    ${
+      isFull
+        ? `<div class="meta">Match is full.</div>`
+        : ""
+    }
+  `;
+
+  const teamsHtml = `
+    ${renderTeamsSummary(match)}
+    ${renderScoreSummary(match)}
+    ${renderPointsSummary(match)}
+  `;
+
+  const ratingHtml = renderRatingChanges(match);
+
+  const notesHtml = `
+    ${
+      match.notes
+        ? `<div class="meta">${escapeHtml(match.notes)}</div>`
+        : ""
+    }
+  `;
+
+  return `
+    <div class="match-info-sections">
+      ${renderMatchSection(match.id, "details", "Match details", detailsHtml)}
+      ${renderMatchSection(match.id, "players", "Players & invitations", playersHtml)}
+      ${renderMatchSection(match.id, "teams", "Teams & result", teamsHtml)}
+      ${renderMatchSection(match.id, "ratings", "Rating changes", ratingHtml)}
+      ${renderMatchSection(match.id, "notes", "Notes", notesHtml)}
+    </div>
+  `;
+}
+
 function renderMatches() {
   if (!$("matchList")) return;
 
@@ -3901,73 +4059,9 @@ function renderMatches() {
               • ${fmtDate(match.start_time)}
             </div>
 
-            ${
-              match.league_id
-                ? `<div class="meta">🏆 League: ${escapeHtml(leagueNameForId(match.league_id) || "Linked league")}</div>`
-                : ""
-            }
-
-            <div class="meta">
-              Time: ${fmtDate(match.start_time)} → ${fmtDate(match.end_time)}
-            </div>
-
-            <div class="meta">
-              📍 ${escapeHtml(match.venues?.name || "-")}
-              ${match.venues?.address ? "— " + escapeHtml(match.venues.address) : ""}
-            </div>
-
             ${renderSmartBadges(match)}
 
-            <div class="meta">
-              Players: ${spotsLabel}
-              • IN: ${counts.inCount}
-              • External: ${externalCount}
-              • Maybe: ${counts.maybeCount}
-              • Out: ${counts.outCount}
-              • Invited: ${counts.invitedCount}
-            </div>
-
-            <div class="meta">
-              IN players: ${inPlayerNames(match).length ? escapeHtml(inPlayerNames(match).join(", ")) : "-"}
-            </div>
-
-            ${
-              conflictingVoteMatch
-                ? `<div class="meta conflict-warning">Time conflict with: ${escapeHtml(conflictingVoteMatch.title || "another match")}</div>`
-                : ""
-            }
-
-            ${renderTeamsSummary(match)}
-
-            ${renderScoreSummary(match)}
-
-            ${renderPointsSummary(match)}
-
-            ${renderRatingChanges(match)}
-
-            ${
-              externalCount && canManageMatch(match) && matchEditable
-                ? `<div class="meta"><button class="tiny-btn" onclick="openExternalPlayersModal('${match.id}')">Manage external players</button></div>`
-                : ""
-            }
-
-            ${
-              isFull
-                ? `<div class="meta">Match is full.</div>`
-                : ""
-            }
-
-            ${
-              match.venues?.google_maps_url
-                ? `<div class="meta"><a href="${escapeHtml(match.venues.google_maps_url)}" target="_blank">Open Map</a></div>`
-                : ""
-            }
-
-            ${
-              match.notes
-                ? `<div class="meta">${escapeHtml(match.notes)}</div>`
-                : ""
-            }
+            ${renderMatchInfoSections(match)}
           </div>
 
           <span class="pill ${getMatchStatusClass(displayStatus, isFull)}">
