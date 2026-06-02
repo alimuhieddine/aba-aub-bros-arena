@@ -2868,3 +2868,60 @@ main,
 .small-btn.locked-result-btn {
   border-color: rgba(49,168,255,.35);
 }
+
+
+/* === COLLAPSIBLE LEAGUE SECTIONS === */
+.league-sections {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.league-section {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255,255,255,.025);
+  overflow: hidden;
+}
+
+.league-section-toggle {
+  width: 100%;
+  border: 0;
+  background: rgba(255,255,255,.045);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 900;
+  text-align: left;
+}
+
+.league-section-toggle b {
+  color: var(--gold);
+  font-size: 12px;
+}
+
+.league-section-toggle:hover {
+  background: rgba(255,255,255,.075);
+}
+
+.league-section-body {
+  padding: 10px;
+}
+
+.league-section .league-standings {
+  margin-top: 0;
+}
+
+.league-section.closed {
+  opacity: .92;
+}
+
+@media (max-width: 950px) {
+  .league-section-body {
+    padding: 8px;
+  }
+}
