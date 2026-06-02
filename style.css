@@ -2817,3 +2817,54 @@ main,
 .suggested-total-row.hybrid b {
   color: var(--accent);
 }
+
+
+/* === SMART MATCH BADGES === */
+.smart-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.smart-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.055);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.smart-badge.success {
+  border-color: rgba(36,209,126,.35);
+  background: rgba(36,209,126,.10);
+  color: var(--accent);
+}
+
+.smart-badge.danger {
+  border-color: rgba(255,95,103,.35);
+  background: rgba(255,95,103,.10);
+  color: var(--danger);
+}
+
+.smart-badge.gold {
+  border-color: rgba(255,209,102,.35);
+  background: rgba(255,209,102,.10);
+  color: var(--gold);
+}
+
+.smart-badge.blue {
+  border-color: rgba(49,168,255,.35);
+  background: rgba(49,168,255,.10);
+  color: var(--accent2);
+}
+
+
+/* === FINALIZED MATCH LOCKING === */
+.small-btn.locked-result-btn {
+  border-color: rgba(49,168,255,.35);
+}
