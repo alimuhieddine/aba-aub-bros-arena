@@ -2773,3 +2773,47 @@ main,
     grid-template-columns: 1fr;
   }
 }
+
+
+/* === SUGGESTED FORMATION TOTALS === */
+.suggested-team-totals {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,209,102,.20);
+  display: grid;
+  gap: 4px;
+}
+
+.suggested-team-totals-title {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.suggested-total-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 54px;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+}
+
+.suggested-total-row span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.suggested-total-row b {
+  color: var(--gold);
+  text-align: right;
+  font-weight: 900;
+}
+
+.suggested-total-row.hybrid {
+  margin-top: 2px;
+}
+
+.suggested-total-row.hybrid span,
+.suggested-total-row.hybrid b {
+  color: var(--accent);
+}
