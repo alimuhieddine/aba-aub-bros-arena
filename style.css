@@ -2279,7 +2279,8 @@ main,
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  text-align: left;
 }
 
 .team-player-chip {
@@ -2344,4 +2345,11 @@ main,
   .team-points-earned {
     justify-self: start;
   }
+}
+
+
+/* === TEAM MEMBER NAMES LEFT === */
+.team-members-line {
+  justify-content: flex-start !important;
+  text-align: left;
 }
