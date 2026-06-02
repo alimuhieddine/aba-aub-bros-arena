@@ -2222,6 +2222,7 @@ async function loadLeagues() {
   allLeagues = data || [];
   renderLeagues();
   updateMatchLeagueOptions();
+  updateMatchFilterOptions();
   updateRankingFilters();
   renderRankings();
 }
@@ -3713,6 +3714,139 @@ function renderSmartBadges(match) {
   `;
 }
 
+
+function updateMatchFilterOptions() {
+  const sportSelect = $("match-filter-sport");
+  const leagueSelect = $("match-filter-league");
+
+  if (sportSelect) {
+    const current = sportSelect.value || "all";
+
+    sportSelect.innerHTML = `
+      <option value="all">All sports</option>
+      ${(allSports || []).map(sport => `
+        <option value="${sport.id}">${escapeHtml(sport.name)}</option>
+      `).join("")}
+    `;
+
+    sportSelect.value = Array.from(sportSelect.options).some(option => option.value === current)
+      ? current
+      : "all";
+  }
+
+  if (leagueSelect) {
+    const current = leagueSelect.value || "all";
+    const selectedSport = sportSelect?.value || "all";
+
+    const leagues = (allLeagues || []).filter(league =>
+      selectedSport === "all" || league.sport_id === selectedSport
+    );
+
+    leagueSelect.innerHTML = `
+      <option value="all">All leagues</option>
+      <option value="none">Friendly / no league</option>
+      ${leagues.map(league => `
+        <option value="${league.id}">${escapeHtml(league.name)}</option>
+      `).join("")}
+    `;
+
+    leagueSelect.value = Array.from(leagueSelect.options).some(option => option.value === current)
+      ? current
+      : "all";
+  }
+}
+
+function matchMyStatus(match) {
+  const invitation = myInvitation(match);
+  const isCreator = String(match.created_by || "") === String(currentProfile?.id || "");
+
+  return invitation?.status || (isCreator ? "in" : "none");
+}
+
+function matchStatusFilterValue(match) {
+  const displayStatus = getMatchDisplayStatus(match);
+  const counts = invitationCounts(match);
+  const maxPlayers = Number(match.max_players || 0);
+  const isFull = Boolean(maxPlayers && counts.inCount >= maxPlayers);
+
+  if (displayStatus === "cancelled") return "cancelled";
+  if (hasSubmittedScore(match) || displayStatus === "completed") return "completed";
+  if (displayStatus === "playing") return "playing";
+  if (displayStatus === "finished" && !hasSubmittedScore(match)) return "result_pending";
+  if (isFull) return "full";
+
+  return "upcoming";
+}
+
+function matchFilterPriority(match) {
+  const status = matchStatusFilterValue(match);
+
+  if (status === "playing") return 1;
+  if (status === "upcoming") return 2;
+  if (status === "full") return 3;
+  if (status === "result_pending") return 4;
+  if (status === "completed") return 5;
+  if (status === "cancelled") return 9;
+
+  return 6;
+}
+
+function filteredMatches() {
+  const search = String($("match-filter-search")?.value || "").trim().toLowerCase();
+  const sportId = $("match-filter-sport")?.value || "all";
+  const leagueId = $("match-filter-league")?.value || "all";
+  const status = $("match-filter-status")?.value || "active";
+  const myStatus = $("match-filter-my-status")?.value || "all";
+
+  return [...(allMatches || [])]
+    .filter(match => {
+      const displayStatus = getMatchDisplayStatus(match);
+      const filterStatus = matchStatusFilterValue(match);
+      const mine = matchMyStatus(match);
+
+      if (sportId !== "all" && match.sport_id !== sportId) return false;
+
+      if (leagueId === "none" && match.league_id) return false;
+      if (leagueId !== "all" && leagueId !== "none" && match.league_id !== leagueId) return false;
+
+      if (status === "active" && displayStatus === "cancelled") return false;
+      if (status !== "all" && status !== "active" && filterStatus !== status) return false;
+
+      if (myStatus === "not_in" && mine === "in") return false;
+      if (myStatus !== "all" && myStatus !== "not_in" && mine !== myStatus) return false;
+
+      if (search) {
+        const haystack = [
+          match.title,
+          match.sports?.name,
+          match.match_type,
+          leagueNameForId(match.league_id),
+          match.venues?.name,
+          match.venues?.address,
+          match.notes
+        ].filter(Boolean).join(" ").toLowerCase();
+
+        if (!haystack.includes(search)) return false;
+      }
+
+      return true;
+    })
+    .sort((a, b) =>
+      matchFilterPriority(a) - matchFilterPriority(b) ||
+      new Date(a.start_time) - new Date(b.start_time)
+    );
+}
+
+function resetMatchFilters() {
+  if ($("match-filter-search")) $("match-filter-search").value = "";
+  if ($("match-filter-sport")) $("match-filter-sport").value = "all";
+  updateMatchFilterOptions();
+  if ($("match-filter-league")) $("match-filter-league").value = "all";
+  if ($("match-filter-status")) $("match-filter-status").value = "active";
+  if ($("match-filter-my-status")) $("match-filter-my-status").value = "all";
+  renderMatches();
+}
+
 function renderMatches() {
   if (!$("matchList")) return;
 
@@ -3721,7 +3855,16 @@ function renderMatches() {
     return;
   }
 
-  $("matchList").innerHTML = allMatches.map(match => {
+  updateMatchFilterOptions();
+
+  const visibleMatches = filteredMatches();
+
+  if (!visibleMatches.length) {
+    $("matchList").innerHTML = `<article class="card">No matches match the selected filters.</article>`;
+    return;
+  }
+
+  $("matchList").innerHTML = visibleMatches.map(match => {
     const displayStatus = getMatchDisplayStatus(match);
     const isCancelled = displayStatus === "cancelled";
     const isFuture = new Date(match.start_time) > new Date();
@@ -7764,6 +7907,16 @@ function bindEvents() {
 
   $("rank-league-filter")?.addEventListener("change", renderRankings);
   $("rank-player-type-filter")?.addEventListener("change", renderRankings);
+
+  $("match-filter-search")?.addEventListener("input", renderMatches);
+  $("match-filter-sport")?.addEventListener("change", () => {
+    updateMatchFilterOptions();
+    renderMatches();
+  });
+  $("match-filter-league")?.addEventListener("change", renderMatches);
+  $("match-filter-status")?.addEventListener("change", renderMatches);
+  $("match-filter-my-status")?.addEventListener("change", renderMatches);
+  $("match-filter-reset")?.addEventListener("click", resetMatchFilters);
 
   $("rating-sport-filter")?.addEventListener("change", renderSportRatingManager);
   $("rating-history-position-filter")?.addEventListener("change", renderRatingHistoryModal);
