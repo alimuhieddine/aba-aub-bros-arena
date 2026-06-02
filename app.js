@@ -562,6 +562,8 @@ let currentExternalMatchId = null;
 let currentTeamMatchId = null;
 let currentTeamEditScope = "full";
 let currentScoreMatchId = null;
+let currentRatingHistoryMemberId = null;
+let currentRatingHistorySportId = null;
 let allPendingGames = [];
 
 
@@ -861,6 +863,152 @@ function approvedRatingMembers() {
     .sort((a, b) => memberDisplayName(a).localeCompare(memberDisplayName(b)));
 }
 
+
+function matchForRatingAdjustment(adjustment) {
+  return (allMatches || []).find(match =>
+    (match.match_position_rating_adjustments || []).some(row => row.id === adjustment.id)
+  ) || null;
+}
+
+function scoreTextForMatch(match) {
+  if (!match) return "-";
+
+  const { teamA, teamB } = getTwoMatchTeams(match);
+
+  if (!teamA || !teamB) return "-";
+
+  return `${teamA.name || "Team A"} ${Number(teamA.score || 0)} - ${Number(teamB.score || 0)} ${teamB.name || "Team B"}`;
+}
+
+function currentRatingHistoryPlayer() {
+  const memberId = cleanUuidValue(currentRatingHistoryMemberId);
+
+  if (!memberId) return null;
+
+  return approvedRatingMembers().find(member => member.id === memberId) ||
+    (allPositionRatings || []).find(row => row.member_id === memberId)?.members ||
+    null;
+}
+
+function ratingHistoryRows(memberId, sportId) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  const cleanSportId = cleanUuidValue(sportId);
+
+  if (!cleanMemberId || !cleanSportId) return [];
+
+  const rows = [];
+
+  (allMatches || []).forEach(match => {
+    (match.match_position_rating_adjustments || []).forEach(adjustment => {
+      if (
+        cleanUuidValue(adjustment.member_id) === cleanMemberId &&
+        cleanUuidValue(adjustment.sport_id) === cleanSportId
+      ) {
+        rows.push({
+          ...adjustment,
+          match
+        });
+      }
+    });
+  });
+
+  return rows;
+}
+
+function renderRatingHistoryModal() {
+  const list = $("ratingHistoryList");
+  if (!list) return;
+
+  const member = currentRatingHistoryPlayer();
+  const sport = (allSports || []).find(s => s.id === currentRatingHistorySportId);
+  const positionFilter = $("rating-history-position-filter")?.value || "all";
+  const sortMode = $("rating-history-sort")?.value || "newest";
+
+  if ($("rating-history-title")) {
+    $("rating-history-title").textContent = member
+      ? `${memberDisplayName(member)} — Rating History`
+      : "Rating History";
+  }
+
+  if ($("rating-history-subtitle")) {
+    $("rating-history-subtitle").textContent = sport?.name
+      ? `${sport.name} position rating changes by match.`
+      : "Position rating changes by match.";
+  }
+
+  let rows = ratingHistoryRows(currentRatingHistoryMemberId, currentRatingHistorySportId)
+    .filter(row =>
+      positionFilter === "all" ||
+      normalizeSoccerPosition(row.position_name) === positionFilter
+    );
+
+  rows.sort((a, b) => {
+    const dateA = new Date(a.match?.start_time || a.created_at || 0).getTime();
+    const dateB = new Date(b.match?.start_time || b.created_at || 0).getTime();
+
+    return sortMode === "oldest" ? dateA - dateB : dateB - dateA;
+  });
+
+  if (!rows.length) {
+    list.innerHTML = `<article class="card">No rating changes found for this filter yet.</article>`;
+    return;
+  }
+
+  const groupedByPosition = new Map();
+
+  rows.forEach(row => {
+    const position = normalizeSoccerPosition(row.position_name) || row.position_name || "-";
+    if (!groupedByPosition.has(position)) groupedByPosition.set(position, []);
+    groupedByPosition.get(position).push(row);
+  });
+
+  list.innerHTML = Array.from(groupedByPosition.entries()).map(([position, positionRows]) => `
+    <div class="rating-history-position-group">
+      <div class="rating-history-position-title">${escapeHtml(position)}</div>
+
+      ${positionRows.map(row => {
+        const before = Number(row.rating_before ?? 0);
+        const after = Number(row.rating_after ?? 0);
+        const delta = after - before;
+        const deltaText = `${delta >= 0 ? "+" : ""}${delta.toFixed(2)}`;
+        const match = row.match;
+
+        return `
+          <div class="rating-history-row">
+            <div>
+              <strong>${escapeHtml(match?.title || "Match")}</strong>
+              <span>${escapeHtml(fmtDate(match?.start_time || row.created_at))}</span>
+              <em>${escapeHtml(scoreTextForMatch(match))}</em>
+            </div>
+
+            <b class="${delta >= 0 ? "positive" : "negative"}">
+              ${before.toFixed(2)} → ${after.toFixed(2)} (${deltaText})
+            </b>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `).join("");
+}
+
+function openRatingHistory(memberId) {
+  const sportId = cleanUuidValue($("rating-sport-filter")?.value);
+
+  if (!sportId) {
+    alert("Select a sport first.");
+    return;
+  }
+
+  currentRatingHistoryMemberId = cleanUuidValue(memberId);
+  currentRatingHistorySportId = sportId;
+
+  if ($("rating-history-position-filter")) $("rating-history-position-filter").value = "all";
+  if ($("rating-history-sort")) $("rating-history-sort").value = "newest";
+
+  renderRatingHistoryModal();
+  $("ratingHistoryModal")?.showModal();
+}
+
 function renderSportRatingManager() {
   const box = $("sportRatingList");
   if (!box) return;
@@ -941,9 +1089,15 @@ function renderSportRatingManager() {
 
         ${positionInputs}
 
-        <button class="small-btn" type="button" onclick="saveMemberSportProfile('${member.id}')">
-          Save
-        </button>
+        <div class="sport-rating-actions">
+          <button class="small-btn" type="button" onclick="saveMemberSportProfile('${member.id}')">
+            Save
+          </button>
+
+          <button class="small-btn" type="button" onclick="openRatingHistory('${member.id}')">
+            History
+          </button>
+        </div>
       </div>
     `;
   }).join("");
@@ -6612,6 +6766,8 @@ function bindEvents() {
   $("rank-player-type-filter")?.addEventListener("change", renderRankings);
 
   $("rating-sport-filter")?.addEventListener("change", renderSportRatingManager);
+  $("rating-history-position-filter")?.addEventListener("change", renderRatingHistoryModal);
+  $("rating-history-sort")?.addEventListener("change", renderRatingHistoryModal);
   document.querySelectorAll(".tab").forEach(btn =>
     btn.addEventListener("click", () => {
       setActiveTab(btn.dataset.view);
