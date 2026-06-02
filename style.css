@@ -2950,55 +2950,12 @@ main,
 }
 
 
-/* === COLLAPSIBLE MATCH INFORMATION === */
-.match-info-sections {
-  display: grid;
+/* === MAINTENANCE TOOLS === */
+.maintenance-card .actions {
   gap: 8px;
-  margin-top: 8px;
+  flex-wrap: wrap;
 }
 
-.match-info-section {
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.025);
-  overflow: hidden;
-}
-
-.match-info-toggle {
-  width: 100%;
-  border: 0;
-  background: rgba(255,255,255,.045);
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 10px;
-  cursor: pointer;
-  font-weight: 900;
-  text-align: left;
-  font-size: 12px;
-}
-
-.match-info-toggle b {
-  color: var(--gold);
-  font-size: 11px;
-}
-
-.match-info-toggle:hover {
-  background: rgba(255,255,255,.075);
-}
-
-.match-info-body {
-  padding: 8px 10px 10px;
-}
-
-.match-info-body .teams-summary,
-.match-info-body .rating-changes-summary,
-.match-info-body .score-summary {
-  margin-top: 0;
-}
-
-.match-info-section.closed {
-  opacity: .94;
+.maintenance-card button {
+  flex: 1 1 220px;
 }
