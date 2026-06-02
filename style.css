@@ -3433,3 +3433,60 @@ main,
   justify-self: start;
   margin-left: 44px;
 }
+
+
+/* === WIDER FORMATION SECTION === */
+.match-formation-section {
+  width: 100%;
+  max-width: 100%;
+}
+
+.match-formation-body {
+  width: 100%;
+  max-width: 100%;
+}
+
+.match-formation-body .teams-summary {
+  width: 100%;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.match-formation-body .team-summary-row {
+  width: 100%;
+  max-width: 100%;
+}
+
+.match-formation-body .team-summary-left {
+  width: 100%;
+  min-width: 0;
+}
+
+.match-formation-body .team-members-line {
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.match-formation-body .team-player-chip {
+  max-width: 100%;
+}
+
+@media (min-width: 760px) {
+  .match-formation-body .teams-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+
+/* === GAME STATS FORMATION TITLE === */
+.match-formation-toggle span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
