@@ -2607,9 +2607,18 @@ function setScoreMode(match) {
 
 
 function matchSessionGames(match) {
-  return (match.match_game_sessions || [])
+  const byId = new Map();
+
+  (match.match_game_sessions || [])
     .map(session => session.match_games)
-    .filter(Boolean);
+    .filter(Boolean)
+    .forEach(game => {
+      if (game?.id && !byId.has(game.id)) {
+        byId.set(game.id, game);
+      }
+    });
+
+  return Array.from(byId.values());
 }
 
 function scoreEntriesForGame(match, gameId) {
@@ -2770,30 +2779,42 @@ function renderScoreSummary(match) {
 
       ${
         sessionGames.length
-          ? `
-            <div class="padel-score-summary">
-              ${sessionGames.map((game, index) => {
-                const gameSets = scoreEntriesForGame(match, game.id)
-                  .filter(entry => entry.entry_type === "padel_set")
-                  .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0));
+          ? isPadelMatch(match)
+            ? `
+              <div class="padel-score-summary">
+                ${sessionGames.map((game, index) => {
+                  const gameSets = scoreEntriesForGame(match, game.id)
+                    .filter(entry => entry.entry_type === "padel_set")
+                    .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0));
 
-                return `
-                  <div>
-                    <strong>${escapeHtml(game.title || `Game ${index + 1}`)}</strong>
-                    — ${escapeHtml(padelGameStatusLabel(game, gameSets))}
-                    ${game.winner_team ? ` • Winner: Team ${escapeHtml(game.winner_team)}` : ""}
-                  </div>
-                  ${gameSets.map(set => `
+                  return `
                     <div>
-                      Set ${Number(set.set_number || 0)}:
-                      ${Number(set.team_a_score || 0)}-${Number(set.team_b_score || 0)}
-                      ${set.is_completed ? "" : " incomplete"}
+                      <strong>${escapeHtml(game.title || `Game ${index + 1}`)}</strong>
+                      — ${escapeHtml(padelGameStatusLabel(game, gameSets))}
+                      ${game.winner_team ? ` • Winner: Team ${escapeHtml(game.winner_team)}` : ""}
                     </div>
-                  `).join("")}
-                `;
-              }).join("")}
-            </div>
-          `
+                    ${gameSets.map(set => `
+                      <div>
+                        Set ${Number(set.set_number || 0)}:
+                        ${Number(set.team_a_score || 0)}-${Number(set.team_b_score || 0)}
+                        ${set.is_completed ? "" : " incomplete"}
+                      </div>
+                    `).join("")}
+                  `;
+                }).join("")}
+              </div>
+            `
+            : `
+              <div class="padel-score-summary">
+                ${sessionGames.slice(0, 1).map(game => `
+                  <div>
+                    <strong>${escapeHtml(game.title || "Game")}</strong>
+                    — completed
+                    ${game.winner_team && game.winner_team !== "draw" ? ` • Winner: Team ${escapeHtml(game.winner_team)}` : ""}
+                  </div>
+                `).join("")}
+              </div>
+            `
           : legacyPadelSets.length
             ? `
               <div class="padel-score-summary">
@@ -4953,11 +4974,48 @@ function currentPositionRatingRow(memberId, sportId, positionName) {
 async function applyPositionRatingDelta(memberId, sportId, positionName, delta, gamesDelta) {
   const cleanPosition = normalizeSoccerPosition(positionName);
   const existing = currentPositionRatingRow(memberId, sportId, cleanPosition);
-  const currentRating = Number(existing?.rating || positionRatingForMember(memberId, sportId, cleanPosition) || 5);
+  const ratingBefore = Number(existing?.rating || positionRatingForMember(memberId, sportId, cleanPosition) || 5);
   const currentGames = Number(existing?.games_played || 0);
 
-  const nextRating = clampNumber(currentRating + Number(delta || 0), 1, 10);
+  const ratingAfter = clampNumber(ratingBefore + Number(delta || 0), 1, 10);
   const nextGamesPlayed = Math.max(0, currentGames + Number(gamesDelta || 0));
+
+  const { error } = await supabaseClient
+    .from("member_sport_position_ratings")
+    .upsert({
+      member_id: memberId,
+      sport_id: sportId,
+      position_name: cleanPosition,
+      rating: Number(ratingAfter.toFixed(2)),
+      games_played: nextGamesPlayed,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: "member_id,sport_id,position_name"
+    });
+
+  if (error) {
+    alert(error.message);
+    return {
+      ok: false
+    };
+  }
+
+  await loadPositionRatings();
+
+  return {
+    ok: true,
+    ratingBefore,
+    ratingAfter
+  };
+}
+
+
+async function setPositionRatingValue(memberId, sportId, positionName, ratingValue, gamesDelta) {
+  const cleanPosition = normalizeSoccerPosition(positionName);
+  const existing = currentPositionRatingRow(memberId, sportId, cleanPosition);
+  const currentGames = Number(existing?.games_played || 0);
+  const nextGamesPlayed = Math.max(0, currentGames + Number(gamesDelta || 0));
+  const nextRating = clampNumber(Number(ratingValue || 5), 1, 10);
 
   const { error } = await supabaseClient
     .from("member_sport_position_ratings")
@@ -4984,7 +5042,7 @@ async function applyPositionRatingDelta(memberId, sportId, positionName, delta, 
 async function rollbackPreviousSoccerRatingAdjustments(matchId) {
   const { data, error } = await supabaseClient
     .from("match_position_rating_adjustments")
-    .select("id,member_id,sport_id,position_name,adjustment")
+    .select("id,member_id,sport_id,position_name,adjustment,rating_before,rating_after")
     .eq("match_id", matchId);
 
   if (error) {
@@ -4993,13 +5051,27 @@ async function rollbackPreviousSoccerRatingAdjustments(matchId) {
   }
 
   for (const row of data || []) {
-    const ok = await applyPositionRatingDelta(
-      row.member_id,
-      row.sport_id,
-      row.position_name,
-      -Number(row.adjustment || 0),
-      -1
-    );
+    let ok = false;
+
+    if (row.rating_before !== null && row.rating_before !== undefined) {
+      ok = await setPositionRatingValue(
+        row.member_id,
+        row.sport_id,
+        row.position_name,
+        Number(row.rating_before),
+        -1
+      );
+    } else {
+      const result = await applyPositionRatingDelta(
+        row.member_id,
+        row.sport_id,
+        row.position_name,
+        -Number(row.adjustment || 0),
+        -1
+      );
+
+      ok = Boolean(result?.ok);
+    }
 
     if (!ok) return false;
   }
@@ -5038,8 +5110,10 @@ async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, result
 
   if (!rows.length) return true;
 
+  const adjustmentRows = [];
+
   for (const row of rows) {
-    const ok = await applyPositionRatingDelta(
+    const result = await applyPositionRatingDelta(
       row.member_id,
       row.sport_id,
       row.position_name,
@@ -5047,16 +5121,18 @@ async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, result
       1
     );
 
-    if (!ok) return false;
-  }
+    if (!result?.ok) return false;
 
-  const adjustmentRows = rows.map(row => ({
-    match_id: match.id,
-    member_id: row.member_id,
-    sport_id: row.sport_id,
-    position_name: row.position_name,
-    adjustment: Number(Number(row.adjustment || 0).toFixed(3))
-  }));
+    adjustmentRows.push({
+      match_id: match.id,
+      member_id: row.member_id,
+      sport_id: row.sport_id,
+      position_name: row.position_name,
+      adjustment: Number(Number(row.adjustment || 0).toFixed(3)),
+      rating_before: Number(Number(result.ratingBefore).toFixed(2)),
+      rating_after: Number(Number(result.ratingAfter).toFixed(2))
+    });
+  }
 
   const { error } = await supabaseClient
     .from("match_position_rating_adjustments")
@@ -5070,6 +5146,48 @@ async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, result
   await loadPositionRatings();
   renderSportRatingManager();
   renderRankings();
+
+  return true;
+}
+
+
+async function cleanupSimpleMatchGames(match) {
+  if (isPadelMatch(match)) return true;
+
+  const existingGames = matchSessionGames(match);
+  const existingGameIds = existingGames.map(game => game.id).filter(Boolean);
+
+  if (!existingGameIds.length) return true;
+
+  const { error: entriesError } = await supabaseClient
+    .from("match_score_entries")
+    .delete()
+    .in("game_id", existingGameIds);
+
+  if (entriesError) {
+    alert(entriesError.message);
+    return false;
+  }
+
+  const { error: sessionsError } = await supabaseClient
+    .from("match_game_sessions")
+    .delete()
+    .eq("match_id", match.id);
+
+  if (sessionsError) {
+    alert(sessionsError.message);
+    return false;
+  }
+
+  const { error: gamesError } = await supabaseClient
+    .from("match_games")
+    .delete()
+    .in("id", existingGameIds);
+
+  if (gamesError) {
+    alert(gamesError.message);
+    return false;
+  }
 
   return true;
 }
@@ -5120,6 +5238,10 @@ async function finalizeCurrentMatchResult() {
     }
 
     const winnerTeam = scoreA > scoreB ? "A" : scoreB > scoreA ? "B" : "draw";
+
+    const cleanedOldGames = await cleanupSimpleMatchGames(match);
+
+    if (!cleanedOldGames) return;
 
     const { data: gameData, error: gameError } = await supabaseClient
       .from("match_games")
