@@ -1,2870 +1,729 @@
-:root {
-  --bg: #07111f;
-  --card: #0f1c2e;
-  --card2: #13243a;
-  --text: #eef6ff;
-  --muted: #93a7bf;
-  --line: rgba(255,255,255,.1);
-  --accent: #24d17e;
-  --accent2: #31a8ff;
-  --danger: #ff5f67;
-  --gold: #ffd166;
-}
-
-* {
-  box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
-}
-
-html {
-  touch-action: manipulation;
-  -webkit-text-size-adjust: 100%;
-}
-
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-  background: radial-gradient(circle at top, #123763 0, var(--bg) 48%);
-  color: var(--text);
-  min-height: 100vh;
-  overflow-x: hidden;
-}
-
-.app-shell {
-  max-width: 980px;
-  margin: 0 auto;
-  padding: 18px 14px 90px;
-}
-
-.hero {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 24px;
-  border: 1px solid var(--line);
-  border-radius: 28px;
-  background: linear-gradient(135deg, rgba(36,209,126,.18), rgba(49,168,255,.16));
-  box-shadow: 0 16px 48px rgba(0,0,0,.28);
-}
-
-.brand {
-  min-width: 0;
-}
-
-.eyebrow {
-  margin: 0;
-  color: var(--accent);
-  font-weight: 800;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  font-size: 12px;
-}
-
-h1 {
-  margin: 2px 0;
-  font-size: 56px;
-  line-height: .9;
-}
-
-.tagline {
-  margin: 0;
-  color: var(--muted);
-}
-
-.hero-auth {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.hero-auth input {
-  width: 150px;
-  height: 34px;
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(2, 12, 28, 0.75);
-  color: white;
-  padding: 0 10px;
-  font-size: 16px;
-  outline: none;
-}
-
-.hero-auth input::placeholder {
-  color: rgba(255,255,255,0.55);
-}
-
-.auth-actions {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-}
-
-.primary-btn,
-.secondary-btn,
-.ghost-btn,
-.small-btn {
-  font: inherit;
-  cursor: pointer;
-}
-
-.primary-btn,
-.secondary-btn {
-  height: 34px;
-  padding: 0 14px;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.primary-btn {
-  border: none;
-  background: linear-gradient(90deg, #2fd28b, #36a8f5);
-  color: #05101c;
-}
-
-.secondary-btn {
-  background: rgba(255,255,255,0.06);
-  color: white;
-  border: 1px solid rgba(255,255,255,0.18);
-}
-
-.logged-in-box {
-  flex-direction: column;
-  align-items: flex-end !important;
-  justify-content: flex-start;
-  gap: 8px;
-}
-
-.logged-user {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  text-align: right;
-}
-
-.logged-label {
-  font-size: 10px;
-  color: var(--muted);
-  line-height: 1;
-}
-
-#current-user {
-  font-size: 12px;
-  font-weight: 600;
-  color: white;
-  line-height: 1.25;
-  white-space: nowrap;
-}
-
-#logout-btn {
-  width: 70px;
-  min-width: 70px;
-  height: 26px;
-  align-self: flex-end !important;
-  font-size: 11px;
-  padding: 0;
-}
-
-.ghost-btn {
-  border: 0;
-  border-radius: 14px;
-  padding: 10px 14px;
-  font-weight: 800;
-  background: rgba(255,255,255,.08);
-  color: var(--text);
-}
-
-.small-btn {
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.06);
-  color: var(--text);
-  padding: 8px 10px;
-  border-radius: 12px;
-}
-
-.tabs {
-  position: sticky;
-  top: 0;
-  z-index: 4;
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  margin: 16px 0;
-  padding: 8px;
-  border-radius: 20px;
-  background: rgba(7,17,31,.88);
-  backdrop-filter: blur(12px);
-}
-
-.tab,
-button {
-  font: inherit;
-}
-
-.tab {
-  border: 0;
-  color: var(--muted);
-  background: transparent;
-  padding: 11px 14px;
-  border-radius: 14px;
-  white-space: nowrap;
-}
-
-.tab.active {
-  background: var(--card2);
-  color: var(--text);
-}
-
-.view {
-  display: none;
-}
-
-.active-view {
-  display: block;
-}
-
-.section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 18px 0 12px;
-}
-
-h2,
-h3 {
-  margin: 0;
-}
-
-.grid.two {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
-.stack {
-  display: grid;
-  gap: 12px;
-}
-
-.card {
-  border: 1px solid var(--line);
-  border-radius: 22px;
-  padding: 16px;
-  background: rgba(15,28,46,.92);
-  box-shadow: 0 10px 28px rgba(0,0,0,.18);
-}
-
-.stat-card span {
-  color: var(--muted);
-  display: block;
-  margin-bottom: 6px;
-}
-
-.stat-card strong {
-  font-size: 34px;
-}
-
-.row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.meta {
-  color: var(--muted);
-  font-size: 13px;
-  margin-top: 6px;
-}
-
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.08);
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.pill.green {
-  color: var(--accent);
-  background: rgba(36,209,126,.12);
-}
-
-.pill.blue {
-  color: var(--accent2);
-  background: rgba(49,168,255,.12);
-}
-
-.pill.red {
-  color: var(--danger);
-  background: rgba(255,95,103,.12);
-}
-
-.full {
-  width: 100%;
-  margin-top: 8px;
-}
-
-.hint {
-  color: var(--muted);
-  margin-top: 4px;
-  font-size: 13px;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.profile-actions {
-  justify-content: center;
-}
-
-#profile-action-btn {
-  min-width: 150px;
-  justify-content: center;
-  display: inline-flex;
-  align-items: center;
-}
-
-.rank {
-  display: grid;
-  grid-template-columns: 34px 1fr auto;
-  gap: 12px;
-  align-items: center;
-}
-
-.rank-number {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: rgba(255,255,255,.08);
-  font-weight: 900;
-}
-
-label {
-  display: grid;
-  gap: 7px;
-  margin: 14px 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-input,
-select,
-textarea {
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: #07111f;
-  color: var(--text);
-  padding: 12px;
-  outline: none;
-  font-size: 16px;
-}
-
-input:disabled,
-select:disabled,
-textarea:disabled {
-  opacity: .72;
-  color: var(--muted);
-  -webkit-text-fill-color: var(--muted);
-}
-
-.hero-auth input {
-  width: 150px;
-  height: 34px;
-  padding: 0 10px;
-  border-radius: 10px;
-  background: rgba(2, 12, 28, 0.75);
-  font-size: 16px;
-}
-
-.comment-box {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.comment-box input {
-  flex: 1;
-}
-
-.comment {
-  color: var(--muted);
-  font-size: 13px;
-  padding-top: 6px;
-}
-
-.modal {
-  border: 0;
-  padding: 0;
-  border-radius: 24px;
-  background: transparent;
-  width: min(92vw, 480px);
-}
-
-.modal::backdrop {
-  background: rgba(0,0,0,.62);
-  backdrop-filter: blur(4px);
-}
-
-.modal-card {
-  background: var(--card);
-  color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 24px;
-  padding: 20px;
-  position: relative;
-}
-
-.close {
-  position: absolute;
-  right: 14px;
-  top: 12px;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  font-size: 28px;
-}
-
-@media (max-width: 800px) {
-  .app-shell {
-    padding: 10px;
-  }
-
-  .hero {
-    display: grid;
-    grid-template-columns: 1fr 1.6fr;
-    gap: 14px;
-    align-items: center;
-    padding: 18px;
-    border-radius: 24px;
-  }
-
-  .eyebrow {
-    font-size: 9px;
-  }
-
-  h1 {
-    font-size: 58px;
-    line-height: .85;
-    margin-bottom: 8px;
-  }
-
-  .tagline {
-    font-size: 11px;
-  }
-
-  .hero-auth {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .hero-auth input {
-    width: 100%;
-    height: 34px;
-    padding: 0 10px;
-    border-radius: 10px;
-    font-size: 16px;
-  }
-
-  .auth-actions {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 12px;
-    margin-top: 6px;
-    padding-top: 0;
-  }
-
-  .auth-actions button,
-  .hero-auth button {
-    width: 80px;
-    min-width: 80px;
-    height: 28px;
-    flex: 0 0 auto;
-    padding: 0;
-    border-radius: 9px;
-    font-size: 12px;
-    font-weight: 700;
-  }
-
-  .logged-in-box {
-    align-items: flex-end !important;
-    gap: 6px;
-  }
-
-  .logged-user {
-    align-items: flex-end;
-    text-align: right;
-  }
-
-  .logged-label {
-    font-size: 8px;
-  }
-
-  #current-user {
-    font-size: 10px;
-    white-space: nowrap;
-    overflow: visible;
-    text-overflow: unset;
-    max-width: none;
-  }
-
-  #logout-btn {
-    width: 60px;
-    min-width: 60px;
-    height: 24px;
-    align-self: flex-end !important;
-    font-size: 10px;
-  }
-
-  .tabs {
-    margin-top: 12px;
-  }
-
-  .tab {
-    font-size: 14px;
-    padding: 10px 14px;
-  }
-
-  .grid.two {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-@media (max-width: 380px) {
-  h1 {
-    font-size: 50px;
-  }
-
-  .hero {
-    grid-template-columns: 1fr 1.7fr;
-    gap: 10px;
-    padding: 14px;
-  }
-
-  .hero-auth input {
-    height: 32px;
-  }
-
-  .auth-actions {
-    gap: 10px;
-  }
-
-  .auth-actions button,
-  .hero-auth button {
-    width: 72px;
-    min-width: 72px;
-    height: 26px;
-    font-size: 11px;
-  }
-}
-/* iPhone Safari autofill prevention/fix */
-.hero-auth input,
-.hero-auth input:-webkit-autofill,
-.hero-auth input:-webkit-autofill:hover,
-.hero-auth input:-webkit-autofill:focus,
-.hero-auth input:-webkit-autofill:active {
-  height: 34px !important;
-  min-height: 34px !important;
-  max-height: 34px !important;
-
-  font-size: 16px !important;
-  line-height: normal !important;
-
-  padding: 0 10px !important;
-
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-
-  background: rgba(2, 12, 28, 0.75) !important;
-
-  box-shadow: 0 0 0 1000px #07111f inset !important;
-  -webkit-box-shadow: 0 0 0 1000px #07111f inset !important;
-
-  border: 1px solid rgba(255,255,255,0.12) !important;
-  border-radius: 10px !important;
-
-  transition: background-color 9999s ease-in-out 0s;
-}
-
-.hero-auth {
-  gap: 12px !important;
-}
-
-
-/* =========================================================
-   CLEAN VENUE + SPORTS STYLES
-   Keep this block at the bottom of style.css.
-   ========================================================= */
-
-/* Sports checkboxes */
-.checkbox-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 6px;
-  max-width: 100%;
-}
-
-.checkbox-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  width: auto;
-  margin: 0;
-  padding: 7px 10px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: rgba(255,255,255,0.05);
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.checkbox-item input {
-  width: auto;
-  margin: 0;
-  padding: 0;
-}
-
-/* Venue list cards */
-.venue-card {
-  width: 100%;
-  max-width: 100%;
-  overflow: hidden;
-  padding: 12px;
-}
-
-.venue-row {
-  width: 100%;
-  max-width: 100%;
-  display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
-  gap: 14px;
-  align-items: center;
-  overflow: hidden;
-}
-
-.venue-thumb {
-  width: 112px;
-  height: 112px;
-  min-width: 112px;
-  max-width: 112px;
-  border-radius: 18px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,0.06);
-}
-
-.venue-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-/* Text side */
-.venue-info {
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-}
-
-.venue-info .row {
-  width: 100%;
-  max-width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: start;
-  overflow: hidden;
-}
-
-.venue-info .row > div:first-child {
-  min-width: 0;
-  overflow: hidden;
-}
-
-.venue-info h3 {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.venue-info .meta {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.venue-info .pill {
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.venue-info .actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.venue-info .actions .small-btn,
-.venue-card .small-btn {
-  height: 22px;
-  min-height: 22px;
-  width: auto;
-  min-width: 0;
-  padding: 0 8px;
-  border-radius: 7px;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 22px;
-}
-
-/* Prevent page/card horizontal scroll */
-html,
-body,
-.app-shell,
-main,
-.view,
-.stack,
-.card {
-  max-width: 100%;
-}
-
-/* iPhone / mobile */
-@media (max-width: 800px) {
-  html,
-  body {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: hidden;
-  }
-
-  .app-shell {
-    width: 100%;
-    max-width: 100%;
-    padding-left: 10px;
-    padding-right: 10px;
-    overflow-x: hidden;
-  }
-
-  main,
-  .view,
-  #admin,
-  #venuesList,
-  #pendingMembersList {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: hidden;
-  }
-
-  #admin .card {
-    width: 100%;
-    max-width: 100%;
-    overflow: hidden;
-  }
-
-  #admin input,
-  #admin select,
-  #admin textarea {
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .venue-card {
-    padding: 10px;
-  }
-
-  .venue-row {
-    grid-template-columns: 82px minmax(0, 1fr);
-    gap: 10px;
-  }
-
-  .venue-thumb {
-    width: 82px;
-    height: 82px;
-    min-width: 82px;
-    max-width: 82px;
-    border-radius: 14px;
-  }
-
-  .venue-info h3 {
-    font-size: 17px;
-    line-height: 1.1;
-  }
-
-  .venue-info .meta {
-    font-size: 12px;
-    line-height: 1.25;
-    margin-top: 4px;
-  }
-
-  .venue-info .pill {
-    font-size: 10px;
-    padding: 4px 7px;
-  }
-
-  .venue-info .actions {
-    gap: 5px;
-    margin-top: 6px;
-  }
-
-  .venue-info .actions .small-btn,
-  .venue-card .small-btn {
-    height: 20px;
-    min-height: 20px;
-    padding: 0 6px;
-    border-radius: 6px;
-    font-size: 9px;
-    line-height: 20px;
-  }
-
-  .checkbox-list {
-    gap: 7px;
-  }
-
-  .checkbox-item {
-    padding: 6px 9px;
-    font-size: 12px;
-  }
-}
-
-/* Very small iPhones */
-@media (max-width: 380px) {
-  .venue-row {
-    grid-template-columns: 74px minmax(0, 1fr);
-    gap: 8px;
-  }
-
-  .venue-thumb {
-    width: 74px;
-    height: 74px;
-    min-width: 74px;
-    max-width: 74px;
-  }
-
-  .venue-info h3 {
-    font-size: 15px;
-  }
-
-  .venue-info .meta {
-    font-size: 11px;
-  }
-}
-/* === FIX SUPPORTED SPORTS CHECKBOX OVERLAP === */
-
-.checkbox-list {
-  display: grid !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  gap: 10px !important;
-  width: 100% !important;
-}
-
-.checkbox-item {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  gap: 8px !important;
-
-  width: 100% !important;
-  min-width: 0 !important;
-  height: 36px !important;
-
-  padding: 0 12px !important;
-  margin: 0 !important;
-
-  border: 1px solid var(--line) !important;
-  border-radius: 999px !important;
-  background: rgba(255,255,255,0.05) !important;
-
-  color: var(--text) !important;
-  font-size: 13px !important;
-  font-weight: 700 !important;
-
-  overflow: hidden !important;
-  white-space: nowrap !important;
-}
-
-.checkbox-item input[type="checkbox"] {
-  appearance: auto !important;
-  -webkit-appearance: checkbox !important;
-
-  width: 16px !important;
-  min-width: 16px !important;
-  max-width: 16px !important;
-
-  height: 16px !important;
-  min-height: 16px !important;
-  max-height: 16px !important;
-
-  margin: 0 !important;
-  padding: 0 !important;
-  flex: 0 0 16px !important;
-}
-/* === CLEAN SUPPORTED SPORTS CHIPS === */
-
-#venue-sports-options.checkbox-list {
-  display: grid !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  gap: 10px !important;
-  width: 100% !important;
-  max-width: 100% !important;
-}
-
-.sport-chip {
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-
-  width: 100% !important;
-  min-width: 0 !important;
-  height: 38px !important;
-
-  gap: 8px !important;
-  padding: 0 12px !important;
-  margin: 0 !important;
-
-  border: 1px solid var(--line) !important;
-  border-radius: 999px !important;
-  background: rgba(255,255,255,0.05) !important;
-
-  color: var(--text) !important;
-  font-size: 13px !important;
-  font-weight: 700 !important;
-
-  overflow: hidden !important;
-  white-space: nowrap !important;
-}
-
-.sport-chip input[type="checkbox"] {
-  appearance: auto !important;
-  -webkit-appearance: checkbox !important;
-
-  width: 16px !important;
-  min-width: 16px !important;
-  max-width: 16px !important;
-
-  height: 16px !important;
-  min-height: 16px !important;
-  max-height: 16px !important;
-
-  padding: 0 !important;
-  margin: 0 !important;
-
-  flex: 0 0 16px !important;
-}
-
-.sport-chip span {
-  display: block !important;
-  flex: 1 1 auto !important;
-  min-width: 0 !important;
-
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-}
-
-@media (max-width: 800px) {
-  #venue-sports-options.checkbox-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 9px !important;
-  }
-
-  .sport-chip {
-    height: 36px !important;
-    padding: 0 10px !important;
-    gap: 7px !important;
-    font-size: 12px !important;
-  }
-
-  .sport-chip input[type="checkbox"] {
-    width: 15px !important;
-    min-width: 15px !important;
-    max-width: 15px !important;
-    height: 15px !important;
-    min-height: 15px !important;
-    max-height: 15px !important;
-    flex: 0 0 15px !important;
-  }
-}
-.checkbox-item span {
-  min-width: 0 !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-}
-/* === VENUE SIDE ACTION COLUMN === */
-
-.venue-info {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr) auto !important;
-  gap: 10px !important;
-  align-items: start !important;
-}
-
-.venue-main {
-  min-width: 0 !important;
-  overflow: hidden !important;
-}
-
-.venue-side {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: flex-end !important;
-  gap: 6px !important;
-  min-width: 76px !important;
-}
-
-.venue-side .pill {
-  width: fit-content !important;
-  white-space: nowrap !important;
-}
-
-.venue-side .small-btn {
-  width: 76px !important;
-  height: 22px !important;
-  min-height: 22px !important;
-  padding: 0 !important;
-  border-radius: 7px !important;
-  font-size: 10px !important;
-  line-height: 22px !important;
-  text-align: center !important;
-}
-
-.venue-main h3,
-.venue-main .meta {
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-}
-
-@media (max-width: 800px) {
-  .venue-info {
-    grid-template-columns: minmax(0, 1fr) 68px !important;
-    gap: 7px !important;
-  }
-
-  .venue-side {
-    min-width: 68px !important;
-    gap: 5px !important;
-  }
-
-  .venue-side .small-btn {
-    width: 68px !important;
-    height: 20px !important;
-    min-height: 20px !important;
-    font-size: 8.5px !important;
-    line-height: 20px !important;
-  }
-
-  .venue-side .pill {
-    font-size: 9px !important;
-    padding: 3px 6px !important;
-  }
-}
-
-/* Make Active/Inactive label same width as Edit/Deactivate buttons */
-.venue-side {
-  align-items: stretch !important;
-}
-
-.venue-side .pill,
-.venue-side .small-btn {
-  width: 76px !important;
-  min-width: 76px !important;
-  max-width: 76px !important;
-  justify-content: center !important;
-  text-align: center !important;
-}
-
-@media (max-width: 800px) {
-  .venue-side .pill,
-  .venue-side .small-btn {
-    width: 68px !important;
-    min-width: 68px !important;
-    max-width: 68px !important;
-  }
-}
-.selected-vote {
-  background: rgba(36,209,126,.22) !important;
-  color: var(--accent) !important;
-  border-color: rgba(36,209,126,.65) !important;
-}
-
-.selected-vote-red {
-  background: rgba(255,95,103,.18) !important;
-  color: var(--danger) !important;
-  border-color: rgba(255,95,103,.6) !important;
-}
-
-.small-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-.selected-vote {
-  background: rgba(36,209,126,.22) !important;
-  color: var(--accent) !important;
-  border-color: rgba(36,209,126,.65) !important;
-}
-
-.selected-vote-red {
-  background: rgba(255,95,103,.18) !important;
-  color: var(--danger) !important;
-  border-color: rgba(255,95,103,.6) !important;
-}
-
-.small-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-/* === MATCH VOTE SELECTED STATE === */
-/* Add this block at the bottom of style.css */
-
-.selected-vote {
-  background: rgba(36,209,126,.22) !important;
-  color: var(--accent) !important;
-  border-color: rgba(36,209,126,.65) !important;
-}
-
-.selected-vote-red {
-  background: rgba(255,95,103,.18) !important;
-  color: var(--danger) !important;
-  border-color: rgba(255,95,103,.6) !important;
-}
-
-.small-btn:disabled {
-  opacity: 0.45 !important;
-  cursor: not-allowed !important;
-}
-
-/* === EXTERNAL PLAYERS MANAGEMENT === */
-/* Add this block to the bottom of style.css */
-
-.external-list {
-  margin-top: 8px;
-  display: grid;
-  gap: 6px;
-}
-
-.external-player-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-
-  padding: 6px 8px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255,255,255,0.04);
-}
-
-.external-player-row span {
-  flex: 1 1 auto;
-  min-width: 130px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.tiny-btn {
-  height: 22px;
-  min-height: 22px;
-  padding: 0 8px;
-  border-radius: 7px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,0.07);
-  color: var(--text);
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 22px;
-}
-
-.tiny-btn.danger {
-  color: var(--danger);
-  border-color: rgba(255,95,103,.45);
-  background: rgba(255,95,103,.10);
-}
-
-@media (max-width: 800px) {
-  .external-player-row {
-    gap: 5px;
-    padding: 6px;
-  }
-
-  .external-player-row span {
-    font-size: 11px;
-    min-width: 100px;
-  }
-
-  .tiny-btn {
-    height: 20px;
-    min-height: 20px;
-    padding: 0 6px;
-    font-size: 9px;
-    line-height: 20px;
-  }
-}
-
-
-/* === EXTERNAL PLAYER PICKER MODAL === */
-
-.external-picker-list {
-  max-height: 230px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.external-new-box {
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-}
-
-.disabled-chip {
-  opacity: .55;
-}
-
-.disabled-chip input {
-  cursor: not-allowed;
-}
-
-.external-list {
-  margin-top: 8px;
-  display: grid;
-  gap: 6px;
-}
-
-.external-player-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  padding: 6px 8px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255,255,255,0.04);
-}
-
-.external-player-row span {
-  flex: 1 1 auto;
-  min-width: 130px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.tiny-btn {
-  height: 22px;
-  min-height: 22px;
-  padding: 0 8px;
-  border-radius: 7px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,0.07);
-  color: var(--text);
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 22px;
-}
-
-.tiny-btn.danger {
-  color: var(--danger);
-  border-color: rgba(255,95,103,.45);
-  background: rgba(255,95,103,.10);
-}
-
-@media (max-width: 800px) {
-  .external-picker-list {
-    max-height: 210px;
-  }
-
-  .external-player-row {
-    gap: 5px;
-    padding: 6px;
-  }
-
-  .external-player-row span {
-    font-size: 11px;
-    min-width: 100px;
-  }
-
-  .tiny-btn {
-    height: 20px;
-    min-height: 20px;
-    padding: 0 6px;
-    font-size: 9px;
-    line-height: 20px;
-  }
-}
-
-
-/* === MATCH DATE/TIME AM-PM SELECTS === */
-.match-date-time-grid {
-  margin-top: 2px;
-}
-
-.match-date-time-grid label {
-  margin-top: 10px;
-  margin-bottom: 6px;
-}
-
-.ampm-time-row select {
-  cursor: pointer;
-}
-
-@media (max-width: 800px) {
-  .match-date-time-grid {
-    grid-template-columns: 1fr 1fr !important;
-    gap: 10px !important;
-  }
-}
-
-
-/* === MATCH DYNAMIC STATUS === */
-.pill.gold {
-  color: var(--gold);
-  background: rgba(255,209,102,.14);
-}
-
-
-/* === AM/PM SPLIT TIME SELECTORS === */
-.ampm-time-row {
-  display: grid;
-  grid-template-columns: minmax(52px, .8fr) auto minmax(52px, .8fr) minmax(68px, 1fr);
-  align-items: center;
-  gap: 6px;
-}
-
-.ampm-time-row span {
-  text-align: center;
-  color: var(--muted);
-  font-weight: 900;
-}
-
-.ampm-time-row select {
-  padding-left: 8px;
-  padding-right: 8px;
-  cursor: pointer;
-}
-
-@media (max-width: 800px) {
-  .ampm-time-row {
-    grid-template-columns: minmax(48px, .8fr) auto minmax(48px, .8fr) minmax(62px, 1fr);
-    gap: 5px;
-  }
-
-  .ampm-time-row select {
-    padding-left: 6px;
-    padding-right: 6px;
-    font-size: 15px;
-  }
-}
-
-
-/* === TEAM ASSIGNMENT === */
-.team-modal-card {
-  width: min(92vw, 620px);
-}
-
-.team-assignment-list {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
-  max-height: 330px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.team-player-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.04);
-}
-
-.team-player-name {
-  min-width: 0;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.team-choice {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.team-choice-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin: 0;
-  padding: 5px 7px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: rgba(255,255,255,.05);
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.team-choice-chip input {
-  width: 13px;
-  height: 13px;
-  margin: 0;
-  padding: 0;
-}
-
-.teams-summary {
-  margin-top: 10px;
-  display: grid;
-  gap: 6px;
-}
-
-.team-summary-row {
-  display: grid;
-  grid-template-columns: 90px minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-  padding: 7px 8px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255,255,255,.035);
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.team-summary-row strong {
-  color: var(--text);
-}
-
-.mini-pill {
-  display: inline-flex;
-  margin-left: 5px;
-  padding: 2px 5px;
-  border-radius: 999px;
-  background: rgba(49,168,255,.12);
-  color: var(--accent2);
-  font-size: 9px;
-  font-weight: 900;
-}
-
-@media (max-width: 800px) {
-  .team-player-row {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  .team-choice {
-    justify-content: flex-start;
-  }
-
-  .team-summary-row {
-    grid-template-columns: 1fr;
-    gap: 3px;
-  }
-}
-
-
-/* === TEAM BALANCE STATUS === */
-.team-balance-status {
-  margin-top: 10px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.05);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-  text-align: center;
-}
-
-.team-balance-status.balanced {
-  color: var(--accent);
-  border-color: rgba(36,209,126,.35);
-  background: rgba(36,209,126,.10);
-}
-
-.team-balance-status.unbalanced {
-  color: var(--danger);
-  border-color: rgba(255,95,103,.35);
-  background: rgba(255,95,103,.10);
-}
-
-
-/* === SCORE SUBMISSION === */
-.score-modal-card {
-  width: min(92vw, 560px);
-}
-
-.score-summary {
-  margin-top: 10px;
-  display: grid;
-  gap: 6px;
-}
-
-.score-summary-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 8px;
-  align-items: center;
-  padding: 7px 8px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255,255,255,.035);
-  font-size: 12px;
-}
-
-.score-summary-row strong {
-  color: var(--text);
-}
-
-.score-summary-row span {
-  color: var(--gold);
-  font-weight: 900;
-  font-size: 15px;
-}
-
-.score-summary-row em {
-  color: var(--muted);
-  font-style: normal;
-  text-transform: uppercase;
-  font-weight: 900;
-  font-size: 10px;
-}
-
-.score-notes {
-  padding: 7px 8px;
-  border-radius: 12px;
-  background: rgba(255,255,255,.03);
-  color: var(--muted);
-  font-size: 12px;
-}
-
-
-/* === SPORT-SPECIFIC SCORING === */
-.padel-set-grid {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) minmax(0, 1fr) 54px;
-  gap: 8px;
-  align-items: center;
-  margin-top: 8px;
-}
-
-.padel-set-grid input[type="number"] {
-  padding: 10px;
-}
-
-.padel-set-grid input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  margin: 0 auto;
-}
-
-.padel-set-head {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-  margin-top: 10px;
-}
-
-.score-preview {
-  margin-top: 10px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.05);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-  text-align: center;
-}
-
-.score-preview.balanced {
-  color: var(--accent);
-  border-color: rgba(36,209,126,.35);
-  background: rgba(36,209,126,.10);
-}
-
-.score-preview.unbalanced {
-  color: var(--danger);
-  border-color: rgba(255,95,103,.35);
-  background: rgba(255,95,103,.10);
-}
-
-.padel-score-summary {
-  padding: 7px 8px;
-  border-radius: 12px;
-  background: rgba(255,255,255,.03);
-  color: var(--muted);
-  font-size: 12px;
-  display: grid;
-  gap: 3px;
-}
-
-@media (max-width: 800px) {
-  .padel-set-grid {
-    grid-template-columns: 32px minmax(0, 1fr) minmax(0, 1fr) 46px;
-    gap: 6px;
-  }
-
-  .padel-set-grid input[type="number"] {
-    padding: 9px 7px;
-  }
-}
-
-
-/* === MATCH GAMES SCORING === */
-#padel-pending-game-label {
-  transition: opacity .15s ease;
-}
-
-.padel-score-summary strong {
-  color: var(--text);
-}
-
-
-/* === MULTI-GAME RESULT ACTIONS === */
-.score-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.score-actions button {
-  width: 100%;
-}
-
-@media (max-width: 800px) {
-  .score-actions {
-    grid-template-columns: 1fr;
-  }
-}
-
-
-/* === RESULT EDITING / DELETE GAME === */
-.danger-btn {
-  border-color: rgba(255,95,103,.45) !important;
-  color: var(--danger) !important;
-  background: rgba(255,95,103,.10) !important;
-}
-
-
-/* === POINTS SUMMARY === */
-.points-summary {
-  margin-top: 10px;
-  display: grid;
-  gap: 6px;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255,255,255,.035);
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.points-summary > strong {
-  color: var(--text);
-}
-
-.points-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-}
-
-.points-row span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.points-row b {
-  color: var(--gold);
-  font-size: 13px;
-}
-
-
-/* === LEAGUE SELECTOR === */
-#match-league-label {
-  transition: opacity .15s ease;
-}
-
-
-/* === LEAGUE STANDINGS === */
-.league-card {
-  gap: 12px;
-}
-
-.league-standings {
-  margin-top: 10px;
-  display: grid;
-  gap: 5px;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.035);
-}
-
-.league-standings-title {
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 900;
-  margin-bottom: 3px;
-}
-
-.league-standings-head,
-.league-standings-row {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 52px 70px;
-  gap: 8px;
-  align-items: center;
-  font-size: 12px;
-}
-
-.compact-standings .league-standings-head,
-.compact-standings .league-standings-row {
-  grid-template-columns: minmax(0, 1fr) 40px 40px 40px;
-}
-
-.league-standings-head {
-  color: var(--muted);
-  font-weight: 900;
-  text-transform: uppercase;
-  font-size: 10px;
-}
-
-.league-standings-row {
-  color: var(--muted);
-  padding-top: 4px;
-  border-top: 1px solid rgba(255,255,255,.06);
-}
-
-.league-standings-row span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.league-standings-row strong {
-  color: var(--gold);
-}
-
-.league-standings-empty {
-  margin-top: 10px;
-  padding: 8px;
-  border: 1px dashed var(--line);
-  border-radius: 12px;
-  color: var(--muted);
-  font-size: 12px;
-  background: rgba(255,255,255,.025);
-}
-
-@media (max-width: 800px) {
-  .league-standings-head,
-  .league-standings-row {
-    grid-template-columns: 24px minmax(0, 1fr) 42px 58px;
-    gap: 6px;
-    font-size: 11px;
-  }
-
-  .compact-standings .league-standings-head,
-  .compact-standings .league-standings-row {
-    grid-template-columns: minmax(0, 1fr) 34px 34px 34px;
-  }
-}
-
-
-/* === REAL RANKINGS === */
-.filters-card {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: rgba(255,255,255,.035);
-}
-
-.ranking-summary-card {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-
-.ranking-summary-card strong {
-  display: block;
-  color: var(--gold);
-  font-size: 20px;
-  margin-top: 3px;
-}
-
-.rankings-table-card {
-  display: grid;
-  gap: 0;
-  overflow: hidden;
-}
-
-.rankings-table-head,
-.rankings-table-row {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 58px 58px 76px;
-  gap: 8px;
-  align-items: center;
-  padding: 8px 0;
-}
-
-.rankings-table-head {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 900;
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--line);
-}
-
-.rankings-table-row {
-  color: var(--muted);
-  font-size: 13px;
-  border-bottom: 1px solid rgba(255,255,255,.06);
-}
-
-.rankings-table-row:last-child {
-  border-bottom: 0;
-}
-
-.rankings-table-row span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.rankings-table-row strong {
-  color: var(--gold);
-}
-
-.rankings-table-row em {
-  display: inline-flex;
-  margin-left: 5px;
-  padding: 2px 5px;
-  border-radius: 999px;
-  background: rgba(49,168,255,.12);
-  color: var(--accent2);
-  font-size: 9px;
-  font-style: normal;
-  font-weight: 900;
-}
-
-.rank-number-mini {
-  color: var(--text);
-  font-weight: 900;
-}
-
-@media (max-width: 800px) {
-  .filters-card {
-    grid-template-columns: 1fr;
-  }
-
-  .ranking-summary-card {
-    grid-template-columns: 1fr;
-  }
-
-  .rankings-table-head,
-  .rankings-table-row {
-    grid-template-columns: 28px minmax(0, 1fr) 48px 44px 58px;
-    gap: 6px;
-    font-size: 11px;
-  }
-}
-
-
-/* === LEAGUE MANAGEMENT === */
-.danger-text-btn {
-  color: var(--danger) !important;
-  border-color: rgba(255,95,103,.35) !important;
-}
-
-
-/* === SPORT PROFILES / RATINGS === */
-.sport-rating-list {
-  display: grid;
-  gap: 8px;
-}
-
-.sport-rating-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 90px minmax(120px, 1fr) auto;
-  gap: 8px;
-  align-items: end;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.035);
-}
-
-.sport-rating-row strong {
-  color: var(--text);
-  display: inline-block;
-  margin-right: 5px;
-}
-
-.rating-pill {
-  display: inline-flex;
-  margin-left: 6px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: rgba(255,209,102,.12);
-  color: var(--gold);
-  font-size: 10px;
-  font-weight: 900;
-}
-
-.team-rating-status {
-  margin-top: 8px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.05);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-  text-align: center;
-}
-
-.team-rating-status.balanced {
-  color: var(--accent);
-  border-color: rgba(36,209,126,.35);
-  background: rgba(36,209,126,.10);
-}
-
-.team-rating-status.unbalanced {
-  color: var(--danger);
-  border-color: rgba(255,95,103,.35);
-  background: rgba(255,95,103,.10);
-}
-
-@media (max-width: 800px) {
-  .sport-rating-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-
-/* === SOCCER FORMATIONS === */
-.formation-choice {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-  margin-top: 8px;
-}
-
-.formation-choice select {
-  max-width: 120px;
-  min-height: 36px;
-  padding: 7px 9px;
-}
-
-.captain-select-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  padding: 7px 10px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: rgba(255,255,255,.05);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.captain-select-label input {
-  width: auto;
-  margin: 0;
-}
-
-.formation-status {
-  margin-top: 8px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.05);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-  text-align: center;
-}
-
-.formation-status.balanced {
-  color: var(--accent);
-  border-color: rgba(36,209,126,.35);
-  background: rgba(36,209,126,.10);
-}
-
-.formation-status.unbalanced {
-  color: var(--danger);
-  border-color: rgba(255,95,103,.35);
-  background: rgba(255,95,103,.10);
-}
-
-
-.captain-select-label select {
-  min-height: 34px;
-  padding: 6px 9px;
-  margin-top: 4px;
-}
-
-
-/* === POSITION-SPECIFIC RANKINGS === */
-.position-rating-inputs {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(64px, 1fr));
-  gap: 6px;
-}
-
-.position-rating-inputs label {
-  font-size: 10px;
-}
-
-.position-ranking-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.position-ranking-box {
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.035);
-}
-
-.position-ranking-title {
-  color: var(--gold);
-  font-weight: 900;
-  margin-bottom: 6px;
-}
-
-.position-ranking-row {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto 42px;
-  gap: 5px;
-  align-items: center;
-  padding: 5px 0;
-  border-top: 1px solid rgba(255,255,255,.06);
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.position-ranking-row strong {
-  color: var(--text);
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.position-ranking-row b {
-  color: var(--gold);
-}
-
-.position-ranking-row em {
-  font-size: 8px;
-  font-style: normal;
-  color: var(--accent2);
-}
-
-.mini-section-head {
-  margin-bottom: 8px;
-}
-
-@media (max-width: 900px) {
-  .position-ranking-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .position-rating-inputs {
-    grid-template-columns: repeat(2, minmax(64px, 1fr));
-  }
-}
-
-
-/* === STANDARDIZED PREFERRED POSITION SELECT === */
-.sport-rating-row select.sport-position-input {
-  min-height: 38px;
-  padding: 8px 10px;
-}
-
-
-/* === TEAM CAPTAIN SELECTORS === */
-.captain-selectors {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 8px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.035);
-}
-
-.captain-selectors select {
-  min-height: 38px;
-  padding: 8px 10px;
-}
-
-@media (max-width: 800px) {
-  .captain-selectors {
-    grid-template-columns: 1fr;
-  }
-}
-
-
-/* === COMPACT TEAM POINTS === */
-.points-summary .points-row b {
-  white-space: nowrap;
-}
-
-
-/* === RATING CHANGE AUDIT === */
-.rating-changes-summary {
-  margin-top: 10px;
-  display: grid;
-  gap: 6px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.035);
-}
-
-.rating-changes-summary > strong {
-  color: var(--text);
-  font-size: 13px;
-}
-
-.rating-change-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-  padding-top: 6px;
-  border-top: 1px solid rgba(255,255,255,.06);
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.rating-change-row span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.rating-change-row small {
-  display: inline-flex;
-  margin-left: 5px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: rgba(255,209,102,.12);
-  color: var(--gold);
-  font-size: 9px;
-  font-weight: 900;
-}
-
-.rating-change-row em {
-  display: inline-flex;
-  margin-left: 5px;
-  padding: 2px 5px;
-  border-radius: 999px;
-  background: rgba(49,168,255,.12);
-  color: var(--accent2);
-  font-size: 8px;
-  font-style: normal;
-  font-weight: 900;
-}
-
-.rating-change-row b {
-  white-space: nowrap;
-  font-size: 12px;
-}
-
-.rating-change-row b.positive {
-  color: var(--accent);
-}
-
-.rating-change-row b.negative {
-  color: var(--danger);
-}
-
-@media (max-width: 700px) {
-  .rating-change-row {
-    grid-template-columns: 1fr;
-  }
-
-  .rating-change-row b {
-    white-space: normal;
-  }
-}
-
-
-/* === INLINE TEAM RESULTS === */
-.enhanced-team-summary-row {
-  align-items: flex-start;
-}
-
-.team-summary-main {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.team-result-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.05);
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: capitalize;
-}
-
-.team-result-pill.win {
-  color: var(--accent);
-  border-color: rgba(36,209,126,.35);
-  background: rgba(36,209,126,.10);
-}
-
-.team-result-pill.loss {
-  color: var(--danger);
-  border-color: rgba(255,95,103,.35);
-  background: rgba(255,95,103,.10);
-}
-
-.team-result-pill.draw {
-  color: var(--gold);
-  border-color: rgba(255,209,102,.35);
-  background: rgba(255,209,102,.10);
-}
-
-.team-members-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  justify-content: flex-start;
-  text-align: left;
-}
-
-.team-player-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.team-player-chip em {
-  display: inline-flex;
-  padding: 2px 5px;
-  border-radius: 999px;
-  background: rgba(49,168,255,.12);
-  color: var(--accent2);
-  font-size: 8px;
-  font-style: normal;
-  font-weight: 900;
-}
-
-.compact-score-summary {
-  margin-top: 8px;
-}
-
-@media (max-width: 700px) {
-  .team-members-line {
-    justify-content: flex-start;
-  }
-}
-
-
-/* === TEAM POINTS RIGHT SIDE === */
-.enhanced-team-summary-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-}
-
-.team-summary-left {
-  min-width: 0;
-  display: grid;
-  gap: 6px;
-}
-
-.team-points-earned {
-  justify-self: end;
-  white-space: nowrap;
-  padding: 5px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,209,102,.35);
-  background: rgba(255,209,102,.10);
-  color: var(--gold);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-@media (max-width: 700px) {
-  .enhanced-team-summary-row {
-    grid-template-columns: 1fr;
-  }
-
-  .team-points-earned {
-    justify-self: start;
-  }
-}
-
-
-/* === TEAM MEMBER NAMES LEFT === */
-.team-members-line {
-  justify-content: flex-start !important;
-  text-align: left;
-}
-
-
-/* === CAPTAIN FORMATION EDIT MODE === */
-.formation-position-select:disabled,
-.team-choice input:disabled + span,
-#team-a-captain:disabled,
-#team-b-captain:disabled,
-#team-a-name:disabled,
-#team-b-name:disabled {
-  opacity: .55;
-  cursor: not-allowed;
-}
-
-.team-player-row:has(.formation-position-select:disabled) {
-  opacity: .75;
-}
-
-
-/* === SORTED TEAM PLAYERS === */
-.team-player-chip small {
-  display: inline-flex;
-  padding: 2px 5px;
-  border-radius: 999px;
-  background: rgba(255,209,102,.12);
-  color: var(--gold);
-  font-size: 8px;
-  font-weight: 900;
-}
-
-.team-player-chip b {
-  display: inline-flex;
-  padding: 2px 5px;
-  border-radius: 999px;
-  background: rgba(36,209,126,.12);
-  color: var(--accent);
-  font-size: 8px;
-  font-weight: 900;
-}
-
-.team-player-row-A {
-  border-left: 3px solid rgba(36,209,126,.45);
-}
-
-.team-player-row-B {
-  border-left: 3px solid rgba(49,168,255,.45);
-}
-
-.team-player-row-unassigned {
-  border-left: 3px solid rgba(255,255,255,.14);
-}
-
-
-/* === TEAM GROUPED FORMATION EDIT === */
-.team-assignment-group {
-  display: grid;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.team-assignment-group-title {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: center;
-  padding: 7px 10px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.045);
-  color: var(--text);
-  font-weight: 900;
-  font-size: 13px;
-}
-
-.team-assignment-group-title em {
-  color: var(--muted);
-  font-style: normal;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.team-assignment-group-title-A {
-  border-color: rgba(36,209,126,.30);
-}
-
-.team-assignment-group-title-B {
-  border-color: rgba(49,168,255,.30);
-}
-
-.team-assignment-group-title-unassigned {
-  border-color: rgba(255,255,255,.14);
-}
-
-@media (max-width: 700px) {
-  .team-assignment-group-title {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-}
-
-
-/* === PLAYER RATING HISTORY === */
-.sport-rating-actions {
-  display: flex;
-  gap: 6px;
-  align-items: end;
-  flex-wrap: wrap;
-}
-
-.rating-history-list {
-  display: grid;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.rating-history-position-group {
-  display: grid;
-  gap: 6px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.035);
-}
-
-.rating-history-position-title {
-  color: var(--gold);
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.rating-history-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  padding-top: 7px;
-  border-top: 1px solid rgba(255,255,255,.06);
-}
-
-.rating-history-row div {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.rating-history-row strong {
-  color: var(--text);
-  overflow-wrap: anywhere;
-}
-
-.rating-history-row span,
-.rating-history-row em {
-  color: var(--muted);
-  font-size: 11px;
-  font-style: normal;
-}
-
-.rating-history-row b {
-  white-space: nowrap;
-  font-size: 12px;
-}
-
-.rating-history-row b.positive {
-  color: var(--accent);
-}
-
-.rating-history-row b.negative {
-  color: var(--danger);
-}
-
-@media (max-width: 700px) {
-  .rating-history-row {
-    grid-template-columns: 1fr;
-  }
-
-  .rating-history-row b {
-    white-space: normal;
-  }
-}
-
-
-/* === LEAGUE DASHBOARD === */
-.league-dashboard-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(260px, .85fr);
-  gap: 12px;
-  align-items: start;
-}
-
-.league-player-head,
-.league-player-row {
-  grid-template-columns: 32px minmax(120px, 1fr) 44px 74px 64px 86px !important;
-}
-
-.league-team-head,
-.league-team-row {
-  grid-template-columns: minmax(120px, 1fr) 40px 40px 40px 40px !important;
-}
-
-.league-player-row .positive,
-.league-history-row .positive,
-.league-position-row b {
-  color: var(--accent);
-  font-weight: 900;
-}
-
-.league-player-row .negative {
-  color: var(--danger);
-  font-weight: 900;
-}
-
-.league-position-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.league-position-box {
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.035);
-}
-
-.league-position-title {
-  color: var(--gold);
-  font-size: 13px;
-  font-weight: 900;
-  margin-bottom: 6px;
-}
-
-.league-position-row {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 44px;
-  gap: 6px;
-  align-items: center;
-  padding-top: 5px;
-  border-top: 1px solid rgba(255,255,255,.06);
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.league-position-row strong {
-  color: var(--text);
-  overflow-wrap: anywhere;
-}
-
-.league-history {
-  display: grid;
-  gap: 8px;
-}
-
-.league-history-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.035);
-}
-
-.league-history-row > div:first-child {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.league-history-row strong {
-  color: var(--text);
-  overflow-wrap: anywhere;
-}
-
-.league-history-row span,
-.league-history-row em {
-  color: var(--muted);
-  font-size: 11px;
-  font-style: normal;
-}
-
-.league-history-score {
-  text-align: right;
-  display: grid;
-  gap: 2px;
-}
-
-.league-history-score b {
-  color: var(--gold);
-  white-space: nowrap;
-}
-
-@media (max-width: 950px) {
-  .league-dashboard-grid,
-  .league-position-grid,
-  .league-history-row {
-    grid-template-columns: 1fr;
-  }
-
-  .league-history-score {
-    text-align: left;
-  }
-
-  .league-player-head,
-  .league-player-row {
-    grid-template-columns: 28px minmax(100px, 1fr) 34px 62px 52px 72px !important;
-    font-size: 11px;
-  }
-}
-
-
-/* === RATING HISTORY CLOSE BUTTON FIX === */
-#ratingHistoryModal .modal-head {
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding-right: 46px;
-}
-
-#ratingHistoryModal .modal-close-btn {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 34px;
-  height: 34px;
-  min-width: 34px;
-  min-height: 34px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  font-size: 22px;
-  line-height: 1;
-  font-weight: 900;
-  z-index: 2;
-}
-
-#ratingHistoryModal .modal-close-btn:hover {
-  transform: scale(1.04);
-}
-
-
-/* === VOTE TIME CONFLICT WARNING === */
-.conflict-warning {
-  color: var(--danger) !important;
-  font-weight: 900;
-}
-
-
-/* === SOCCER-SPECIFIC TEAM BALANCE === */
-#team-rating-status {
-  line-height: 1.35;
-}
-
-
-/* === SUGGESTED SOCCER FORMATION SUMMARY === */
-.suggested-formation-summary {
-  margin-top: 8px;
-  padding: 10px;
-  border: 1px solid rgba(255,209,102,.30);
-  border-radius: 14px;
-  background: rgba(255,209,102,.075);
-}
-
-.suggested-formation-title {
-  color: var(--gold);
-  font-weight: 900;
-  font-size: 13px;
-  margin-bottom: 8px;
-}
-
-.suggested-formation-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.suggested-formation-team {
-  display: grid;
-  gap: 6px;
-  padding: 8px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.035);
-}
-
-.suggested-formation-team > strong {
-  color: var(--text);
-  font-size: 13px;
-}
-
-.suggested-formation-row {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-  padding-top: 5px;
-  border-top: 1px solid rgba(255,255,255,.06);
-}
-
-.suggested-formation-row span {
-  color: var(--gold);
-  font-weight: 900;
-  font-size: 11px;
-}
-
-.suggested-formation-row b {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-  overflow-wrap: anywhere;
-}
-
-@media (max-width: 800px) {
-  .suggested-formation-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-
-/* === SUGGESTED FORMATION TOTALS === */
-.suggested-team-totals {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255,209,102,.20);
-  display: grid;
-  gap: 4px;
-}
-
-.suggested-team-totals-title {
-  color: var(--text);
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.suggested-total-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 54px;
-  gap: 8px;
-  align-items: center;
-  font-size: 11px;
-}
-
-.suggested-total-row span {
-  color: var(--muted);
-  font-weight: 800;
-}
-
-.suggested-total-row b {
-  color: var(--gold);
-  text-align: right;
-  font-weight: 900;
-}
-
-.suggested-total-row.hybrid {
-  margin-top: 2px;
-}
-
-.suggested-total-row.hybrid span,
-.suggested-total-row.hybrid b {
-  color: var(--accent);
-}
-
-
-/* === SMART MATCH BADGES === */
-.smart-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 8px 0;
-}
-
-.smart-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.055);
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.smart-badge.success {
-  border-color: rgba(36,209,126,.35);
-  background: rgba(36,209,126,.10);
-  color: var(--accent);
-}
-
-.smart-badge.danger {
-  border-color: rgba(255,95,103,.35);
-  background: rgba(255,95,103,.10);
-  color: var(--danger);
-}
-
-.smart-badge.gold {
-  border-color: rgba(255,209,102,.35);
-  background: rgba(255,209,102,.10);
-  color: var(--gold);
-}
-
-.smart-badge.blue {
-  border-color: rgba(49,168,255,.35);
-  background: rgba(49,168,255,.10);
-  color: var(--accent2);
-}
-
-
-/* === FINALIZED MATCH LOCKING === */
-.small-btn.locked-result-btn {
-  border-color: rgba(49,168,255,.35);
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#07111f" />
+  <title>ABA | AUB Bros Arena</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css?v=116" />
+</head>
+
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div class="brand">
+        <p class="eyebrow">AUB Bros Arena</p>
+        <h1>ABA</h1>
+        <p class="tagline">Prove it. Earn it. Climb.</p>
+      </div>
+
+      <div class="hero-auth" id="auth-logged-out">
+        <input
+          id="auth-email"
+          type="text"
+          inputmode="email"
+          placeholder="Email"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="none"
+          spellcheck="false"
+          readonly
+          onfocus="this.removeAttribute('readonly');"
+        >
+
+        <input
+          id="auth-password"
+          type="password"
+          placeholder="Password"
+          autocomplete="new-password"
+          autocorrect="off"
+          autocapitalize="none"
+          spellcheck="false"
+          readonly
+          onfocus="this.removeAttribute('readonly');"
+        >
+
+        <div class="auth-actions">
+          <button id="login-btn" class="primary-btn" type="button">Login</button>
+          <button id="signup-btn" class="secondary-btn" type="button">Sign Up</button>
+        </div>
+      </div>
+
+      <div class="hero-auth logged-in-box" id="auth-logged-in" style="display:none;">
+        <div class="logged-user">
+          <span class="logged-label">Logged in as</span>
+          <span id="current-user"></span>
+        </div>
+
+        <button id="logout-btn" class="secondary-btn" type="button">Log Out</button>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="Main navigation">
+      <button class="tab active" data-view="dashboard">Home</button>
+      <button class="tab" data-view="leagues">Leagues</button>
+      <button class="tab" data-view="matches">Matches</button>
+      <button class="tab" data-view="activities">Proof</button>
+      <button class="tab" data-view="rankings">Ranks</button>
+      <button class="tab auth-only" data-view="account" style="display:none;">Account</button>
+      <button class="tab admin-only" data-view="admin" style="display:none;">Admin</button>
+    </nav>
+
+    <main>
+      <section id="dashboard" class="view active-view">
+        <div class="section-head">
+          <h2>Arena Feed</h2>
+          <span id="todayLabel"></span>
+        </div>
+
+        <div class="grid two">
+          <article class="card stat-card">
+            <span>Verified Activities</span>
+            <strong id="verifiedCount">0</strong>
+          </article>
+
+          <article class="card stat-card">
+            <span>Pending Proofs</span>
+            <strong id="pendingCount">0</strong>
+          </article>
+        </div>
+
+        <div id="feedList" class="stack"></div>
+      </section>
+
+      <section id="leagues" class="view">
+        <div class="section-head">
+          <h2>Leagues</h2>
+          <button class="primary-btn" data-open="leagueModal" type="button">+ League</button>
+        </div>
+
+        <div id="leagueList" class="stack"></div>
+      </section>
+
+      <section id="matches" class="view">
+        <div class="section-head">
+          <h2>Friendly & League Matches</h2>
+          <button class="primary-btn" data-open="matchModal" type="button">+ Match</button>
+        </div>
+
+        <div id="matchList" class="stack"></div>
+      </section>
+
+      <section id="activities" class="view">
+        <div class="section-head">
+          <h2>Activity Proof</h2>
+          <button class="primary-btn" data-open="activityModal" type="button">+ Submit</button>
+        </div>
+
+        <p class="hint">Activities need 2 committee approvals before points are added.</p>
+        <div id="activityList" class="stack"></div>
+      </section>
+
+      <section id="rankings" class="view">
+        <div class="section-head">
+          <div>
+            <h2>ABA Rankings</h2>
+            <p class="hint">Based on finalized match points.</p>
+          </div>
+          <span class="pill">Live points</span>
+        </div>
+
+        <div class="filters-card">
+          <label>
+            Sport
+            <select id="rank-sport-filter">
+              <option value="all">All sports</option>
+            </select>
+          </label>
+
+          <label>
+            League
+            <select id="rank-league-filter">
+              <option value="all">All leagues</option>
+            </select>
+          </label>
+
+          <label>
+            Player type
+            <select id="rank-player-type-filter">
+              <option value="all">All players</option>
+              <option value="members">Members only</option>
+              <option value="external">External only</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="rankingList" class="stack"></div>
+      </section>
+
+      <section id="account" class="view">
+        <div class="section-head">
+          <div>
+            <h2>My Profile</h2>
+            <p class="hint" id="profile-status">Login to load your profile.</p>
+          </div>
+        </div>
+
+        <div class="card profile-card">
+          <label>
+            First Name
+            <input id="profile-first-name" type="text" disabled>
+          </label>
+
+          <label>
+            Last Name
+            <input id="profile-last-name" type="text" disabled>
+          </label>
+
+          <label>
+            Display Name
+            <input id="profile-display-name" type="text" disabled>
+          </label>
+
+          <label>
+            Birth Date
+            <input id="profile-birth-date" type="date" disabled>
+          </label>
+
+          <label>
+            Phone
+            <input id="profile-phone" type="tel" disabled>
+          </label>
+
+          <div class="actions profile-actions">
+            <button id="profile-action-btn" class="primary-btn" type="button">
+              Edit Profile
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section id="admin" class="view">
+        <div class="section-head">
+          <div>
+            <h2>Admin Review</h2>
+            <p class="hint">Review pending member profiles.</p>
+          </div>
+        </div>
+
+        <div id="pendingMembersList" class="stack"></div>
+
+        <div class="section-head">
+          <div>
+            <h2>Sport Ratings</h2>
+            <p class="hint">Set player ratings by sport for future team suggestions.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <label>
+            Sport
+            <select id="rating-sport-filter">
+              <option value="">Select sport</option>
+            </select>
+          </label>
+
+          <div id="sportRatingList" class="sport-rating-list">
+            Select a sport to edit ratings.
+          </div>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <h2>Venue Management</h2>
+            <p class="hint">Add venues and choose the sports supported by each venue.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <label>
+            Venue Name
+            <input id="venue-name" type="text" placeholder="The Padict Club">
+          </label>
+
+          <label>
+            Address
+            <input id="venue-address" type="text" placeholder="Beirut, Lebanon">
+          </label>
+
+          <label>
+            Google Maps Link
+            <input id="venue-google-maps-url" type="url" placeholder="https://maps.google.com/...">
+          </label>
+
+          <label>
+            Image URL
+            <input id="venue-image-url" type="url" placeholder="https://...">
+          </label>
+
+          <label>
+            Supported Sports
+            <div id="venue-sports-options" class="checkbox-list">
+              Loading sports...
+            </div>
+          </label>
+
+          <div class="actions">
+            <button id="add-venue-btn" class="primary-btn" type="button">
+              Add Venue
+            </button>
+
+            <button id="cancel-venue-edit-btn" class="secondary-btn" type="button">
+              Cancel
+            </button>
+          </div>
+        </div>
+
+        <div id="venuesList" class="stack"></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="leagueModal" class="modal">
+    <form method="dialog" id="leagueForm" class="modal-card">
+      <button class="close" value="cancel" type="submit">×</button>
+      <h3>Create League</h3>
+
+      <label>
+        League name
+        <input name="name" required placeholder="ABA Padel League" />
+      </label>
+
+      <label>
+        Sport
+        <select name="sport_id" id="league-sport" required>
+          <option value="">Select sport</option>
+        </select>
+      </label>
+
+      <label>
+        Format
+        <input name="format" placeholder="Doubles, 5v5, round robin..." />
+      </label>
+
+      <label>
+        Status
+        <select name="status" id="league-status">
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+        </select>
+      </label>
+
+      <div class="grid two">
+        <label>
+          Start date optional
+          <input name="start_date" type="date" />
+        </label>
+
+        <label>
+          End date optional
+          <input name="end_date" type="date" />
+        </label>
+      </div>
+
+      <button class="primary-btn full" type="submit">Create League</button>
+    </form>
+  </dialog>
+
+ <dialog id="matchModal" class="modal">
+  <form method="dialog" id="matchForm" class="modal-card">
+    <button class="close" value="cancel" type="submit">×</button>
+    <h3>Create Match</h3>
+
+    <label>
+      Sport
+      <select name="sport_id" id="match-sport" required>
+        <option value="">Select sport</option>
+      </select>
+    </label>
+
+    <label>
+      Venue
+      <select name="venue_id" id="match-venue" required>
+        <option value="">Select venue</option>
+      </select>
+    </label>
+
+    <label>
+      Title
+      <input name="title" required placeholder="Wolf & Fox vs Pigs" />
+    </label>
+
+    <label>
+      Match Type
+      <select name="match_type" id="match-type">
+        <option value="friendly">Friendly</option>
+        <option value="league">League</option>
+      </select>
+    </label>
+
+    <label id="match-league-label" style="display:none;">
+      League
+      <select name="league_id" id="match-league">
+        <option value="">Select league</option>
+      </select>
+    </label>
+
+    <label>
+      Required players
+      <input name="required_players" type="number" min="1" value="4" required />
+    </label>
+
+    <div class="grid two match-date-time-grid">
+      <label>
+        Start date
+        <input id="match-start-date" type="date" required />
+      </label>
+
+      <label>
+        Start time
+        <div class="ampm-time-row">
+          <select id="match-start-hour" required></select>
+          <span>:</span>
+          <select id="match-start-minute" required></select>
+          <select id="match-start-ampm" required>
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+      </label>
+    </div>
+
+    <div class="grid two match-date-time-grid">
+      <label>
+        End date
+        <input id="match-end-date" type="date" required />
+      </label>
+
+      <label>
+        End time
+        <div class="ampm-time-row">
+          <select id="match-end-hour" required></select>
+          <span>:</span>
+          <select id="match-end-minute" required></select>
+          <select id="match-end-ampm" required>
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+      </label>
+    </div>
+
+    <label>
+      Invite Players
+      <div id="match-invite-options" class="checkbox-list">
+        Loading members...
+      </div>
+    </label>
+
+    <label>
+      Notes
+      <input name="notes" placeholder="Optional notes..." />
+    </label>
+
+    <button class="primary-btn full" type="submit">Create Match</button>
+  </form>
+</dialog>
+
+
+  <dialog id="externalPlayerModal" class="modal">
+    <form method="dialog" id="externalPlayerForm" class="modal-card">
+      <button class="close" value="cancel" type="submit">×</button>
+      <h3>Add External Players</h3>
+
+      <p class="hint" id="external-player-match-label">
+        Select existing external players, or create a new external profile.
+      </p>
+
+      <label>
+        Existing External Players
+        <div id="external-player-options" class="checkbox-list external-picker-list">
+          Loading external players...
+        </div>
+      </label>
+
+      <div class="actions">
+        <button id="add-selected-external-btn" class="primary-btn" type="button">
+          Add Selected
+        </button>
+      </div>
+
+      <div class="external-new-box">
+        <h3>New External Player</h3>
+
+        <label>
+          Display name
+          <input id="new-external-name" type="text" placeholder="Joe">
+        </label>
+
+        <label>
+          Phone optional
+          <input id="new-external-phone" type="tel" placeholder="+961...">
+        </label>
+
+        <label>
+          Email optional
+          <input id="new-external-email" type="email" placeholder="joe@example.com">
+        </label>
+
+        <button id="create-external-player-btn" class="secondary-btn full" type="button">
+          Create External Profile
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+
+  <dialog id="teamModal" class="modal">
+    <form method="dialog" id="teamForm" class="modal-card team-modal-card">
+      <button class="close" value="cancel" type="submit">×</button>
+      <h3>Assign Teams</h3>
+
+      <p class="hint" id="team-match-label">
+        Assign IN players to teams.
+      </p>
+
+      <div class="grid two">
+        <label>
+          Team A name
+          <input id="team-a-name" type="text" value="Team A">
+        </label>
+
+        <label>
+          Team B name
+          <input id="team-b-name" type="text" value="Team B">
+        </label>
+      </div>
+
+      <div id="team-assignment-list" class="team-assignment-list">
+        Loading players...
+      </div>
+
+      <div id="team-balance-status" class="team-balance-status">
+        Team A: 0 • Team B: 0
+      </div>
+
+      <div id="team-rating-status" class="team-rating-status">
+        Ratings: Team A 0 • Team B 0
+      </div>
+
+      <div id="formation-status" class="formation-status">
+        Formation: assign teams first.
+      </div>
+
+      <div id="suggested-formation-summary" class="suggested-formation-summary" style="display:none;"></div>
+
+      <div id="captain-selectors" class="captain-selectors" style="display:none;">
+        <label>
+          Team A Captain
+          <select id="team-a-captain">
+            <option value="">Select captain</option>
+          </select>
+        </label>
+
+        <label>
+          Team B Captain
+          <select id="team-b-captain">
+            <option value="">Select captain</option>
+          </select>
+        </label>
+      </div>
+
+      <button id="suggest-teams-btn" class="secondary-btn full" type="button">
+        Suggest Balanced Teams / Formation
+      </button>
+
+      <button id="save-teams-btn" class="primary-btn full" type="button">
+        Save Teams
+      </button>
+    </form>
+  </dialog>
+
+
+  <dialog id="scoreModal" class="modal">
+    <form method="dialog" id="scoreForm" class="modal-card score-modal-card">
+      <button class="close" value="cancel" type="submit">×</button>
+      <h3>Add Result</h3>
+
+      <p class="hint" id="score-match-label">
+        Enter the final score.
+      </p>
+
+      <div id="simple-score-section">
+        <div class="grid two">
+          <label>
+            <span id="score-team-a-label">Team A score</span>
+            <input id="score-team-a" type="number" min="0" step="1" value="0">
+          </label>
+
+          <label>
+            <span id="score-team-b-label">Team B score</span>
+            <input id="score-team-b" type="number" min="0" step="1" value="0">
+          </label>
+        </div>
+      </div>
+
+      <div id="padel-score-section" style="display:none;">
+        <p class="hint">
+          A match is the booking/session. Inside it, add a new game or continue a pending game.
+        </p>
+
+        <div class="grid two">
+          <label>
+            Game action
+            <select id="padel-game-mode">
+              <option value="new">New Game</option>
+              <option value="continue">Edit / Continue Game</option>
+            </select>
+          </label>
+
+          <label id="padel-pending-game-label" style="display:none;">
+            Existing / Pending Game
+            <select id="padel-pending-game"></select>
+          </label>
+        </div>
+
+        <label>
+          Game title
+          <input id="padel-game-title" type="text" placeholder="Game 1">
+        </label>
+
+        <p class="hint">
+          Each padel game is best of 3 sets. Valid completed sets include 6-0 to 6-4, 7-5, 7-6 tie-break, or 8-6 / 9-7 advantage sets.
+        </p>
+
+        <div class="padel-set-grid padel-set-head">
+          <span>Set</span>
+          <span id="padel-team-a-head">Team A</span>
+          <span id="padel-team-b-head">Team B</span>
+          <span>Done</span>
+        </div>
+
+        <div id="padel-set-list">
+          <div class="padel-set-grid">
+            <span>1</span>
+            <input id="padel-set-1-a" type="number" min="0" step="1" value="">
+            <input id="padel-set-1-b" type="number" min="0" step="1" value="">
+            <input id="padel-set-1-completed" type="checkbox">
+          </div>
+
+          <div class="padel-set-grid">
+            <span>2</span>
+            <input id="padel-set-2-a" type="number" min="0" step="1" value="">
+            <input id="padel-set-2-b" type="number" min="0" step="1" value="">
+            <input id="padel-set-2-completed" type="checkbox">
+          </div>
+
+          <div class="padel-set-grid">
+            <span>3</span>
+            <input id="padel-set-3-a" type="number" min="0" step="1" value="">
+            <input id="padel-set-3-b" type="number" min="0" step="1" value="">
+            <input id="padel-set-3-completed" type="checkbox">
+          </div>
+        </div>
+
+        <div id="padel-score-preview" class="score-preview">
+          Sets: 0 - 0
+        </div>
+      </div>
+
+      <label>
+        Match summary / notes
+        <textarea id="score-summary" rows="4" placeholder="Optional match summary..."></textarea>
+      </label>
+
+      <div class="actions score-actions">
+        <button id="save-game-btn" class="secondary-btn" type="button">
+          Save Game
+        </button>
+
+        <button id="delete-game-btn" class="secondary-btn danger-btn" type="button">
+          Delete Game
+        </button>
+
+        <button id="save-score-btn" class="primary-btn" type="button">
+          Finalize Match Result
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="activityModal" class="modal">
+    <form method="dialog" id="activityForm" class="modal-card">
+      <button class="close" value="cancel" type="submit">×</button>
+      <h3>Submit Activity Proof</h3>
+
+      <label>Player
+        <input name="player" required placeholder="Ali" />
+      </label>
+
+      <label>Sport
+        <select name="sport">
+          <option>Padel</option>
+          <option>Soccer</option>
+          <option>Gym</option>
+          <option>Running</option>
+          <option>Cycling</option>
+        </select>
+      </label>
+
+      <label>Activity
+        <input name="activity" required placeholder="90 min padel session" />
+      </label>
+
+      <label>Proof link / note
+        <input name="proof" placeholder="Photo, watch screenshot, GPS link..." />
+      </label>
+
+      <label>Points
+        <input name="points" type="number" min="1" value="10" />
+      </label>
+
+      <button class="primary-btn full" type="submit">Submit for Approval</button>
+    </form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js?v=116"></script>
+
+<dialog id="ratingHistoryModal" class="modal wide-modal">
+  <form method="dialog" class="modal-card">
+    <div class="modal-head">
+      <div>
+        <h3 id="rating-history-title">Rating History</h3>
+        <p id="rating-history-subtitle" class="hint">Position rating changes by match.</p>
+      </div>
+      <button class="icon-btn modal-close-btn" value="cancel" aria-label="Close rating history">×</button>
+    </div>
+
+    <div class="grid two">
+      <label>
+        Position
+        <select id="rating-history-position-filter">
+          <option value="all">All positions</option>
+          <option value="GK">GK</option>
+          <option value="DEF">DEF</option>
+          <option value="MID">MID</option>
+          <option value="ATT">ATT</option>
+        </select>
+      </label>
+
+      <label>
+        Sort
+        <select id="rating-history-sort">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="ratingHistoryList" class="rating-history-list">
+      Select a player to view history.
+    </div>
+  </form>
+</dialog>
+
+</body>
+</html>
