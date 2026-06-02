@@ -6,6 +6,23 @@ const $ = (id) => document.getElementById(id);
 
 const STORAGE_KEY = "aba_phase1_data";
 
+
+function cleanUuidValue(value) {
+  if (value === null || value === undefined) return null;
+
+  const text = String(value).trim();
+
+  if (!text || text.toLowerCase() === "null" || text.toLowerCase() === "undefined") {
+    return null;
+  }
+
+  return text;
+}
+
+function isValidUuidValue(value) {
+  return Boolean(cleanUuidValue(value));
+}
+
 function futureDate(days, hour) {
   const d = new Date();
   d.setDate(d.getDate() + days);
@@ -847,7 +864,7 @@ function renderSportRatingManager() {
   const box = $("sportRatingList");
   if (!box) return;
 
-  const sportId = $("rating-sport-filter")?.value || "";
+  const sportId = cleanUuidValue($("rating-sport-filter")?.value) || "";
   const selectedSport = (allSports || []).find(sport => sport.id === sportId);
   const isSoccer = String(selectedSport?.name || "").toLowerCase().includes("soccer") ||
     String(selectedSport?.name || "").toLowerCase().includes("football");
@@ -4780,44 +4797,67 @@ function pointBreakdownForResult(result) {
 async function saveMatchMemberPoints(match) {
   if (!match?.id) return false;
 
-  const inInvitations = inPlayerInvitations(match);
+  const matchId = cleanUuidValue(match.id);
+  const sportId = cleanUuidValue(match.sport_id);
 
-  if (!inInvitations.length) {
+  if (!matchId || !sportId) {
+    alert("Cannot save points: match or sport id is missing.");
+    return false;
+  }
+
+  const inInvitations = inPlayerInvitations(match);
+  const uniqueInvitationsByMember = new Map();
+
+  inInvitations.forEach(inv => {
+    const memberId = cleanUuidValue(inv?.member_id);
+
+    if (memberId && !uniqueInvitationsByMember.has(memberId)) {
+      uniqueInvitationsByMember.set(memberId, {
+        ...inv,
+        member_id: memberId
+      });
+    }
+  });
+
+  const uniqueInvitations = Array.from(uniqueInvitationsByMember.values());
+
+  if (!uniqueInvitations.length) {
     console.warn("No IN players found for points calculation.");
     return true;
   }
 
-  const { error: deleteError } = await supabaseClient
-    .from("match_member_points")
-    .delete()
-    .eq("match_id", match.id);
-
-  if (deleteError) {
-    alert(deleteError.message);
-    return false;
-  }
-
-  const rows = inInvitations.map(inv => {
-    const memberId = inv.member_id;
+  const rows = uniqueInvitations.map(inv => {
+    const memberId = cleanUuidValue(inv.member_id);
     const playerTeam = teamResultForMember(match, memberId);
     const points = pointBreakdownForResult(playerTeam.result);
 
     return {
-      match_id: match.id,
+      match_id: matchId,
       member_id: memberId,
-      sport_id: match.sport_id,
+      sport_id: sportId,
       base_points: points.basePoints,
       difficulty_factor: points.difficultyFactor,
       consistency_bonus: points.consistencyBonus
     };
-  });
+  }).filter(row =>
+    isValidUuidValue(row.match_id) &&
+    isValidUuidValue(row.member_id) &&
+    isValidUuidValue(row.sport_id)
+  );
 
-  const { error: insertError } = await supabaseClient
+  if (!rows.length) {
+    console.warn("No valid point rows to save.");
+    return true;
+  }
+
+  const { error: upsertError } = await supabaseClient
     .from("match_member_points")
-    .insert(rows);
+    .upsert(rows, {
+      onConflict: "match_id,member_id"
+    });
 
-  if (insertError) {
-    alert(insertError.message);
+  if (upsertError) {
+    alert(upsertError.message);
     return false;
   }
 
@@ -4972,9 +5012,20 @@ function currentPositionRatingRow(memberId, sportId, positionName) {
 }
 
 async function applyPositionRatingDelta(memberId, sportId, positionName, delta, gamesDelta) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  const cleanSportId = cleanUuidValue(sportId);
   const cleanPosition = normalizeSoccerPosition(positionName);
-  const existing = currentPositionRatingRow(memberId, sportId, cleanPosition);
-  const ratingBefore = Number(existing?.rating || positionRatingForMember(memberId, sportId, cleanPosition) || 5);
+
+  if (!cleanMemberId || !cleanSportId || !cleanPosition) {
+    console.warn("Skipping invalid position rating row:", { memberId, sportId, positionName });
+    return {
+      ok: true,
+      skipped: true
+    };
+  }
+
+  const existing = currentPositionRatingRow(cleanMemberId, cleanSportId, cleanPosition);
+  const ratingBefore = Number(existing?.rating || positionRatingForMember(cleanMemberId, cleanSportId, cleanPosition) || 5);
   const currentGames = Number(existing?.games_played || 0);
 
   const ratingAfter = clampNumber(ratingBefore + Number(delta || 0), 1, 10);
@@ -4983,8 +5034,8 @@ async function applyPositionRatingDelta(memberId, sportId, positionName, delta, 
   const { error } = await supabaseClient
     .from("member_sport_position_ratings")
     .upsert({
-      member_id: memberId,
-      sport_id: sportId,
+      member_id: cleanMemberId,
+      sport_id: cleanSportId,
       position_name: cleanPosition,
       rating: Number(ratingAfter.toFixed(2)),
       games_played: nextGamesPlayed,
@@ -5011,8 +5062,16 @@ async function applyPositionRatingDelta(memberId, sportId, positionName, delta, 
 
 
 async function setPositionRatingValue(memberId, sportId, positionName, ratingValue, gamesDelta) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  const cleanSportId = cleanUuidValue(sportId);
   const cleanPosition = normalizeSoccerPosition(positionName);
-  const existing = currentPositionRatingRow(memberId, sportId, cleanPosition);
+
+  if (!cleanMemberId || !cleanSportId || !cleanPosition) {
+    console.warn("Skipping invalid position rating rollback row:", { memberId, sportId, positionName });
+    return true;
+  }
+
+  const existing = currentPositionRatingRow(cleanMemberId, cleanSportId, cleanPosition);
   const currentGames = Number(existing?.games_played || 0);
   const nextGamesPlayed = Math.max(0, currentGames + Number(gamesDelta || 0));
   const nextRating = clampNumber(Number(ratingValue || 5), 1, 10);
@@ -5020,8 +5079,8 @@ async function setPositionRatingValue(memberId, sportId, positionName, ratingVal
   const { error } = await supabaseClient
     .from("member_sport_position_ratings")
     .upsert({
-      member_id: memberId,
-      sport_id: sportId,
+      member_id: cleanMemberId,
+      sport_id: cleanSportId,
       position_name: cleanPosition,
       rating: Number(nextRating.toFixed(2)),
       games_played: nextGamesPlayed,
@@ -5123,15 +5182,22 @@ async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, result
 
     if (!result?.ok) return false;
 
-    adjustmentRows.push({
-      match_id: match.id,
-      member_id: row.member_id,
-      sport_id: row.sport_id,
-      position_name: row.position_name,
-      adjustment: Number(Number(row.adjustment || 0).toFixed(3)),
-      rating_before: Number(Number(result.ratingBefore).toFixed(2)),
-      rating_after: Number(Number(result.ratingAfter).toFixed(2))
-    });
+    const cleanMatchId = cleanUuidValue(match.id);
+    const cleanMemberId = cleanUuidValue(row.member_id);
+    const cleanSportId = cleanUuidValue(row.sport_id);
+    const cleanPosition = normalizeSoccerPosition(row.position_name);
+
+    if (cleanMatchId && cleanMemberId && cleanSportId && cleanPosition && !result?.skipped) {
+      adjustmentRows.push({
+        match_id: cleanMatchId,
+        member_id: cleanMemberId,
+        sport_id: cleanSportId,
+        position_name: cleanPosition,
+        adjustment: Number(Number(row.adjustment || 0).toFixed(3)),
+        rating_before: Number(Number(result.ratingBefore).toFixed(2)),
+        rating_after: Number(Number(result.ratingAfter).toFixed(2))
+      });
+    }
   }
 
   const { error } = await supabaseClient
