@@ -1549,7 +1549,12 @@ function leagueSportMatchesSelection(leagueId, sportId) {
 
 
 function isCancelledMatch(match) {
-  return getMatchDisplayStatus(match) === "cancelled" || match?.status === "cancelled";
+  const status = String(match?.status || "").toLowerCase();
+  const scoreStatus = String(match?.score_status || "").toLowerCase();
+
+  return status === "cancelled" ||
+    scoreStatus === "cancelled" ||
+    getMatchDisplayStatus(match) === "cancelled";
 }
 
 function isLeagueCountableMatch(match) {
@@ -1566,21 +1571,21 @@ function leagueMatches(leagueId) {
 function leagueCompletedGames(leagueId) {
   const gamesById = new Map();
 
-  (allMatches || []).forEach(match => {
-    if (!isLeagueCountableMatch(match)) return;
+  leagueMatches(leagueId)
+    .filter(match => !isCancelledMatch(match))
+    .forEach(match => {
+      (match.match_game_sessions || []).forEach(session => {
+        const game = session.match_games;
 
-    (match.match_game_sessions || []).forEach(session => {
-      const game = session.match_games;
-
-      if (
-        game?.id &&
-        game.league_id === leagueId &&
-        game.status === "completed"
-      ) {
-        gamesById.set(game.id, game);
-      }
+        if (
+          game?.id &&
+          game.league_id === leagueId &&
+          String(game.status || "").toLowerCase() === "completed"
+        ) {
+          gamesById.set(game.id, game);
+        }
+      });
     });
-  });
 
   return Array.from(gamesById.values());
 }
@@ -1725,38 +1730,84 @@ function leaguePlayerStandings(leagueId) {
 function leagueTeamGameStandings(leagueId) {
   const table = new Map();
 
-  leagueCompletedGames(leagueId).forEach(game => {
-    const teamAName = game.team_a_name || "Team A";
-    const teamBName = game.team_b_name || "Team B";
+  function ensureTeam(name) {
+    const cleanName = name || "Team";
 
-    if (!table.has(teamAName)) {
-      table.set(teamAName, { name: teamAName, played: 0, wins: 0, losses: 0, draws: 0 });
+    if (!table.has(cleanName)) {
+      table.set(cleanName, {
+        name: cleanName,
+        played: 0,
+        wins: 0,
+        losses: 0,
+        draws: 0
+      });
     }
 
-    if (!table.has(teamBName)) {
-      table.set(teamBName, { name: teamBName, played: 0, wins: 0, losses: 0, draws: 0 });
-    }
+    return table.get(cleanName);
+  }
 
-    const teamA = table.get(teamAName);
-    const teamB = table.get(teamBName);
+  leagueMatches(leagueId)
+    .filter(match => !isCancelledMatch(match))
+    .forEach(match => {
+      const { teamA, teamB } = getTwoMatchTeams(match);
 
-    teamA.played += 1;
-    teamB.played += 1;
+      // Padel can contain several completed games inside one booking.
+      if (isPadelMatch(match)) {
+        matchSessionGames(match)
+          .filter(game =>
+            game?.id &&
+            String(game.status || "").toLowerCase() === "completed" &&
+            String(game.status || "").toLowerCase() !== "cancelled"
+          )
+          .forEach(game => {
+            const teamAName = game.team_a_name || teamA?.name || "Team A";
+            const teamBName = game.team_b_name || teamB?.name || "Team B";
 
-    if (game.winner_team === "A") {
-      teamA.wins += 1;
-      teamB.losses += 1;
-    } else if (game.winner_team === "B") {
-      teamB.wins += 1;
-      teamA.losses += 1;
-    } else {
-      teamA.draws += 1;
-      teamB.draws += 1;
-    }
-  });
+            const rowA = ensureTeam(teamAName);
+            const rowB = ensureTeam(teamBName);
+
+            rowA.played += 1;
+            rowB.played += 1;
+
+            if (game.winner_team === "A") {
+              rowA.wins += 1;
+              rowB.losses += 1;
+            } else if (game.winner_team === "B") {
+              rowB.wins += 1;
+              rowA.losses += 1;
+            } else {
+              rowA.draws += 1;
+              rowB.draws += 1;
+            }
+          });
+
+        return;
+      }
+
+      // Soccer/simple sports: count the finalized booking result once.
+      if (!hasSubmittedScore(match) || !teamA || !teamB) return;
+
+      const rowA = ensureTeam(teamA.name || "Team A");
+      const rowB = ensureTeam(teamB.name || "Team B");
+
+      rowA.played += 1;
+      rowB.played += 1;
+
+      if (teamA.result === "win") {
+        rowA.wins += 1;
+        rowB.losses += 1;
+      } else if (teamB.result === "win") {
+        rowB.wins += 1;
+        rowA.losses += 1;
+      } else {
+        rowA.draws += 1;
+        rowB.draws += 1;
+      }
+    });
 
   return Array.from(table.values()).sort((a, b) =>
     b.wins - a.wins ||
+    b.draws - a.draws ||
     a.losses - b.losses ||
     a.name.localeCompare(b.name)
   );
