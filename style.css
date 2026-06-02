@@ -3490,3 +3490,128 @@ main,
   overflow-wrap: anywhere;
   line-height: 1.25;
 }
+
+
+/* === WIDER GAME STATS SECTION + SCORE TITLE FORMAT === */
+.match-card > .match-formation-section,
+.card > .match-formation-section,
+.match-formation-section {
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0;
+  margin-right: 0;
+  display: block;
+}
+
+.match-formation-body {
+  width: 100% !important;
+  max-width: none !important;
+  padding: 12px;
+}
+
+.match-formation-body .teams-summary {
+  width: 100% !important;
+  max-width: none !important;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.match-formation-body .team-summary-row {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.match-formation-toggle {
+  width: 100%;
+  padding: 11px 13px;
+  border-radius: 0;
+  background:
+    linear-gradient(90deg, rgba(36,209,126,.12), rgba(49,168,255,.08)),
+    rgba(255,255,255,.045);
+}
+
+.game-stats-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  line-height: 1.25;
+  font-weight: 900;
+  letter-spacing: .01em;
+}
+
+.game-stats-label {
+  color: var(--gold);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: .08em;
+  font-weight: 950;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,209,102,.28);
+  background: rgba(255,209,102,.08);
+}
+
+.game-stats-team {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.game-stats-score {
+  min-width: 30px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #06111f;
+  background: linear-gradient(90deg, var(--accent), var(--gold));
+  font-size: 17px;
+  font-weight: 950;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.10) inset;
+}
+
+.game-stats-dash {
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.match-formation-toggle > b {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--gold);
+  font-size: 13px;
+}
+
+@media (min-width: 760px) {
+  .match-formation-body .teams-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .game-stats-title {
+    gap: 5px;
+  }
+
+  .game-stats-label {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .game-stats-team {
+    font-size: 13px;
+  }
+
+  .game-stats-score {
+    min-width: 26px;
+    height: 25px;
+    font-size: 15px;
+  }
+}
