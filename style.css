@@ -2925,3 +2925,26 @@ main,
     padding: 8px;
   }
 }
+
+
+/* === MATCH FILTERS === */
+.match-filters-card {
+  margin-bottom: 14px;
+  align-items: end;
+}
+
+.match-filters-card input,
+.match-filters-card select {
+  width: 100%;
+}
+
+.match-filters-card #match-filter-reset {
+  align-self: end;
+  min-height: 42px;
+}
+
+@media (max-width: 900px) {
+  .match-filters-card {
+    grid-template-columns: 1fr;
+  }
+}
