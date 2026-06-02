@@ -1992,7 +1992,7 @@ main,
   padding: 7px 9px;
 }
 
-.captain-chip {
+.captain-select-label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2006,7 +2006,7 @@ main,
   font-weight: 800;
 }
 
-.captain-chip input {
+.captain-select-label input {
   width: auto;
   margin: 0;
 }
@@ -2033,4 +2033,11 @@ main,
   color: var(--danger);
   border-color: rgba(255,95,103,.35);
   background: rgba(255,95,103,.10);
+}
+
+
+.captain-select-label select {
+  min-height: 34px;
+  padding: 6px 9px;
+  margin-top: 4px;
 }
