@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=102" />
+  <link rel="stylesheet" href="style.css?v=103" />
 </head>
 
 <body>
@@ -684,6 +684,44 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=102"></script>
+  <script src="app.js?v=103"></script>
+
+<dialog id="ratingHistoryModal" class="modal wide-modal">
+  <form method="dialog" class="modal-card">
+    <div class="modal-head">
+      <div>
+        <h3 id="rating-history-title">Rating History</h3>
+        <p id="rating-history-subtitle" class="hint">Position rating changes by match.</p>
+      </div>
+      <button class="icon-btn" value="cancel">×</button>
+    </div>
+
+    <div class="grid two">
+      <label>
+        Position
+        <select id="rating-history-position-filter">
+          <option value="all">All positions</option>
+          <option value="GK">GK</option>
+          <option value="DEF">DEF</option>
+          <option value="MID">MID</option>
+          <option value="ATT">ATT</option>
+        </select>
+      </label>
+
+      <label>
+        Sort
+        <select id="rating-history-sort">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="ratingHistoryList" class="rating-history-list">
+      Select a player to view history.
+    </div>
+  </form>
+</dialog>
+
 </body>
 </html>
