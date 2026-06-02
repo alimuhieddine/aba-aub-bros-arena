@@ -3847,164 +3847,6 @@ function resetMatchFilters() {
   renderMatches();
 }
 
-
-const MATCH_SECTION_DEFAULTS = {
-  details: true,
-  players: false,
-  teams: true,
-  ratings: false,
-  notes: false
-};
-
-function matchSectionStorageKey(matchId, sectionKey) {
-  return `match_section_${matchId}_${sectionKey}`;
-}
-
-function isMatchSectionOpen(matchId, sectionKey) {
-  const saved = localStorage.getItem(matchSectionStorageKey(matchId, sectionKey));
-
-  if (saved === "open") return true;
-  if (saved === "closed") return false;
-
-  return Boolean(MATCH_SECTION_DEFAULTS[sectionKey]);
-}
-
-function toggleMatchSection(matchId, sectionKey) {
-  const nextOpen = !isMatchSectionOpen(matchId, sectionKey);
-
-  localStorage.setItem(
-    matchSectionStorageKey(matchId, sectionKey),
-    nextOpen ? "open" : "closed"
-  );
-
-  renderMatches();
-}
-
-function renderMatchSection(matchId, sectionKey, title, contentHtml) {
-  const content = String(contentHtml || "").trim();
-
-  if (!content) return "";
-
-  const open = isMatchSectionOpen(matchId, sectionKey);
-
-  return `
-    <div class="match-info-section ${open ? "open" : "closed"}">
-      <button class="match-info-toggle" type="button" onclick="toggleMatchSection('${matchId}', '${sectionKey}')">
-        <span>${escapeHtml(title)}</span>
-        <b>${open ? "▼" : "▶"}</b>
-      </button>
-
-      ${
-        open
-          ? `<div class="match-info-body">${content}</div>`
-          : ""
-      }
-    </div>
-  `;
-}
-
-function renderMatchInfoSections(match) {
-  const displayStatus = getMatchDisplayStatus(match);
-  const votingOpen = isVotingOpenForMatch(match);
-  const matchEditable = isMatchEditable(match);
-  const counts = invitationCounts(match);
-  const externalInvitations = externalPlayerInvitations(match);
-  const externalCount = externalInvitations.length;
-  const filledCount = counts.inCount;
-  const invitation = myInvitation(match);
-  const isCreator = String(match.created_by || "") === String(currentProfile?.id || "");
-  const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
-  const maxPlayers = Number(match.max_players || 0);
-  const spotsLabel = maxPlayers
-    ? `${filledCount}/${maxPlayers} filled`
-    : `${filledCount} filled`;
-  const isFull = maxPlayers && filledCount >= maxPlayers;
-  const userIsIn = currentVoteStatus === "in";
-  const conflictingVoteMatch = !userIsIn && votingOpen ? voteInTimeConflict(match) : null;
-
-  const detailsHtml = `
-    ${
-      match.league_id
-        ? `<div class="meta">🏆 League: ${escapeHtml(leagueNameForId(match.league_id) || "Linked league")}</div>`
-        : ""
-    }
-
-    <div class="meta">
-      Time: ${fmtDate(match.start_time)} → ${fmtDate(match.end_time)}
-    </div>
-
-    <div class="meta">
-      📍 ${escapeHtml(match.venues?.name || "-")}
-      ${match.venues?.address ? "— " + escapeHtml(match.venues.address) : ""}
-    </div>
-
-    ${
-      match.venues?.google_maps_url
-        ? `<div class="meta"><a href="${escapeHtml(match.venues.google_maps_url)}" target="_blank">Open Map</a></div>`
-        : ""
-    }
-  `;
-
-  const playersHtml = `
-    <div class="meta">
-      Players: ${spotsLabel}
-      • IN: ${counts.inCount}
-      • External: ${externalCount}
-      • Maybe: ${counts.maybeCount}
-      • Out: ${counts.outCount}
-      • Invited: ${counts.invitedCount}
-    </div>
-
-    <div class="meta">
-      IN players: ${inPlayerNames(match).length ? escapeHtml(inPlayerNames(match).join(", ")) : "-"}
-    </div>
-
-    ${
-      conflictingVoteMatch
-        ? `<div class="meta conflict-warning">Time conflict with: ${escapeHtml(conflictingVoteMatch.title || "another match")}</div>`
-        : ""
-    }
-
-    ${
-      externalCount && canManageMatch(match) && matchEditable
-        ? `<div class="meta"><button class="tiny-btn" onclick="openExternalPlayersModal('${match.id}')">Manage external players</button></div>`
-        : ""
-    }
-
-    ${
-      isFull
-        ? `<div class="meta">Match is full.</div>`
-        : ""
-    }
-  `;
-
-  const teamsHtml = `
-    ${renderTeamsSummary(match)}
-    ${renderScoreSummary(match)}
-    ${renderPointsSummary(match)}
-  `;
-
-  const ratingHtml = renderRatingChanges(match);
-
-  const notesHtml = `
-    ${
-      match.notes
-        ? `<div class="meta">${escapeHtml(match.notes)}</div>`
-        : ""
-    }
-  `;
-
-  return `
-    <div class="match-info-sections">
-      ${renderMatchSection(match.id, "details", "Match details", detailsHtml)}
-      ${renderMatchSection(match.id, "players", "Players & invitations", playersHtml)}
-      ${renderMatchSection(match.id, "teams", "Teams & result", teamsHtml)}
-      ${renderMatchSection(match.id, "ratings", "Rating changes", ratingHtml)}
-      ${renderMatchSection(match.id, "notes", "Notes", notesHtml)}
-    </div>
-  `;
-}
-
 function renderMatches() {
   if (!$("matchList")) return;
 
@@ -4059,9 +3901,73 @@ function renderMatches() {
               • ${fmtDate(match.start_time)}
             </div>
 
+            ${
+              match.league_id
+                ? `<div class="meta">🏆 League: ${escapeHtml(leagueNameForId(match.league_id) || "Linked league")}</div>`
+                : ""
+            }
+
+            <div class="meta">
+              Time: ${fmtDate(match.start_time)} → ${fmtDate(match.end_time)}
+            </div>
+
+            <div class="meta">
+              📍 ${escapeHtml(match.venues?.name || "-")}
+              ${match.venues?.address ? "— " + escapeHtml(match.venues.address) : ""}
+            </div>
+
             ${renderSmartBadges(match)}
 
-            ${renderMatchInfoSections(match)}
+            <div class="meta">
+              Players: ${spotsLabel}
+              • IN: ${counts.inCount}
+              • External: ${externalCount}
+              • Maybe: ${counts.maybeCount}
+              • Out: ${counts.outCount}
+              • Invited: ${counts.invitedCount}
+            </div>
+
+            <div class="meta">
+              IN players: ${inPlayerNames(match).length ? escapeHtml(inPlayerNames(match).join(", ")) : "-"}
+            </div>
+
+            ${
+              conflictingVoteMatch
+                ? `<div class="meta conflict-warning">Time conflict with: ${escapeHtml(conflictingVoteMatch.title || "another match")}</div>`
+                : ""
+            }
+
+            ${renderTeamsSummary(match)}
+
+            ${renderScoreSummary(match)}
+
+            ${renderPointsSummary(match)}
+
+            ${renderRatingChanges(match)}
+
+            ${
+              externalCount && canManageMatch(match) && matchEditable
+                ? `<div class="meta"><button class="tiny-btn" onclick="openExternalPlayersModal('${match.id}')">Manage external players</button></div>`
+                : ""
+            }
+
+            ${
+              isFull
+                ? `<div class="meta">Match is full.</div>`
+                : ""
+            }
+
+            ${
+              match.venues?.google_maps_url
+                ? `<div class="meta"><a href="${escapeHtml(match.venues.google_maps_url)}" target="_blank">Open Map</a></div>`
+                : ""
+            }
+
+            ${
+              match.notes
+                ? `<div class="meta">${escapeHtml(match.notes)}</div>`
+                : ""
+            }
           </div>
 
           <span class="pill ${getMatchStatusClass(displayStatus, isFull)}">
@@ -4119,6 +4025,14 @@ function renderMatches() {
                   canSubmitScore(match)
                     ? `<button class="small-btn" onclick="openScoreSubmission('${match.id}')">
                         ${hasSubmittedScore(match) ? "Edit Locked Result" : "Add Result"}
+                      </button>`
+                    : ""
+                }
+
+                ${
+                  hasSubmittedScore(match)
+                    ? `<button class="small-btn" onclick="recalculateMatchAll('${match.id}')">
+                        Recalculate
                       </button>`
                     : ""
                 }
@@ -6029,6 +5943,205 @@ function getTwoMatchTeams(match) {
     teamA: teams[0] || null,
     teamB: teams[1] || null
   };
+}
+
+async 
+function finalizedRecalculableMatches() {
+  return (allMatches || []).filter(match =>
+    !isCancelledMatch(match) &&
+    hasSubmittedScore(match)
+  );
+}
+
+function scoreContextForMatch(match) {
+  const { teamA, teamB } = getTwoMatchTeams(match);
+
+  if (!teamA || !teamB) return null;
+
+  const scoreA = Number(teamA.score || 0);
+  const scoreB = Number(teamB.score || 0);
+
+  return {
+    teamA,
+    teamB,
+    scoreA,
+    scoreB,
+    resultA: teamA.result || (scoreA > scoreB ? "win" : scoreA < scoreB ? "loss" : "draw"),
+    resultB: teamB.result || (scoreB > scoreA ? "win" : scoreB < scoreA ? "loss" : "draw")
+  };
+}
+
+async function recalculateMatchPoints(match, showAlert = true) {
+  if (!canManageMatch(match) && !isCurrentUserAdmin()) {
+    alert("Only the match creator or admin can recalculate this match.");
+    return false;
+  }
+
+  if (isCancelledMatch(match) || !hasSubmittedScore(match)) {
+    if (showAlert) alert("Only finalized, non-cancelled matches can be recalculated.");
+    return false;
+  }
+
+  const saved = await saveMatchMemberPoints(match);
+
+  if (!saved) return false;
+
+  if (showAlert) {
+    alert("Match points recalculated.");
+    await loadMatches();
+  }
+
+  return true;
+}
+
+async function recalculateMatchSoccerRatings(match, showAlert = true) {
+  if (!canManageMatch(match) && !isCurrentUserAdmin()) {
+    alert("Only the match creator or admin can recalculate this match.");
+    return false;
+  }
+
+  if (isCancelledMatch(match) || !hasSubmittedScore(match)) {
+    if (showAlert) alert("Only finalized, non-cancelled matches can be recalculated.");
+    return false;
+  }
+
+  if (!isSoccerMatch(match)) {
+    if (showAlert) alert("Soccer rating recalculation applies only to soccer/football matches.");
+    return true;
+  }
+
+  const context = scoreContextForMatch(match);
+
+  if (!context) {
+    if (showAlert) alert("Assign teams and submit a result before recalculating soccer ratings.");
+    return false;
+  }
+
+  const saved = await saveSoccerPositionRatingAdjustments(
+    match,
+    context.scoreA,
+    context.scoreB,
+    context.resultA,
+    context.resultB
+  );
+
+  if (!saved) return false;
+
+  if (showAlert) {
+    alert("Soccer ratings recalculated.");
+    await loadMatches();
+  }
+
+  return true;
+}
+
+async function recalculateMatchAll(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  const ok = confirm("Recalculate points and soccer ratings for this finalized match?");
+  if (!ok) return;
+
+  const pointsOk = await recalculateMatchPoints(match, false);
+  if (!pointsOk) return;
+
+  const ratingsOk = await recalculateMatchSoccerRatings(match, false);
+  if (!ratingsOk) return;
+
+  alert("Match recalculated.");
+  await loadMatches();
+}
+
+async function recalculateAllFinalizedPoints() {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin only.");
+    return;
+  }
+
+  const matches = finalizedRecalculableMatches();
+
+  if (!matches.length) {
+    alert("No finalized matches found.");
+    return;
+  }
+
+  const ok = confirm(`Recalculate points for ${matches.length} finalized match(es)?`);
+  if (!ok) return;
+
+  for (const match of matches) {
+    const saved = await saveMatchMemberPoints(match);
+    if (!saved) return;
+  }
+
+  alert("All finalized match points recalculated.");
+  await loadMatches();
+  renderRankings();
+  renderLeagues();
+}
+
+async function recalculateAllSoccerRatings() {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin only.");
+    return;
+  }
+
+  const matches = finalizedRecalculableMatches().filter(match => isSoccerMatch(match));
+
+  if (!matches.length) {
+    alert("No finalized soccer matches found.");
+    return;
+  }
+
+  const ok = confirm(`Recalculate soccer ratings for ${matches.length} finalized soccer match(es)?`);
+  if (!ok) return;
+
+  for (const match of matches) {
+    const saved = await recalculateMatchSoccerRatings(match, false);
+    if (!saved) return;
+  }
+
+  alert("All finalized soccer ratings recalculated.");
+  await loadPositionRatings();
+  await loadMatches();
+  renderRankings();
+  renderLeagues();
+}
+
+async function recalculateAllFinalizedMatches() {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin only.");
+    return;
+  }
+
+  const matches = finalizedRecalculableMatches();
+
+  if (!matches.length) {
+    alert("No finalized matches found.");
+    return;
+  }
+
+  const ok = confirm(`Recalculate points and soccer ratings for ${matches.length} finalized match(es)?`);
+  if (!ok) return;
+
+  for (const match of matches) {
+    const pointsOk = await saveMatchMemberPoints(match);
+    if (!pointsOk) return;
+
+    if (isSoccerMatch(match)) {
+      const ratingsOk = await recalculateMatchSoccerRatings(match, false);
+      if (!ratingsOk) return;
+    }
+  }
+
+  alert("All finalized matches recalculated.");
+  await loadPositionRatings();
+  await loadMatches();
+  renderRankings();
+  renderLeagues();
 }
 
 async function openScoreSubmission(matchId) {
@@ -8264,6 +8377,10 @@ function bindEvents() {
   });
 
   $("logout-btn")?.addEventListener("click", logout);
+
+  $("recalc-all-points-btn")?.addEventListener("click", recalculateAllFinalizedPoints);
+  $("recalc-all-soccer-ratings-btn")?.addEventListener("click", recalculateAllSoccerRatings);
+  $("recalc-all-finalized-btn")?.addEventListener("click", recalculateAllFinalizedMatches);
 
   $("add-venue-btn")?.addEventListener("click", saveVenue);
 
