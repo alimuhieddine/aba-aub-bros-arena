@@ -3734,3 +3734,17 @@ main,
     font-size: 12px;
   }
 }
+
+
+/* === GAME STATS BADGE COLOR UPDATE === */
+.game-stats-label-simple {
+  border-color: rgba(255,255,255,.18) !important;
+  background: rgba(255,255,255,.08) !important;
+  color: var(--muted) !important;
+}
+
+.game-stats-score-simple {
+  border-color: rgba(255,95,103,.35) !important;
+  background: rgba(255,95,103,.12) !important;
+  color: var(--danger) !important;
+}
