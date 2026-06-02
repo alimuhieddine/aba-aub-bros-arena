@@ -2353,3 +2353,19 @@ main,
   justify-content: flex-start !important;
   text-align: left;
 }
+
+
+/* === CAPTAIN FORMATION EDIT MODE === */
+.formation-position-select:disabled,
+.team-choice input:disabled + span,
+#team-a-captain:disabled,
+#team-b-captain:disabled,
+#team-a-name:disabled,
+#team-b-name:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.team-player-row:has(.formation-position-select:disabled) {
+  opacity: .75;
+}
