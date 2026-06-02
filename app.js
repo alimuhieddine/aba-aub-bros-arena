@@ -2881,12 +2881,15 @@ function teamPlayerChips(team, match = null) {
     const ratingChange = match ? ratingChangeForPlayer(match, player.memberId, player.formationPosition) : null;
 
     return `
-      <span class="team-player-chip">
-        ${player.formationPosition ? `<small class="position-chip">${escapeHtml(player.formationPosition)}</small>` : ""}
-        ${player.memberId ? playerLinkHtml(player.memberId, player.name, "inline-player-link") : escapeHtml(player.name)}
+      <span class="team-player-chip stacked-player-chip">
+        <span class="team-player-main-line">
+          ${player.formationPosition ? `<small class="position-chip">${escapeHtml(player.formationPosition)}</small>` : ""}
+          ${player.memberId ? playerLinkHtml(player.memberId, player.name, "inline-player-link") : escapeHtml(player.name)}
+          ${player.isCaptain ? `<b>C</b>` : ""}
+          ${player.isExternal ? `<em>External</em>` : ""}
+        </span>
+
         ${ratingChangeInlineHtml(ratingChange)}
-        ${player.isCaptain ? `<b>C</b>` : ""}
-        ${player.isExternal ? `<em>External</em>` : ""}
       </span>
     `;
   }).join("");
