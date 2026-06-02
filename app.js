@@ -4927,10 +4927,22 @@ function soccerOpponentStrengthModifier(baseAdjustment, opponentStrength) {
 }
 
 function soccerTeamUnitStrength(team, sportId, positions) {
-  const players = team?.match_team_players || [];
-  const matching = players.filter(player =>
-    positions.includes(normalizeSoccerPosition(player.formation_position))
-  );
+  const playersByMemberPosition = new Map();
+
+  (team?.match_team_players || []).forEach(player => {
+    const position = normalizeSoccerPosition(player.formation_position);
+    const memberId = cleanUuidValue(player.member_id);
+
+    if (memberId && positions.includes(position)) {
+      playersByMemberPosition.set(`${memberId}|${position}`, {
+        ...player,
+        member_id: memberId,
+        formation_position: position
+      });
+    }
+  });
+
+  const matching = Array.from(playersByMemberPosition.values());
 
   if (!matching.length) return 5;
 
@@ -4979,11 +4991,24 @@ function soccerRatingRowsForTeam(team, opponentTeam, sportId, goalsFor, goalsAga
 
   const resultModifier = soccerResultModifier(result);
 
-  return (team.match_team_players || [])
+  const uniquePlayers = new Map();
+
+  (team.match_team_players || []).forEach(player => {
+    const memberId = cleanUuidValue(player.member_id);
+    const position = normalizeSoccerPosition(player.formation_position);
+
+    if (memberId && position) {
+      uniquePlayers.set(`${memberId}|${position}`, {
+        ...player,
+        member_id: memberId,
+        formation_position: position
+      });
+    }
+  });
+
+  return Array.from(uniquePlayers.values())
     .map(player => {
       const position = normalizeSoccerPosition(player.formation_position);
-
-      if (!player.member_id || !position) return null;
 
       const adjustment = clampNumber(
         soccerPlayerAdjustmentForPosition(position, attackAdjustment, defenseAdjustment, resultModifier),
@@ -5150,6 +5175,38 @@ async function rollbackPreviousSoccerRatingAdjustments(matchId) {
   return true;
 }
 
+
+function dedupeSoccerRatingRows(rows) {
+  const byKey = new Map();
+
+  (rows || []).forEach(row => {
+    const memberId = cleanUuidValue(row.member_id);
+    const sportId = cleanUuidValue(row.sport_id);
+    const position = normalizeSoccerPosition(row.position_name);
+
+    if (!memberId || !sportId || !position) return;
+
+    const key = `${memberId}|${sportId}|${position}`;
+
+    // One player can only receive one rating update per position per match.
+    // If duplicate team-player rows exist, keep the largest absolute adjustment
+    // instead of stacking the same match several times.
+    const nextAdjustment = Number(row.adjustment || 0);
+    const current = byKey.get(key);
+
+    if (!current || Math.abs(nextAdjustment) > Math.abs(Number(current.adjustment || 0))) {
+      byKey.set(key, {
+        member_id: memberId,
+        sport_id: sportId,
+        position_name: position,
+        adjustment: clampNumber(nextAdjustment, -0.35, 0.35)
+      });
+    }
+  });
+
+  return Array.from(byKey.values());
+}
+
 async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, resultA, resultB) {
   if (!isSoccerMatch(match)) return true;
 
@@ -5162,10 +5219,10 @@ async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, result
   const rolledBack = await rollbackPreviousSoccerRatingAdjustments(match.id);
   if (!rolledBack) return false;
 
-  const rows = [
+  const rows = dedupeSoccerRatingRows([
     ...soccerRatingRowsForTeam(teamA, teamB, match.sport_id, scoreA, scoreB, resultA),
     ...soccerRatingRowsForTeam(teamB, teamA, match.sport_id, scoreB, scoreA, resultB)
-  ];
+  ]);
 
   if (!rows.length) return true;
 
