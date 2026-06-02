@@ -754,7 +754,7 @@ function renderPositionRankings() {
                   ? rows.slice(0, 10).map((row, index) => `
                     <div class="position-ranking-row">
                       <span>${index + 1}</span>
-                      <strong>${escapeHtml(row.name)}</strong>
+                      <strong>${playerLinkHtml(row.memberId, row.name)}</strong>
                       ${row.isExternal ? `<em>External</em>` : ""}
                       <b>${row.rating.toFixed(1)}</b>
                     </div>
@@ -1096,6 +1096,10 @@ function renderSportRatingManager() {
 
           <button class="small-btn" type="button" onclick="openRatingHistory('${member.id}')">
             History
+          </button>
+
+          <button class="small-btn" type="button" onclick="openPlayerProfile('${member.id}')">
+            Profile
           </button>
         </div>
       </div>
@@ -1840,7 +1844,7 @@ function renderLeaguePlayerStandings(leagueId) {
         return `
           <div class="league-standings-row league-player-row">
             <span>${index + 1}</span>
-            <span>${escapeHtml(row.name)}</span>
+            <span>${playerLinkHtml(row.memberId, row.name)}</span>
             <span>${row.matches}</span>
             <span>${row.wins}-${row.draws}-${row.losses}</span>
             <span><strong>${Number(row.points || 0)}</strong></span>
@@ -1911,7 +1915,7 @@ function renderLeaguePositionLeaders(leagueId) {
                   ? rows.map((row, index) => `
                     <div class="league-position-row">
                       <span>${index + 1}</span>
-                      <strong>${escapeHtml(row.name)}</strong>
+                      <strong>${playerLinkHtml(row.memberId, row.name)}</strong>
                       <b>${row.rating.toFixed(1)}</b>
                     </div>
                   `).join("")
@@ -2876,7 +2880,7 @@ function teamPlayerChips(team) {
   return players.map(player => `
     <span class="team-player-chip">
       ${player.formationPosition ? `<small>${escapeHtml(player.formationPosition)}</small>` : ""}
-      ${escapeHtml(player.name)}
+      ${player.memberId ? playerLinkHtml(player.memberId, player.name, "inline-player-link") : escapeHtml(player.name)}
       ${player.isCaptain ? `<b>C</b>` : ""}
       ${player.isExternal ? `<em>External</em>` : ""}
     </span>
@@ -3847,6 +3851,60 @@ function resetMatchFilters() {
   renderMatches();
 }
 
+
+const MATCH_CARD_DEFAULTS = {
+  active: true,
+  upcoming: true,
+  full: true,
+  playing: true,
+  result_pending: true,
+  completed: false,
+  cancelled: false
+};
+
+function matchCardStorageKey(matchId) {
+  return `match_card_open_${matchId}`;
+}
+
+function isMatchCardOpen(match) {
+  const saved = localStorage.getItem(matchCardStorageKey(match.id));
+
+  if (saved === "open") return true;
+  if (saved === "closed") return false;
+
+  const status = matchStatusFilterValue(match);
+
+  return MATCH_CARD_DEFAULTS[status] ?? true;
+}
+
+function toggleMatchCard(matchId) {
+  const match = (allMatches || []).find(item => item.id === matchId);
+
+  if (!match) return;
+
+  const nextOpen = !isMatchCardOpen(match);
+
+  localStorage.setItem(matchCardStorageKey(matchId), nextOpen ? "open" : "closed");
+
+  renderMatches();
+}
+
+function collapseAllMatchCards() {
+  filteredMatches().forEach(match => {
+    localStorage.setItem(matchCardStorageKey(match.id), "closed");
+  });
+
+  renderMatches();
+}
+
+function expandAllMatchCards() {
+  filteredMatches().forEach(match => {
+    localStorage.setItem(matchCardStorageKey(match.id), "open");
+  });
+
+  renderMatches();
+}
+
 function renderMatches() {
   if (!$("matchList")) return;
 
@@ -3888,12 +3946,16 @@ function renderMatches() {
     const userIsIn = currentVoteStatus === "in";
     const canVoteThisMatch = Boolean(invitation || isCreator || isAdmin);
     const conflictingVoteMatch = !userIsIn && votingOpen ? voteInTimeConflict(match) : null;
+    const cardOpen = isMatchCardOpen(match);
 
     return `
-      <article class="card">
-        <div class="row">
+      <article class="card match-collapsible-card ${cardOpen ? "open" : "closed"}">
+        <div class="row match-card-head">
           <div>
-            <h3>${escapeHtml(match.title || "Untitled match")}</h3>
+            <button class="match-card-toggle" type="button" onclick="toggleMatchCard('${match.id}')">
+              <span>${cardOpen ? "▼" : "▶"}</span>
+              <h3>${escapeHtml(match.title || "Untitled match")}</h3>
+            </button>
 
             <div class="meta">
               ${escapeHtml(match.sports?.name || "-")}
@@ -3901,6 +3963,7 @@ function renderMatches() {
               • ${fmtDate(match.start_time)}
             </div>
 
+            ${cardOpen ? `
             ${
               match.league_id
                 ? `<div class="meta">🏆 League: ${escapeHtml(leagueNameForId(match.league_id) || "Linked league")}</div>`
@@ -3968,6 +4031,7 @@ function renderMatches() {
                 ? `<div class="meta">${escapeHtml(match.notes)}</div>`
                 : ""
             }
+            ` : ""}
           </div>
 
           <span class="pill ${getMatchStatusClass(displayStatus, isFull)}">
@@ -3976,7 +4040,7 @@ function renderMatches() {
         </div>
 
         ${
-         canVoteThisMatch && votingOpen
+         cardOpen && canVoteThisMatch && votingOpen
             ? `
               <div class="actions">
                 <button
@@ -4006,7 +4070,7 @@ function renderMatches() {
         }
 
         ${
-          !canManageMatch(match) && canEditFormation(match) && (match.match_teams || []).length
+          cardOpen && !canManageMatch(match) && canEditFormation(match) && (match.match_teams || []).length
             ? `
               <div class="actions">
                 <button class="small-btn" onclick="openTeamAssignment('${match.id}', 'formation')">
@@ -4018,7 +4082,7 @@ function renderMatches() {
         }
 
         ${
-          canManageMatch(match)
+          cardOpen && canManageMatch(match)
             ? `
               <div class="actions">
                 ${
@@ -7562,6 +7626,292 @@ function rankingFilteredMatches() {
   });
 }
 
+
+function memberById(memberId) {
+  const cleanId = cleanUuidValue(memberId);
+
+  if (!cleanId) return null;
+
+  const fromMembers = (allMembers || []).find(member => cleanUuidValue(member.id) === cleanId);
+  if (fromMembers) return fromMembers;
+
+  const fromRatings = (allPositionRatings || []).find(row => cleanUuidValue(row.member_id) === cleanId)?.members;
+  if (fromRatings) return fromRatings;
+
+  for (const match of (allMatches || [])) {
+    const pointMember = (match.match_member_points || []).find(point => cleanUuidValue(point.member_id) === cleanId)?.member;
+    if (pointMember) return pointMember;
+
+    for (const team of (match.match_teams || [])) {
+      const playerMember = (team.match_team_players || []).find(player => cleanUuidValue(player.member_id) === cleanId)?.member;
+      if (playerMember) return playerMember;
+    }
+
+    const invitationMemberRow = (match.match_invitations || []).find(inv => cleanUuidValue(inv.member_id) === cleanId);
+    if (invitationMemberRow) return invitationMember(invitationMemberRow);
+  }
+
+  return null;
+}
+
+function playerProfileStats(memberId) {
+  const cleanId = cleanUuidValue(memberId);
+  const stats = {
+    totalPoints: 0,
+    basePoints: 0,
+    bonusPoints: 0,
+    matches: 0,
+    wins: 0,
+    draws: 0,
+    losses: 0,
+    sports: new Map(),
+    leagues: new Map(),
+    recentMatches: []
+  };
+
+  if (!cleanId) return stats;
+
+  (allMatches || [])
+    .filter(match => !isCancelledMatch(match) && hasSubmittedScore(match))
+    .forEach(match => {
+      const point = (match.match_member_points || []).find(row => cleanUuidValue(row.member_id) === cleanId);
+
+      if (!point) return;
+
+      const teamInfo = teamResultForMember(match, cleanId);
+      const result = teamInfo.result || "participated";
+      const total = Number(point.total_points ?? point.base_points ?? 0);
+      const base = Number(point.base_points || 0);
+      const bonus = Number(point.consistency_bonus || 0);
+
+      stats.totalPoints += total;
+      stats.basePoints += base;
+      stats.bonusPoints += bonus;
+      stats.matches += 1;
+
+      if (result === "win") stats.wins += 1;
+      else if (result === "draw") stats.draws += 1;
+      else if (result === "loss") stats.losses += 1;
+
+      if (match.sports?.name) {
+        const current = stats.sports.get(match.sports.name) || 0;
+        stats.sports.set(match.sports.name, current + 1);
+      }
+
+      if (match.league_id) {
+        const leagueName = leagueNameForId(match.league_id) || "League";
+        const current = stats.leagues.get(leagueName) || 0;
+        stats.leagues.set(leagueName, current + 1);
+      }
+
+      stats.recentMatches.push({
+        match,
+        result,
+        points: total,
+        score: scoreTextForMatch(match)
+      });
+    });
+
+  stats.recentMatches.sort((a, b) =>
+    new Date(b.match.start_time) - new Date(a.match.start_time)
+  );
+
+  return stats;
+}
+
+function playerProfilePositionRatings(memberId) {
+  const cleanId = cleanUuidValue(memberId);
+
+  if (!cleanId) return [];
+
+  return (allPositionRatings || [])
+    .filter(row => cleanUuidValue(row.member_id) === cleanId)
+    .map(row => ({
+      sport: row.sports?.name || sportNameById(row.sport_id) || "Sport",
+      position: normalizeSoccerPosition(row.position_name) || row.position_name || "-",
+      rating: Number(row.rating || 0),
+      gamesPlayed: Number(row.games_played || 0)
+    }))
+    .filter(row => row.rating > 0)
+    .sort((a, b) =>
+      a.sport.localeCompare(b.sport) ||
+      soccerPositionSortValue(a.position) - soccerPositionSortValue(b.position)
+    );
+}
+
+function sportNameById(sportId) {
+  return (allSports || []).find(sport => sport.id === sportId)?.name || "";
+}
+
+function playerProfileRatingChanges(memberId) {
+  const cleanId = cleanUuidValue(memberId);
+  const rows = [];
+
+  if (!cleanId) return rows;
+
+  (allMatches || []).forEach(match => {
+    if (isCancelledMatch(match)) return;
+
+    (match.match_position_rating_adjustments || []).forEach(row => {
+      if (cleanUuidValue(row.member_id) !== cleanId) return;
+
+      const before = Number(row.rating_before ?? 0);
+      const after = Number(row.rating_after ?? 0);
+
+      rows.push({
+        match,
+        position: normalizeSoccerPosition(row.position_name) || row.position_name || "-",
+        before,
+        after,
+        delta: after - before,
+        createdAt: row.created_at || match.start_time
+      });
+    });
+  });
+
+  return rows.sort((a, b) =>
+    new Date(b.match.start_time || b.createdAt) - new Date(a.match.start_time || a.createdAt)
+  );
+}
+
+function renderPlayerProfile(memberId) {
+  const cleanId = cleanUuidValue(memberId);
+  const member = memberById(cleanId);
+  const box = $("playerProfileContent");
+
+  if (!box) return;
+
+  if (!cleanId || !member) {
+    box.innerHTML = `<article class="card">Player not found.</article>`;
+    return;
+  }
+
+  const stats = playerProfileStats(cleanId);
+  const ratings = playerProfilePositionRatings(cleanId);
+  const changes = playerProfileRatingChanges(cleanId).slice(0, 10);
+
+  if ($("player-profile-title")) {
+    $("player-profile-title").textContent = memberDisplayName(member);
+  }
+
+  if ($("player-profile-subtitle")) {
+    $("player-profile-subtitle").textContent = member.is_external
+      ? "External player profile."
+      : "Member profile.";
+  }
+
+  const sportText = Array.from(stats.sports.entries())
+    .map(([name, count]) => `${name} (${count})`)
+    .join(", ") || "-";
+
+  const leagueText = Array.from(stats.leagues.entries())
+    .map(([name, count]) => `${name} (${count})`)
+    .join(", ") || "-";
+
+  box.innerHTML = `
+    <div class="player-profile-stats">
+      <div class="profile-stat-box">
+        <span>Total points</span>
+        <strong>${Number(stats.totalPoints || 0)}</strong>
+      </div>
+
+      <div class="profile-stat-box">
+        <span>Played</span>
+        <strong>${stats.matches}</strong>
+      </div>
+
+      <div class="profile-stat-box">
+        <span>W-D-L</span>
+        <strong>${stats.wins}-${stats.draws}-${stats.losses}</strong>
+      </div>
+
+      <div class="profile-stat-box">
+        <span>Win rate</span>
+        <strong>${stats.matches ? Math.round((stats.wins / stats.matches) * 100) : 0}%</strong>
+      </div>
+    </div>
+
+    <div class="player-profile-grid">
+      <article class="card profile-section-card">
+        <h4>Sports & leagues</h4>
+        <div class="profile-line"><span>Sports</span><b>${escapeHtml(sportText)}</b></div>
+        <div class="profile-line"><span>Leagues</span><b>${escapeHtml(leagueText)}</b></div>
+      </article>
+
+      <article class="card profile-section-card">
+        <h4>Position ratings</h4>
+        ${
+          ratings.length
+            ? `<div class="profile-rating-grid">
+                ${ratings.map(row => `
+                  <div class="profile-rating-pill">
+                    <span>${escapeHtml(row.sport)} • ${escapeHtml(row.position)}</span>
+                    <strong>${row.rating.toFixed(1)}</strong>
+                    <em>${row.gamesPlayed} game${row.gamesPlayed === 1 ? "" : "s"}</em>
+                  </div>
+                `).join("")}
+              </div>`
+            : `<div class="hint">No position ratings yet.</div>`
+        }
+      </article>
+    </div>
+
+    <article class="card profile-section-card">
+      <h4>Recent matches</h4>
+      ${
+        stats.recentMatches.length
+          ? stats.recentMatches.slice(0, 8).map(row => `
+            <div class="profile-match-row">
+              <div>
+                <strong>${escapeHtml(row.match.title || "Match")}</strong>
+                <span>${escapeHtml(fmtDate(row.match.start_time))} • ${escapeHtml(row.match.sports?.name || "-")}</span>
+                <em>${escapeHtml(row.score || "-")}</em>
+              </div>
+              <b class="${row.result}">${escapeHtml(row.result)} • +${Number(row.points || 0)} pts</b>
+            </div>
+          `).join("")
+          : `<div class="hint">No finalized matches yet.</div>`
+      }
+    </article>
+
+    <article class="card profile-section-card">
+      <h4>Recent rating changes</h4>
+      ${
+        changes.length
+          ? changes.map(row => {
+              const deltaText = `${row.delta >= 0 ? "+" : ""}${row.delta.toFixed(2)}`;
+
+              return `
+                <div class="profile-match-row">
+                  <div>
+                    <strong>${escapeHtml(row.match.title || "Match")}</strong>
+                    <span>${escapeHtml(fmtDate(row.match.start_time))} • ${escapeHtml(row.position)}</span>
+                  </div>
+                  <b class="${row.delta >= 0 ? "win" : "loss"}">
+                    ${row.before.toFixed(2)} → ${row.after.toFixed(2)} (${deltaText})
+                  </b>
+                </div>
+              `;
+            }).join("")
+          : `<div class="hint">No rating changes yet.</div>`
+      }
+    </article>
+  `;
+}
+
+function openPlayerProfile(memberId) {
+  renderPlayerProfile(memberId);
+  $("playerProfileModal")?.showModal();
+}
+
+function playerLinkHtml(memberId, name, extraClass = "") {
+  return `
+    <button class="player-link ${escapeHtml(extraClass)}" type="button" onclick="openPlayerProfile('${memberId}')">
+      ${escapeHtml(name)}
+    </button>
+  `;
+}
+
 function rankingRows() {
   const playerType = $("rank-player-type-filter")?.value || "all";
   const table = new Map();
@@ -7677,7 +8027,7 @@ function renderRankings() {
           <span class="rank-number-mini">${index + 1}</span>
 
           <span>
-            ${escapeHtml(row.name)}
+            ${playerLinkHtml(row.memberId, row.name)}
             ${row.isExternal ? `<em>External</em>` : ""}
           </span>
 
@@ -8123,6 +8473,8 @@ function bindEvents() {
   $("match-filter-status")?.addEventListener("change", renderMatches);
   $("match-filter-my-status")?.addEventListener("change", renderMatches);
   $("match-filter-reset")?.addEventListener("click", resetMatchFilters);
+  $("match-expand-all")?.addEventListener("click", expandAllMatchCards);
+  $("match-collapse-all")?.addEventListener("click", collapseAllMatchCards);
 
   $("rating-sport-filter")?.addEventListener("change", renderSportRatingManager);
   $("rating-history-position-filter")?.addEventListener("change", renderRatingHistoryModal);
