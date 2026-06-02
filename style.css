@@ -2531,3 +2531,133 @@ main,
     white-space: normal;
   }
 }
+
+
+/* === LEAGUE DASHBOARD === */
+.league-dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, .85fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.league-player-head,
+.league-player-row {
+  grid-template-columns: 32px minmax(120px, 1fr) 44px 74px 64px 86px !important;
+}
+
+.league-team-head,
+.league-team-row {
+  grid-template-columns: minmax(120px, 1fr) 40px 40px 40px 40px !important;
+}
+
+.league-player-row .positive,
+.league-history-row .positive,
+.league-position-row b {
+  color: var(--accent);
+  font-weight: 900;
+}
+
+.league-player-row .negative {
+  color: var(--danger);
+  font-weight: 900;
+}
+
+.league-position-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.league-position-box {
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+}
+
+.league-position-title {
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 900;
+  margin-bottom: 6px;
+}
+
+.league-position-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 44px;
+  gap: 6px;
+  align-items: center;
+  padding-top: 5px;
+  border-top: 1px solid rgba(255,255,255,.06);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.league-position-row strong {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.league-history {
+  display: grid;
+  gap: 8px;
+}
+
+.league-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+}
+
+.league-history-row > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.league-history-row strong {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.league-history-row span,
+.league-history-row em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.league-history-score {
+  text-align: right;
+  display: grid;
+  gap: 2px;
+}
+
+.league-history-score b {
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+@media (max-width: 950px) {
+  .league-dashboard-grid,
+  .league-position-grid,
+  .league-history-row {
+    grid-template-columns: 1fr;
+  }
+
+  .league-history-score {
+    text-align: left;
+  }
+
+  .league-player-head,
+  .league-player-row {
+    grid-template-columns: 28px minmax(100px, 1fr) 34px 62px 52px 72px !important;
+    font-size: 11px;
+  }
+}
