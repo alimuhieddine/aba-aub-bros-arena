@@ -3857,7 +3857,6 @@ const MATCH_SECTION_DEFAULTS = {
   teams: true,
   result: true,
   formation: false,
-  points: false,
   ratings: false
 };
 
@@ -3987,14 +3986,12 @@ function renderMatchSections(match) {
   const teamsHtml = renderTeamsSummary(match);
   const resultHtml = renderScoreSummary(match);
   const formationHtml = renderFormationDetails(match);
-  const pointsHtml = renderMatchPointsDetails(match);
   const ratingsHtml = renderRatingChanges(match);
 
   const sections = [
     renderMatchDetailSection(match, "teams", "Teams", teamsHtml),
     renderMatchDetailSection(match, "result", "Result", resultHtml),
     renderMatchDetailSection(match, "formation", "Formation", formationHtml),
-    renderMatchDetailSection(match, "points", "Points", pointsHtml),
     renderMatchDetailSection(match, "ratings", "Rating changes", ratingsHtml)
   ].filter(Boolean);
 
