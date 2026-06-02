@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=82" />
+  <link rel="stylesheet" href="style.css?v=84" />
 </head>
 
 <body>
@@ -513,6 +513,22 @@
         Formation: assign teams first.
       </div>
 
+      <div id="captain-selectors" class="captain-selectors" style="display:none;">
+        <label>
+          Team A Captain
+          <select id="team-a-captain">
+            <option value="">Select captain</option>
+          </select>
+        </label>
+
+        <label>
+          Team B Captain
+          <select id="team-b-captain">
+            <option value="">Select captain</option>
+          </select>
+        </label>
+      </div>
+
       <button id="suggest-teams-btn" class="secondary-btn full" type="button">
         Suggest Balanced Teams / Formation
       </button>
@@ -668,6 +684,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=82"></script>
+  <script src="app.js?v=84"></script>
 </body>
 </html>
