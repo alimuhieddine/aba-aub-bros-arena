@@ -1904,6 +1904,42 @@ async function loadMatches() {
           email,
           is_external
         )
+      ),
+      match_position_rating_adjustments (
+        id,
+        member_id,
+        sport_id,
+        position_name,
+        adjustment,
+        rating_before,
+        rating_after,
+        created_at,
+        member:members!match_position_rating_adjustments_member_id_fkey (
+          id,
+          first_name,
+          last_name,
+          display_name,
+          email,
+          is_external
+        )
+      ),
+      match_position_rating_adjustments (
+        id,
+        member_id,
+        sport_id,
+        position_name,
+        adjustment,
+        rating_before,
+        rating_after,
+        created_at,
+        member:members!match_position_rating_adjustments_member_id_fkey (
+          id,
+          first_name,
+          last_name,
+          display_name,
+          email,
+          is_external
+        )
       )
     `;
 
@@ -2948,6 +2984,8 @@ function renderMatches() {
             ${renderScoreSummary(match)}
 
             ${renderPointsSummary(match)}
+
+            ${renderRatingChanges(match)}
 
             ${
               externalCount && canManageMatch(match) && matchEditable
@@ -4899,6 +4937,53 @@ function renderPointsSummary(match) {
   `;
 }
 
+
+
+function renderRatingChanges(match) {
+  const adjustments = (match.match_position_rating_adjustments || [])
+    .filter(row =>
+      row &&
+      row.member_id &&
+      row.position_name &&
+      row.rating_before !== null &&
+      row.rating_before !== undefined &&
+      row.rating_after !== null &&
+      row.rating_after !== undefined
+    )
+    .sort((a, b) =>
+      normalizeSoccerPosition(a.position_name).localeCompare(normalizeSoccerPosition(b.position_name)) ||
+      memberDisplayName(a.member).localeCompare(memberDisplayName(b.member))
+    );
+
+  if (!adjustments.length) return "";
+
+  return `
+    <div class="rating-changes-summary">
+      <strong>Rating changes</strong>
+
+      ${adjustments.map(row => {
+        const before = Number(row.rating_before || 0);
+        const after = Number(row.rating_after || 0);
+        const delta = after - before;
+        const deltaText = `${delta >= 0 ? "+" : ""}${delta.toFixed(2)}`;
+
+        return `
+          <div class="rating-change-row">
+            <span>
+              ${escapeHtml(memberDisplayName(row.member))}
+              ${row.member?.is_external ? `<em>External</em>` : ""}
+              <small>${escapeHtml(normalizeSoccerPosition(row.position_name))}</small>
+            </span>
+
+            <b class="${delta >= 0 ? "positive" : "negative"}">
+              ${before.toFixed(2)} → ${after.toFixed(2)} (${deltaText})
+            </b>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
 
 function clampNumber(value, min, max) {
   return Math.min(max, Math.max(min, value));
