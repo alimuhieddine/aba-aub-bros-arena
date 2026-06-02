@@ -2070,6 +2070,57 @@ async function markLeagueCompleted(leagueId) {
   await loadMatchFormOptions();
 }
 
+
+const LEAGUE_SECTION_DEFAULTS = {
+  players: true,
+  teams: true,
+  positions: false,
+  history: false
+};
+
+function leagueSectionStorageKey(leagueId, sectionKey) {
+  return `league_section_${leagueId}_${sectionKey}`;
+}
+
+function isLeagueSectionOpen(leagueId, sectionKey) {
+  const saved = localStorage.getItem(leagueSectionStorageKey(leagueId, sectionKey));
+
+  if (saved === "open") return true;
+  if (saved === "closed") return false;
+
+  return Boolean(LEAGUE_SECTION_DEFAULTS[sectionKey]);
+}
+
+function toggleLeagueSection(leagueId, sectionKey) {
+  const nextOpen = !isLeagueSectionOpen(leagueId, sectionKey);
+
+  localStorage.setItem(
+    leagueSectionStorageKey(leagueId, sectionKey),
+    nextOpen ? "open" : "closed"
+  );
+
+  renderLeagues();
+}
+
+function renderLeagueSection(leagueId, sectionKey, title, contentHtml) {
+  const open = isLeagueSectionOpen(leagueId, sectionKey);
+
+  return `
+    <div class="league-section ${open ? "open" : "closed"}">
+      <button class="league-section-toggle" type="button" onclick="toggleLeagueSection('${leagueId}', '${sectionKey}')">
+        <span>${escapeHtml(title)}</span>
+        <b>${open ? "▼" : "▶"}</b>
+      </button>
+
+      ${
+        open
+          ? `<div class="league-section-body">${contentHtml}</div>`
+          : ""
+      }
+    </div>
+  `;
+}
+
 function renderLeagues() {
   if (!$("leagueList")) return;
 
@@ -2123,15 +2174,17 @@ function renderLeagues() {
             : ""
         }
 
-        <div class="league-dashboard-grid">
-          ${renderLeaguePlayerStandings(league.id)}
+        <div class="league-sections">
+          <div class="league-dashboard-grid">
+            ${renderLeagueSection(league.id, "players", "Player standings", renderLeaguePlayerStandings(league.id))}
 
-          ${renderLeagueGameStandings(league.id)}
+            ${renderLeagueSection(league.id, "teams", "Team/game standings", renderLeagueGameStandings(league.id))}
+          </div>
+
+          ${renderLeagueSection(league.id, "positions", "Position leaders", renderLeaguePositionLeaders(league.id) || `<div class="league-standings-empty">No position leaders for this sport.</div>`)}
+
+          ${renderLeagueSection(league.id, "history", "Match history", renderLeagueMatchHistory(league.id))}
         </div>
-
-        ${renderLeaguePositionLeaders(league.id)}
-
-        ${renderLeagueMatchHistory(league.id)}
       </article>
     `;
   }).join("");
