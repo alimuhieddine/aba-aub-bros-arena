@@ -3930,17 +3930,33 @@ function ratingChangeInlineHtml(change) {
   `;
 }
 
+function formationSectionTitle(match) {
+  const { teamA, teamB } = getTwoMatchTeams(match);
+
+  if (!teamA || !teamB) return "Game Stats";
+
+  const teamAName = teamA.name || "Team A";
+  const teamBName = teamB.name || "Team B";
+
+  if (hasSubmittedScore(match)) {
+    return `Game Stats: ${teamAName} ${Number(teamA.score || 0)} - ${Number(teamB.score || 0)} ${teamBName}`;
+  }
+
+  return `Game Stats: ${teamAName} - ${teamBName}`;
+}
+
 function renderFormationSection(match) {
   const content = renderTeamsSummary(match);
 
   if (!content) return "";
 
   const open = isMatchFormationOpen(match.id);
+  const title = formationSectionTitle(match);
 
   return `
     <div class="match-formation-section ${open ? "open" : "closed"}">
       <button class="match-formation-toggle" type="button" onclick="toggleMatchFormation('${match.id}')">
-        <span>Formation</span>
+        <span>${escapeHtml(title)}</span>
         <b>${open ? "▼" : "▶"}</b>
       </button>
 
@@ -4021,14 +4037,18 @@ function renderMatches() {
 
             ${renderSmartBadges(match)}
 
-            <div class="meta">
-              Players: ${spotsLabel}
-              • IN: ${counts.inCount}
-              • External: ${externalCount}
-              • Maybe: ${counts.maybeCount}
-              • Out: ${counts.outCount}
-              • Invited: ${counts.invitedCount}
-            </div>
+            ${
+              !teamsAssigned
+                ? `<div class="meta">
+                    Players: ${spotsLabel}
+                    • IN: ${counts.inCount}
+                    • External: ${externalCount}
+                    • Maybe: ${counts.maybeCount}
+                    • Out: ${counts.outCount}
+                    • Invited: ${counts.invitedCount}
+                  </div>`
+                : ""
+            }
 
             ${
               !teamsAssigned
