@@ -6,23 +6,6 @@ const $ = (id) => document.getElementById(id);
 
 const STORAGE_KEY = "aba_phase1_data";
 
-
-function cleanUuid(value) {
-  if (value === undefined || value === null) return null;
-
-  const text = String(value).trim();
-
-  if (
-    !text ||
-    text.toLowerCase() === "null" ||
-    text.toLowerCase() === "undefined"
-  ) {
-    return null;
-  }
-
-  return text;
-}
-
 function futureDate(days, hour) {
   const d = new Date();
   d.setDate(d.getDate() + days);
@@ -557,8 +540,6 @@ let editingMatchId = null;
 let allMembers = [];
 let allExternalMembers = [];
 let allSportProfiles = [];
-let allSportSkillRatings = [];
-let allRatingAdjustments = [];
 let currentExternalMatchId = null;
 let currentTeamMatchId = null;
 let currentScoreMatchId = null;
@@ -614,70 +595,16 @@ function updateMatchLeagueOptions() {
 }
 
 
-
-function selectedRatingSport() {
-  const sportId = $("rating-sport-filter")?.value || "";
-  return (allSports || []).find(sport => sport.id === sportId) || null;
-}
-
-function sportNameById(sportId) {
-  return (allSports || []).find(sport => sport.id === sportId)?.name || "";
-}
-
-function isPadelSportName(name) {
-  return String(name || "").toLowerCase().includes("padel") ||
-    String(name || "").toLowerCase().includes("paddle");
-}
-
-function isSoccerSportName(name) {
-  const clean = String(name || "").toLowerCase();
-  return clean.includes("soccer") ||
-    clean.includes("football") ||
-    clean.includes("futsal");
-}
-
-function sportProfileType(sportId) {
-  const name = sportNameById(sportId);
-
-  if (isPadelSportName(name)) return "padel";
-  if (isSoccerSportName(name)) return "soccer";
-
-  return "generic";
-}
-
-function skillRatingForMember(memberId, sportId, skillKey, fallback = 0) {
-  const item = (allSportSkillRatings || []).find(skill =>
-    skill.member_id === memberId &&
-    skill.sport_id === sportId &&
-    skill.skill_key === skillKey
-  );
-
-  const rating = Number(item?.rating);
-  return Number.isFinite(rating) ? rating : fallback;
-}
-
-function skillValueForMember(memberId, sportId, skillKey, fallback = "") {
-  const item = (allSportSkillRatings || []).find(skill =>
-    skill.member_id === memberId &&
-    skill.sport_id === sportId &&
-    skill.skill_key === skillKey
-  );
-
-  return item?.skill_value || fallback;
-}
-
 async function loadSportProfiles() {
   if (!currentProfile || currentProfile.approval_status !== "approved") return [];
 
-  const { data: profilesData, error: profilesError } = await supabaseClient
+  const { data, error } = await supabaseClient
     .from("member_sport_profiles")
     .select(`
       id,
       member_id,
       sport_id,
       rating,
-      overall_rating,
-      rating_system,
       preferred_position,
       games_played,
       wins,
@@ -698,60 +625,13 @@ async function loadSportProfiles() {
       )
     `);
 
-  if (profilesError) {
-    console.warn("Could not load sport profiles:", profilesError.message);
+  if (error) {
+    console.warn("Could not load sport profiles:", error.message);
     allSportProfiles = [];
-  } else {
-    allSportProfiles = profilesData || [];
+    return [];
   }
 
-  const { data: skillsData, error: skillsError } = await supabaseClient
-    .from("member_sport_skill_ratings")
-    .select(`
-      id,
-      member_id,
-      sport_id,
-      skill_key,
-      skill_label,
-      rating,
-      skill_value
-    `);
-
-  if (skillsError) {
-    console.warn("Could not load sport skill ratings:", skillsError.message);
-    allSportSkillRatings = [];
-  } else {
-    allSportSkillRatings = skillsData || [];
-  }
-
-
-  const { data: adjustmentsData, error: adjustmentsError } = await supabaseClient
-    .from("member_sport_rating_adjustments")
-    .select(`
-      id,
-      match_id,
-      member_id,
-      sport_id,
-      adjustment,
-      old_rating,
-      new_rating,
-      reason,
-      created_at,
-      matches (
-        id,
-        title,
-        start_time
-      )
-    `)
-    .order("created_at", { ascending: false });
-
-  if (adjustmentsError) {
-    console.warn("Could not load rating adjustments:", adjustmentsError.message);
-    allRatingAdjustments = [];
-  } else {
-    allRatingAdjustments = adjustmentsData || [];
-  }
-
+  allSportProfiles = data || [];
   return allSportProfiles;
 }
 
@@ -761,44 +641,15 @@ function sportProfileForMember(memberId, sportId) {
   ) || null;
 }
 
-function soccerOverallRating(memberId, sportId) {
-  const attack = skillRatingForMember(memberId, sportId, "attack", 5);
-  const midfield = skillRatingForMember(memberId, sportId, "midfield", 5);
-  const defense = skillRatingForMember(memberId, sportId, "defense", 5);
-  const goalkeeping = skillRatingForMember(memberId, sportId, "goalkeeping", 5);
-  const stamina = skillRatingForMember(memberId, sportId, "stamina", 5);
-
-  return (attack + midfield + defense + goalkeeping + stamina) / 5;
-}
-
-function padelOverallRating(memberId, sportId) {
-  return skillRatingForMember(memberId, sportId, "playtomic_level", 3.5);
-}
-
-function genericOverallRating(memberId, sportId) {
-  const profile = sportProfileForMember(memberId, sportId);
-  const overall = Number(profile?.overall_rating ?? profile?.rating);
-
-  return Number.isFinite(overall) && overall > 0 ? overall : 5;
-}
-
 function memberSportRating(memberId, sportId) {
-  const type = sportProfileType(sportId);
+  const profile = sportProfileForMember(memberId, sportId);
+  const rating = Number(profile?.rating);
 
-  if (type === "padel") return padelOverallRating(memberId, sportId);
-  if (type === "soccer") return soccerOverallRating(memberId, sportId);
-
-  return genericOverallRating(memberId, sportId);
+  return Number.isFinite(rating) && rating > 0 ? rating : 5;
 }
 
 function memberSportPosition(memberId, sportId) {
-  const type = sportProfileType(sportId);
   const profile = sportProfileForMember(memberId, sportId);
-
-  if (type === "padel") {
-    return skillValueForMember(memberId, sportId, "side_preference", "both");
-  }
-
   return profile?.preferred_position || "";
 }
 
@@ -838,175 +689,11 @@ function approvedRatingMembers() {
     .sort((a, b) => memberDisplayName(a).localeCompare(memberDisplayName(b)));
 }
 
-function numericSkillInput(member, sportId, key, label, min, max, step, placeholder, fallback = "") {
-  const value = skillRatingForMember(member.id, sportId, key, fallback);
-
-  return `
-    <label>
-      <span class="rating-label-line">
-        <span>${label}</span>
-        <small>${min}–${max}</small>
-      </span>
-      <input
-        class="sport-skill-input"
-        data-skill-key="${key}"
-        data-skill-label="${label}"
-        type="number"
-        min="${min}"
-        max="${max}"
-        step="${step}"
-        value="${value === "" ? "" : escapeHtml(String(value))}"
-        placeholder="${placeholder}"
-      >
-    </label>
-  `;
-}
-
-function valueSkillSelect(member, sportId, key, label, options, fallback = "") {
-  const value = skillValueForMember(member.id, sportId, key, fallback);
-
-  return `
-    <label>
-      ${label}
-      <select
-        class="sport-skill-value"
-        data-skill-key="${key}"
-        data-skill-label="${label}"
-      >
-        ${options.map(option => `
-          <option value="${escapeHtml(option.value)}" ${option.value === value ? "selected" : ""}>
-            ${escapeHtml(option.label)}
-          </option>
-        `).join("")}
-      </select>
-    </label>
-  `;
-}
-
-function renderPadelRatingFields(member, sportId) {
-  return `
-    ${numericSkillInput(member, sportId, "playtomic_level", "Playtomic level", 0, 7, 0.1, "3.5", 3.5)}
-    ${numericSkillInput(member, sportId, "reliability", "Reliability %", 0, 100, 1, "70", 50)}
-    ${valueSkillSelect(member, sportId, "side_preference", "Side", [
-      { value: "both", label: "Both" },
-      { value: "left", label: "Left" },
-      { value: "right", label: "Right" }
-    ], "both")}
-  `;
-}
-
-function renderSoccerRatingFields(member, sportId) {
-  const profile = sportProfileForMember(member.id, sportId);
-  const position = profile?.preferred_position || "";
-
-  return `
-    ${numericSkillInput(member, sportId, "attack", "Attack", 1, 10, 0.1, "5", 5)}
-    ${numericSkillInput(member, sportId, "midfield", "Midfield", 1, 10, 0.1, "5", 5)}
-    ${numericSkillInput(member, sportId, "defense", "Defense", 1, 10, 0.1, "5", 5)}
-    ${numericSkillInput(member, sportId, "goalkeeping", "Goalkeeping", 1, 10, 0.1, "5", 5)}
-    ${numericSkillInput(member, sportId, "stamina", "Stamina", 1, 10, 0.1, "5", 5)}
-    <label>
-      Preferred position
-      <select class="sport-position-input">
-        <option value="" ${position === "" ? "selected" : ""}>None</option>
-        <option value="attack" ${position === "attack" ? "selected" : ""}>Attack</option>
-        <option value="midfield" ${position === "midfield" ? "selected" : ""}>Midfield</option>
-        <option value="defense" ${position === "defense" ? "selected" : ""}>Defense</option>
-        <option value="goalkeeper" ${position === "goalkeeper" ? "selected" : ""}>Goalkeeper</option>
-      </select>
-    </label>
-  `;
-}
-
-function renderGenericRatingFields(member, sportId) {
-  const profile = sportProfileForMember(member.id, sportId);
-  const rating = profile?.overall_rating ?? profile?.rating ?? "";
-  const position = profile?.preferred_position || "";
-
-  return `
-    <label>
-      <span class="rating-label-line">
-        <span>Overall rating</span>
-        <small>1–10</small>
-      </span>
-      <input
-        class="sport-overall-input"
-        type="number"
-        min="1"
-        max="10"
-        step="0.1"
-        value="${escapeHtml(String(rating))}"
-        placeholder="5"
-      >
-    </label>
-
-    <label>
-      Preferred position
-      <input
-        class="sport-position-input"
-        type="text"
-        value="${escapeHtml(position)}"
-        placeholder="optional"
-      >
-    </label>
-  `;
-}
-
-
-function ratingAdjustmentsForMemberSport(memberId, sportId) {
-  return (allRatingAdjustments || []).filter(item =>
-    item.member_id === memberId &&
-    item.sport_id === sportId
-  );
-}
-
-function lastRatingAdjustmentForMemberSport(memberId, sportId) {
-  return ratingAdjustmentsForMemberSport(memberId, sportId)[0] || null;
-}
-
-function formatRatingAdjustment(value) {
-  const number = Number(value || 0);
-
-  if (number > 0) return `+${number.toFixed(2)}`;
-  if (number < 0) return number.toFixed(2);
-
-  return "0.00";
-}
-
-function renderRatingAdjustmentHistory(memberId, sportId) {
-  const rows = ratingAdjustmentsForMemberSport(memberId, sportId).slice(0, 3);
-
-  if (!rows.length) {
-    return `<div class="rating-history-empty">No rating changes yet.</div>`;
-  }
-
-  return `
-    <div class="rating-history">
-      ${rows.map(row => `
-        <div class="rating-history-row">
-          <span class="${Number(row.adjustment || 0) >= 0 ? "positive-change" : "negative-change"}">
-            ${formatRatingAdjustment(row.adjustment)}
-          </span>
-          <span>
-            ${Number(row.old_rating || 0).toFixed(2)} → ${Number(row.new_rating || 0).toFixed(2)}
-          </span>
-          <em>
-            ${escapeHtml(row.reason || "-")}
-            ${row.matches?.title ? ` • ${escapeHtml(row.matches.title)}` : ""}
-          </em>
-        </div>
-      `).join("")}
-    </div>
-  `;
-}
-
 function renderSportRatingManager() {
   const box = $("sportRatingList");
   if (!box) return;
 
   const sportId = $("rating-sport-filter")?.value || "";
-  const sport = selectedRatingSport();
-  const type = sportProfileType(sportId);
 
   if (!sportId) {
     box.innerHTML = `<div class="hint">Select a sport to edit ratings.</div>`;
@@ -1020,60 +707,47 @@ function renderSportRatingManager() {
     return;
   }
 
-  const profileHint =
-    type === "padel"
-      ? "Padel: Playtomic level 0.0–7.0, reliability 0–100%, and side preference."
-      : type === "soccer"
-        ? "Soccer: attack, midfield, defense, goalkeeping, and stamina are each 1–10, plus preferred position."
-        : "This sport uses a generic overall rating.";
+  box.innerHTML = members.map(member => {
+    const profile = sportProfileForMember(member.id, sportId);
+    const rating = profile?.rating ?? "";
+    const position = profile?.preferred_position || "";
 
-  box.innerHTML = `
-    <div class="hint">${escapeHtml(profileHint)}</div>
-
-    ${members.map(member => {
-      const fields =
-        type === "padel"
-          ? renderPadelRatingFields(member, sportId)
-          : type === "soccer"
-            ? renderSoccerRatingFields(member, sportId)
-            : renderGenericRatingFields(member, sportId);
-
-      return `
-        <div class="sport-rating-row sport-rating-row-${type}" data-member-id="${member.id}">
-          <div>
-            <strong>${escapeHtml(memberDisplayName(member))}</strong>
-            ${member.is_external ? `<span class="mini-pill">External</span>` : ""}
-
-            ${
-              sportProfileForMember(member.id, sportId)
-                ? `
-                  <div class="profile-stats-mini">
-                    GP ${Number(sportProfileForMember(member.id, sportId)?.games_played || 0)}
-                    • W ${Number(sportProfileForMember(member.id, sportId)?.wins || 0)}
-                    • D ${Number(sportProfileForMember(member.id, sportId)?.draws || 0)}
-                    • L ${Number(sportProfileForMember(member.id, sportId)?.losses || 0)}
-                    • Pts ${Number(sportProfileForMember(member.id, sportId)?.total_points || 0)}
-                  </div>
-                  ${renderRatingAdjustmentHistory(member.id, sportId)}
-                `
-                : `
-                  <div class="profile-stats-mini">No match stats yet.</div>
-                  ${renderRatingAdjustmentHistory(member.id, sportId)}
-                `
-            }
-          </div>
-
-          <div class="sport-rating-fields">
-            ${fields}
-          </div>
-
-          <button class="small-btn" type="button" onclick="saveMemberSportProfile('${member.id}')">
-            Save
-          </button>
+    return `
+      <div class="sport-rating-row" data-member-id="${member.id}">
+        <div>
+          <strong>${escapeHtml(memberDisplayName(member))}</strong>
+          ${member.is_external ? `<span class="mini-pill">External</span>` : ""}
         </div>
-      `;
-    }).join("")}
-  `;
+
+        <label>
+          Rating
+          <input
+            class="sport-rating-input"
+            type="number"
+            min="1"
+            max="10"
+            step="0.1"
+            value="${escapeHtml(String(rating))}"
+            placeholder="5"
+          >
+        </label>
+
+        <label>
+          Position
+          <input
+            class="sport-position-input"
+            type="text"
+            value="${escapeHtml(position)}"
+            placeholder="optional"
+          >
+        </label>
+
+        <button class="small-btn" type="button" onclick="saveMemberSportProfile('${member.id}')">
+          Save
+        </button>
+      </div>
+    `;
+  }).join("");
 }
 
 async function saveMemberSportProfile(memberId) {
@@ -1090,81 +764,28 @@ async function saveMemberSportProfile(memberId) {
     return;
   }
 
-  const type = sportProfileType(sportId);
+  const rating = Number(row.querySelector(".sport-rating-input")?.value || 5);
   const preferredPosition = row.querySelector(".sport-position-input")?.value.trim() || null;
-  const overallInput = row.querySelector(".sport-overall-input");
-  const overallRating = overallInput ? Number(overallInput.value || 5) : memberSportRating(memberId, sportId);
 
-  if (!Number.isFinite(overallRating)) {
-    alert("Invalid rating.");
+  if (!Number.isFinite(rating) || rating < 1 || rating > 10) {
+    alert("Rating must be between 1 and 10.");
     return;
   }
 
-  const { error: profileError } = await supabaseClient
+  const { error } = await supabaseClient
     .from("member_sport_profiles")
     .upsert({
-      member_id: cleanUuid(memberId),
-      sport_id: cleanUuid(sportId),
-      rating: overallRating,
-      overall_rating: overallRating,
-      rating_system: type === "padel" ? "playtomic" : type,
+      member_id: memberId,
+      sport_id: sportId,
+      rating,
       preferred_position: preferredPosition
     }, {
       onConflict: "member_id,sport_id"
     });
 
-  if (profileError) {
-    alert(profileError.message);
+  if (error) {
+    alert(error.message);
     return;
-  }
-
-  const skillRows = [];
-
-  row.querySelectorAll(".sport-skill-input").forEach(input => {
-    const skillKey = input.dataset.skillKey;
-    const skillLabel = input.dataset.skillLabel;
-    const rating = Number(input.value);
-
-    if (!skillKey || !Number.isFinite(rating)) return;
-
-    skillRows.push({
-      member_id: cleanUuid(memberId),
-      sport_id: cleanUuid(sportId),
-      skill_key: skillKey,
-      skill_label: skillLabel,
-      rating,
-      skill_value: null
-    });
-  });
-
-  row.querySelectorAll(".sport-skill-value").forEach(select => {
-    const skillKey = select.dataset.skillKey;
-    const skillLabel = select.dataset.skillLabel;
-    const value = select.value;
-
-    if (!skillKey) return;
-
-    skillRows.push({
-      member_id: cleanUuid(memberId),
-      sport_id: cleanUuid(sportId),
-      skill_key: skillKey,
-      skill_label: skillLabel,
-      rating: null,
-      skill_value: value
-    });
-  });
-
-  if (skillRows.length) {
-    const { error: skillsError } = await supabaseClient
-      .from("member_sport_skill_ratings")
-      .upsert(skillRows, {
-        onConflict: "member_id,sport_id,skill_key"
-      });
-
-    if (skillsError) {
-      alert(skillsError.message);
-      return;
-    }
   }
 
   await loadSportProfiles();
@@ -1978,6 +1599,10 @@ async function loadMatches() {
           id,
           member_id,
           is_external,
+          formation_position,
+          is_captain,
+          formation_position,
+          is_captain,
           member:members!match_team_players_member_id_fkey (
             id,
             first_name,
@@ -2089,6 +1714,10 @@ async function loadMatches() {
           id,
           member_id,
           is_external,
+          formation_position,
+          is_captain,
+          formation_position,
+          is_captain,
           member:members!match_team_players_member_id_fkey (
             id,
             first_name,
@@ -2334,6 +1963,142 @@ function currentTeamByMemberId(match) {
 }
 
 
+
+
+function currentTeamPlayerByMemberId(match) {
+  const map = new Map();
+
+  (match.match_teams || []).forEach(team => {
+    (team.match_team_players || []).forEach(tp => {
+      if (tp.member_id) {
+        map.set(tp.member_id, {
+          ...tp,
+          team_id: team.id,
+          team_color: team.color
+        });
+      }
+    });
+  });
+
+  return map;
+}
+
+function isSoccerMatch(match) {
+  return sportName(match).includes("soccer") ||
+    sportName(match).includes("football");
+}
+
+const SOCCER_POSITIONS = ["GK", "DEF", "MID", "ATT"];
+
+function soccerPositionOptions(selected = "") {
+  return `
+    <option value="">Position</option>
+    ${SOCCER_POSITIONS.map(position => `
+      <option value="${position}" ${selected === position ? "selected" : ""}>
+        ${position}
+      </option>
+    `).join("")}
+  `;
+}
+
+function normalizeSoccerPosition(position) {
+  const clean = String(position || "").trim().toUpperCase();
+
+  if (clean === "GOALKEEPER" || clean === "KEEPER") return "GK";
+  if (clean === "DEFENDER" || clean === "DEFENCE" || clean === "DEFENSE") return "DEF";
+  if (clean === "MIDFIELDER" || clean === "CENTER" || clean === "CM") return "MID";
+  if (clean === "ATTACKER" || clean === "STRIKER" || clean === "FORWARD" || clean === "FW") return "ATT";
+
+  return SOCCER_POSITIONS.includes(clean) ? clean : "";
+}
+
+function soccerFormationTemplate(playerCount) {
+  if (playerCount <= 4) return ["GK", "DEF", "MID", "ATT"].slice(0, playerCount);
+  if (playerCount === 5) return ["GK", "DEF", "MID", "ATT", "ATT"];
+  if (playerCount === 6) return ["GK", "DEF", "DEF", "MID", "ATT", "ATT"];
+  if (playerCount === 7) return ["GK", "DEF", "DEF", "MID", "MID", "ATT", "ATT"];
+  if (playerCount === 8) return ["GK", "DEF", "DEF", "DEF", "MID", "MID", "ATT", "ATT"];
+  if (playerCount === 9) return ["GK", "DEF", "DEF", "DEF", "MID", "MID", "MID", "ATT", "ATT"];
+  if (playerCount === 10) return ["GK", "DEF", "DEF", "DEF", "MID", "MID", "MID", "ATT", "ATT", "ATT"];
+
+  const positions = ["GK"];
+  let remaining = playerCount - 1;
+  const cycle = ["DEF", "MID", "ATT"];
+
+  while (remaining > 0) {
+    positions.push(cycle[(positions.length - 1) % cycle.length]);
+    remaining -= 1;
+  }
+
+  return positions;
+}
+
+function positionWeight(position, memberId, sportId) {
+  const preferred = normalizeSoccerPosition(memberSportPosition(memberId, sportId));
+  const rating = memberSportRating(memberId, sportId);
+  let score = rating;
+
+  if (preferred && preferred === position) score += 2;
+  if (position === "GK" && preferred !== "GK") score -= 1;
+
+  return score;
+}
+
+function assignSoccerPositionsToTeam(memberIds, sportId) {
+  const template = soccerFormationTemplate(memberIds.length);
+  const available = [...memberIds];
+  const assignment = new Map();
+
+  template.forEach(position => {
+    if (!available.length) return;
+
+    let bestIndex = 0;
+    let bestScore = -Infinity;
+
+    available.forEach((memberId, index) => {
+      const score = positionWeight(position, memberId, sportId);
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = index;
+      }
+    });
+
+    const [memberId] = available.splice(bestIndex, 1);
+    assignment.set(memberId, position);
+  });
+
+  return assignment;
+}
+
+function updateFormationStatus() {
+  const status = $("formation-status");
+  if (!status) return;
+
+  const match = allMatches.find(m => m.id === currentTeamMatchId);
+
+  if (!match || !isSoccerMatch(match)) {
+    status.textContent = "Formation: available for soccer matches.";
+    status.classList.remove("balanced", "unbalanced");
+    return;
+  }
+
+  const assignments = collectTeamAssignments();
+  const teamAPlayers = assignments.teamA.length;
+  const teamBPlayers = assignments.teamB.length;
+  const missingPositions = assignments.all.filter(player =>
+    player.team && !player.position
+  ).length;
+  const captainsA = assignments.all.filter(player => player.team === "A" && player.isCaptain).length;
+  const captainsB = assignments.all.filter(player => player.team === "B" && player.isCaptain).length;
+
+  status.textContent =
+    `Formation: Team A ${teamAPlayers} player(s), captain ${captainsA}/1 • Team B ${teamBPlayers} player(s), captain ${captainsB}/1 • Missing positions ${missingPositions}`;
+
+  const ok = missingPositions === 0 && captainsA === 1 && captainsB === 1;
+  status.classList.toggle("balanced", ok);
+  status.classList.toggle("unbalanced", !ok);
+}
 
 function sportName(match) {
   return String(match.sports?.name || "").toLowerCase();
@@ -3594,6 +3359,8 @@ function renderTeamAssignmentList(match) {
   const teamA = teams[0] || null;
   const teamB = teams[1] || null;
   const assignedMap = currentTeamByMemberId(match);
+  const playerMap = currentTeamPlayerByMemberId(match);
+  const showFormation = isSoccerMatch(match);
 
   if (!players.length) {
     box.innerHTML = `<div class="hint">No IN players yet.</div>`;
@@ -3604,20 +3371,23 @@ function renderTeamAssignmentList(match) {
     const member = invitationMember(inv);
     const memberId = member?.id || inv.member_id;
     const selectedTeamId = assignedMap.get(memberId) || "";
+    const teamPlayer = playerMap.get(memberId);
     const selectedSide =
       teamA && selectedTeamId === teamA.id ? "A" :
       teamB && selectedTeamId === teamB.id ? "B" :
       "";
 
     const rating = memberSportRating(memberId, match.sport_id);
-    const position = memberSportPosition(memberId, match.sport_id);
+    const preferredPosition = normalizeSoccerPosition(memberSportPosition(memberId, match.sport_id));
+    const selectedPosition = teamPlayer?.formation_position || preferredPosition || "";
+    const isCaptain = Boolean(teamPlayer?.is_captain);
 
     return `
       <div class="team-player-row">
         <div class="team-player-name">
           ${escapeHtml(invitationMemberDisplayName(inv))}
           ${member?.is_external ? `<span class="mini-pill">External</span>` : ""}
-          <span class="rating-pill">R ${Number(rating).toFixed(1)}${position ? ` • ${escapeHtml(position)}` : ""}</span>
+          <span class="rating-pill">R ${Number(rating).toFixed(1)}${preferredPosition ? ` • ${escapeHtml(preferredPosition)}` : ""}</span>
         </div>
 
         <div class="team-choice">
@@ -3654,11 +3424,37 @@ function renderTeamAssignmentList(match) {
             <span>Unassigned</span>
           </label>
         </div>
+
+        ${
+          showFormation
+            ? `
+              <div class="formation-choice">
+                <select class="formation-position-select" data-member-id="${memberId}">
+                  ${soccerPositionOptions(selectedPosition)}
+                </select>
+
+                <label class="captain-chip">
+                  <input
+                    type="checkbox"
+                    class="captain-checkbox"
+                    data-member-id="${memberId}"
+                    ${isCaptain ? "checked" : ""}
+                  >
+                  <span>Captain</span>
+                </label>
+              </div>
+            `
+            : ""
+        }
       </div>
     `;
   }).join("");
 
   document.querySelectorAll("#team-assignment-list input[type='radio']").forEach(input => {
+    input.addEventListener("change", updateTeamBalanceStatus);
+  });
+
+  document.querySelectorAll(".formation-position-select, .captain-checkbox").forEach(input => {
     input.addEventListener("change", updateTeamBalanceStatus);
   });
 
@@ -3723,6 +3519,29 @@ function applySuggestedTeams() {
       (teamB.includes(memberId) && input.value === "B");
   });
 
+  if (isSoccerMatch(match)) {
+    const positionsA = assignSoccerPositionsToTeam(teamA, match.sport_id);
+    const positionsB = assignSoccerPositionsToTeam(teamB, match.sport_id);
+
+    document.querySelectorAll(".formation-position-select").forEach(select => {
+      const memberId = select.dataset.memberId;
+      select.value = positionsA.get(memberId) || positionsB.get(memberId) || "";
+    });
+
+    const captainA = [...teamA].sort((a, b) =>
+      memberSportRating(b, match.sport_id) - memberSportRating(a, match.sport_id)
+    )[0];
+
+    const captainB = [...teamB].sort((a, b) =>
+      memberSportRating(b, match.sport_id) - memberSportRating(a, match.sport_id)
+    )[0];
+
+    document.querySelectorAll(".captain-checkbox").forEach(input => {
+      const memberId = input.dataset.memberId;
+      input.checked = memberId === captainA || memberId === captainB;
+    });
+  }
+
   updateTeamBalanceStatus();
 }
 
@@ -3774,6 +3593,7 @@ function collectTeamAssignments() {
 
   const teamA = [];
   const teamB = [];
+  const all = [];
 
   choices.forEach(input => {
     const memberId = input.dataset.memberId;
@@ -3781,13 +3601,24 @@ function collectTeamAssignments() {
 
     if (!memberId) return;
 
+    const position = document.querySelector(`.formation-position-select[data-member-id="${memberId}"]`)?.value || "";
+    const captain = Boolean(document.querySelector(`.captain-checkbox[data-member-id="${memberId}"]`)?.checked);
+
     if (value === "A") teamA.push(memberId);
     if (value === "B") teamB.push(memberId);
+
+    all.push({
+      memberId,
+      team: value,
+      position,
+      isCaptain: captain
+    });
   });
 
   return {
     teamA,
-    teamB
+    teamB,
+    all
   };
 }
 
@@ -3830,6 +3661,8 @@ function updateTeamBalanceStatus() {
     ratingStatus.classList.toggle("balanced", diff <= 1.5 && isBalanced);
     ratingStatus.classList.toggle("unbalanced", !(diff <= 1.5 && isBalanced));
   }
+
+  updateFormationStatus();
 }
 
 
@@ -3845,11 +3678,7 @@ async function recalculatePointsAfterTeamEdit(matchId) {
 
   if (!refreshedMatch || refreshedMatch.score_status !== "submitted") return true;
 
-  const pointsSaved = await saveMatchMemberPoints(refreshedMatch);
-
-  if (!pointsSaved) return false;
-
-  return await updateMemberSportProfileStats(refreshedMatch);
+  return await saveMatchMemberPoints(refreshedMatch);
 }
 
 async function saveTeams() {
@@ -3889,6 +3718,25 @@ async function saveTeams() {
   if (teamCountDifference > 1) {
     alert("Teams must be balanced. The number of players in Team A and Team B can differ by maximum 1 player.");
     return;
+  }
+
+  if (isSoccerMatch(match)) {
+    const assignedPlayers = assignments.all.filter(player => player.team);
+
+    const missingPosition = assignedPlayers.find(player => !player.position);
+
+    if (missingPosition) {
+      alert("For soccer, every assigned player must have a formation position.");
+      return;
+    }
+
+    const captainsA = assignedPlayers.filter(player => player.team === "A" && player.isCaptain).length;
+    const captainsB = assignedPlayers.filter(player => player.team === "B" && player.isCaptain).length;
+
+    if (captainsA !== 1 || captainsB !== 1) {
+      alert("For soccer, select exactly one captain for Team A and exactly one captain for Team B.");
+      return;
+    }
   }
 
   const existingTeamIds = (match.match_teams || []).map(team => team.id);
@@ -3943,21 +3791,37 @@ async function saveTeams() {
   const teamAId = teamsData?.find(team => team.color === "A")?.id || teamsData?.[0]?.id;
   const teamBId = teamsData?.find(team => team.color === "B")?.id || teamsData?.[1]?.id;
 
+  const invitationByMemberId = new Map(
+    inPlayerInvitations(match).map(inv => [inv.member_id, inv])
+  );
+
+  const detailsByMemberId = new Map(
+    assignments.all.map(player => [player.memberId, player])
+  );
+
   const playerRows = [
-    ...assignments.teamA.map(memberId => ({
-      match_team_id: teamAId,
-      member_id: memberId,
-      is_external: Boolean(
-        inPlayerInvitations(match).find(inv => inv.member_id === memberId)?.member?.is_external
-      )
-    })),
-    ...assignments.teamB.map(memberId => ({
-      match_team_id: teamBId,
-      member_id: memberId,
-      is_external: Boolean(
-        inPlayerInvitations(match).find(inv => inv.member_id === memberId)?.member?.is_external
-      )
-    }))
+    ...assignments.teamA.map(memberId => {
+      const details = detailsByMemberId.get(memberId) || {};
+
+      return {
+        match_team_id: teamAId,
+        member_id: memberId,
+        is_external: Boolean(invitationByMemberId.get(memberId)?.member?.is_external),
+        formation_position: isSoccerMatch(match) ? details.position || null : null,
+        is_captain: isSoccerMatch(match) ? Boolean(details.isCaptain) : false
+      };
+    }),
+    ...assignments.teamB.map(memberId => {
+      const details = detailsByMemberId.get(memberId) || {};
+
+      return {
+        match_team_id: teamBId,
+        member_id: memberId,
+        is_external: Boolean(invitationByMemberId.get(memberId)?.member?.is_external),
+        formation_position: isSoccerMatch(match) ? details.position || null : null,
+        is_captain: isSoccerMatch(match) ? Boolean(details.isCaptain) : false
+      };
+    })
   ];
 
   if (playerRows.length > 0) {
@@ -4308,8 +4172,8 @@ async function savePadelGameOnly() {
     const { data: gameData, error: gameError } = await supabaseClient
       .from("match_games")
       .insert({
-        sport_id: cleanUuid(match.sport_id),
-        league_id: cleanUuid(match.league_id),
+        sport_id: match.sport_id,
+        league_id: match.league_id || null,
         title: gameTitle,
         status: gameStatus,
         team_a_name: teamA.name || "Team A",
@@ -4333,8 +4197,8 @@ async function savePadelGameOnly() {
   const { error: sessionError } = await supabaseClient
     .from("match_game_sessions")
     .upsert({
-      match_id: cleanUuid(currentScoreMatchId),
-      game_id: cleanUuid(gameId)
+      match_id: currentScoreMatchId,
+      game_id: gameId
     }, {
       onConflict: "match_id,game_id"
     });
@@ -4357,7 +4221,7 @@ async function savePadelGameOnly() {
   const scoreRows = padelResult.validSets.map(set => ({
     match_id: currentScoreMatchId,
     game_id: gameId,
-    sport_id: cleanUuid(match.sport_id),
+    sport_id: match.sport_id,
     entry_type: "padel_set",
     game_number: null,
     set_number: set.setNumber,
@@ -4459,258 +4323,6 @@ async function saveCurrentGameAndStayOpen() {
 }
 
 
-
-function finalizedMatchesForSportWithCurrent(currentMatch) {
-  const byId = new Map();
-
-  (allMatches || []).forEach(match => {
-    if (
-      match.id &&
-      match.sport_id === currentMatch.sport_id &&
-      (match.score_status === "submitted" || match.status === "completed")
-    ) {
-      byId.set(match.id, match);
-    }
-  });
-
-  if (currentMatch?.id) {
-    byId.set(currentMatch.id, currentMatch);
-  }
-
-  return Array.from(byId.values());
-}
-
-function profileStatsForMemberSport(memberId, sportId, currentMatch) {
-  const matches = finalizedMatchesForSportWithCurrent(currentMatch).filter(match =>
-    match.sport_id === sportId
-  );
-
-  const stats = {
-    games_played: 0,
-    wins: 0,
-    losses: 0,
-    draws: 0,
-    total_points: 0
-  };
-
-  matches.forEach(match => {
-    const isCurrent = currentMatch?.id && match.id === currentMatch.id;
-    let point = null;
-
-    if (isCurrent) {
-      const result = teamResultForMember(match, memberId).result;
-      const breakdown = pointBreakdownForResult(result);
-
-      point = {
-        member_id: memberId,
-        base_points: breakdown.basePoints,
-        consistency_bonus: breakdown.consistencyBonus,
-        total_points: breakdown.totalPoints
-      };
-    } else {
-      point = (match.match_member_points || []).find(row => row.member_id === memberId);
-    }
-
-    if (!point) return;
-
-    const teamResult = teamResultForMember(match, memberId).result || "participated";
-
-    stats.games_played += 1;
-
-    if (teamResult === "win") stats.wins += 1;
-    else if (teamResult === "loss") stats.losses += 1;
-    else if (teamResult === "draw") stats.draws += 1;
-
-    const pointsValue = Number(
-      point.total_points ??
-      (Number(point.base_points || 0) + Number(point.consistency_bonus || 0))
-    );
-
-    stats.total_points += Number.isFinite(pointsValue) ? pointsValue : 0;
-  });
-
-  return stats;
-}
-
-
-function clampNumber(value, min, max) {
-  const number = Number(value);
-
-  if (!Number.isFinite(number)) return min;
-
-  return Math.min(max, Math.max(min, number));
-}
-
-function roundTo(value, decimals = 2) {
-  const factor = 10 ** decimals;
-  return Math.round(Number(value || 0) * factor) / factor;
-}
-
-function padelRatingDeltaForResult(result, reliability) {
-  const cleanReliability = clampNumber(reliability, 0, 100);
-  const reliabilityFactor = clampNumber(1.25 - (cleanReliability / 100), 0.25, 1.25);
-
-  let baseDelta = 0;
-
-  if (result === "win") baseDelta = 0.10;
-  if (result === "loss") baseDelta = -0.08;
-  if (result === "draw") baseDelta = 0.02;
-
-  return roundTo(baseDelta * reliabilityFactor, 2);
-}
-
-async function updatePadelRatingMovementAfterMatch(match) {
-  if (!cleanUuid(match?.id) || !cleanUuid(match?.sport_id) || !isPadelMatch(match)) return true;
-
-  const inInvitations = inPlayerInvitations(match);
-  const uniqueMemberIds = Array.from(new Set(
-    inInvitations.map(inv => inv.member_id).filter(Boolean)
-  ));
-
-  if (!uniqueMemberIds.length) return true;
-
-  const { data: existingAdjustments, error: adjustmentsError } = await supabaseClient
-    .from("member_sport_rating_adjustments")
-    .select("id,match_id,member_id,sport_id,adjustment")
-    .eq("match_id", match.id)
-    .eq("sport_id", match.sport_id);
-
-  if (adjustmentsError) {
-    alert(adjustmentsError.message);
-    return false;
-  }
-
-  const alreadyAdjusted = new Set((existingAdjustments || []).map(row => row.member_id));
-  const skillRows = [];
-  const profileRows = [];
-  const adjustmentRows = [];
-
-  uniqueMemberIds.forEach(memberId => {
-    if (alreadyAdjusted.has(memberId)) return;
-
-    const result = teamResultForMember(match, memberId).result || "draw";
-    const oldLevel = skillRatingForMember(memberId, match.sport_id, "playtomic_level", 3.5);
-    const oldReliability = skillRatingForMember(memberId, match.sport_id, "reliability", 50);
-    const delta = padelRatingDeltaForResult(result, oldReliability);
-    const newLevel = roundTo(clampNumber(oldLevel + delta, 0, 7), 2);
-    const newReliability = roundTo(clampNumber(oldReliability + 3, 0, 100), 0);
-
-    skillRows.push(
-      {
-        member_id: cleanUuid(memberId),
-        sport_id: cleanUuid(match.sport_id),
-        skill_key: "playtomic_level",
-        skill_label: "Playtomic level",
-        rating: newLevel,
-        skill_value: null
-      },
-      {
-        member_id: cleanUuid(memberId),
-        sport_id: cleanUuid(match.sport_id),
-        skill_key: "reliability",
-        skill_label: "Reliability %",
-        rating: newReliability,
-        skill_value: null
-      }
-    );
-
-    profileRows.push({
-      member_id: cleanUuid(memberId),
-      sport_id: cleanUuid(match.sport_id),
-      rating: newLevel,
-      overall_rating: newLevel,
-      rating_system: "playtomic"
-    });
-
-    adjustmentRows.push({
-      match_id: match.id,
-      member_id: cleanUuid(memberId),
-      sport_id: cleanUuid(match.sport_id),
-      adjustment: delta,
-      old_rating: oldLevel,
-      new_rating: newLevel,
-      reason: result
-    });
-  });
-
-  if (!adjustmentRows.length) return true;
-
-  const { error: skillsError } = await supabaseClient
-    .from("member_sport_skill_ratings")
-    .upsert(skillRows, {
-      onConflict: "member_id,sport_id,skill_key"
-    });
-
-  if (skillsError) {
-    alert(skillsError.message);
-    return false;
-  }
-
-  const { error: profilesError } = await supabaseClient
-    .from("member_sport_profiles")
-    .upsert(profileRows, {
-      onConflict: "member_id,sport_id"
-    });
-
-  if (profilesError) {
-    alert(profilesError.message);
-    return false;
-  }
-
-  const { error: insertAdjustmentsError } = await supabaseClient
-    .from("member_sport_rating_adjustments")
-    .insert(adjustmentRows);
-
-  if (insertAdjustmentsError) {
-    alert(insertAdjustmentsError.message);
-    return false;
-  }
-
-  await loadSportProfiles();
-
-  return true;
-}
-
-async function updateMemberSportProfileStats(match) {
-  if (!cleanUuid(match?.id) || !cleanUuid(match?.sport_id)) return true;
-
-  const inInvitations = inPlayerInvitations(match);
-  const uniqueMemberIds = Array.from(new Set(
-    inInvitations.map(inv => inv.member_id).filter(Boolean)
-  ));
-
-  if (!uniqueMemberIds.length) return true;
-
-  const rows = uniqueMemberIds.map(memberId => {
-    const stats = profileStatsForMemberSport(memberId, match.sport_id, match);
-
-    return {
-      member_id: cleanUuid(memberId),
-      sport_id: cleanUuid(match.sport_id),
-      games_played: stats.games_played,
-      wins: stats.wins,
-      losses: stats.losses,
-      draws: stats.draws,
-      total_points: stats.total_points
-    };
-  });
-
-  const { error } = await supabaseClient
-    .from("member_sport_profiles")
-    .upsert(rows, {
-      onConflict: "member_id,sport_id"
-    });
-
-  if (error) {
-    alert(error.message);
-    return false;
-  }
-
-  await loadSportProfiles();
-
-  return true;
-}
-
 function teamResultForMember(match, memberId) {
   const teams = match.match_teams || [];
 
@@ -4774,8 +4386,8 @@ async function saveMatchMemberPoints(match) {
 
     return {
       match_id: match.id,
-      member_id: cleanUuid(memberId),
-      sport_id: cleanUuid(match.sport_id),
+      member_id: memberId,
+      sport_id: match.sport_id,
       base_points: points.basePoints,
       difficulty_factor: points.difficultyFactor,
       consistency_bonus: points.consistencyBonus
@@ -4863,8 +4475,8 @@ async function finalizeCurrentMatchResult() {
     const { data: gameData, error: gameError } = await supabaseClient
       .from("match_games")
       .insert({
-        sport_id: cleanUuid(match.sport_id),
-        league_id: cleanUuid(match.league_id), // automatically inherited from the booking/match league
+        sport_id: match.sport_id,
+        league_id: match.league_id || null, // automatically inherited from the booking/match league
         title: match.title || "Game",
         status: "completed",
         team_a_name: teamA.name || "Team A",
@@ -4887,8 +4499,8 @@ async function finalizeCurrentMatchResult() {
     const { error: sessionError } = await supabaseClient
       .from("match_game_sessions")
       .upsert({
-        match_id: cleanUuid(currentScoreMatchId),
-        game_id: cleanUuid(gameId)
+        match_id: currentScoreMatchId,
+        game_id: gameId
       }, {
         onConflict: "match_id,game_id"
       });
@@ -4901,9 +4513,9 @@ async function finalizeCurrentMatchResult() {
     const { error: entryError } = await supabaseClient
       .from("match_score_entries")
       .insert({
-        match_id: cleanUuid(currentScoreMatchId),
-        game_id: cleanUuid(gameId),
-        sport_id: cleanUuid(match.sport_id),
+        match_id: currentScoreMatchId,
+        game_id: gameId,
+        sport_id: match.sport_id,
         entry_type: "simple",
         game_number: 1,
         set_number: null,
@@ -4991,15 +4603,7 @@ async function finalizeCurrentMatchResult() {
 
   if (!pointsSaved) return;
 
-  const profilesUpdated = await updateMemberSportProfileStats(refreshedMatchForPoints);
-
-  if (!profilesUpdated) return;
-
-  const ratingsUpdated = await updatePadelRatingMovementAfterMatch(refreshedMatchForPoints);
-
-  if (!ratingsUpdated) return;
-
-  alert("Match result finalized, points saved, sport profiles updated, and padel ratings adjusted.");
+  alert("Match result finalized and points saved.");
 
   $("scoreModal")?.close();
   currentScoreMatchId = null;
@@ -5712,7 +5316,7 @@ function bindEvents() {
 
       const payload = {
         name: fd.get("name"),
-        sport_id: cleanUuid(fd.get("sport_id")),
+        sport_id: fd.get("sport_id"),
         format: fd.get("format") || null,
         status: fd.get("status") || "active",
         start_date: fd.get("start_date") || null,
@@ -5802,9 +5406,9 @@ function bindEvents() {
     }
 
     const match = {
-      sport_id: cleanUuid(fd.get("sport_id")),
+      sport_id: fd.get("sport_id"),
       venue_id: fd.get("venue_id"),
-      league_id: fd.get("match_type") === "league" ? cleanUuid(fd.get("league_id")) : null,
+      league_id: fd.get("match_type") === "league" ? (fd.get("league_id") || null) : null,
       created_by: currentProfile.id,
       title: fd.get("title"),
       match_type: fd.get("match_type"),
