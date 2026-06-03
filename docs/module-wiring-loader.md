@@ -18,9 +18,9 @@ The app already loads `js/auth-runtime-bridge.js`. Updating this small file is s
 
 Explicit script tags in `index.html` are still preferred long term. This loader keeps the app stable until we have a safer local edit path for larger file cleanup.
 
-## Test Checklist
+## Manual Test Result
 
-Confirm:
+Ali confirmed everything works smoothly after the loader change, including:
 
 - app loads
 - login works
