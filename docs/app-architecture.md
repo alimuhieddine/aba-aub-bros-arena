@@ -133,13 +133,14 @@ Load the utility module before `app.js`, then load the bridge after `app.js` in 
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-client.js?v=1"></script>
 <script src="js/utils.js?v=1"></script>
 <script src="app.js?v=135"></script>
 <script src="js/utils-runtime-bridge.js?v=1"></script>
 <script src="soccer-rating-foundation.js?v=1"></script>
 ```
 
-Startup has been manually tested with `js/utils.js` and `js/utils-runtime-bridge.js` loaded. The app still loads.
+Startup has been manually tested with `js/utils.js`, `js/supabase-client.js`, and `js/utils-runtime-bridge.js` loaded. The app still loads.
 
 Core flows have also been manually tested with the bridge loaded: login, admin, match work, team assignment, scoring, rankings, and soccer recalculation still work.
 
@@ -156,18 +157,7 @@ Added `js/supabase-client.js` with the shared Supabase URL, publishable key, and
 
 This module is intentionally non-breaking. `app.js` still has local `SUPABASE_URL`, `SUPABASE_KEY`, and `supabaseClient` constants until we can safely edit the large file. Future modules should use `window.ABASupabase.client`.
 
-### Optional Wire-Up
-
-Load it after the Supabase SDK and before `app.js`:
-
-```html
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/supabase-client.js?v=1"></script>
-<script src="js/utils.js?v=1"></script>
-<script src="app.js?v=135"></script>
-<script src="js/utils-runtime-bridge.js?v=1"></script>
-<script src="soccer-rating-foundation.js?v=1"></script>
-```
+The module has been loaded after the Supabase SDK and before `app.js`; the app still loads.
 
 ## First Refactor Goal
 
@@ -180,7 +170,7 @@ The first code refactor should stay small:
 - test app startup done
 - test core admin and match flows done
 - add `js/supabase-client.js` done
-- optionally load `js/supabase-client.js` after Supabase SDK and before `app.js`
+- load `js/supabase-client.js` after Supabase SDK and before `app.js` done
 - remove duplicate helper/client definitions from `app.js` when a safe non-truncated edit path is available
 
 This keeps risk low and proves the script loading pattern before larger feature modules are extracted.
