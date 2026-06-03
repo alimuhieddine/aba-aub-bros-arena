@@ -145,6 +145,30 @@ Core flows have also been manually tested with the bridge loaded: login, admin, 
 
 Keep the duplicate helper definitions in `app.js` until we can edit the large file through a proper local checkout or non-truncated patch path. The bridge keeps runtime behavior owned by `js/utils.js` in the meantime.
 
+## Phase 1b: Supabase Client Module
+
+Added `js/supabase-client.js` with the shared Supabase URL, publishable key, and client creation. The module exposes:
+
+- `window.ABASupabase.url`
+- `window.ABASupabase.key`
+- `window.ABASupabase.client`
+- `window.supabaseClient` as a compatibility global when one does not already exist
+
+This module is intentionally non-breaking. `app.js` still has local `SUPABASE_URL`, `SUPABASE_KEY`, and `supabaseClient` constants until we can safely edit the large file. Future modules should use `window.ABASupabase.client`.
+
+### Optional Wire-Up
+
+Load it after the Supabase SDK and before `app.js`:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-client.js?v=1"></script>
+<script src="js/utils.js?v=1"></script>
+<script src="app.js?v=135"></script>
+<script src="js/utils-runtime-bridge.js?v=1"></script>
+<script src="soccer-rating-foundation.js?v=1"></script>
+```
+
 ## First Refactor Goal
 
 The first code refactor should stay small:
@@ -155,6 +179,8 @@ The first code refactor should stay small:
 - load `js/utils-runtime-bridge.js` after `app.js` done
 - test app startup done
 - test core admin and match flows done
-- remove duplicate helper definitions from `app.js` when a safe non-truncated edit path is available
+- add `js/supabase-client.js` done
+- optionally load `js/supabase-client.js` after Supabase SDK and before `app.js`
+- remove duplicate helper/client definitions from `app.js` when a safe non-truncated edit path is available
 
 This keeps risk low and proves the script loading pattern before larger feature modules are extracted.
