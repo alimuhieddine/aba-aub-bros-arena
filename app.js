@@ -6,23 +6,6 @@ const $ = (id) => document.getElementById(id);
 
 const STORAGE_KEY = "aba_phase1_data";
 
-
-function cleanUuidValue(value) {
-  if (value === null || value === undefined) return null;
-
-  const text = String(value).trim();
-
-  if (!text || text.toLowerCase() === "null" || text.toLowerCase() === "undefined") {
-    return null;
-  }
-
-  return text;
-}
-
-function isValidUuidValue(value) {
-  return Boolean(cleanUuidValue(value));
-}
-
 function futureDate(days, hour) {
   const d = new Date();
   d.setDate(d.getDate() + days);
@@ -1463,33 +1446,6 @@ async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingV
   }
 
   return true;
-}
-
-
-const fmtDate = (iso) =>
-  new Date(iso).toLocaleString([], {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-
-function escapeHtml(str) {
-  return String(str ?? "").replace(/[&<>"]/g, s => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "\"": "&quot;"
-  }[s]));
-}
-
-function jsString(str) {
-  return String(str ?? "")
-    .replace(/\\/g, "\\\\")
-    .replace(/'/g, "\\'")
-    .replace(/\n/g, "\\n")
-    .replace(/\r/g, "");
 }
 
 function render() {
@@ -5134,15 +5090,6 @@ function combinations(items, choose) {
   walk(0, []);
   return result;
 }
-
-function averageValues(values, fallback = 5) {
-  const clean = (values || []).filter(value => Number.isFinite(Number(value)));
-
-  if (!clean.length) return fallback;
-
-  return clean.reduce((sum, value) => sum + Number(value), 0) / clean.length;
-}
-
 function soccerPlayerRatingBundle(memberId, sportId) {
   return {
     memberId,
@@ -7073,11 +7020,6 @@ function resetSoccerRatingSettings() {
 
   renderMatches();
 }
-
-function clampNumber(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
-
 function soccerResultModifier(result) {
   const settings = soccerRatingSettings();
 
