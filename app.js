@@ -3201,10 +3201,11 @@ function validateSoccerFormationSide(counts, sideLabel) {
 }
 
 function soccerMidHybridAdjustment({ attackAdjustment = 0, defenseAdjustment = 0, resultModifier = 0 } = {}) {
-  // Fair MID rule for later automatic rating updates:
-  // MID is hybrid: 60% attack contribution + 40% defense contribution + match result.
-  // This rewards midfielders for helping goals scored, while still accounting for goals conceded.
-  return (0.6 * attackAdjustment) + (0.4 * defenseAdjustment) + resultModifier;
+  const settings = soccerRatingSettings();
+
+  return (settings.midAttackWeight * attackAdjustment) +
+    (settings.midDefenseWeight * defenseAdjustment) +
+    resultModifier;
 }
 
 function updateFormationStatus() {
@@ -5188,8 +5189,9 @@ function soccerTeamUnitProfile(memberIds, assignment, sportId) {
   const midTotal = sum(midRatings);
   const attTotal = sum(attRatings);
 
-  const midDefTotal = 0.4 * midTotal;
-  const midAttTotal = 0.6 * midTotal;
+  const settings = soccerRatingSettings();
+  const midDefTotal = settings.midDefenseWeight * midTotal;
+  const midAttTotal = settings.midAttackWeight * midTotal;
 
   const gkStrength = averageValues(gkRatings, 5);
   const defAverage = averageValues(defRatings, 5);
@@ -5199,8 +5201,8 @@ function soccerTeamUnitProfile(memberIds, assignment, sportId) {
 
   return {
     gkStrength,
-    defStrength: gkStrength + defAverage + (0.4 * midAverage),
-    attStrength: attAverage + (0.6 * midAverage),
+    defStrength: gkStrength + defAverage + (settings.midDefenseWeight * midAverage),
+    attStrength: attAverage + (settings.midAttackWeight * midAverage),
     totalAverage,
     totals: {
       GK: gkTotal,
@@ -6909,43 +6911,201 @@ function renderRatingChanges(match) {
   `;
 }
 
+
+const SOCCER_RATING_SETTINGS_KEY = "aba_soccer_rating_settings";
+
+const DEFAULT_SOCCER_RATING_SETTINGS = {
+  attack0: -0.25,
+  attack1: -0.05,
+  attack2: 0.10,
+  attack3: 0.20,
+  attack4: 0.35,
+  defense0: 0.30,
+  defense1: 0.10,
+  defense2: 0,
+  defense3: -0.15,
+  defense4: -0.30,
+  winModifier: 0.10,
+  lossModifier: -0.10,
+  strongOpponentBonus: 0.08,
+  weakOpponentPenalty: -0.05,
+  strongOpponentLossRelief: 0.06,
+  weakOpponentLossPenalty: -0.08,
+  midAttackWeight: 0.60,
+  midDefenseWeight: 0.40,
+  maxGain: 0.35,
+  maxLoss: 0.35
+};
+
+function soccerRatingSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SOCCER_RATING_SETTINGS_KEY) || "{}");
+
+    return {
+      ...DEFAULT_SOCCER_RATING_SETTINGS,
+      ...(saved && typeof saved === "object" ? saved : {})
+    };
+  } catch {
+    return { ...DEFAULT_SOCCER_RATING_SETTINGS };
+  }
+}
+
+function setSoccerSettingInput(id, value) {
+  const input = $(id);
+  if (input) input.value = Number(value).toFixed(2);
+}
+
+function readSoccerSettingInput(id, fallback) {
+  const input = $(id);
+  const value = Number(input?.value);
+
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function renderSoccerRatingSettingsForm() {
+  const card = $("soccer-rating-settings-card");
+  if (!card) return;
+
+  const settings = soccerRatingSettings();
+
+  setSoccerSettingInput("soccer-setting-attack-0", settings.attack0);
+  setSoccerSettingInput("soccer-setting-attack-1", settings.attack1);
+  setSoccerSettingInput("soccer-setting-attack-2", settings.attack2);
+  setSoccerSettingInput("soccer-setting-attack-3", settings.attack3);
+  setSoccerSettingInput("soccer-setting-attack-4", settings.attack4);
+  setSoccerSettingInput("soccer-setting-defense-0", settings.defense0);
+  setSoccerSettingInput("soccer-setting-defense-1", settings.defense1);
+  setSoccerSettingInput("soccer-setting-defense-2", settings.defense2);
+  setSoccerSettingInput("soccer-setting-defense-3", settings.defense3);
+  setSoccerSettingInput("soccer-setting-defense-4", settings.defense4);
+  setSoccerSettingInput("soccer-setting-win", settings.winModifier);
+  setSoccerSettingInput("soccer-setting-loss", settings.lossModifier);
+  setSoccerSettingInput("soccer-setting-strong-bonus", settings.strongOpponentBonus);
+  setSoccerSettingInput("soccer-setting-weak-penalty", settings.weakOpponentPenalty);
+  setSoccerSettingInput("soccer-setting-mid-attack", settings.midAttackWeight);
+  setSoccerSettingInput("soccer-setting-mid-defense", settings.midDefenseWeight);
+  setSoccerSettingInput("soccer-setting-max-gain", settings.maxGain);
+  setSoccerSettingInput("soccer-setting-max-loss", settings.maxLoss);
+}
+
+function saveSoccerRatingSettings() {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin only.");
+    return;
+  }
+
+  const defaults = DEFAULT_SOCCER_RATING_SETTINGS;
+
+  const settings = {
+    attack0: readSoccerSettingInput("soccer-setting-attack-0", defaults.attack0),
+    attack1: readSoccerSettingInput("soccer-setting-attack-1", defaults.attack1),
+    attack2: readSoccerSettingInput("soccer-setting-attack-2", defaults.attack2),
+    attack3: readSoccerSettingInput("soccer-setting-attack-3", defaults.attack3),
+    attack4: readSoccerSettingInput("soccer-setting-attack-4", defaults.attack4),
+    defense0: readSoccerSettingInput("soccer-setting-defense-0", defaults.defense0),
+    defense1: readSoccerSettingInput("soccer-setting-defense-1", defaults.defense1),
+    defense2: readSoccerSettingInput("soccer-setting-defense-2", defaults.defense2),
+    defense3: readSoccerSettingInput("soccer-setting-defense-3", defaults.defense3),
+    defense4: readSoccerSettingInput("soccer-setting-defense-4", defaults.defense4),
+    winModifier: readSoccerSettingInput("soccer-setting-win", defaults.winModifier),
+    lossModifier: readSoccerSettingInput("soccer-setting-loss", defaults.lossModifier),
+    strongOpponentBonus: readSoccerSettingInput("soccer-setting-strong-bonus", defaults.strongOpponentBonus),
+    weakOpponentPenalty: readSoccerSettingInput("soccer-setting-weak-penalty", defaults.weakOpponentPenalty),
+    strongOpponentLossRelief: defaults.strongOpponentLossRelief,
+    weakOpponentLossPenalty: defaults.weakOpponentLossPenalty,
+    midAttackWeight: readSoccerSettingInput("soccer-setting-mid-attack", defaults.midAttackWeight),
+    midDefenseWeight: readSoccerSettingInput("soccer-setting-mid-defense", defaults.midDefenseWeight),
+    maxGain: Math.abs(readSoccerSettingInput("soccer-setting-max-gain", defaults.maxGain)),
+    maxLoss: Math.abs(readSoccerSettingInput("soccer-setting-max-loss", defaults.maxLoss))
+  };
+
+  if (settings.midAttackWeight < 0 || settings.midDefenseWeight < 0) {
+    alert("MID weights cannot be negative.");
+    return;
+  }
+
+  const totalMidWeight = settings.midAttackWeight + settings.midDefenseWeight;
+
+  if (Math.abs(totalMidWeight - 1) > 0.01) {
+    alert("MID attack weight + MID defense weight should equal 1.00.");
+    return;
+  }
+
+  localStorage.setItem(SOCCER_RATING_SETTINGS_KEY, JSON.stringify(settings));
+  renderSoccerRatingSettingsForm();
+
+  if ($("soccer-settings-status")) {
+    $("soccer-settings-status").textContent =
+      "Soccer formula saved. Use Maintenance Tools to recalculate old finalized matches.";
+  }
+
+  renderMatches();
+}
+
+function resetSoccerRatingSettings() {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin only.");
+    return;
+  }
+
+  const ok = confirm("Reset soccer rating formula to default values?");
+  if (!ok) return;
+
+  localStorage.removeItem(SOCCER_RATING_SETTINGS_KEY);
+  renderSoccerRatingSettingsForm();
+
+  if ($("soccer-settings-status")) {
+    $("soccer-settings-status").textContent = "Soccer formula reset to defaults.";
+  }
+
+  renderMatches();
+}
+
 function clampNumber(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
 function soccerAttackBaseAdjustment(goalsFor) {
-  if (goalsFor <= 0) return -0.25;
-  if (goalsFor === 1) return -0.05;
-  if (goalsFor === 2) return 0.10;
-  if (goalsFor === 3) return 0.20;
-  return 0.35;
+  const settings = soccerRatingSettings();
+
+  if (goalsFor <= 0) return settings.attack0;
+  if (goalsFor === 1) return settings.attack1;
+  if (goalsFor === 2) return settings.attack2;
+  if (goalsFor === 3) return settings.attack3;
+  return settings.attack4;
 }
 
 function soccerDefenseBaseAdjustment(goalsAgainst) {
-  if (goalsAgainst <= 0) return 0.30;
-  if (goalsAgainst === 1) return 0.10;
-  if (goalsAgainst === 2) return 0;
-  if (goalsAgainst === 3) return -0.15;
-  return -0.30;
+  const settings = soccerRatingSettings();
+
+  if (goalsAgainst <= 0) return settings.defense0;
+  if (goalsAgainst === 1) return settings.defense1;
+  if (goalsAgainst === 2) return settings.defense2;
+  if (goalsAgainst === 3) return settings.defense3;
+  return settings.defense4;
 }
 
 function soccerResultModifier(result) {
-  if (result === "win") return 0.10;
-  if (result === "loss") return -0.10;
+  const settings = soccerRatingSettings();
+
+  if (result === "win") return settings.winModifier;
+  if (result === "loss") return settings.lossModifier;
   return 0;
 }
 
 function soccerOpponentStrengthModifier(baseAdjustment, opponentStrength) {
+  const settings = soccerRatingSettings();
+
   if (!Number.isFinite(opponentStrength)) return 0;
 
   if (baseAdjustment > 0) {
-    if (opponentStrength >= 7.5) return 0.08;
-    if (opponentStrength <= 5.5) return -0.05;
+    if (opponentStrength >= 7.5) return settings.strongOpponentBonus;
+    if (opponentStrength <= 5.5) return settings.weakOpponentPenalty;
   }
 
   if (baseAdjustment < 0) {
-    if (opponentStrength >= 7.5) return 0.06;
-    if (opponentStrength <= 5.5) return -0.08;
+    if (opponentStrength >= 7.5) return settings.strongOpponentLossRelief;
+    if (opponentStrength <= 5.5) return settings.weakOpponentLossPenalty;
   }
 
   return 0;
@@ -7035,10 +7195,11 @@ function soccerRatingRowsForTeam(team, opponentTeam, sportId, goalsFor, goalsAga
     .map(player => {
       const position = normalizeSoccerPosition(player.formation_position);
 
+      const settings = soccerRatingSettings();
       const adjustment = clampNumber(
         soccerPlayerAdjustmentForPosition(position, attackAdjustment, defenseAdjustment, resultModifier),
-        -0.35,
-        0.35
+        -Math.abs(settings.maxLoss),
+        Math.abs(settings.maxGain)
       );
 
       return {
@@ -8527,6 +8688,7 @@ function setActiveTab(viewId, persist = true) {
     loadPendingMembers();
     loadVenues();
     loadMatches();
+    renderSoccerRatingSettingsForm();
   }
 }
 
@@ -8814,6 +8976,9 @@ function bindEvents() {
   });
 
   $("logout-btn")?.addEventListener("click", logout);
+
+  $("save-soccer-settings-btn")?.addEventListener("click", saveSoccerRatingSettings);
+  $("reset-soccer-settings-btn")?.addEventListener("click", resetSoccerRatingSettings);
 
   $("recalc-all-points-btn")?.addEventListener("click", recalculateAllFinalizedPoints);
   $("recalc-all-soccer-ratings-btn")?.addEventListener("click", recalculateAllSoccerRatings);
