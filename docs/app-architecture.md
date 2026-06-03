@@ -110,13 +110,40 @@ The current `app_settings` and `match_position_rating_adjustments` foundation re
 - Test login, admin tab, match creation, team assignment, scoring, rankings, and soccer recalculation after each phase.
 - Do not add new sport rating formulas during the file split.
 
+## Phase 1a: Utility Module
+
+Added `js/utils.js` with pure helpers:
+
+- `cleanUuidValue`
+- `isValidUuidValue`
+- `escapeHtml`
+- `jsString`
+- `fmtDate`
+- `clampNumber`
+- `averageValues`
+
+The helpers are attached to `window.ABAUtils` and also exposed as globals for compatibility.
+
+### Next Wire-Up
+
+Load the module before `app.js` in `index.html`:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/utils.js?v=1"></script>
+<script src="app.js?v=135"></script>
+<script src="soccer-rating-foundation.js?v=1"></script>
+```
+
+Keep the duplicate helper definitions in `app.js` until the branch is tested. Removing them should be the next micro-step after confirming the app still loads with `js/utils.js`.
+
 ## First Refactor Goal
 
-The first code refactor should be small:
+The first code refactor should stay small:
 
-- add `js/utils.js`
-- move only pure helpers such as `cleanUuidValue`, `isValidUuidValue`, `escapeHtml`, `jsString`, `fmtDate`, `clampNumber`, and `averageValues`
+- add `js/utils.js` done
 - load `js/utils.js` before `app.js`
+- test app startup and core admin flows
 - remove duplicate helper definitions from `app.js` only after confirming the globals still work
 
 This keeps risk low and proves the script loading pattern before larger feature modules are extracted.
