@@ -3796,16 +3796,53 @@ main,
 .soccer-settings-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 .soccer-settings-grid label {
   margin: 0;
+  min-width: 0;
 }
 
 .soccer-settings-grid input {
   min-height: 40px;
   padding: 9px 10px;
+}
+
+.rating-label-line {
+  display: grid;
+  gap: 4px;
+}
+
+.rating-label-line small,
+.soccer-setting-help {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.soccer-expected-preview {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid rgba(255,209,102,.22);
+  border-radius: 14px;
+  background: rgba(255,209,102,.07);
+}
+
+.soccer-expected-preview strong {
+  color: var(--gold);
+}
+
+.soccer-expected-preview code {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(0,0,0,.18);
+  color: var(--text);
+  font-size: 12px;
 }
 
 #soccer-settings-status {
