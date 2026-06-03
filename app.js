@@ -6860,6 +6860,7 @@ function renderRatingChanges(match) {
 
 
 const SOCCER_RATING_SETTINGS_KEY = "aba_soccer_rating_settings";
+const SOCCER_RATING_APP_SETTING_KEY = "soccer_rating_settings";
 
 const DEFAULT_SOCCER_RATING_SETTINGS = {
   rollingAverageWindow: 20,
@@ -6878,27 +6879,119 @@ const DEFAULT_SOCCER_RATING_SETTINGS = {
   maxLoss: 0.35
 };
 
-function soccerRatingSettings() {
+let soccerRatingSettingsCache = null;
+let soccerRatingSettingsVersion = 1;
+let soccerRatingSettingsLoadPromise = null;
+
+function readLocalSoccerRatingSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(SOCCER_RATING_SETTINGS_KEY) || "{}");
-    const settings = {
-      ...DEFAULT_SOCCER_RATING_SETTINGS,
-      ...(saved && typeof saved === "object" ? saved : {})
-    };
-
-    // Backward compatibility with older saved settings.
-    if (settings.midAttackWeight !== undefined && settings.midAttackShare === undefined) {
-      settings.midAttackShare = Number(settings.midAttackWeight);
-    }
-
-    if (settings.midDefenseWeight !== undefined && settings.midDefenseShare === undefined) {
-      settings.midDefenseShare = Number(settings.midDefenseWeight);
-    }
-
-    return settings;
+    return saved && typeof saved === "object" ? saved : {};
   } catch {
-    return { ...DEFAULT_SOCCER_RATING_SETTINGS };
+    return {};
   }
+}
+
+function normalizeSoccerRatingSettings(raw = {}, version = null) {
+  const settings = {
+    ...DEFAULT_SOCCER_RATING_SETTINGS,
+    ...(raw && typeof raw === "object" ? raw : {})
+  };
+
+  // Backward compatibility with older saved settings.
+  if (settings.midAttackWeight !== undefined && settings.midAttackShare === undefined) {
+    settings.midAttackShare = Number(settings.midAttackWeight);
+  }
+
+  if (settings.midDefenseWeight !== undefined && settings.midDefenseShare === undefined) {
+    settings.midDefenseShare = Number(settings.midDefenseWeight);
+  }
+
+  settings.formulaVersion = Number(version || settings.formulaVersion || 1);
+  return settings;
+}
+
+function cacheSoccerRatingSettings(settings, version = null) {
+  soccerRatingSettingsCache = normalizeSoccerRatingSettings(settings, version);
+  soccerRatingSettingsVersion = Number(soccerRatingSettingsCache.formulaVersion || version || 1);
+  localStorage.setItem(SOCCER_RATING_SETTINGS_KEY, JSON.stringify(soccerRatingSettingsCache));
+  return soccerRatingSettingsCache;
+}
+
+function soccerRatingSettings() {
+  return normalizeSoccerRatingSettings(
+    soccerRatingSettingsCache || readLocalSoccerRatingSettings(),
+    soccerRatingSettingsVersion
+  );
+}
+
+async function loadSoccerRatingSettings(force = false) {
+  if (soccerRatingSettingsLoadPromise && !force) return soccerRatingSettingsLoadPromise;
+
+  soccerRatingSettingsLoadPromise = (async () => {
+    try {
+      const { data, error } = await supabaseClient
+        .from("app_settings")
+        .select("value,version")
+        .eq("key", SOCCER_RATING_APP_SETTING_KEY)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      return cacheSoccerRatingSettings(data?.value || {}, data?.version || 1);
+    } catch (error) {
+      console.warn("Using local soccer formula settings fallback:", error.message);
+      return cacheSoccerRatingSettings(readLocalSoccerRatingSettings());
+    }
+  })();
+
+  return soccerRatingSettingsLoadPromise;
+}
+
+function soccerRatingSettingsFromForm() {
+  const defaults = DEFAULT_SOCCER_RATING_SETTINGS;
+
+  const settings = {
+    rollingAverageWindow: Math.max(1, Math.round(readSoccerSettingInput("soccer-setting-rolling-window", defaults.rollingAverageWindow))),
+    minimumMatchesRequired: Math.max(0, Math.round(readSoccerSettingInput("soccer-setting-min-matches", defaults.minimumMatchesRequired))),
+    defaultAverageTotalGoals: Math.max(0, readSoccerSettingInput("soccer-setting-default-total-goals", defaults.defaultAverageTotalGoals)),
+    attackConstant: readSoccerSettingInput("soccer-setting-attack-constant", defaults.attackConstant),
+    defenseConstant: readSoccerSettingInput("soccer-setting-defense-constant", defaults.defenseConstant),
+    attAttackShare: readSoccerSettingInput("soccer-setting-att-attack-share", defaults.attAttackShare),
+    midAttackShare: readSoccerSettingInput("soccer-setting-mid-attack-share", defaults.midAttackShare),
+    midDefenseShare: readSoccerSettingInput("soccer-setting-mid-defense-share", defaults.midDefenseShare),
+    defDefenseShare: readSoccerSettingInput("soccer-setting-def-defense-share", defaults.defDefenseShare),
+    gkDefenseShare: readSoccerSettingInput("soccer-setting-gk-defense-share", defaults.gkDefenseShare),
+    winModifier: readSoccerSettingInput("soccer-setting-win", defaults.winModifier),
+    lossModifier: readSoccerSettingInput("soccer-setting-loss", defaults.lossModifier),
+    maxGain: Math.abs(readSoccerSettingInput("soccer-setting-max-gain", defaults.maxGain)),
+    maxLoss: Math.abs(readSoccerSettingInput("soccer-setting-max-loss", defaults.maxLoss))
+  };
+
+  const attackShareTotal = settings.attAttackShare + settings.midAttackShare;
+  const defenseShareTotal = settings.midDefenseShare + settings.defDefenseShare + settings.gkDefenseShare;
+
+  if (Object.values(settings).some(value => !Number.isFinite(Number(value)))) {
+    throw new Error("All soccer formula values must be valid numbers.");
+  }
+
+  if (settings.attAttackShare < 0 || settings.midAttackShare < 0) {
+    throw new Error("Attack shares cannot be negative.");
+  }
+
+  if (settings.midDefenseShare < 0 || settings.defDefenseShare < 0 || settings.gkDefenseShare < 0) {
+    throw new Error("Defense shares cannot be negative.");
+  }
+
+  if (Math.abs(attackShareTotal - 1) > 0.01) {
+    throw new Error("ATT attack share + MID attack share should equal 1.00.");
+  }
+
+  if (Math.abs(defenseShareTotal - 1) > 0.01) {
+    throw new Error("MID defense share + DEF defense share + GK defense share should equal 1.00.");
+  }
+
+  return settings;
 }
 
 function setSoccerSettingInput(id, value) {
@@ -6936,73 +7029,61 @@ function renderSoccerRatingSettingsForm() {
   setSoccerSettingInput("soccer-setting-loss", settings.lossModifier);
   setSoccerSettingInput("soccer-setting-max-gain", settings.maxGain);
   setSoccerSettingInput("soccer-setting-max-loss", settings.maxLoss);
+
+  if ($("soccer-settings-status")) {
+    $("soccer-settings-status").textContent =
+      `Shared soccer formula v${Number(settings.formulaVersion || 1)}. Saved in Supabase with local cache fallback.`;
+  }
 }
 
-function saveSoccerRatingSettings() {
+async function saveSoccerRatingSettings() {
   if (!isCurrentUserAdmin()) {
     alert("Admin only.");
     return;
   }
 
-  const defaults = DEFAULT_SOCCER_RATING_SETTINGS;
+  let settings;
 
-  const settings = {
-    rollingAverageWindow: Math.max(1, Math.round(readSoccerSettingInput("soccer-setting-rolling-window", defaults.rollingAverageWindow))),
-    minimumMatchesRequired: Math.max(0, Math.round(readSoccerSettingInput("soccer-setting-min-matches", defaults.minimumMatchesRequired))),
-    defaultAverageTotalGoals: Math.max(0, readSoccerSettingInput("soccer-setting-default-total-goals", defaults.defaultAverageTotalGoals)),
-    attackConstant: readSoccerSettingInput("soccer-setting-attack-constant", defaults.attackConstant),
-    defenseConstant: readSoccerSettingInput("soccer-setting-defense-constant", defaults.defenseConstant),
-    attAttackShare: readSoccerSettingInput("soccer-setting-att-attack-share", defaults.attAttackShare),
-    midAttackShare: readSoccerSettingInput("soccer-setting-mid-attack-share", defaults.midAttackShare),
-    midDefenseShare: readSoccerSettingInput("soccer-setting-mid-defense-share", defaults.midDefenseShare),
-    defDefenseShare: readSoccerSettingInput("soccer-setting-def-defense-share", defaults.defDefenseShare),
-    gkDefenseShare: readSoccerSettingInput("soccer-setting-gk-defense-share", defaults.gkDefenseShare),
-    winModifier: readSoccerSettingInput("soccer-setting-win", defaults.winModifier),
-    lossModifier: readSoccerSettingInput("soccer-setting-loss", defaults.lossModifier),
-    maxGain: Math.abs(readSoccerSettingInput("soccer-setting-max-gain", defaults.maxGain)),
-    maxLoss: Math.abs(readSoccerSettingInput("soccer-setting-max-loss", defaults.maxLoss))
-  };
-
-  const attackShareTotal = settings.attAttackShare + settings.midAttackShare;
-  const defenseShareTotal = settings.midDefenseShare + settings.defDefenseShare + settings.gkDefenseShare;
-
-  if (Object.values(settings).some(value => !Number.isFinite(Number(value)))) {
-    alert("All soccer formula values must be valid numbers.");
+  try {
+    settings = soccerRatingSettingsFromForm();
+  } catch (error) {
+    alert(error.message);
     return;
   }
 
-  if (settings.attAttackShare < 0 || settings.midAttackShare < 0) {
-    alert("Attack shares cannot be negative.");
+  const current = await loadSoccerRatingSettings(true);
+  const nextVersion = Number(current.formulaVersion || soccerRatingSettingsVersion || 1) + 1;
+  const versionedSettings = { ...settings, formulaVersion: nextVersion };
+
+  const { error } = await supabaseClient
+    .from("app_settings")
+    .upsert({
+      key: SOCCER_RATING_APP_SETTING_KEY,
+      value: versionedSettings,
+      version: nextVersion,
+      updated_by: currentProfile?.id || null,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: "key"
+    });
+
+  if (error) {
+    alert(error.message);
     return;
   }
 
-  if (settings.midDefenseShare < 0 || settings.defDefenseShare < 0 || settings.gkDefenseShare < 0) {
-    alert("Defense shares cannot be negative.");
-    return;
-  }
-
-  if (Math.abs(attackShareTotal - 1) > 0.01) {
-    alert("ATT attack share + MID attack share should equal 1.00.");
-    return;
-  }
-
-  if (Math.abs(defenseShareTotal - 1) > 0.01) {
-    alert("MID defense share + DEF defense share + GK defense share should equal 1.00.");
-    return;
-  }
-
-  localStorage.setItem(SOCCER_RATING_SETTINGS_KEY, JSON.stringify(settings));
+  cacheSoccerRatingSettings(versionedSettings, nextVersion);
   renderSoccerRatingSettingsForm();
 
   if ($("soccer-settings-status")) {
     $("soccer-settings-status").textContent =
-      "Soccer expected-goals formula saved. Use Maintenance Tools to recalculate old finalized matches.";
+      `Shared soccer formula saved as v${nextVersion}. Use Maintenance Tools to recalculate old finalized matches.`;
   }
 
   renderMatches();
 }
 
-function resetSoccerRatingSettings() {
+async function resetSoccerRatingSettings() {
   if (!isCurrentUserAdmin()) {
     alert("Admin only.");
     return;
@@ -7011,11 +7092,32 @@ function resetSoccerRatingSettings() {
   const ok = confirm("Reset soccer expected-goals formula to default values?");
   if (!ok) return;
 
-  localStorage.removeItem(SOCCER_RATING_SETTINGS_KEY);
+  const current = await loadSoccerRatingSettings(true);
+  const nextVersion = Number(current.formulaVersion || soccerRatingSettingsVersion || 1) + 1;
+  const settings = { ...DEFAULT_SOCCER_RATING_SETTINGS, formulaVersion: nextVersion };
+
+  const { error } = await supabaseClient
+    .from("app_settings")
+    .upsert({
+      key: SOCCER_RATING_APP_SETTING_KEY,
+      value: settings,
+      version: nextVersion,
+      updated_by: currentProfile?.id || null,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: "key"
+    });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  cacheSoccerRatingSettings(settings, nextVersion);
   renderSoccerRatingSettingsForm();
 
   if ($("soccer-settings-status")) {
-    $("soccer-settings-status").textContent = "Soccer expected-goals formula reset to defaults.";
+    $("soccer-settings-status").textContent = `Shared soccer formula reset as v${nextVersion}.`;
   }
 
   renderMatches();
@@ -8624,6 +8726,7 @@ if (currentProfile?.approval_status === "approved") {
   await loadLeagues();
   await loadSportProfiles();
   await loadPositionRatings();
+  await loadSoccerRatingSettings();
   await loadMatches();
   restoreActiveTab();
 }
@@ -8698,7 +8801,7 @@ function setActiveTab(viewId, persist = true) {
     loadPendingMembers();
     loadVenues();
     loadMatches();
-    renderSoccerRatingSettingsForm();
+    loadSoccerRatingSettings(true).then(renderSoccerRatingSettingsForm);
   }
 }
 
