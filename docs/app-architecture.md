@@ -141,7 +141,9 @@ Load the utility module before `app.js`, then load the bridge after `app.js` in 
 
 Startup has been manually tested with `js/utils.js` and `js/utils-runtime-bridge.js` loaded. The app still loads.
 
-Keep the duplicate helper definitions in `app.js` until the core app flows are tested with the bridge. Removing them should be the next micro-step after confirming login, admin, matches, team assignment, scoring, rankings, and soccer recalculation still work.
+Core flows have also been manually tested with the bridge loaded: login, admin, match work, team assignment, scoring, rankings, and soccer recalculation still work.
+
+Keep the duplicate helper definitions in `app.js` until we can edit the large file through a proper local checkout or non-truncated patch path. The bridge keeps runtime behavior owned by `js/utils.js` in the meantime.
 
 ## First Refactor Goal
 
@@ -152,7 +154,7 @@ The first code refactor should stay small:
 - add `js/utils-runtime-bridge.js` done
 - load `js/utils-runtime-bridge.js` after `app.js` done
 - test app startup done
-- test core admin and match flows
-- remove duplicate helper definitions from `app.js` only after confirming the globals still work
+- test core admin and match flows done
+- remove duplicate helper definitions from `app.js` when a safe non-truncated edit path is available
 
 This keeps risk low and proves the script loading pattern before larger feature modules are extracted.
