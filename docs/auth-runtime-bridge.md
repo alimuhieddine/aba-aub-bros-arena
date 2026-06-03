@@ -13,9 +13,9 @@ This branch adds a tiny compatibility bridge for the auth module.
 
 Some auth functions in `app.js` depend on private top-level `let` state such as `currentProfile`. A runtime bridge loaded after `app.js` cannot safely read that state. Those functions stay in `app.js` until we can edit the large file directly.
 
-## Script Order For Testing
+## Script Order
 
-Load the bridge after `app.js` and after the utility bridge:
+The bridge is loaded after `app.js` and after the utility bridge:
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -28,17 +28,17 @@ Load the bridge after `app.js` and after the utility bridge:
 <script src="soccer-rating-foundation.js?v=1"></script>
 ```
 
-## Manual Test Checklist
+## Manual Test Result
 
-After adding the bridge script line, confirm:
+Ali confirmed the bridge is loaded and these flows still work:
 
 - app loads
 - login works
 - logout works
-- account/profile status text still updates correctly
-- admin tab visibility still works
+- account/profile status text updates correctly
+- admin tab visibility works
 - non-admin users do not see admin-only data
 
-## Next Step After Testing
+## Next Step
 
-If the bridge is stable, we can merge it as another checkpoint. The next larger step should be a proper local edit of `app.js` to replace duplicated auth helper definitions with calls to `window.ABAAuth`.
+This bridge can be merged as another checkpoint. The next larger step should be a proper local edit of `app.js` to replace duplicated auth helper definitions with calls to `window.ABAAuth`.
