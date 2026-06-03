@@ -75,7 +75,7 @@
     if (status === "rejected") return "Your registration was rejected. Please contact an admin if you think this is a mistake.";
     if (status === "suspended") return "Your account is suspended. Please contact an admin.";
 
-    return `Status: ${status} • Role: ${profileRole}`;
+    return `Status: ${status} - Role: ${profileRole}`;
   }
 
   window.ABAAuth = {
