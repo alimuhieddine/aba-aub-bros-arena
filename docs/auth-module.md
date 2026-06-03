@@ -33,9 +33,9 @@ The module does not replace existing `app.js` functions yet. It only creates a n
 - access UI rendering
 - active tab restoration
 
-## Script Order For Testing
+## Script Order
 
-Load `js/auth.js` after the Supabase client module and before `app.js`:
+`js/auth.js` is loaded after the Supabase client module and before `app.js`:
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -47,19 +47,19 @@ Load `js/auth.js` after the Supabase client module and before `app.js`:
 <script src="soccer-rating-foundation.js?v=1"></script>
 ```
 
-## Manual Test Checklist
+## Manual Test Result
 
-After adding the script line, confirm:
+Ali confirmed the auth module script is loaded and these flows still work:
 
 - app loads
-- login still works
-- logout still works
-- account/profile tab still loads
-- admin tab visibility still works for admin users
+- login works
+- logout works
+- account/profile tab loads
+- admin tab visibility works for admin users
 - non-admin users do not see admin-only data
 
-## Next Step After Testing
+## Next Step
 
-Once the script is loaded and tested, the next micro-step is to create a runtime bridge that lets existing `app.js` auth helper behavior delegate to `window.ABAAuth` where safe.
+The next micro-step is to create a runtime bridge that lets existing `app.js` auth helper behavior delegate to `window.ABAAuth` where safe.
 
 We should still avoid large `app.js` rewrites until a proper local checkout or non-truncated patch path is available.
