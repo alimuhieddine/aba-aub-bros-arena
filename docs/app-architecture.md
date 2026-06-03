@@ -139,7 +139,9 @@ Load the utility module before `app.js`, then load the bridge after `app.js` in 
 <script src="soccer-rating-foundation.js?v=1"></script>
 ```
 
-Keep the duplicate helper definitions in `app.js` until the branch is tested with the bridge. Removing them should be the next micro-step after confirming the app still loads with `js/utils-runtime-bridge.js`.
+Startup has been manually tested with `js/utils.js` and `js/utils-runtime-bridge.js` loaded. The app still loads.
+
+Keep the duplicate helper definitions in `app.js` until the core app flows are tested with the bridge. Removing them should be the next micro-step after confirming login, admin, matches, team assignment, scoring, rankings, and soccer recalculation still work.
 
 ## First Refactor Goal
 
@@ -148,8 +150,9 @@ The first code refactor should stay small:
 - add `js/utils.js` done
 - load `js/utils.js` before `app.js` done
 - add `js/utils-runtime-bridge.js` done
-- load `js/utils-runtime-bridge.js` after `app.js`
-- test app startup and core admin flows
+- load `js/utils-runtime-bridge.js` after `app.js` done
+- test app startup done
+- test core admin and match flows
 - remove duplicate helper definitions from `app.js` only after confirming the globals still work
 
 This keeps risk low and proves the script loading pattern before larger feature modules are extracted.
