@@ -31,6 +31,7 @@ js/
   supabase-client.js           Supabase URL/key/client setup
   state.js                     shared state, constants, app-level globals
   utils.js                     formatting, escaping, UUID cleanup, date helpers
+  utils-runtime-bridge.js      temporary compatibility bridge after app.js loads
   ui.js                        tabs, modals, render orchestration
   auth.js                      login, signup, logout, profile, access UI
   admin.js                     pending members, maintenance tools
@@ -124,25 +125,30 @@ Added `js/utils.js` with pure helpers:
 
 The helpers are attached to `window.ABAUtils` and also exposed as globals for compatibility.
 
-### Next Wire-Up
+Added `js/utils-runtime-bridge.js` as a temporary compatibility bridge. It runs after `app.js` loads and rebinds the duplicate helper globals back to `window.ABAUtils`. This proves the extracted utilities can own the runtime behavior before we delete the duplicate helper definitions from `app.js`.
 
-Load the module before `app.js` in `index.html`:
+### Current Wire-Up
+
+Load the utility module before `app.js`, then load the bridge after `app.js` in `index.html`:
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/utils.js?v=1"></script>
 <script src="app.js?v=135"></script>
+<script src="js/utils-runtime-bridge.js?v=1"></script>
 <script src="soccer-rating-foundation.js?v=1"></script>
 ```
 
-Keep the duplicate helper definitions in `app.js` until the branch is tested. Removing them should be the next micro-step after confirming the app still loads with `js/utils.js`.
+Keep the duplicate helper definitions in `app.js` until the branch is tested with the bridge. Removing them should be the next micro-step after confirming the app still loads with `js/utils-runtime-bridge.js`.
 
 ## First Refactor Goal
 
 The first code refactor should stay small:
 
 - add `js/utils.js` done
-- load `js/utils.js` before `app.js`
+- load `js/utils.js` before `app.js` done
+- add `js/utils-runtime-bridge.js` done
+- load `js/utils-runtime-bridge.js` after `app.js`
 - test app startup and core admin flows
 - remove duplicate helper definitions from `app.js` only after confirming the globals still work
 
