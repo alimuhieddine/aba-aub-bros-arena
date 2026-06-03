@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -289,94 +290,128 @@
         <div id="soccer-rating-settings-card" class="card soccer-settings-card">
           <div class="soccer-settings-grid">
             <label>
-              No goals ATT penalty
-              <input id="soccer-setting-attack-0" type="number" step="0.01">
+              <span class="rating-label-line">
+                Rolling average window
+                <small>Last N soccer matches used for expected total goals.</small>
+              </span>
+              <input id="soccer-setting-rolling-window" type="number" step="1" min="1">
             </label>
 
             <label>
-              1 goal ATT value
-              <input id="soccer-setting-attack-1" type="number" step="0.01">
+              <span class="rating-label-line">
+                Minimum matches required
+                <small>Uses default goals until enough match history exists.</small>
+              </span>
+              <input id="soccer-setting-min-matches" type="number" step="1" min="0">
             </label>
 
             <label>
-              2 goals ATT value
-              <input id="soccer-setting-attack-2" type="number" step="0.01">
+              <span class="rating-label-line">
+                Default average total goals
+                <small>Fallback expected match total before enough games are recorded.</small>
+              </span>
+              <input id="soccer-setting-default-total-goals" type="number" step="0.1" min="0">
             </label>
 
             <label>
-              3 goals ATT value
-              <input id="soccer-setting-attack-3" type="number" step="0.01">
+              <span class="rating-label-line">
+                Attack constant
+                <small>Controls how strongly scoring above/below expectation affects ATT/MID.</small>
+              </span>
+              <input id="soccer-setting-attack-constant" type="number" step="0.01">
             </label>
 
             <label>
-              4+ goals ATT value
-              <input id="soccer-setting-attack-4" type="number" step="0.01">
+              <span class="rating-label-line">
+                Defense constant
+                <small>Controls how strongly conceding below/above expectation affects DEF/GK/MID.</small>
+              </span>
+              <input id="soccer-setting-defense-constant" type="number" step="0.01">
             </label>
 
             <label>
-              Clean sheet DEF bonus
-              <input id="soccer-setting-defense-0" type="number" step="0.01">
+              <span class="rating-label-line">
+                ATT attack share
+                <small>Share of attack performance assigned to attackers.</small>
+              </span>
+              <input id="soccer-setting-att-attack-share" type="number" step="0.05" min="0" max="1">
             </label>
 
             <label>
-              1 conceded DEF value
-              <input id="soccer-setting-defense-1" type="number" step="0.01">
+              <span class="rating-label-line">
+                MID attack share
+                <small>Share of attack performance assigned to midfielders.</small>
+              </span>
+              <input id="soccer-setting-mid-attack-share" type="number" step="0.05" min="0" max="1">
             </label>
 
             <label>
-              2 conceded DEF value
-              <input id="soccer-setting-defense-2" type="number" step="0.01">
+              <span class="rating-label-line">
+                MID defense share
+                <small>Share of defensive performance assigned to midfielders.</small>
+              </span>
+              <input id="soccer-setting-mid-defense-share" type="number" step="0.05" min="0" max="1">
             </label>
 
             <label>
-              3 conceded DEF penalty
-              <input id="soccer-setting-defense-3" type="number" step="0.01">
+              <span class="rating-label-line">
+                DEF defense share
+                <small>Share of defensive performance assigned to defenders.</small>
+              </span>
+              <input id="soccer-setting-def-defense-share" type="number" step="0.05" min="0" max="1">
             </label>
 
             <label>
-              4+ conceded DEF penalty
-              <input id="soccer-setting-defense-4" type="number" step="0.01">
+              <span class="rating-label-line">
+                GK defense share
+                <small>Share of defensive performance assigned to goalkeepers.</small>
+              </span>
+              <input id="soccer-setting-gk-defense-share" type="number" step="0.05" min="0" max="1">
             </label>
 
             <label>
-              Win modifier
+              <span class="rating-label-line">
+                Win modifier
+                <small>Small rating boost added to every player on the winning team.</small>
+              </span>
               <input id="soccer-setting-win" type="number" step="0.01">
             </label>
 
             <label>
-              Loss modifier
+              <span class="rating-label-line">
+                Loss modifier
+                <small>Small rating reduction added to every player on the losing team.</small>
+              </span>
               <input id="soccer-setting-loss" type="number" step="0.01">
             </label>
 
             <label>
-              Strong opponent bonus
-              <input id="soccer-setting-strong-bonus" type="number" step="0.01">
-            </label>
-
-            <label>
-              Weak opponent penalty
-              <input id="soccer-setting-weak-penalty" type="number" step="0.01">
-            </label>
-
-            <label>
-              MID attack weight
-              <input id="soccer-setting-mid-attack" type="number" step="0.05" min="0" max="1">
-            </label>
-
-            <label>
-              MID defense weight
-              <input id="soccer-setting-mid-defense" type="number" step="0.05" min="0" max="1">
-            </label>
-
-            <label>
-              Max gain per match
+              <span class="rating-label-line">
+                Max gain per match
+                <small>Caps extreme positive changes from unusual scorelines.</small>
+              </span>
               <input id="soccer-setting-max-gain" type="number" step="0.01" min="0">
             </label>
 
             <label>
-              Max loss per match
+              <span class="rating-label-line">
+                Max loss per match
+                <small>Caps extreme negative changes from unusual scorelines.</small>
+              </span>
               <input id="soccer-setting-max-loss" type="number" step="0.01" min="0">
             </label>
+          </div>
+
+          <div class="soccer-expected-preview">
+            <strong>Formula preview</strong>
+            <div class="hint">
+              Expected goals are calculated from the rolling average total goals and the current formations:
+              <code>Team ATT ÷ Opponent DEF</code>.
+            </div>
+            <div class="hint">
+              Attackers gain or lose from <code>Actual goals - Expected goals</code>.
+              Defenders/GK gain or lose from <code>Expected goals against - Actual goals against</code>.
+            </div>
           </div>
 
           <div class="actions">
