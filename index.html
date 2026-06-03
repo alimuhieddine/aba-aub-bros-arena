@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=134" />
+  <link rel="stylesheet" href="style.css?v=135" />
 </head>
 
 <body>
@@ -277,6 +277,121 @@
           <div id="sportRatingList" class="sport-rating-list">
             Select a sport to edit ratings.
           </div>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <h2>Soccer Rating Formula</h2>
+            <p class="hint">Tune soccer position rating changes without editing code.</p>
+          </div>
+        </div>
+
+        <div id="soccer-rating-settings-card" class="card soccer-settings-card">
+          <div class="soccer-settings-grid">
+            <label>
+              No goals ATT penalty
+              <input id="soccer-setting-attack-0" type="number" step="0.01">
+            </label>
+
+            <label>
+              1 goal ATT value
+              <input id="soccer-setting-attack-1" type="number" step="0.01">
+            </label>
+
+            <label>
+              2 goals ATT value
+              <input id="soccer-setting-attack-2" type="number" step="0.01">
+            </label>
+
+            <label>
+              3 goals ATT value
+              <input id="soccer-setting-attack-3" type="number" step="0.01">
+            </label>
+
+            <label>
+              4+ goals ATT value
+              <input id="soccer-setting-attack-4" type="number" step="0.01">
+            </label>
+
+            <label>
+              Clean sheet DEF bonus
+              <input id="soccer-setting-defense-0" type="number" step="0.01">
+            </label>
+
+            <label>
+              1 conceded DEF value
+              <input id="soccer-setting-defense-1" type="number" step="0.01">
+            </label>
+
+            <label>
+              2 conceded DEF value
+              <input id="soccer-setting-defense-2" type="number" step="0.01">
+            </label>
+
+            <label>
+              3 conceded DEF penalty
+              <input id="soccer-setting-defense-3" type="number" step="0.01">
+            </label>
+
+            <label>
+              4+ conceded DEF penalty
+              <input id="soccer-setting-defense-4" type="number" step="0.01">
+            </label>
+
+            <label>
+              Win modifier
+              <input id="soccer-setting-win" type="number" step="0.01">
+            </label>
+
+            <label>
+              Loss modifier
+              <input id="soccer-setting-loss" type="number" step="0.01">
+            </label>
+
+            <label>
+              Strong opponent bonus
+              <input id="soccer-setting-strong-bonus" type="number" step="0.01">
+            </label>
+
+            <label>
+              Weak opponent penalty
+              <input id="soccer-setting-weak-penalty" type="number" step="0.01">
+            </label>
+
+            <label>
+              MID attack weight
+              <input id="soccer-setting-mid-attack" type="number" step="0.05" min="0" max="1">
+            </label>
+
+            <label>
+              MID defense weight
+              <input id="soccer-setting-mid-defense" type="number" step="0.05" min="0" max="1">
+            </label>
+
+            <label>
+              Max gain per match
+              <input id="soccer-setting-max-gain" type="number" step="0.01" min="0">
+            </label>
+
+            <label>
+              Max loss per match
+              <input id="soccer-setting-max-loss" type="number" step="0.01" min="0">
+            </label>
+          </div>
+
+          <div class="actions">
+            <button id="save-soccer-settings-btn" class="primary-btn" type="button">
+              Save soccer formula
+            </button>
+
+            <button id="reset-soccer-settings-btn" class="secondary-btn" type="button">
+              Reset defaults
+            </button>
+          </div>
+
+          <p id="soccer-settings-status" class="hint">
+            Changes affect future calculations. Use Maintenance Tools to recalculate old finalized matches.
+          </p>
         </div>
 
         <div class="section-head">
@@ -762,7 +877,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=134"></script>
+  <script src="app.js?v=135"></script>
 
 <dialog id="ratingHistoryModal" class="modal wide-modal">
   <form method="dialog" class="modal-card">
