@@ -3216,66 +3216,11 @@ function hasSubmittedScore(match) {
 }
 
 function renderScoreSummary(match) {
-  if (!hasSubmittedScore(match)) return "";
-
-  const sessionGames = matchSessionGames(match);
-  const legacyPadelSets = scoreEntries(match, "padel_set")
-    .filter(entry => !entry.game_id)
-    .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0));
-
-  const padelDetails = isPadelMatch(match)
-    ? sessionGames.length
-      ? `
-        <div class="padel-score-summary">
-          ${sessionGames.map((game, index) => {
-            const gameSets = scoreEntriesForGame(match, game.id)
-              .filter(entry => entry.entry_type === "padel_set")
-              .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0));
-
-            return `
-              <div>
-                <strong>${escapeHtml(game.title || `Game ${index + 1}`)}</strong>
-                — ${escapeHtml(padelGameStatusLabel(game, gameSets))}
-                ${game.winner_team ? ` • Winner: Team ${escapeHtml(game.winner_team)}` : ""}
-              </div>
-              ${gameSets.map(set => `
-                <div>
-                  Set ${Number(set.set_number || 0)}:
-                  ${Number(set.team_a_score || 0)}-${Number(set.team_b_score || 0)}
-                  ${set.is_completed ? "" : " incomplete"}
-                </div>
-              `).join("")}
-            `;
-          }).join("")}
-        </div>
-      `
-      : legacyPadelSets.length
-        ? `
-          <div class="padel-score-summary">
-            ${legacyPadelSets.map(set => `
-              <div>
-                Set ${Number(set.set_number || 0)}:
-                ${Number(set.team_a_score || 0)}-${Number(set.team_b_score || 0)}
-                ${set.is_completed ? "" : " incomplete"}
-              </div>
-            `).join("")}
-          </div>
-        `
-        : ""
-    : "";
-
-  const notes = match.notes
-    ? `<div class="score-notes">${escapeHtml(match.notes)}</div>`
-    : "";
-
-  if (!padelDetails && !notes) return "";
-
-  return `
-    <div class="score-summary compact-score-summary">
-      ${padelDetails}
-      ${notes}
-    </div>
-  `;
+  return ABAScoring.renderScoreSummary(match, {
+    hasSubmittedScore,
+    isPadelMatch,
+    escapeHtml
+  });
 }
 
 
