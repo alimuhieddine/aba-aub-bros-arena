@@ -2326,6 +2326,8 @@ async function loadMatches() {
         adjustment,
         rating_before,
         rating_after,
+        formula_version,
+        settings_snapshot,
         created_at,
         member:members!match_position_rating_adjustments_member_id_fkey (
           id,
@@ -7506,6 +7508,8 @@ function dedupeSoccerRatingRows(rows) {
 
 
 async function saveMatchPositionRatingAdjustmentRow(row) {
+  const settings = soccerRatingSettings();
+
   const cleanRow = {
     match_id: cleanUuidValue(row.match_id),
     member_id: cleanUuidValue(row.member_id),
@@ -7513,7 +7517,9 @@ async function saveMatchPositionRatingAdjustmentRow(row) {
     position_name: normalizeSoccerPosition(row.position_name),
     adjustment: Number(row.adjustment || 0),
     rating_before: Number(row.rating_before || 0),
-    rating_after: Number(row.rating_after || 0)
+    rating_after: Number(row.rating_after || 0),
+    formula_version: Number(settings.formulaVersion || soccerRatingSettingsVersion || 1),
+    settings_snapshot: settings
   };
 
   if (!cleanRow.match_id || !cleanRow.member_id || !cleanRow.sport_id || !cleanRow.position_name) {
@@ -7542,7 +7548,9 @@ async function saveMatchPositionRatingAdjustmentRow(row) {
       position_name: cleanRow.position_name,
       adjustment: cleanRow.adjustment,
       rating_before: cleanRow.rating_before,
-      rating_after: cleanRow.rating_after
+      rating_after: cleanRow.rating_after,
+      formula_version: cleanRow.formula_version,
+      settings_snapshot: cleanRow.settings_snapshot
     })
     .eq("match_id", cleanRow.match_id)
     .eq("member_id", cleanRow.member_id)
