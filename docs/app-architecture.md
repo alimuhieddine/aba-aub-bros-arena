@@ -207,6 +207,7 @@ Current ownership:
 - preferred team side order
 - current team map by member id
 - current team-player map by member id
+- team points display text
 
 `app.js` keeps global wrappers and still owns team assignment UI, captain permissions, formation editing, soccer formation logic, scoring integration, and rating recalculation.
 

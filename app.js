@@ -2595,25 +2595,7 @@ function teamAssignments(match) {
 
 
 function teamPointText(match, team) {
-  const pointsByMember = new Map();
-
-  (match.match_member_points || []).forEach(point => {
-    if (point.member_id) {
-      pointsByMember.set(point.member_id, Number(point.total_points || 0));
-    }
-  });
-
-  const pointValues = (team.match_team_players || [])
-    .map(player => pointsByMember.get(player.member_id))
-    .filter(value => Number.isFinite(value));
-
-  const uniquePointValues = Array.from(new Set(pointValues));
-
-  if (!uniquePointValues.length) return "";
-
-  return uniquePointValues.length === 1
-    ? `+${uniquePointValues[0]} pts each`
-    : uniquePointValues.map(value => `+${value}`).join(" / ");
+  return ABATeams.pointText(match, team);
 }
 
 
