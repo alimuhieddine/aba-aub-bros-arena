@@ -133,9 +133,13 @@ Load the utility module before `app.js`, then load the bridge after `app.js` in 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/supabase-client.js?v=1"></script>
+<script src="js/auth.js?v=1"></script>
+<script src="js/admin.js?v=1"></script>
+<script src="js/venues.js?v=1"></script>
 <script src="js/utils.js?v=1"></script>
 <script src="app.js?v=135"></script>
 <script src="js/utils-runtime-bridge.js?v=1"></script>
+<script src="js/auth-runtime-bridge.js?v=1"></script>
 ```
 
 Startup has been manually tested with `js/utils.js`, `js/supabase-client.js`, and `js/utils-runtime-bridge.js` loaded. The app still loads.

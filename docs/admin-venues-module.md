@@ -26,7 +26,7 @@ This branch starts extracting admin and venue helper logic from `app.js` without
 
 ## Why This Is Safe
 
-These modules do not replace existing `app.js` functions yet. They only create namespaced helper objects for future extracted admin and venue code to use.
+These modules now own small pure helper behavior used by `app.js`, while DOM-heavy rendering and Supabase write flows still remain in `app.js`.
 
 `app.js` still owns:
 
@@ -66,6 +66,17 @@ After adding the script lines, confirm:
 - venue sport checkboxes still save correctly
 - non-admin users still cannot see admin-only data
 
+## Current Delegation
+
+`app.js` delegates these pure helpers to the modules:
+
+- venue select strings and payload helpers
+- venue sport row building
+- venue sport name/id extraction
+- venue status text/class and map link HTML
+- pending member select string
+- member review payload construction
+
 ## Next Step After Testing
 
-If these modules load safely, merge this checkpoint. The next micro-step can add runtime bridges for pure admin/venue helpers, or begin a proper local edit of `app.js` when a safe edit path is available.
+If these delegated helpers test safely, the next micro-step can continue moving pure admin/venue helpers or begin a larger feature extraction when a safe edit path is available.

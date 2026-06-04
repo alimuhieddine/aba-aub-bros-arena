@@ -92,10 +92,7 @@ async function saveVenueSports(venueId, sportIds) {
     return true;
   }
 
-  const rows = sportIds.map(sportId => ({
-    venue_id: venueId,
-    sport_id: sportId
-  }));
+  const rows = ABAVenues.venueSportRows(venueId, sportIds);
 
   const { error: insertError } = await supabaseClient
     .from("venue_sports")
@@ -114,22 +111,7 @@ async function loadVenues() {
 
   const { data, error } = await supabaseClient
     .from("venues")
-    .select(`
-      id,
-      name,
-      address,
-      google_maps_url,
-      image_url,
-      is_active,
-      created_at,
-      venue_sports (
-        sport_id,
-        sports (
-          id,
-          name
-        )
-      )
-    `)
+    .select(ABAVenues.venueSelect())
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -147,15 +129,7 @@ async function loadVenues() {
   }
 
   box.innerHTML = data.map(venue => {
-    const sportNames = (venue.venue_sports || [])
-      .map(vs => vs.sports?.name)
-      .filter(Boolean);
-
-    const sportIds = (venue.venue_sports || [])
-      .map(vs => vs.sport_id)
-      .filter(Boolean);
-
-   
+    const sportNames = ABAVenues.sportNamesForVenue(venue);
 
     return `
   <article class="card venue-card">
@@ -176,16 +150,12 @@ async function loadVenues() {
           <div class="meta">
             Sports: ${sportNames.length ? escapeHtml(sportNames.join(", ")) : "-"}
           </div>
-          ${
-            venue.google_maps_url
-              ? `<div class="meta"><a href="${escapeHtml(venue.google_maps_url)}" target="_blank">Open Map</a></div>`
-              : ""
-          }
+          ${ABAVenues.mapLinkHtml(venue.google_maps_url)}
         </div>
 
         <div class="venue-side">
-          <span class="pill ${venue.is_active ? "green" : "red"}">
-            ${venue.is_active ? "Active" : "Inactive"}
+          <span class="pill ${ABAVenues.venueStatusClass(venue)}">
+            ${ABAVenues.venueStatusText(venue)}
           </span>
 
           <button
@@ -241,9 +211,7 @@ function editVenue(id) {
   if ($("venue-map-url")) $("venue-map-url").value = venue.google_maps_url || "";
   if ($("venue-image-url")) $("venue-image-url").value = venue.image_url || "";
 
-  const sportIds = (venue.venue_sports || [])
-    .map(vs => vs.sport_id)
-    .filter(Boolean);
+  const sportIds = ABAVenues.sportIdsForVenue(venue);
 
   setSelectedVenueSports(sportIds);
 
@@ -296,12 +264,7 @@ async function saveVenue() {
     return;
   }
 
-  const venue = {
-    name,
-    address,
-    google_maps_url: googleMapsUrl,
-    image_url: imageUrl
-  };
+  const venue = ABAVenues.venuePayload({ name, address, googleMapsUrl, imageUrl });
 
   let result;
 
@@ -357,7 +320,7 @@ async function loadPendingMembers() {
 
   const { data, error } = await supabaseClient
     .from("members")
-    .select("id,first_name,last_name,display_name,email,phone,birth_date,approval_status,created_at")
+    .select(ABAAdmin.pendingMemberSelect())
     .eq("approval_status", "pending")
     .order("created_at", { ascending: false });
 
@@ -413,12 +376,7 @@ async function reviewMember(memberId, decision) {
 
   const { error } = await supabaseClient
     .from("members")
-    .update({
-      approval_status: decision,
-      registration_status: decision,
-      reviewed_at: new Date().toISOString(),
-      reviewed_by: currentProfile.id
-    })
+    .update(ABAAdmin.memberReviewPayload(decision, currentProfile.id))
     .eq("id", memberId);
 
   if (error) {
