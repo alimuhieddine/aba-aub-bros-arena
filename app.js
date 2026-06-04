@@ -3522,37 +3522,16 @@ function updateMatchFilterOptions() {
 
 function matchMyStatus(match) {
   const invitation = myInvitation(match);
-  const isCreator = String(match.created_by || "") === String(currentProfile?.id || "");
 
-  return invitation?.status || (isCreator ? "in" : "none");
+  return ABAMatches.myStatus(match, invitation, currentProfile?.id);
 }
 
 function matchStatusFilterValue(match) {
-  const displayStatus = getMatchDisplayStatus(match);
-  const counts = invitationCounts(match);
-  const maxPlayers = Number(match.max_players || 0);
-  const isFull = Boolean(maxPlayers && counts.inCount >= maxPlayers);
-
-  if (displayStatus === "cancelled") return "cancelled";
-  if (hasSubmittedScore(match) || displayStatus === "completed") return "completed";
-  if (displayStatus === "playing") return "playing";
-  if (displayStatus === "finished" && !hasSubmittedScore(match)) return "result_pending";
-  if (isFull) return "full";
-
-  return "upcoming";
+  return ABAMatches.statusFilterValue(match, hasSubmittedScore(match));
 }
 
 function matchFilterPriority(match) {
-  const status = matchStatusFilterValue(match);
-
-  if (status === "playing") return 1;
-  if (status === "upcoming") return 2;
-  if (status === "full") return 3;
-  if (status === "result_pending") return 4;
-  if (status === "completed") return 5;
-  if (status === "cancelled") return 9;
-
-  return 6;
+  return ABAMatches.filterPriority(matchStatusFilterValue(match));
 }
 
 function filteredMatches() {

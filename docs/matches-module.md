@@ -19,6 +19,9 @@
 - match editability check
 - match formation open/closed storage key
 - match formation open/closed persistence
+- my-status classification
+- match status filter classification
+- match filter priority ordering
 
 `app.js` still owns match Supabase queries, filtering, cards, voting, time conflicts, team assignment, scoring, and global compatibility wrappers used by inline handlers.
 

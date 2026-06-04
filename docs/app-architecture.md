@@ -185,6 +185,9 @@ Current ownership:
 - match editability check
 - match formation open/closed storage key
 - match formation open/closed persistence
+- my-status classification
+- match status filter classification
+- match filter priority ordering
 
 `app.js` keeps global wrappers and still owns match data loading, filtering, cards, voting, time conflicts, team assignment, scoring, and rating interactions.
 

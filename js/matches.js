@@ -145,6 +145,38 @@
     localStorage.setItem(formationStorageKey(matchId), isOpen ? "open" : "closed");
   }
 
+  function myStatus(match, invitation, currentMemberId) {
+    const isCreator = String(match.created_by || "") === String(currentMemberId || "");
+
+    return invitation?.status || (isCreator ? "in" : "none");
+  }
+
+  function statusFilterValue(match, hasSubmitted = false) {
+    const status = displayStatus(match);
+    const counts = invitationCounts(match);
+    const maxPlayers = Number(match.max_players || 0);
+    const isFull = Boolean(maxPlayers && counts.inCount >= maxPlayers);
+
+    if (status === "cancelled") return "cancelled";
+    if (hasSubmitted || status === "completed") return "completed";
+    if (status === "playing") return "playing";
+    if (status === "finished" && !hasSubmitted) return "result_pending";
+    if (isFull) return "full";
+
+    return "upcoming";
+  }
+
+  function filterPriority(status) {
+    if (status === "playing") return 1;
+    if (status === "upcoming") return 2;
+    if (status === "full") return 3;
+    if (status === "result_pending") return 4;
+    if (status === "completed") return 5;
+    if (status === "cancelled") return 9;
+
+    return 6;
+  }
+
   window.ABAMatches = {
     MATCH_FORMATION_DEFAULT_OPEN,
     invitationMember,
@@ -163,6 +195,9 @@
     isEditable,
     formationStorageKey,
     isFormationOpen,
-    setFormationOpen
+    setFormationOpen,
+    myStatus,
+    statusFilterValue,
+    filterPriority
   };
 })();
