@@ -211,6 +211,7 @@ Current ownership:
 - team points display text
 - assigned-player detection
 - team editability check
+- formation title data
 
 `app.js` keeps global wrappers and still owns team assignment UI, captain permissions, formation editing, soccer formation logic, scoring integration, and rating recalculation.
 

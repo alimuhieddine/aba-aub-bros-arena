@@ -133,6 +133,26 @@
     return canManage && displayStatus !== "cancelled";
   }
 
+  function formationTitleParts({ teamA = null, teamB = null, hasScore = false } = {}) {
+    if (!teamA || !teamB) {
+      return {
+        teamAName: "",
+        teamBName: "",
+        scoreA: null,
+        scoreB: null,
+        hasScore: false
+      };
+    }
+
+    return {
+      teamAName: teamA.name || "Team A",
+      teamBName: teamB.name || "Team B",
+      scoreA: Number(teamA.score || 0),
+      scoreB: Number(teamB.score || 0),
+      hasScore
+    };
+  }
+
   window.ABATeams = {
     sideForTeam,
     playerSideFromTeamId,
@@ -146,6 +166,7 @@
     currentTeamPlayerByMemberId,
     pointText,
     hasAssignedPlayers,
-    canEditTeams
+    canEditTeams,
+    formationTitleParts
   };
 })();
