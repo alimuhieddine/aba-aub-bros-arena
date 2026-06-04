@@ -137,6 +137,7 @@ Load the utility module before `app.js`, then load the bridge after `app.js` in 
 <script src="js/admin.js?v=1"></script>
 <script src="js/venues.js?v=1"></script>
 <script src="js/leagues.js?v=1"></script>
+<script src="js/matches.js?v=1"></script>
 <script src="js/utils.js?v=1"></script>
 <script src="app.js?v=135"></script>
 <script src="js/utils-runtime-bridge.js?v=1"></script>
@@ -161,6 +162,21 @@ Current ownership:
 - league section wrapper HTML
 
 `app.js` keeps global wrappers for inline handlers and still owns league data loading, standings, rendering orchestration, and all match/rating interactions.
+
+## Phase 1e: Match Invitation Helpers
+
+Added `js/matches.js` for pure match helpers that do not touch match creation, voting, team assignment, scoring, Supabase writes, or rating formulas.
+
+Current ownership:
+
+- invitation status counts
+- invitation member lookup
+- external invitation detection
+- external player invitation filtering
+- filled player count
+- remaining spot calculation
+
+`app.js` keeps global wrappers and still owns match data loading, filtering, cards, voting, time conflicts, team assignment, scoring, and rating interactions.
 
 ## Phase 1b: Supabase Client Module
 
