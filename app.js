@@ -3350,12 +3350,7 @@ function isTeamEditable(match) {
 
 
 function minutesUntilMatchStart(match) {
-  const start = new Date(match.start_time).getTime();
-  const now = Date.now();
-
-  if (!Number.isFinite(start)) return null;
-
-  return Math.round((start - now) / 60000);
+  return ABAMatches.minutesUntilStart(match);
 }
 
 function matchHasTeamsAssigned(match) {
