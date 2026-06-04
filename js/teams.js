@@ -1,6 +1,12 @@
 // Team helpers for the gradual app.js split.
 // Keep this module limited to pure team lookup and side helpers.
 (function () {
+  function cleanUuidValue(value) {
+    return window.ABAUtils?.cleanUuidValue
+      ? window.ABAUtils.cleanUuidValue(value)
+      : value;
+  }
+
   function sideForTeam(match, team) {
     const teams = match.match_teams || [];
     return team?.color || (teams[0]?.id === team?.id ? "A" : teams[1]?.id === team?.id ? "B" : "");
@@ -10,6 +16,24 @@
     const teams = match.match_teams || [];
     const team = teams.find(item => item.id === teamId);
     return team ? sideForTeam(match, team) : "";
+  }
+
+  function captainSidesForMember(match, memberId) {
+    const cleanMemberId = cleanUuidValue(memberId);
+    if (!cleanMemberId) return [];
+
+    const sides = [];
+
+    (match.match_teams || []).forEach((team, index) => {
+      const side = sideForTeam(match, team) || (index === 0 ? "A" : "B");
+      const isCaptain = (team.match_team_players || []).some(player =>
+        player.is_captain && cleanUuidValue(player.member_id) === cleanMemberId
+      );
+
+      if (isCaptain && side) sides.push(side);
+    });
+
+    return sides;
   }
 
   function sideSortValue(side) {
@@ -36,6 +60,15 @@
       (side === "A" ? teams[0] : side === "B" ? teams[1] : null);
 
     return team?.name || sideLabel(side);
+  }
+
+  function preferredSideOrder({ captainSides = [], formationOnly = false } = {}) {
+    if (formationOnly && captainSides.length) {
+      const firstCaptainSide = captainSides[0];
+      return firstCaptainSide === "B" ? ["B", "A", ""] : ["A", "B", ""];
+    }
+
+    return ["A", "B", ""];
   }
 
   function currentTeamByMemberId(match) {
@@ -71,10 +104,12 @@
   window.ABATeams = {
     sideForTeam,
     playerSideFromTeamId,
+    captainSidesForMember,
     sideSortValue,
     sideLabel,
     sideOrderValue,
     teamNameForSide,
+    preferredSideOrder,
     currentTeamByMemberId,
     currentTeamPlayerByMemberId
   };
