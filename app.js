@@ -352,20 +352,6 @@ function isCurrentUserAdmin() {
     currentProfile.approval_status === "approved";
 }
 
-function cacheProfileAccess(profile) {
-  if (!profile) {
-    localStorage.removeItem("aba_user_access");
-    return;
-  }
-
-  localStorage.setItem(
-    "aba_user_access",
-    JSON.stringify({
-      role: profile.role,
-      approval_status: profile.approval_status
-    })
-  );
-}
 async function loadPendingMembers() {
   if (!isCurrentUserAdmin()) return;
 
@@ -8554,35 +8540,6 @@ function setProfileEditing(isEditing) {
   }
 }
 
-function setProfileStatusText(profile) {
-  const status = $("profile-status");
-  if (!status) return;
-
-  if (!profile) {
-    status.textContent = "Complete your profile, then wait for admin approval.";
-    return;
-  }
-
-  const approval = profile.approval_status || "pending";
-  const role = profile.role || "member";
-
-  if (approval === "pending") {
-    status.textContent = "Your profile is waiting for admin approval.";
-    return;
-  }
-
-  if (approval === "rejected") {
-    status.textContent = "Your registration was rejected. Please contact an admin if you think this is a mistake.";
-    return;
-  }
-
-  if (approval === "suspended") {
-    status.textContent = "Your account is suspended. Please contact an admin.";
-    return;
-  }
-
-  status.textContent = `Status: ${approval} • Role: ${role}`;
-}
 
 async function loadMyProfile() {
   const { data: { user }, error: userError } =
