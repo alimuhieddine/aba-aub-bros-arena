@@ -192,10 +192,12 @@ Current ownership:
 
 - team side lookup
 - team side lookup from team id
+- captain side lookup for a member
 - team side sort values
 - team side labels
 - ordered side sorting
 - team name lookup by side
+- preferred team side order
 - current team map by member id
 - current team-player map by member id
 

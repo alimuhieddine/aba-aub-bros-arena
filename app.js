@@ -2470,20 +2470,7 @@ function teamSideForTeam(match, team) {
 
 function captainSidesForCurrentUser(match) {
   const myId = cleanUuidValue(currentProfile?.id);
-  if (!myId) return [];
-
-  const sides = [];
-
-  (match.match_teams || []).forEach((team, index) => {
-    const side = teamSideForTeam(match, team) || (index === 0 ? "A" : "B");
-    const isCaptain = (team.match_team_players || []).some(player =>
-      player.is_captain && cleanUuidValue(player.member_id) === myId
-    );
-
-    if (isCaptain && side) sides.push(side);
-  });
-
-  return sides;
+  return ABATeams.captainSidesForMember(match, myId);
 }
 
 function canEditFormation(match) {
@@ -2573,12 +2560,10 @@ function sideLabelForAssignmentSide(side) {
 function preferredSideOrderForCurrentUser(match) {
   const captainSides = captainSidesForCurrentUser(match);
 
-  if (isFormationOnlyMode() && captainSides.length) {
-    const firstCaptainSide = captainSides[0];
-    return firstCaptainSide === "B" ? ["B", "A", ""] : ["A", "B", ""];
-  }
-
-  return ["A", "B", ""];
+  return ABATeams.preferredSideOrder({
+    captainSides,
+    formationOnly: isFormationOnlyMode()
+  });
 }
 
 function sideOrderValue(side, orderedSides) {
