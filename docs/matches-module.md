@@ -17,6 +17,8 @@
 - status pill class calculation
 - voting open check
 - match editability check
+- match formation open/closed storage key
+- match formation open/closed persistence
 
 `app.js` still owns match Supabase queries, filtering, cards, voting, time conflicts, team assignment, scoring, and global compatibility wrappers used by inline handlers.
 

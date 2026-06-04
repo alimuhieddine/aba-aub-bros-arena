@@ -3614,25 +3614,18 @@ function resetMatchFilters() {
 
 
 
-const MATCH_FORMATION_DEFAULT_OPEN = false;
-
 function matchFormationStorageKey(matchId) {
-  return `match_formation_open_${matchId}`;
+  return ABAMatches.formationStorageKey(matchId);
 }
 
 function isMatchFormationOpen(matchId) {
-  const saved = localStorage.getItem(matchFormationStorageKey(matchId));
-
-  if (saved === "open") return true;
-  if (saved === "closed") return false;
-
-  return MATCH_FORMATION_DEFAULT_OPEN;
+  return ABAMatches.isFormationOpen(matchId);
 }
 
 function toggleMatchFormation(matchId) {
   const nextOpen = !isMatchFormationOpen(matchId);
 
-  localStorage.setItem(matchFormationStorageKey(matchId), nextOpen ? "open" : "closed");
+  ABAMatches.setFormationOpen(matchId, nextOpen);
 
   renderMatches();
 }
