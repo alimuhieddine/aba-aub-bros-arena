@@ -2465,8 +2465,7 @@ function canManageMatch(match) {
 
 
 function teamSideForTeam(match, team) {
-  const teams = match.match_teams || [];
-  return team?.color || (teams[0]?.id === team?.id ? "A" : teams[1]?.id === team?.id ? "B" : "");
+  return ABATeams.sideForTeam(match, team);
 }
 
 function captainSidesForCurrentUser(match) {
@@ -2504,9 +2503,7 @@ function isFormationOnlyMode() {
 }
 
 function playerSideFromTeamId(match, teamId) {
-  const teams = match.match_teams || [];
-  const team = teams.find(item => item.id === teamId);
-  return team ? teamSideForTeam(match, team) : "";
+  return ABATeams.playerSideFromTeamId(match, teamId);
 }
 
 function inPlayerNames(match) {
@@ -2565,16 +2562,12 @@ function soccerPositionSortValue(position) {
 }
 
 function teamSideSortValue(side) {
-  if (side === "A") return 1;
-  if (side === "B") return 2;
-  return 3;
+  return ABATeams.sideSortValue(side);
 }
 
 
 function sideLabelForAssignmentSide(side) {
-  if (side === "A") return "Team A";
-  if (side === "B") return "Team B";
-  return "Unassigned";
+  return ABATeams.sideLabel(side);
 }
 
 function preferredSideOrderForCurrentUser(match) {
@@ -2589,17 +2582,11 @@ function preferredSideOrderForCurrentUser(match) {
 }
 
 function sideOrderValue(side, orderedSides) {
-  const index = orderedSides.indexOf(side);
-  return index === -1 ? 99 : index;
+  return ABATeams.sideOrderValue(side, orderedSides);
 }
 
 function teamNameForSide(match, side) {
-  const teams = match.match_teams || [];
-  const team =
-    teams.find(item => item.color === side) ||
-    (side === "A" ? teams[0] : side === "B" ? teams[1] : null);
-
-  return team?.name || sideLabelForAssignmentSide(side);
+  return ABATeams.teamNameForSide(match, side);
 }
 
 function assignmentGroupHeader(match, side, playersCount) {
@@ -2749,36 +2736,14 @@ function renderTeamsSummary(match) {
 }
 
 function currentTeamByMemberId(match) {
-  const map = new Map();
-
-  (match.match_teams || []).forEach(team => {
-    (team.match_team_players || []).forEach(tp => {
-      if (tp.member_id) map.set(tp.member_id, team.id);
-    });
-  });
-
-  return map;
+  return ABATeams.currentTeamByMemberId(match);
 }
 
 
 
 
 function currentTeamPlayerByMemberId(match) {
-  const map = new Map();
-
-  (match.match_teams || []).forEach(team => {
-    (team.match_team_players || []).forEach(tp => {
-      if (tp.member_id) {
-        map.set(tp.member_id, {
-          ...tp,
-          team_id: team.id,
-          team_color: team.color
-        });
-      }
-    });
-  });
-
-  return map;
+  return ABATeams.currentTeamPlayerByMemberId(match);
 }
 
 function isSoccerMatch(match) {
