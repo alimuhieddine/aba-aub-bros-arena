@@ -2417,18 +2417,7 @@ function myInvitation(match) {
 
 
 function matchTimeIntervalsOverlap(matchA, matchB) {
-  if (!matchA?.start_time || !matchA?.end_time || !matchB?.start_time || !matchB?.end_time) {
-    return false;
-  }
-
-  const startA = new Date(matchA.start_time).getTime();
-  const endA = new Date(matchA.end_time).getTime();
-  const startB = new Date(matchB.start_time).getTime();
-  const endB = new Date(matchB.end_time).getTime();
-
-  if (![startA, endA, startB, endB].every(Number.isFinite)) return false;
-
-  return startA < endB && endA > startB;
+  return ABAMatches.timeIntervalsOverlap(matchA, matchB);
 }
 
 function userIsInMatch(match, memberId = currentProfile?.id) {
@@ -2541,39 +2530,19 @@ function inPlayerNames(match) {
 
 
 function getMatchDisplayStatus(match) {
-  if (match.status === "cancelled") return "cancelled";
-  if (match.status === "completed") return "completed";
-
-  const now = new Date();
-  const start = new Date(match.start_time);
-  const end = new Date(match.end_time);
-
-  if (now >= start && now <= end) return "playing";
-  if (now > end) return "finished";
-
-  return match.status || "open_for_votes";
+  return ABAMatches.displayStatus(match);
 }
 
 function getMatchStatusClass(displayStatus, isFull) {
-  if (displayStatus === "cancelled") return "red";
-  if (displayStatus === "playing") return "gold";
-  if (displayStatus === "finished" || displayStatus === "completed") return "blue";
-  if (isFull) return "blue";
-  return "green";
+  return ABAMatches.statusClass(displayStatus, isFull);
 }
 
 function isVotingOpenForMatch(match) {
-  const displayStatus = getMatchDisplayStatus(match);
-  return displayStatus !== "cancelled" &&
-    displayStatus !== "playing" &&
-    displayStatus !== "finished" &&
-    displayStatus !== "completed" &&
-    new Date(match.start_time) > new Date();
+  return ABAMatches.isVotingOpen(match);
 }
 
 function isMatchEditable(match) {
-  return getMatchDisplayStatus(match) !== "cancelled" &&
-    new Date(match.start_time) > new Date();
+  return ABAMatches.isEditable(match);
 }
 
 
