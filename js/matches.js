@@ -92,6 +92,14 @@
     return startA < endB && endA > startB;
   }
 
+  function minutesUntilStart(match, nowMs = Date.now()) {
+    const start = new Date(match.start_time).getTime();
+
+    if (!Number.isFinite(start)) return null;
+
+    return Math.round((start - nowMs) / 60000);
+  }
+
   function displayStatus(match) {
     if (match.status === "cancelled") return "cancelled";
     if (match.status === "completed") return "completed";
@@ -189,6 +197,7 @@
     filledPlayerCount,
     remainingSpots,
     timeIntervalsOverlap,
+    minutesUntilStart,
     displayStatus,
     statusClass,
     isVotingOpen,

@@ -179,6 +179,7 @@ Current ownership:
 - filled player count
 - remaining spot calculation
 - match time overlap detection
+- minutes-until-start calculation
 - display status calculation
 - status pill class calculation
 - voting open check
