@@ -139,6 +139,7 @@ Load the utility module before `app.js`, then load the bridge after `app.js` in 
 <script src="js/leagues.js?v=1"></script>
 <script src="js/matches.js?v=1"></script>
 <script src="js/teams.js?v=1"></script>
+<script src="js/scoring.js?v=1"></script>
 <script src="js/utils.js?v=1"></script>
 <script src="app.js?v=135"></script>
 <script src="js/utils-runtime-bridge.js?v=1"></script>
@@ -216,6 +217,17 @@ Current ownership:
 - formation title data
 
 `app.js` keeps global wrappers and still owns team assignment UI, captain permissions, formation editing, soccer formation logic, scoring integration, and rating recalculation.
+
+## Phase 1g: Read-Only Scoring Helpers
+
+Added `js/scoring.js` for score helpers that do not touch score writes, result finalization, match points, Supabase writes, or rating formulas.
+
+Current ownership:
+
+- score entry lookup by optional entry type
+- score entry lookup by linked game id
+
+`app.js` keeps global wrappers and still owns score modal UI, padel set parsing, score saving, result finalization, match point persistence, soccer rating recalculation, and rating interactions.
 
 ## Phase 1b: Supabase Client Module
 
