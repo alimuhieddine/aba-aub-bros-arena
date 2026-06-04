@@ -100,6 +100,18 @@
     return Math.round((start - nowMs) / 60000);
   }
 
+  function sportName(match) {
+    return String(match.sports?.name || "").toLowerCase();
+  }
+
+  function isPadel(match) {
+    return sportName(match).includes("padel");
+  }
+
+  function isSimpleScore(match) {
+    return !isPadel(match);
+  }
+
   function displayStatus(match) {
     if (match.status === "cancelled") return "cancelled";
     if (match.status === "completed") return "completed";
@@ -198,6 +210,9 @@
     remainingSpots,
     timeIntervalsOverlap,
     minutesUntilStart,
+    sportName,
+    isPadel,
+    isSimpleScore,
     displayStatus,
     statusClass,
     isVotingOpen,
