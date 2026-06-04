@@ -1975,54 +1975,24 @@ async function markLeagueCompleted(leagueId) {
 }
 
 
-const LEAGUE_SECTION_DEFAULTS = {
-  players: true,
-  teams: true,
-  positions: false,
-  history: false
-};
-
 function leagueSectionStorageKey(leagueId, sectionKey) {
-  return `league_section_${leagueId}_${sectionKey}`;
+  return ABALeagues.sectionStorageKey(leagueId, sectionKey);
 }
 
 function isLeagueSectionOpen(leagueId, sectionKey) {
-  const saved = localStorage.getItem(leagueSectionStorageKey(leagueId, sectionKey));
-
-  if (saved === "open") return true;
-  if (saved === "closed") return false;
-
-  return Boolean(LEAGUE_SECTION_DEFAULTS[sectionKey]);
+  return ABALeagues.isSectionOpen(leagueId, sectionKey);
 }
 
 function toggleLeagueSection(leagueId, sectionKey) {
   const nextOpen = !isLeagueSectionOpen(leagueId, sectionKey);
 
-  localStorage.setItem(
-    leagueSectionStorageKey(leagueId, sectionKey),
-    nextOpen ? "open" : "closed"
-  );
+  ABALeagues.setSectionOpen(leagueId, sectionKey, nextOpen);
 
   renderLeagues();
 }
 
 function renderLeagueSection(leagueId, sectionKey, title, contentHtml) {
-  const open = isLeagueSectionOpen(leagueId, sectionKey);
-
-  return `
-    <div class="league-section ${open ? "open" : "closed"}">
-      <button class="league-section-toggle" type="button" onclick="toggleLeagueSection('${leagueId}', '${sectionKey}')">
-        <span>${escapeHtml(title)}</span>
-        <b>${open ? "▼" : "▶"}</b>
-      </button>
-
-      ${
-        open
-          ? `<div class="league-section-body">${contentHtml}</div>`
-          : ""
-      }
-    </div>
-  `;
+  return ABALeagues.sectionHtml(leagueId, sectionKey, title, contentHtml);
 }
 
 function renderLeagues() {

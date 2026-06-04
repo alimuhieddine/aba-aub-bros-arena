@@ -136,6 +136,7 @@ Load the utility module before `app.js`, then load the bridge after `app.js` in 
 <script src="js/auth.js?v=1"></script>
 <script src="js/admin.js?v=1"></script>
 <script src="js/venues.js?v=1"></script>
+<script src="js/leagues.js?v=1"></script>
 <script src="js/utils.js?v=1"></script>
 <script src="app.js?v=135"></script>
 <script src="js/utils-runtime-bridge.js?v=1"></script>
@@ -147,6 +148,19 @@ Startup has been manually tested with `js/utils.js`, `js/supabase-client.js`, an
 Core flows have also been manually tested with the bridge loaded: login, admin, match work, team assignment, scoring, rankings, and soccer recalculation still work.
 
 Keep the duplicate helper definitions in `app.js` until we can edit the large file through a proper local checkout or non-truncated patch path. The bridge keeps runtime behavior owned by `js/utils.js` in the meantime.
+
+## Phase 1d: League Section Helpers
+
+Added `js/leagues.js` for pure league helpers that do not touch standings, match counting, Supabase writes, or rating formulas.
+
+Current ownership:
+
+- league section default open/closed state
+- league section localStorage keys
+- league section open/closed persistence
+- league section wrapper HTML
+
+`app.js` keeps global wrappers for inline handlers and still owns league data loading, standings, rendering orchestration, and all match/rating interactions.
 
 ## Phase 1b: Supabase Client Module
 
