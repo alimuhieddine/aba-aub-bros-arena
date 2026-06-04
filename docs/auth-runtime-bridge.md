@@ -25,7 +25,6 @@ The bridge is loaded after `app.js` and after the utility bridge:
 <script src="app.js?v=135"></script>
 <script src="js/utils-runtime-bridge.js?v=1"></script>
 <script src="js/auth-runtime-bridge.js?v=1"></script>
-<script src="soccer-rating-foundation.js?v=1"></script>
 ```
 
 ## Manual Test Result
