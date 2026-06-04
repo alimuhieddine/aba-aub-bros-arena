@@ -123,6 +123,12 @@
       : uniquePointValues.map(value => `+${value}`).join(" / ");
   }
 
+  function hasAssignedPlayers(match) {
+    return (match.match_teams || []).some(team =>
+      (team.match_team_players || []).length > 0
+    );
+  }
+
   window.ABATeams = {
     sideForTeam,
     playerSideFromTeamId,
@@ -134,6 +140,7 @@
     preferredSideOrder,
     currentTeamByMemberId,
     currentTeamPlayerByMemberId,
-    pointText
+    pointText,
+    hasAssignedPlayers
   };
 })();

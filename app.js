@@ -3359,9 +3359,7 @@ function minutesUntilMatchStart(match) {
 }
 
 function matchHasTeamsAssigned(match) {
-  return (match.match_teams || []).some(team =>
-    (team.match_team_players || []).length > 0
-  );
+  return ABATeams.hasAssignedPlayers(match);
 }
 
 function soccerFormationIssues(match) {
