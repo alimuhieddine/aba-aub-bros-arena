@@ -226,6 +226,10 @@ Current ownership:
 
 - score entry lookup by optional entry type
 - score entry lookup by linked game id
+- linked match game lookup for score summaries
+- completed game scoring for padel match totals
+- padel set validation and set-result summaries
+- padel game status label text
 
 `app.js` keeps global wrappers and still owns score modal UI, padel set parsing, score saving, result finalization, match point persistence, soccer rating recalculation, and rating interactions.
 
