@@ -26,7 +26,6 @@ The safest migration strategy is to split by feature while preserving the curren
 
 ```text
 app.js                         bootstrap and compatibility layer
-soccer-rating-foundation.js    temporary shared soccer formula patch
 js/
   supabase-client.js           Supabase URL/key/client setup
   state.js                     shared state, constants, app-level globals
@@ -97,7 +96,7 @@ The current `app_settings` and `match_position_rating_adjustments` foundation re
 4. Extract venues/admin basics into `js/admin.js` and `js/venues.js`.
 5. Extract leagues and matches.
 6. Extract teams and scoring.
-7. Move soccer rating code from `app.js` and `soccer-rating-foundation.js` into `js/ratings/soccer.js`.
+7. Move soccer rating code from `app.js` into `js/ratings/soccer.js`.
 8. Add generic rating registry in `js/ratings/index.js`.
 9. Add activity points.
 10. Add notifications.
@@ -137,7 +136,6 @@ Load the utility module before `app.js`, then load the bridge after `app.js` in 
 <script src="js/utils.js?v=1"></script>
 <script src="app.js?v=135"></script>
 <script src="js/utils-runtime-bridge.js?v=1"></script>
-<script src="soccer-rating-foundation.js?v=1"></script>
 ```
 
 Startup has been manually tested with `js/utils.js`, `js/supabase-client.js`, and `js/utils-runtime-bridge.js` loaded. The app still loads.
