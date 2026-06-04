@@ -22,6 +22,8 @@ The app is a static browser app with most behavior in `app.js`:
 
 The safest migration strategy is to split by feature while preserving the current global function names until the full migration is complete.
 
+Before starting feature work, use `docs/feature-change-checklist.md` to pick the right module, avoid sensitive rating/scoring paths, and record the checks run for each PR.
+
 ## Target Structure
 
 ```text
