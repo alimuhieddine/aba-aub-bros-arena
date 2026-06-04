@@ -11,8 +11,8 @@ with calculated_points as (
     least(
       3,
       greatest(
-        1,
-        coalesce(ceil(extract(epoch from (m.end_time - m.start_time)) / 1800.0), 1)
+        0,
+        coalesce(floor(extract(epoch from (m.end_time - m.start_time)) / 1800.0), 0)
       )
     )::numeric as activity_points,
     case

@@ -6297,9 +6297,9 @@ function matchDurationHours(match) {
 function activityPointsForDurationHours(durationHours) {
   const hours = Number(durationHours || 0);
 
-  if (!Number.isFinite(hours) || hours <= 0) return 1;
+  if (!Number.isFinite(hours) || hours <= 0) return 0;
 
-  return Math.min(3, Math.max(1, Math.ceil(hours / 0.5)));
+  return Math.min(3, Math.max(0, Math.floor(hours / 0.5)));
 }
 
 function activityPointsForDurationMinutes(durationMinutes) {

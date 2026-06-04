@@ -7,17 +7,18 @@ ABA match points are split into activity points and score points.
 Activity points reward showing up for a scheduled activity.
 
 ```text
-x = min(3, ceil(activity_duration_hours / 0.5))
+x = min(3, floor(activity_duration_hours / 0.5))
 ```
 
 Examples:
 
+- under 30 minutes: 0 activity points
 - 30 minutes: 1 activity point
 - 60 minutes: 2 activity points
 - 90 minutes: 3 activity points
 - longer than 90 minutes: 3 activity points
 
-If the duration is missing or invalid, the app falls back to 1 activity point.
+If the duration is missing or invalid, the app falls back to 0 activity points.
 
 The current persisted implementation applies this formula to finalized match point rows. The local Proof demo also uses the same duration rule for non-match activity cards. A future Supabase-backed non-match activity feature should store the same `activity_points` value and keep `score_points` at `0`.
 
