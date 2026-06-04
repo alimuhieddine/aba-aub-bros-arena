@@ -6332,9 +6332,20 @@ function pointBreakdownForResult(result, match = null) {
 }
 
 function pointTotalPoints(point) {
-  if (point?.total_points !== null && point?.total_points !== undefined) {
-    const total = Number(point.total_points);
-    if (Number.isFinite(total)) return total;
+  const hasSplitPoints =
+    (
+      point?.activity_points !== null &&
+      point?.activity_points !== undefined
+    ) ||
+    (
+      point?.score_points !== null &&
+      point?.score_points !== undefined
+    );
+
+  if (hasSplitPoints) {
+    const activity = Number(point?.activity_points || 0);
+    const score = Number(point?.score_points || 0);
+    return activity + score;
   }
 
   if (point?.base_points !== null && point?.base_points !== undefined) {
@@ -6342,9 +6353,12 @@ function pointTotalPoints(point) {
     if (Number.isFinite(base)) return base;
   }
 
-  const activity = Number(point?.activity_points || 0);
-  const score = Number(point?.score_points || 0);
-  return activity + score;
+  if (point?.total_points !== null && point?.total_points !== undefined) {
+    const total = Number(point.total_points);
+    if (Number.isFinite(total)) return total;
+  }
+
+  return 0;
 }
 
 async function saveMatchMemberPoints(match) {
