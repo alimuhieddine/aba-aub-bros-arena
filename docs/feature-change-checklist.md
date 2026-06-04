@@ -19,6 +19,8 @@ Current helper modules:
 - `js/teams.js`: team side, captain, editability, formation title, and assigned-player helpers.
 - `js/scoring.js`: read-only scoring helpers and score summary display helpers.
 
+The current activity/score points formula is documented in `docs/points-system.md`.
+
 ## Sensitive Areas
 
 Treat these areas as high-risk and test them directly when touched:

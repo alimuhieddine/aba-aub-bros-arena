@@ -23,8 +23,8 @@ const demoData = {
     { id: crypto.randomUUID(), sport: "Soccer", title: "ABA Friday 5v5", type: "Friendly", date: futureDate(5, 21), venue: "AUB Green Field", address: "AUB, Beirut", comments: [] }
   ],
   activities: [
-    { id: crypto.randomUUID(), player: "Ali", sport: "Padel", activity: "90 min padel session", proof: "Smartwatch screenshot", points: 15, approvals: ["Committee 1", "Committee 2"], createdAt: Date.now() - 86400000 },
-    { id: crypto.randomUUID(), player: "Hammoudi", sport: "Gym", activity: "Leg day + cardio", proof: "Gym photo", points: 10, approvals: ["Committee 1"], createdAt: Date.now() - 3600000 }
+    { id: crypto.randomUUID(), player: "Ali", sport: "Padel", activity: "90 min padel session", proof: "Smartwatch screenshot", durationMinutes: 90, points: 3, approvals: ["Committee 1", "Committee 2"], createdAt: Date.now() - 86400000 },
+    { id: crypto.randomUUID(), player: "Hammoudi", sport: "Gym", activity: "Leg day + cardio", proof: "Gym photo", durationMinutes: 60, points: 2, approvals: ["Committee 1"], createdAt: Date.now() - 3600000 }
   ]
 };
 
@@ -1609,7 +1609,7 @@ function leaguePlayerStandings(leagueId) {
       const teamInfo = teamResultForMember(match, memberId);
       const result = teamInfo.result || "participated";
 
-      current.points += Number(point.total_points || 0);
+      current.points += pointTotalPoints(point);
       current.matches += 1;
 
       if (result === "win") current.wins += 1;
@@ -2219,6 +2219,8 @@ async function loadMatches() {
       match_member_points (
         id,
         member_id,
+        activity_points,
+        score_points,
         base_points,
         difficulty_factor,
         consistency_bonus,
@@ -2321,6 +2323,8 @@ async function loadMatches() {
       match_member_points (
         id,
         member_id,
+        activity_points,
+        score_points,
         base_points,
         difficulty_factor,
         consistency_bonus,
@@ -6279,19 +6283,68 @@ function teamResultForMember(match, memberId) {
   };
 }
 
-function pointBreakdownForResult(result) {
-  let basePoints = 2;
+function matchDurationHours(match) {
+  const start = new Date(match?.start_time || 0).getTime();
+  const end = new Date(match?.end_time || 0).getTime();
 
-  if (result === "win") basePoints = 10;
-  else if (result === "draw") basePoints = 5;
-  else if (result === "loss") basePoints = 2;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return 0;
+  }
+
+  return (end - start) / (1000 * 60 * 60);
+}
+
+function activityPointsForDurationHours(durationHours) {
+  const hours = Number(durationHours || 0);
+
+  if (!Number.isFinite(hours) || hours <= 0) return 0;
+
+  return Math.min(3, Math.max(0, Math.floor(hours / 0.5)));
+}
+
+function activityPointsForDurationMinutes(durationMinutes) {
+  return activityPointsForDurationHours(Number(durationMinutes || 0) / 60);
+}
+
+function activityPointsForMatch(match) {
+  return activityPointsForDurationHours(matchDurationHours(match));
+}
+
+function scorePointsForResult(result) {
+  if (result === "win") return 7;
+  if (result === "draw") return 2;
+  return 0;
+}
+
+function pointBreakdownForResult(result, match = null) {
+  const activityPoints = activityPointsForMatch(match);
+  const scorePoints = scorePointsForResult(result);
+  const totalPoints = activityPoints + scorePoints;
 
   return {
-    basePoints,
+    activityPoints,
+    scorePoints,
+    basePoints: totalPoints,
     difficultyFactor: 1,
     consistencyBonus: 0,
-    totalPoints: basePoints
+    totalPoints
   };
+}
+
+function pointTotalPoints(point) {
+  if (point?.total_points !== null && point?.total_points !== undefined) {
+    const total = Number(point.total_points);
+    if (Number.isFinite(total)) return total;
+  }
+
+  if (point?.base_points !== null && point?.base_points !== undefined) {
+    const base = Number(point.base_points);
+    if (Number.isFinite(base)) return base;
+  }
+
+  const activity = Number(point?.activity_points || 0);
+  const score = Number(point?.score_points || 0);
+  return activity + score;
 }
 
 async function saveMatchMemberPoints(match) {
@@ -6329,12 +6382,14 @@ async function saveMatchMemberPoints(match) {
   const rows = uniqueInvitations.map(inv => {
     const memberId = cleanUuidValue(inv.member_id);
     const playerTeam = teamResultForMember(match, memberId);
-    const points = pointBreakdownForResult(playerTeam.result);
+    const points = pointBreakdownForResult(playerTeam.result, match);
 
     return {
       match_id: matchId,
       member_id: memberId,
       sport_id: sportId,
+      activity_points: points.activityPoints,
+      score_points: points.scorePoints,
       base_points: points.basePoints,
       difficulty_factor: points.difficultyFactor,
       consistency_bonus: points.consistencyBonus
@@ -7467,13 +7522,17 @@ function commentSection(m) {
 
 function activityCard(a, compact = false) {
   const verified = a.approvals.length >= 2;
+  const durationMinutes = Number(a.durationMinutes || 0);
+  const durationText = durationMinutes > 0
+    ? ` • ${durationMinutes} min`
+    : "";
 
   return `
     <article class="card">
       <div class="row">
         <div>
           <h3>${escapeHtml(a.player)} — ${escapeHtml(a.activity)}</h3>
-          <div class="meta">${escapeHtml(a.sport)} • ${a.points} pts • Proof: ${escapeHtml(a.proof || "not attached yet")}</div>
+          <div class="meta">${escapeHtml(a.sport)}${durationText} • Activity ${a.points} pts • Proof: ${escapeHtml(a.proof || "not attached yet")}</div>
           <div class="meta">Approvals: ${a.approvals.length}/2</div>
         </div>
         <span class="pill ${verified ? "green" : "red"}">${verified ? "Verified" : "Pending"}</span>
@@ -7599,13 +7658,13 @@ function playerProfileStats(memberId) {
 
       const teamInfo = teamResultForMember(match, cleanId);
       const result = teamInfo.result || "participated";
-      const total = Number(point.total_points ?? point.base_points ?? 0);
-      const base = Number(point.base_points || 0);
-      const bonus = Number(point.consistency_bonus || 0);
+      const total = pointTotalPoints(point);
+      const activity = Number(point.activity_points ?? point.base_points ?? 0);
+      const score = Number(point.score_points ?? point.consistency_bonus ?? 0);
 
       stats.totalPoints += total;
-      stats.basePoints += base;
-      stats.bonusPoints += bonus;
+      stats.basePoints += activity;
+      stats.bonusPoints += score;
       stats.matches += 1;
 
       if (result === "win") stats.wins += 1;
@@ -7627,6 +7686,8 @@ function playerProfileStats(memberId) {
         match,
         result,
         points: total,
+        activityPoints: activity,
+        scorePoints: score,
         score: scoreTextForMatch(match)
       });
     });
@@ -7735,18 +7796,18 @@ function renderPlayerProfile(memberId) {
       </div>
 
       <div class="profile-stat-box">
+        <span>Activity points</span>
+        <strong>${Number(stats.basePoints || 0)}</strong>
+      </div>
+
+      <div class="profile-stat-box">
+        <span>Score points</span>
+        <strong>${Number(stats.bonusPoints || 0)}</strong>
+      </div>
+
+      <div class="profile-stat-box">
         <span>Played</span>
         <strong>${stats.matches}</strong>
-      </div>
-
-      <div class="profile-stat-box">
-        <span>W-D-L</span>
-        <strong>${stats.wins}-${stats.draws}-${stats.losses}</strong>
-      </div>
-
-      <div class="profile-stat-box">
-        <span>Win rate</span>
-        <strong>${stats.matches ? Math.round((stats.wins / stats.matches) * 100) : 0}%</strong>
       </div>
     </div>
 
@@ -7785,6 +7846,7 @@ function renderPlayerProfile(memberId) {
                 <strong>${escapeHtml(row.match.title || "Match")}</strong>
                 <span>${escapeHtml(fmtDate(row.match.start_time))} • ${escapeHtml(row.match.sports?.name || "-")}</span>
                 <em>${escapeHtml(row.score || "-")}</em>
+                <em>Activity ${Number(row.activityPoints || 0)} • Score ${Number(row.scorePoints || 0)}</em>
               </div>
               <b class="${row.result}">${escapeHtml(row.result)} • +${Number(row.points || 0)} pts</b>
             </div>
@@ -7864,9 +7926,9 @@ function rankingRows() {
       const teamInfo = teamResultForMember(match, memberId);
       const result = teamInfo.result || "participated";
 
-      current.totalPoints += Number(point.total_points || 0);
-      current.basePoints += Number(point.base_points || 0);
-      current.bonusPoints += Number(point.consistency_bonus || 0);
+      current.totalPoints += pointTotalPoints(point);
+      current.basePoints += Number(point.activity_points ?? point.base_points ?? 0);
+      current.bonusPoints += Number(point.score_points ?? point.consistency_bonus ?? 0);
       current.matches += 1;
 
       if (result === "win") current.wins += 1;
@@ -7936,7 +7998,9 @@ function renderRankings() {
       <div class="rankings-table-head">
         <span>#</span>
         <span>Player</span>
-        <span>Pts</span>
+        <span>Total</span>
+        <span>Act</span>
+        <span>Score</span>
         <span>Played</span>
         <span>W-D-L</span>
       </div>
@@ -7951,6 +8015,10 @@ function renderRankings() {
           </span>
 
           <strong>${Number(row.totalPoints || 0)}</strong>
+
+          <span>${Number(row.basePoints || 0)}</span>
+
+          <span>${Number(row.bonusPoints || 0)}</span>
 
           <span>${Number(row.matches || 0)}</span>
 
@@ -8585,13 +8653,19 @@ function bindEvents() {
   if ($("activityForm")) {
     $("activityForm").addEventListener("submit", e => {
       const fd = new FormData(e.target);
+      const durationRaw = Number(fd.get("duration_minutes") || 0);
+      const durationMinutes = Number.isFinite(durationRaw)
+        ? Math.max(1, Math.round(durationRaw))
+        : 1;
+
       state.activities.unshift({
         id: crypto.randomUUID(),
         player: fd.get("player"),
         sport: fd.get("sport"),
         activity: fd.get("activity"),
         proof: fd.get("proof"),
-        points: Number(fd.get("points")),
+        durationMinutes,
+        points: activityPointsForDurationMinutes(durationMinutes),
         approvals: [],
         createdAt: Date.now()
       });

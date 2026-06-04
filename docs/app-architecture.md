@@ -24,6 +24,8 @@ The safest migration strategy is to split by feature while preserving the curren
 
 Before starting feature work, use `docs/feature-change-checklist.md` to pick the right module, avoid sensitive rating/scoring paths, and record the checks run for each PR.
 
+The current points formula is documented in `docs/points-system.md`.
+
 ## Target Structure
 
 ```text
