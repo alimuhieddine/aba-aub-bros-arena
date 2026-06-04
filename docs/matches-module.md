@@ -10,6 +10,11 @@
 - external player invitation filtering
 - filled player count
 - remaining spot calculation
+- match time overlap detection
+- display status calculation
+- status pill class calculation
+- voting open check
+- match editability check
 
 `app.js` still owns match Supabase queries, filtering, cards, voting, time conflicts, team assignment, scoring, and global compatibility wrappers used by inline handlers.
 
