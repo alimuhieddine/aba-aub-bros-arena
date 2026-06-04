@@ -16,6 +16,7 @@
 - current team-player map by member id
 - team points display text
 - assigned-player detection
+- team editability check
 
 `app.js` still owns team assignment UI, captain permissions, formation editing, soccer formation logic, scoring integration, and rating recalculation.
 

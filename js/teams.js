@@ -129,6 +129,10 @@
     );
   }
 
+  function canEditTeams({ canManage = false, displayStatus = "" } = {}) {
+    return canManage && displayStatus !== "cancelled";
+  }
+
   window.ABATeams = {
     sideForTeam,
     playerSideFromTeamId,
@@ -141,6 +145,7 @@
     currentTeamByMemberId,
     currentTeamPlayerByMemberId,
     pointText,
-    hasAssignedPlayers
+    hasAssignedPlayers,
+    canEditTeams
   };
 })();
