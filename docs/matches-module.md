@@ -14,6 +14,8 @@
 - remaining spot calculation
 - match time overlap detection
 - minutes-until-start calculation
+- sport name normalization
+- padel/simple-score sport checks
 - display status calculation
 - status pill class calculation
 - voting open check

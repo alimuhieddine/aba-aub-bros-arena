@@ -2987,15 +2987,15 @@ function updateFormationStatus() {
 }
 
 function sportName(match) {
-  return String(match.sports?.name || "").toLowerCase();
+  return ABAMatches.sportName(match);
 }
 
 function isPadelMatch(match) {
-  return sportName(match).includes("padel");
+  return ABAMatches.isPadel(match);
 }
 
 function isSimpleScoreMatch(match) {
-  return !isPadelMatch(match);
+  return ABAMatches.isSimpleScore(match);
 }
 
 function scoreEntries(match, entryType = null) {
