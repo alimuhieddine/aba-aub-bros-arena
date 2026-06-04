@@ -75,7 +75,7 @@
     if (status === "rejected") return "Your registration was rejected. Please contact an admin if you think this is a mistake.";
     if (status === "suspended") return "Your account is suspended. Please contact an admin.";
 
-    return `Status: ${status} - Role: ${profileRole}`;
+    return `Status: ${status} • Role: ${profileRole}`;
   }
 
   window.ABAAuth = {
@@ -91,5 +91,13 @@
     cachedProfileAccess,
     clearCachedProfileAccess,
     profileStatusText
+  };
+
+  window.cacheProfileAccess = window.cacheProfileAccess || cacheProfileAccess;
+  window.setProfileStatusText = window.setProfileStatusText || function setProfileStatusText(profile) {
+    const status = document.getElementById("profile-status");
+    if (!status) return;
+
+    status.textContent = profileStatusText(profile);
   };
 })();
