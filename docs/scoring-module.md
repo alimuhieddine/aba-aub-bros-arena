@@ -10,6 +10,7 @@
 - completed game scoring for padel match totals
 - padel set validation and set-result summaries
 - padel game status label text
+- submitted score summary display HTML
 
 `app.js` still owns score modal UI, padel set parsing, score saving, result finalization, match point persistence, soccer rating recalculation, and global compatibility wrappers.
 
