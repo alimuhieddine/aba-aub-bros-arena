@@ -1,6 +1,8 @@
 // Match helpers for the gradual app.js split.
 // Keep this module limited to pure match data helpers.
 (function () {
+  const MATCH_FORMATION_DEFAULT_OPEN = false;
+
   function invitationMember(invitation) {
     return invitation?.member || null;
   }
@@ -126,7 +128,25 @@
       new Date(match.start_time) > new Date();
   }
 
+  function formationStorageKey(matchId) {
+    return `match_formation_open_${matchId}`;
+  }
+
+  function isFormationOpen(matchId) {
+    const saved = localStorage.getItem(formationStorageKey(matchId));
+
+    if (saved === "open") return true;
+    if (saved === "closed") return false;
+
+    return MATCH_FORMATION_DEFAULT_OPEN;
+  }
+
+  function setFormationOpen(matchId, isOpen) {
+    localStorage.setItem(formationStorageKey(matchId), isOpen ? "open" : "closed");
+  }
+
   window.ABAMatches = {
+    MATCH_FORMATION_DEFAULT_OPEN,
     invitationMember,
     invitationCounts,
     isExternalInvitation,
@@ -140,6 +160,9 @@
     displayStatus,
     statusClass,
     isVotingOpen,
-    isEditable
+    isEditable,
+    formationStorageKey,
+    isFormationOpen,
+    setFormationOpen
   };
 })();

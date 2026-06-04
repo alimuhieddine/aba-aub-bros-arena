@@ -183,6 +183,8 @@ Current ownership:
 - status pill class calculation
 - voting open check
 - match editability check
+- match formation open/closed storage key
+- match formation open/closed persistence
 
 `app.js` keeps global wrappers and still owns match data loading, filtering, cards, voting, time conflicts, team assignment, scoring, and rating interactions.
 
