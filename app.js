@@ -3023,52 +3023,7 @@ function padelSetInputs() {
 }
 
 function calculatePadelSetResult(sets) {
-  let teamASetWins = 0;
-  let teamBSetWins = 0;
-
-  const validSets = [];
-
-  for (const set of sets) {
-    if (!set.hasAnyValue) continue;
-
-    if (
-      set.teamAScore === null ||
-      set.teamBScore === null ||
-      !Number.isInteger(set.teamAScore) ||
-      !Number.isInteger(set.teamBScore) ||
-      set.teamAScore < 0 ||
-      set.teamBScore < 0
-    ) {
-      return {
-        error: "Padel set scores must be whole numbers equal to or greater than 0."
-      };
-    }
-
-    if (set.isCompleted && !isValidCompletedPadelSet(set.teamAScore, set.teamBScore)) {
-      return {
-        error: `Set ${set.setNumber} cannot be marked complete with ${set.teamAScore}-${set.teamBScore}. Valid completed set scores are 6-0 to 6-4, 7-5, 7-6 for tie-break sets, or 8-6 / 9-7 / 10-8 etc. for advantage sets.`
-      };
-    }
-
-    validSets.push(set);
-
-    if (set.isCompleted) {
-      if (set.teamAScore > set.teamBScore) teamASetWins += 1;
-      if (set.teamBScore > set.teamAScore) teamBSetWins += 1;
-    }
-  }
-
-  if (validSets.length === 0) {
-    return {
-      error: "Enter at least one padel set."
-    };
-  }
-
-  return {
-    teamASetWins,
-    teamBSetWins,
-    validSets
-  };
+  return ABAScoring.calculatePadelSetResult(sets);
 }
 
 function updatePadelScorePreview() {
@@ -3106,18 +3061,7 @@ function setScoreMode(match) {
 
 
 function matchSessionGames(match) {
-  const byId = new Map();
-
-  (match.match_game_sessions || [])
-    .map(session => session.match_games)
-    .filter(Boolean)
-    .forEach(game => {
-      if (game?.id && !byId.has(game.id)) {
-        byId.set(game.id, game);
-      }
-    });
-
-  return Array.from(byId.values());
+  return ABAScoring.matchSessionGames(match);
 }
 
 function scoreEntriesForGame(match, gameId) {
@@ -6035,59 +5979,20 @@ async function openScoreSubmission(matchId) {
 
 
 function finalizableMatchGames(match) {
-  return matchSessionGames(match).filter(game => game.status === "completed");
+  return ABAScoring.finalizableMatchGames(match);
 }
 
 function completedGameScoreForMatch(match, extraGame = null) {
-  let games = finalizableMatchGames(match);
-
-  if (extraGame) {
-    games = games.filter(game => game.id !== extraGame.id);
-
-    if (extraGame.status === "completed") {
-      games.push(extraGame);
-    }
-  }
-
-  return {
-    teamA: games.filter(game => game.winner_team === "A").length,
-    teamB: games.filter(game => game.winner_team === "B").length
-  };
+  return ABAScoring.completedGameScoreForMatch(match, extraGame);
 }
 
 
 function isValidCompletedPadelSet(scoreA, scoreB) {
-  if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB)) return false;
-  if (scoreA < 0 || scoreB < 0) return false;
-  if (scoreA === scoreB) return false;
-
-  const high = Math.max(scoreA, scoreB);
-  const low = Math.min(scoreA, scoreB);
-  const diff = high - low;
-
-  // Standard set: 6 games with at least 2 games difference.
-  // Examples: 6-0, 6-1, 6-2, 6-3, 6-4.
-  if (high === 6) {
-    return low <= 4;
-  }
-
-  // 7-5 is a normal advantage finish.
-  // 7-6 is a tie-break set score.
-  if (high === 7) {
-    return low === 5 || low === 6;
-  }
-
-  // Advantage/no-tiebreak continuation after 6-6.
-  // Examples: 8-6, 9-7, 10-8, 11-9...
-  if (high > 7) {
-    return diff === 2;
-  }
-
-  return false;
+  return ABAScoring.isValidCompletedPadelSet(scoreA, scoreB);
 }
 
 function shouldAutoCompletePadelSet(scoreA, scoreB) {
-  return isValidCompletedPadelSet(scoreA, scoreB);
+  return ABAScoring.shouldAutoCompletePadelSet(scoreA, scoreB);
 }
 
 function autoCompletePadelSet(setNumber) {
@@ -6111,25 +6016,7 @@ function autoCompleteAllPadelSets() {
 }
 
 function padelGameStatusLabel(game, gameSets = []) {
-  if (!game) return "";
-
-  const completedSets = gameSets.filter(set => Boolean(set.is_completed)).length;
-  const incompleteSets = gameSets.filter(set => !set.is_completed).length;
-  const unstartedSets = Math.max(0, 3 - gameSets.length);
-
-  if (game.status === "completed") {
-    return "completed";
-  }
-
-  if (incompleteSets > 0) {
-    return `incomplete — ${incompleteSets} incomplete set${incompleteSets === 1 ? "" : "s"}`;
-  }
-
-  if (unstartedSets > 0) {
-    return `incomplete — ${unstartedSets} remaining unstarted set${unstartedSets === 1 ? "" : "s"}`;
-  }
-
-  return "incomplete";
+  return ABAScoring.padelGameStatusLabel(game, gameSets);
 }
 
 async function deleteSelectedGameFromResults() {
