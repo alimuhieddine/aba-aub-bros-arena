@@ -174,6 +174,8 @@ Current ownership:
 - invitation member lookup
 - external invitation detection
 - external player invitation filtering
+- IN-player invitation filtering
+- IN-player name list building
 - filled player count
 - remaining spot calculation
 - match time overlap detection

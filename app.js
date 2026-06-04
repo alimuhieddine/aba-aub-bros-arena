@@ -2494,22 +2494,7 @@ function playerSideFromTeamId(match, teamId) {
 }
 
 function inPlayerNames(match) {
-  const invitations = match.match_invitations || [];
-
-  const names = invitations
-    .filter(inv => inv.status === "in")
-    .map(inv => invitationMemberDisplayName(inv))
-    .filter(Boolean);
-
-  const hasCreatorInvitation = invitations.some(inv =>
-    inv.member_id === match.created_by && inv.status !== "removed"
-  );
-
-  if (match.created_by && !hasCreatorInvitation) {
-    names.unshift("Creator");
-  }
-
-  return names;
+  return ABAMatches.inPlayerNames(match, invitationMemberDisplayName);
 }
 
 
@@ -2531,9 +2516,7 @@ function isMatchEditable(match) {
 
 
 function inPlayerInvitations(match) {
-  return (match.match_invitations || []).filter(inv =>
-    inv.status === "in" && invitationMember(inv)
-  );
+  return ABAMatches.inPlayerInvitations(match);
 }
 
 

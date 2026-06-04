@@ -35,6 +35,31 @@
     );
   }
 
+  function inPlayerInvitations(match) {
+    return (match.match_invitations || []).filter(inv =>
+      inv.status === "in" && invitationMember(inv)
+    );
+  }
+
+  function inPlayerNames(match, displayNameForInvitation) {
+    const invitations = match.match_invitations || [];
+
+    const names = invitations
+      .filter(inv => inv.status === "in")
+      .map(inv => displayNameForInvitation(inv))
+      .filter(Boolean);
+
+    const hasCreatorInvitation = invitations.some(inv =>
+      inv.member_id === match.created_by && inv.status !== "removed"
+    );
+
+    if (match.created_by && !hasCreatorInvitation) {
+      names.unshift("Creator");
+    }
+
+    return names;
+  }
+
   function externalPlayerCount(match) {
     return externalPlayerInvitations(match).length;
   }
@@ -106,6 +131,8 @@
     invitationCounts,
     isExternalInvitation,
     externalPlayerInvitations,
+    inPlayerInvitations,
+    inPlayerNames,
     externalPlayerCount,
     filledPlayerCount,
     remainingSpots,
