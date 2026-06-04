@@ -138,6 +138,7 @@ Load the utility module before `app.js`, then load the bridge after `app.js` in 
 <script src="js/venues.js?v=1"></script>
 <script src="js/leagues.js?v=1"></script>
 <script src="js/matches.js?v=1"></script>
+<script src="js/teams.js?v=1"></script>
 <script src="js/utils.js?v=1"></script>
 <script src="app.js?v=135"></script>
 <script src="js/utils-runtime-bridge.js?v=1"></script>
@@ -182,6 +183,23 @@ Current ownership:
 - match editability check
 
 `app.js` keeps global wrappers and still owns match data loading, filtering, cards, voting, time conflicts, team assignment, scoring, and rating interactions.
+
+## Phase 1f: Team Side Helpers
+
+Added `js/teams.js` for pure team lookup helpers that do not touch team assignment saves, captain behavior, formation validation, scoring, Supabase writes, or rating formulas.
+
+Current ownership:
+
+- team side lookup
+- team side lookup from team id
+- team side sort values
+- team side labels
+- ordered side sorting
+- team name lookup by side
+- current team map by member id
+- current team-player map by member id
+
+`app.js` keeps global wrappers and still owns team assignment UI, captain permissions, formation editing, soccer formation logic, scoring integration, and rating recalculation.
 
 ## Phase 1b: Supabase Client Module
 
