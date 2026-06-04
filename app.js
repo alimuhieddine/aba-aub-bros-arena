@@ -3634,23 +3634,11 @@ function ratingChangeInlineHtml(change) {
 function formationSectionTitleParts(match) {
   const { teamA, teamB } = getTwoMatchTeams(match);
 
-  if (!teamA || !teamB) {
-    return {
-      teamAName: "",
-      teamBName: "",
-      scoreA: null,
-      scoreB: null,
-      hasScore: false
-    };
-  }
-
-  return {
-    teamAName: teamA.name || "Team A",
-    teamBName: teamB.name || "Team B",
-    scoreA: Number(teamA.score || 0),
-    scoreB: Number(teamB.score || 0),
+  return ABATeams.formationTitleParts({
+    teamA,
+    teamB,
     hasScore: hasSubmittedScore(match)
-  };
+  });
 }
 
 function formationSectionTitleHtml(match) {
