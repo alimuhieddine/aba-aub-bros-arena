@@ -3344,8 +3344,10 @@ function renderScoreSummary(match) {
 function isTeamEditable(match) {
   const displayStatus = getMatchDisplayStatus(match);
 
-  return canManageMatch(match) &&
-    displayStatus !== "cancelled";
+  return ABATeams.canEditTeams({
+    canManage: canManageMatch(match),
+    displayStatus
+  });
 }
 
 
