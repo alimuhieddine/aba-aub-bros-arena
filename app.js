@@ -8141,6 +8141,34 @@ function playerProfilePositionRatings(memberId) {
     );
 }
 
+function playerProfilePadelRatings(memberId) {
+  const cleanId = cleanUuidValue(memberId);
+
+  if (!cleanId) return [];
+
+  return (allSportProfiles || [])
+    .filter(profile => cleanUuidValue(profile.member_id) === cleanId)
+    .map(profile => {
+      const sport = String(profile.sports?.name || sportNameById(profile.sport_id) || "Sport");
+
+      return {
+        sport,
+        position: "OVR",
+        rating: memberSportRating(cleanId, profile.sport_id),
+        gamesPlayed: Number(profile.games_played || 0)
+      };
+    })
+    .filter(row => row.rating > 0 && row.sport.toLowerCase().includes("padel"))
+    .sort((a, b) => a.sport.localeCompare(b.sport));
+}
+
+function playerProfileRatings(memberId) {
+  return [
+    ...playerProfilePadelRatings(memberId),
+    ...playerProfilePositionRatings(memberId)
+  ];
+}
+
 function sportNameById(sportId) {
   return (allSports || []).find(sport => sport.id === sportId)?.name || "";
 }
@@ -8189,7 +8217,7 @@ function renderPlayerProfile(memberId) {
   }
 
   const stats = playerProfileStats(cleanId);
-  const ratings = playerProfilePositionRatings(cleanId);
+  const ratings = playerProfileRatings(cleanId);
   const changes = playerProfileRatingChanges(cleanId).slice(0, 10);
 
   if ($("player-profile-title")) {
@@ -8241,7 +8269,7 @@ function renderPlayerProfile(memberId) {
       </article>
 
       <article class="card profile-section-card">
-        <h4>Position ratings</h4>
+        <h4>Ratings</h4>
         ${
           ratings.length
             ? `<div class="profile-rating-grid">
@@ -8253,7 +8281,7 @@ function renderPlayerProfile(memberId) {
                   </div>
                 `).join("")}
               </div>`
-            : `<div class="hint">No position ratings yet.</div>`
+            : `<div class="hint">No ratings yet.</div>`
         }
       </article>
     </div>
