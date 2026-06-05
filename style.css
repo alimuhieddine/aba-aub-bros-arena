@@ -105,12 +105,14 @@ h1 {
 .primary-btn,
 .secondary-btn,
 .ghost-btn,
+.link-btn,
 .small-btn {
   font: inherit;
   cursor: pointer;
 }
 
 .primary-btn,
+.link-btn,
 .secondary-btn {
   height: 34px;
   padding: 0 14px;
@@ -120,10 +122,18 @@ h1 {
   white-space: nowrap;
 }
 
-.primary-btn {
+.primary-btn,
+.link-btn {
   border: none;
   background: linear-gradient(90deg, #2fd28b, #36a8f5);
   color: #05101c;
+}
+
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 .secondary-btn {
@@ -3920,4 +3930,26 @@ main,
   .soccer-settings-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* === LINK ACTION BUTTONS === */
+button.link-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #2fd28b, #36a8f5);
+  color: #05101c;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
 }

@@ -8223,7 +8223,7 @@ function activityCard(a, compact = false) {
             ${a.start_time && a.end_time ? ` - ${escapeHtml(a.start_time)}-${escapeHtml(a.end_time)}` : ""}
           </div>
           ${a.notes ? `<div class="meta">${escapeHtml(a.notes)}</div>` : ""}
-          ${a.proof_path ? `<button class="link-btn" type="button" onclick="openActivityProof('${a.id}')">Open ${escapeHtml(proofLabel)}</button>` : `<div class="meta">Proof: not attached</div>`}
+          ${a.proof_path ? `<button class="link-btn primary-btn" type="button" onclick="openActivityProof('${a.id}')">Open ${escapeHtml(proofLabel)}</button>` : `<div class="meta">Proof: not attached</div>`}
           ${rejected && a.review_notes ? `<div class="meta danger-text">Rejected: ${escapeHtml(a.review_notes)}</div>` : ""}
         </div>
         <span class="pill ${verified ? "green" : rejected ? "red" : "gold"}">${escapeHtml(status)}</span>
