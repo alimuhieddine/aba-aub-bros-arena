@@ -10,6 +10,8 @@ Ratings update per completed padel game, not per set.
 
 Both players on the same team receive the same rating delta for that game.
 
+After results are saved, each player chip displays the combined padel overall rating change for that match as `OVR before->after (delta)`.
+
 ## Formula
 
 Team rating:
