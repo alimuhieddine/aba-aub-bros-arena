@@ -493,6 +493,8 @@ let currentRatingHistoryMemberId = null;
 let currentRatingHistorySportId = null;
 let allPendingGames = [];
 let allMemberActivities = [];
+let allRankingPointRows = [];
+let allRankingActivityRows = [];
 let activitySportSettingsCache = {};
 let activitySportSettingsLoadPromise = null;
 let editingActivityId = null;
@@ -1477,42 +1479,60 @@ function homeOwnActivities() {
 function homeRankingRows() {
   const table = new Map();
 
-  (allMatches || [])
-    .filter(match => !isCancelledMatch(match) && hasSubmittedScore(match))
-    .forEach(match => {
-      (match.match_member_points || []).forEach(point => {
-        const memberId = cleanUuidValue(point.member_id);
-        const member = point.member || memberById(memberId);
+  if ((allRankingPointRows || []).length) {
+    allRankingPointRows.forEach(point => {
+      const memberId = cleanUuidValue(point.member_id);
+      if (!memberId) return;
 
-        if (!memberId || !member) return;
+      const row = table.get(memberId) || {
+        memberId,
+        member: rankingMemberForId(memberId, point.member),
+        name: rankingMemberName(memberId, point.member),
+        totalPoints: 0,
+        matches: 0,
+        wins: 0
+      };
 
-        const row = table.get(memberId) || {
-          memberId,
-          member,
-          name: memberDisplayName(member),
-          totalPoints: 0,
-          matches: 0,
-          wins: 0
-        };
-        const result = teamResultForMember(match, memberId).result || "participated";
-
-        row.totalPoints += pointTotalPoints(point);
-        row.matches += 1;
-        if (result === "win") row.wins += 1;
-        table.set(memberId, row);
-      });
+      row.totalPoints += pointTotalPoints(point);
+      row.matches += 1;
+      table.set(memberId, row);
     });
+  } else {
+    (allMatches || [])
+      .filter(match => !isCancelledMatch(match) && hasSubmittedScore(match))
+      .forEach(match => {
+        (match.match_member_points || []).forEach(point => {
+          const memberId = cleanUuidValue(point.member_id);
+          const member = rankingMemberForId(memberId, point.member);
+
+          if (!memberId || !member) return;
+
+          const row = table.get(memberId) || {
+            memberId,
+            member,
+            name: memberDisplayName(member),
+            totalPoints: 0,
+            matches: 0,
+            wins: 0
+          };
+          const result = teamResultForMember(match, memberId).result || "participated";
+
+          row.totalPoints += pointTotalPoints(point);
+          row.matches += 1;
+          if (result === "win") row.wins += 1;
+          table.set(memberId, row);
+        });
+      });
+  }
 
   homeApprovedActivities().forEach(activity => {
     const memberId = cleanUuidValue(activity.member_id);
-    const member = activity.members || memberById(memberId);
-
-    if (!memberId || !member) return;
+    if (!memberId) return;
 
     const row = table.get(memberId) || {
       memberId,
-      member,
-      name: memberDisplayName(member),
+      member: rankingMemberForId(memberId, activity.members),
+      name: rankingMemberName(memberId, activity.members),
       totalPoints: 0,
       matches: 0,
       wins: 0
@@ -3383,6 +3403,7 @@ async function loadMatches() {
     )
   );
 
+  await loadRankingData();
   renderMatches();
   renderLeagues();
   renderRankings();
@@ -9232,7 +9253,111 @@ function renderActivities() {
 }
 
 function approvedLoggedActivities() {
-  return (allMemberActivities || []).filter(activity => activity.status === "approved");
+  return ((allRankingActivityRows || []).length ? allRankingActivityRows : allMemberActivities || [])
+    .filter(activity => activity.status === "approved");
+}
+
+function rankingMemberForId(memberId, embeddedMember = null) {
+  const cleanId = cleanUuidValue(memberId);
+
+  return embeddedMember ||
+    memberById(cleanId) ||
+    (allMembers || []).find(member => cleanUuidValue(member.id) === cleanId) ||
+    null;
+}
+
+function rankingMemberName(memberId, embeddedMember = null) {
+  const member = rankingMemberForId(memberId, embeddedMember);
+
+  return member ? memberDisplayName(member) : "Player";
+}
+
+function rankingMemberIsExternal(memberId, embeddedMember = null) {
+  const member = rankingMemberForId(memberId, embeddedMember);
+
+  return Boolean(member?.is_external);
+}
+
+async function loadRankingData() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") {
+    allRankingPointRows = [];
+    allRankingActivityRows = [];
+    return;
+  }
+
+  const pointsResult = await supabaseClient
+    .from("match_member_points")
+    .select(`
+      id,
+      member_id,
+      activity_points,
+      score_points,
+      base_points,
+      consistency_bonus,
+      total_points,
+      member:members!match_member_points_member_id_fkey (
+        id,
+        first_name,
+        last_name,
+        display_name,
+        email,
+        is_external
+      ),
+      matches (
+        id,
+        sport_id,
+        league_id,
+        status,
+        score_status,
+        start_time,
+        sports (
+          id,
+          name
+        )
+      )
+    `);
+
+  if (pointsResult.error) {
+    console.warn("Could not load global ranking points. Falling back to visible matches:", pointsResult.error.message);
+    allRankingPointRows = [];
+  } else {
+    allRankingPointRows = (pointsResult.data || [])
+      .filter(row => row.matches && !isCancelledMatch(row.matches) && hasSubmittedScore(row.matches));
+  }
+
+  const activitiesResult = await supabaseClient
+    .from("member_activities")
+    .select(`
+      id,
+      member_id,
+      sport_id,
+      duration_minutes,
+      activity_points,
+      status,
+      activity_date,
+      created_at,
+      members (
+        id,
+        first_name,
+        last_name,
+        display_name,
+        email,
+        is_external
+      ),
+      sports (
+        id,
+        name
+      )
+    `)
+    .eq("status", "approved")
+    .order("created_at", { ascending: false });
+
+  if (activitiesResult.error) {
+    console.warn("Could not load global ranking activities. Falling back to visible activities:", activitiesResult.error.message);
+    allRankingActivityRows = [];
+  } else {
+    allRankingActivityRows = activitiesResult.data || [];
+  }
 }
 
 function renderPendingActivities() {
@@ -9521,6 +9646,7 @@ async function loadMemberActivities() {
   }
 
   allMemberActivities = data || [];
+  await loadRankingData();
   renderStats();
   renderFeed();
   renderActivities();
@@ -9811,6 +9937,21 @@ function rankingFilteredMatches() {
   });
 }
 
+function filteredRankingPointRows() {
+  const sportId = $("rank-sport-filter")?.value || "all";
+  const leagueId = $("rank-league-filter")?.value || "all";
+
+  return (allRankingPointRows || []).filter(point => {
+    const match = point.matches || {};
+
+    if (sportId !== "all" && match.sport_id !== sportId) return false;
+    if (leagueId === "none" && match.league_id) return false;
+    if (leagueId !== "all" && leagueId !== "none" && match.league_id !== leagueId) return false;
+
+    return true;
+  });
+}
+
 
 function memberById(memberId) {
   const cleanId = cleanUuidValue(memberId);
@@ -9825,6 +9966,12 @@ function memberById(memberId) {
 
   const fromActivities = (allMemberActivities || []).find(row => cleanUuidValue(row.member_id) === cleanId)?.members;
   if (fromActivities) return fromActivities;
+
+  const fromRankingActivities = (allRankingActivityRows || []).find(row => cleanUuidValue(row.member_id) === cleanId)?.members;
+  if (fromRankingActivities) return fromRankingActivities;
+
+  const fromRankingPoints = (allRankingPointRows || []).find(row => cleanUuidValue(row.member_id) === cleanId)?.member;
+  if (fromRankingPoints) return fromRankingPoints;
 
   for (const match of (allMatches || [])) {
     const pointMember = (match.match_member_points || []).find(point => cleanUuidValue(point.member_id) === cleanId)?.member;
@@ -10349,21 +10496,21 @@ function rankingRows() {
   const leagueFilter = $("rank-league-filter")?.value || "all";
   const table = new Map();
 
-  rankingFilteredMatches().forEach(match => {
-    (match.match_member_points || []).forEach(point => {
-      const member = point.member;
-      const memberId = point.member_id;
+  if ((allRankingPointRows || []).length) {
+    filteredRankingPointRows().forEach(point => {
+      const match = point.matches || {};
+      const memberId = cleanUuidValue(point.member_id);
+      const isExternal = rankingMemberIsExternal(memberId, point.member);
 
-      if (!memberId || !member) return;
-
-      if (playerType === "members" && member.is_external) return;
-      if (playerType === "external" && !member.is_external) return;
+      if (!memberId) return;
+      if (playerType === "members" && isExternal) return;
+      if (playerType === "external" && !isExternal) return;
 
       const current = table.get(memberId) || {
         memberId,
-        member,
-        name: memberDisplayName(member),
-        isExternal: Boolean(member.is_external),
+        member: rankingMemberForId(memberId, point.member),
+        name: rankingMemberName(memberId, point.member),
+        isExternal,
         totalPoints: 0,
         basePoints: 0,
         bonusPoints: 0,
@@ -10375,40 +10522,80 @@ function rankingRows() {
         leagues: new Set()
       };
 
-      const teamInfo = teamResultForMember(match, memberId);
-      const result = teamInfo.result || "participated";
-
       current.totalPoints += pointTotalPoints(point);
       current.basePoints += Number(point.activity_points ?? point.base_points ?? 0);
       current.bonusPoints += Number(point.score_points ?? point.consistency_bonus ?? 0);
       current.matches += 1;
-
-      if (result === "win") current.wins += 1;
-      else if (result === "draw") current.draws += 1;
-      else if (result === "loss") current.losses += 1;
 
       if (match.sports?.name) current.sports.add(match.sports.name);
       if (match.league_id) current.leagues.add(match.league_id);
 
       table.set(memberId, current);
     });
-  });
+  } else {
+    rankingFilteredMatches().forEach(match => {
+      (match.match_member_points || []).forEach(point => {
+        const memberId = cleanUuidValue(point.member_id);
+        const member = rankingMemberForId(memberId, point.member);
+        const isExternal = rankingMemberIsExternal(memberId, point.member);
+
+        if (!memberId) return;
+
+        if (playerType === "members" && isExternal) return;
+        if (playerType === "external" && !isExternal) return;
+
+        const current = table.get(memberId) || {
+          memberId,
+          member,
+          name: rankingMemberName(memberId, point.member),
+          isExternal,
+          totalPoints: 0,
+          basePoints: 0,
+          bonusPoints: 0,
+          matches: 0,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          sports: new Set(),
+          leagues: new Set()
+        };
+
+        const teamInfo = teamResultForMember(match, memberId);
+        const result = teamInfo.result || "participated";
+
+        current.totalPoints += pointTotalPoints(point);
+        current.basePoints += Number(point.activity_points ?? point.base_points ?? 0);
+        current.bonusPoints += Number(point.score_points ?? point.consistency_bonus ?? 0);
+        current.matches += 1;
+
+        if (result === "win") current.wins += 1;
+        else if (result === "draw") current.draws += 1;
+        else if (result === "loss") current.losses += 1;
+
+        if (match.sports?.name) current.sports.add(match.sports.name);
+        if (match.league_id) current.leagues.add(match.league_id);
+
+        table.set(memberId, current);
+      });
+    });
+  }
 
   if (leagueFilter === "all") {
     approvedLoggedActivities().forEach(activity => {
-      const member = activity.members;
-      const memberId = activity.member_id;
+      const memberId = cleanUuidValue(activity.member_id);
+      const member = rankingMemberForId(memberId, activity.members);
+      const isExternal = rankingMemberIsExternal(memberId, activity.members);
 
-      if (!memberId || !member) return;
+      if (!memberId) return;
       if (sportFilter !== "all" && activity.sport_id !== sportFilter) return;
-      if (playerType === "members" && member.is_external) return;
-      if (playerType === "external" && !member.is_external) return;
+      if (playerType === "members" && isExternal) return;
+      if (playerType === "external" && !isExternal) return;
 
       const current = table.get(memberId) || {
         memberId,
         member,
-        name: memberDisplayName(member),
-        isExternal: Boolean(member.is_external),
+        name: rankingMemberName(memberId, activity.members),
+        isExternal,
         totalPoints: 0,
         basePoints: 0,
         bonusPoints: 0,
@@ -10439,7 +10626,9 @@ function rankingRows() {
 function rankingSummary(rows) {
   const totalPlayers = rows.length;
   const totalPoints = rows.reduce((sum, row) => sum + Number(row.totalPoints || 0), 0);
-  const totalMatches = rankingFilteredMatches().length;
+  const totalMatches = (allRankingPointRows || []).length
+    ? new Set(filteredRankingPointRows().map(row => row.matches?.id).filter(Boolean)).size
+    : rankingFilteredMatches().length;
 
   return `
     <article class="card ranking-summary-card">
