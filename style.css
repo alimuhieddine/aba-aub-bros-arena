@@ -3065,9 +3065,38 @@ main,
   gap: 12px;
 }
 
+.profile-sport-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .profile-section-card h4 {
   margin: 0 0 8px;
   color: var(--text);
+}
+
+.profile-sport-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.profile-sport-head h4 {
+  margin: 0;
+}
+
+.profile-sport-head span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.profile-sport-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 10px;
 }
 
 .profile-line {
@@ -3163,6 +3192,7 @@ main,
 @media (max-width: 800px) {
   .player-profile-stats,
   .player-profile-grid,
+  .profile-sport-stat-grid,
   .profile-rating-grid,
   .profile-match-row {
     grid-template-columns: 1fr;
