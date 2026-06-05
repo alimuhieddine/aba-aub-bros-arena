@@ -1454,7 +1454,11 @@ function render() {
 
 function renderStats() {
   renderHomeSnapshot();
+  renderHomeToday();
   renderHomeActions();
+  renderHomeChallenge();
+  renderHomeLeagueHq();
+  renderHomePerformance();
 }
 
 function homeApprovedActivities() {
@@ -1547,6 +1551,55 @@ function homeWeekActivityMinutes() {
     .reduce((sum, activity) => sum + Number(activity.duration_minutes || 0), 0);
 }
 
+function homeTodayBounds() {
+  const now = new Date();
+  const start = new Date(now);
+  const end = new Date(now);
+
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+
+  return {
+    startMs: start.getTime(),
+    endMs: end.getTime()
+  };
+}
+
+function homeThisWeekBounds() {
+  const now = new Date();
+  const start = new Date(now);
+  const end = new Date(now);
+  const day = start.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+
+  start.setDate(start.getDate() + mondayOffset);
+  start.setHours(0, 0, 0, 0);
+  end.setTime(start.getTime() + (7 * 24 * 60 * 60 * 1000) - 1);
+
+  return {
+    startMs: start.getTime(),
+    endMs: end.getTime()
+  };
+}
+
+function homeMatchesBetween(startMs, endMs) {
+  return (allMatches || [])
+    .filter(match => !isCancelledMatch(match))
+    .filter(match => {
+      const time = new Date(match.start_time || 0).getTime();
+      return Number.isFinite(time) && time >= startMs && time <= endMs;
+    })
+    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+}
+
+function homeActivitiesBetween(startMs, endMs, activities = homeApprovedActivities()) {
+  return (activities || [])
+    .filter(activity => {
+      const time = new Date(activity.activity_date || activity.created_at || 0).getTime();
+      return Number.isFinite(time) && time >= startMs && time <= endMs;
+    });
+}
+
 function homeSnapshotCard(label, value, detail = "") {
   return `
     <article class="card home-stat-card">
@@ -1595,6 +1648,37 @@ function homeActionCard(title, detail, buttonText, viewId) {
   `;
 }
 
+function homeInfoCard(title, detail, meta = "", pill = "") {
+  return `
+    <article class="card home-action-card">
+      <div>
+        <h4>${escapeHtml(title)}</h4>
+        <p>${escapeHtml(detail)}</p>
+        ${meta ? `<div class="meta">${escapeHtml(meta)}</div>` : ""}
+      </div>
+      ${pill ? `<span class="pill blue">${escapeHtml(pill)}</span>` : ""}
+    </article>
+  `;
+}
+
+function renderHomeToday() {
+  const box = $("homeTodayList");
+  if (!box) return;
+
+  const { startMs, endMs } = homeTodayBounds();
+  const matches = homeMatchesBetween(startMs, endMs);
+  const activities = homeActivitiesBetween(startMs, endMs);
+  const pendingActivities = (allMemberActivities || [])
+    .filter(activity => (activity.status || "pending") === "pending");
+  const cards = [
+    homeInfoCard("Matches today", `${matches.length} scheduled match${matches.length === 1 ? "" : "es"}.`, matches[0] ? matches[0].title || fmtDate(matches[0].start_time) : "No match on today's board.", "Today"),
+    homeInfoCard("Activity logged", `${activities.length} approved activit${activities.length === 1 ? "y" : "ies"} today.`, `${formatPointValue(activities.reduce((sum, activity) => sum + Number(activity.activity_points || 0), 0))} activity pts`, "Live"),
+    homeInfoCard("Proof queue", `${pendingActivities.length} pending proof${pendingActivities.length === 1 ? "" : "s"}.`, isCurrentUserAdmin() ? "Admin review queue" : "Your pending logs stay editable until approval.", "Proofs")
+  ];
+
+  box.innerHTML = cards.join("");
+}
+
 function renderHomeActions() {
   const box = $("homeActionList");
   if (!box) return;
@@ -1638,6 +1722,151 @@ function renderHomeActions() {
   }
 
   box.innerHTML = actions.join("");
+}
+
+function renderHomeChallenge() {
+  const box = $("homeChallenge");
+  if (!box) return;
+
+  const ownActivities = homeOwnActivities().filter(activity => activity.status !== "rejected");
+  const { startMs, endMs } = homeThisWeekBounds();
+  const weekActivities = homeActivitiesBetween(startMs, endMs, ownActivities);
+  const weekMinutes = weekActivities.reduce((sum, activity) => sum + Number(activity.duration_minutes || 0), 0);
+  const goalMinutes = 180;
+  const pct = Math.min(100, Math.round((weekMinutes / goalMinutes) * 100));
+  const remaining = Math.max(0, goalMinutes - weekMinutes);
+
+  box.innerHTML = `
+    <article class="card home-feature-card">
+      <div class="home-feature-head">
+        <div>
+          <h4>180 active minutes</h4>
+          <p>Weekly consistency target from approved and pending non-rejected activity logs.</p>
+        </div>
+        <strong>${pct}%</strong>
+      </div>
+      <div class="home-progress"><span style="width:${pct}%"></span></div>
+      <div class="meta">${formatProfileDurationMinutes(weekMinutes)} logged this week - ${formatProfileDurationMinutes(remaining)} remaining</div>
+    </article>
+  `;
+}
+
+function homeActiveLeagues() {
+  return (allLeagues || [])
+    .filter(league => String(league.status || "active").toLowerCase() !== "completed")
+    .map(league => {
+      const matches = leagueMatches(league.id);
+      const completed = matches.filter(match => hasSubmittedScore(match)).length;
+      const next = matches
+        .filter(match => !isCancelledMatch(match))
+        .filter(match => new Date(match.start_time || 0).getTime() >= Date.now())
+        .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))[0] || null;
+
+      return {
+        league,
+        matches,
+        completed,
+        next
+      };
+    })
+    .sort((a, b) => {
+      const aTime = a.next ? new Date(a.next.start_time).getTime() : Number.MAX_SAFE_INTEGER;
+      const bTime = b.next ? new Date(b.next.start_time).getTime() : Number.MAX_SAFE_INTEGER;
+
+      return aTime - bTime || String(a.league.name || "").localeCompare(String(b.league.name || ""));
+    });
+}
+
+function renderHomeLeagueHq() {
+  const box = $("homeLeagueHq");
+  if (!box) return;
+
+  const leagues = homeActiveLeagues().slice(0, 3);
+
+  if (!leagues.length) {
+    box.innerHTML = `<article class="card home-feature-card"><h4>No active leagues</h4><p class="hint">Active league progress and next league matches will appear here.</p></article>`;
+    return;
+  }
+
+  box.innerHTML = leagues.map(row => {
+    const total = row.matches.length;
+    const pct = total ? Math.round((row.completed / total) * 100) : 0;
+
+    return `
+      <article class="card home-feature-card">
+        <div class="home-feature-head">
+          <div>
+            <h4>${escapeHtml(row.league.name || "League")}</h4>
+            <p>${row.completed}/${total} finalized match${total === 1 ? "" : "es"}</p>
+          </div>
+          <strong>${pct}%</strong>
+        </div>
+        <div class="home-progress"><span style="width:${pct}%"></span></div>
+        <div class="meta">${row.next ? `Next: ${row.next.title || "Match"} - ${fmtDate(row.next.start_time)}` : "No upcoming league match scheduled."}</div>
+      </article>
+    `;
+  }).join("");
+}
+
+function homeRecentRatingChanges(memberId) {
+  const cleanId = cleanUuidValue(memberId);
+  const changes = [];
+
+  if (!cleanId) return changes;
+
+  (allMatches || []).forEach(match => {
+    if (isCancelledMatch(match)) return;
+
+    (match.match_position_rating_adjustments || []).forEach(row => {
+      if (cleanUuidValue(row.member_id) !== cleanId) return;
+
+      const before = Number(row.rating_before ?? 0);
+      const after = Number(row.rating_after ?? 0);
+      const delta = after - before;
+
+      if (!Number.isFinite(delta)) return;
+
+      changes.push({
+        delta,
+        position: normalizeSoccerPosition(row.position_name) || row.position_name || "OVR",
+        sport: match.sports?.name || sportNameById(match.sport_id) || "Sport",
+        date: match.start_time || row.created_at
+      });
+    });
+  });
+
+  return changes.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+}
+
+function renderHomePerformance() {
+  const box = $("homePerformance");
+  if (!box) return;
+
+  if (!currentProfile || currentProfile.approval_status !== "approved") {
+    box.innerHTML = `<article class="card home-feature-card"><h4>Performance Story</h4><p class="hint">Your sport breakdown and rating movement will appear after you play.</p></article>`;
+    return;
+  }
+
+  const stats = playerProfileStats(currentProfile.id);
+  const sportSummaries = Array.from((stats.sportDetails || new Map()).values())
+    .sort((a, b) => Number(b.totalPoints || 0) - Number(a.totalPoints || 0));
+  const topSport = sportSummaries[0];
+  const recentChanges = homeRecentRatingChanges(currentProfile.id);
+  const ratingDelta = recentChanges.slice(0, 5).reduce((sum, change) => sum + Number(change.delta || 0), 0);
+  const approvedActivities = stats.activities.filter(activity => activity.status === "approved").length;
+
+  box.innerHTML = `
+    <article class="card home-feature-card">
+      <h4>Best sport right now</h4>
+      <p>${escapeHtml(topSport?.sport || "No sport yet")}</p>
+      <div class="meta">${topSport ? `${formatPointValue(topSport.totalPoints)} pts - ${topSport.games || 0} game${topSport.games === 1 ? "" : "s"} - ${approvedActivities} approved activit${approvedActivities === 1 ? "y" : "ies"}` : "Play matches or log approved activities to build your story."}</div>
+    </article>
+    <article class="card home-feature-card">
+      <h4>Recent rating movement</h4>
+      <p>${recentChanges.length ? `${ratingDelta >= 0 ? "+" : ""}${ratingDelta.toFixed(2)} over last ${Math.min(5, recentChanges.length)} adjustment${recentChanges.length === 1 ? "" : "s"}` : "No rating movement yet"}</p>
+      <div class="meta">${recentChanges[0] ? `${recentChanges[0].sport} ${recentChanges[0].position} ${recentChanges[0].delta >= 0 ? "+" : ""}${recentChanges[0].delta.toFixed(2)}` : "Ratings update after finalized rated matches."}</div>
+    </article>
+  `;
 }
 
 function homePulseItemHtml(item) {
