@@ -8757,6 +8757,9 @@ function playerProfileStats(memberId) {
         totalPoints: 0,
         activityPoints: 0,
         scorePoints: 0,
+        activityMinutes: 0,
+        approvedActivities: 0,
+        pendingActivities: 0,
         leagues: new Map()
       };
 
@@ -8813,6 +8816,9 @@ function playerProfileStats(memberId) {
         totalPoints: 0,
         activityPoints: 0,
         scorePoints: 0,
+        activityMinutes: 0,
+        approvedActivities: 0,
+        pendingActivities: 0,
         leagues: new Map()
       };
 
@@ -8826,8 +8832,13 @@ function playerProfileStats(memberId) {
 
         sportDetail.totalPoints += points;
         sportDetail.activityPoints += points;
-        stats.sportDetails.set(sportKey, sportDetail);
+        sportDetail.activityMinutes += minutes;
+        sportDetail.approvedActivities += 1;
+      } else if (activity.status === "pending") {
+        sportDetail.pendingActivities += 1;
       }
+
+      stats.sportDetails.set(sportKey, sportDetail);
     });
 
   return stats;
@@ -8910,6 +8921,9 @@ function playerProfileSportSummaries(stats, ratings) {
       totalPoints: 0,
       activityPoints: 0,
       scorePoints: 0,
+      activityMinutes: 0,
+      approvedActivities: 0,
+      pendingActivities: 0,
       leagues: new Map(),
       ratings: []
     };
@@ -8920,7 +8934,55 @@ function playerProfileSportSummaries(stats, ratings) {
   });
 
   return Array.from(summaries.values())
-    .sort((a, b) => (b.games - a.games) || a.sport.localeCompare(b.sport));
+    .sort((a, b) => {
+      const aActivities = Number(a.approvedActivities || 0) + Number(a.pendingActivities || 0);
+      const bActivities = Number(b.approvedActivities || 0) + Number(b.pendingActivities || 0);
+
+      return (b.games - a.games) || (bActivities - aActivities) || a.sport.localeCompare(b.sport);
+    });
+}
+
+function formatProfileDurationMinutes(minutes) {
+  const totalMinutes = Math.max(0, Math.round(Number(minutes || 0)));
+  const hours = Math.floor(totalMinutes / 60);
+  const remainingMinutes = totalMinutes % 60;
+
+  if (hours && remainingMinutes) return `${hours}h ${remainingMinutes}m`;
+  if (hours) return `${hours}h`;
+  return `${remainingMinutes}m`;
+}
+
+function playerProfileSportCountLabel(summary) {
+  const games = Number(summary.games || 0);
+  const activities = Number(summary.approvedActivities || 0) + Number(summary.pendingActivities || 0);
+  const labels = [];
+
+  if (games) labels.push(`${games} game${games === 1 ? "" : "s"}`);
+  if (activities) labels.push(`${activities} activit${activities === 1 ? "y" : "ies"}`);
+
+  return labels.join(" / ") || "No games";
+}
+
+function playerProfileSportStatsHtml(summary) {
+  const approvedActivities = Number(summary.approvedActivities || 0);
+  const pendingActivities = Number(summary.pendingActivities || 0);
+  const hasActivities = approvedActivities + pendingActivities > 0;
+
+  if (hasActivities) {
+    return `
+      <div class="profile-line"><span>Active time</span><b>${formatProfileDurationMinutes(summary.activityMinutes)}</b></div>
+      <div class="profile-line"><span>Points</span><b>${formatPointValue(summary.activityPoints)} pts</b></div>
+      <div class="profile-line"><span>Approved</span><b>${approvedActivities}</b></div>
+      <div class="profile-line"><span>Pending</span><b>${pendingActivities}</b></div>
+    `;
+  }
+
+  return `
+    <div class="profile-line"><span>Record</span><b>${summary.wins}W ${summary.draws}D ${summary.losses}L</b></div>
+    <div class="profile-line"><span>Points</span><b>${formatPointValue(summary.totalPoints)} total</b></div>
+    <div class="profile-line"><span>Activity</span><b>${formatPointValue(summary.activityPoints)} pts</b></div>
+    <div class="profile-line"><span>Score</span><b>${formatPointValue(summary.scorePoints)} pts</b></div>
+  `;
 }
 
 function sportNameById(sportId) {
@@ -9020,14 +9082,11 @@ function renderPlayerProfile(memberId) {
                 <article class="card profile-section-card profile-sport-card">
                   <div class="profile-sport-head">
                     <h4>${escapeHtml(summary.sport)}</h4>
-                    <span>${summary.games} game${summary.games === 1 ? "" : "s"}</span>
+                    <span>${playerProfileSportCountLabel(summary)}</span>
                   </div>
 
                   <div class="profile-sport-stat-grid">
-                    <div class="profile-line"><span>Record</span><b>${summary.wins}W ${summary.draws}D ${summary.losses}L</b></div>
-                    <div class="profile-line"><span>Points</span><b>${formatPointValue(summary.totalPoints)} total</b></div>
-                    <div class="profile-line"><span>Activity</span><b>${formatPointValue(summary.activityPoints)} pts</b></div>
-                    <div class="profile-line"><span>Score</span><b>${formatPointValue(summary.scorePoints)} pts</b></div>
+                    ${playerProfileSportStatsHtml(summary)}
                   </div>
 
                   <div class="profile-line"><span>Leagues</span><b>${escapeHtml(leagueText)}</b></div>
