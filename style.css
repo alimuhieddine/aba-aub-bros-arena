@@ -386,6 +386,70 @@ h3 {
   background: var(--accent);
 }
 
+.home-mini-list {
+  display: grid;
+  gap: 7px;
+}
+
+.home-mini-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.home-mini-list span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-mini-list b {
+  color: var(--text);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.home-mini-progress {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+}
+
+.home-mini-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: rgba(47,210,139,.75);
+}
+
+.home-trend {
+  display: flex;
+  align-items: end;
+  gap: 5px;
+  height: 42px;
+  padding-top: 6px;
+}
+
+.home-trend span {
+  width: 10px;
+  min-height: 8px;
+  border-radius: 8px 8px 2px 2px;
+  background: var(--accent);
+}
+
+.home-trend span.negative {
+  background: var(--danger);
+}
+
+.home-trend.empty span {
+  height: 12px;
+  background: rgba(255,255,255,.14);
+}
+
 .home-pulse-card {
   display: flex;
   justify-content: space-between;

@@ -1600,6 +1600,188 @@ function homeActivitiesBetween(startMs, endMs, activities = homeApprovedActiviti
     });
 }
 
+function homeThisMonthBounds() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  return {
+    startMs: start.getTime(),
+    endMs: end.getTime()
+  };
+}
+
+function homeMonthPoints(memberId) {
+  const cleanId = cleanUuidValue(memberId);
+  const { startMs, endMs } = homeThisMonthBounds();
+  let points = 0;
+
+  if (!cleanId) return points;
+
+  (allMatches || [])
+    .filter(match => !isCancelledMatch(match) && hasSubmittedScore(match))
+    .filter(match => {
+      const time = new Date(match.start_time || 0).getTime();
+      return Number.isFinite(time) && time >= startMs && time <= endMs;
+    })
+    .forEach(match => {
+      (match.match_member_points || []).forEach(point => {
+        if (cleanUuidValue(point.member_id) === cleanId) points += pointTotalPoints(point);
+      });
+    });
+
+  homeActivitiesBetween(startMs, endMs)
+    .filter(activity => cleanUuidValue(activity.member_id) === cleanId)
+    .forEach(activity => {
+      points += Number(activity.activity_points || 0);
+    });
+
+  return points;
+}
+
+function homePointsToPassText(rows, memberId) {
+  const cleanId = cleanUuidValue(memberId);
+  const rankIndex = rows.findIndex(row => cleanUuidValue(row.memberId) === cleanId);
+
+  if (rankIndex <= 0) return rankIndex === 0 ? "You are currently first." : "No ranking target yet.";
+
+  const current = rows[rankIndex];
+  const target = rows[rankIndex - 1];
+  const needed = Math.max(0, Number(target.totalPoints || 0) - Number(current.totalPoints || 0));
+
+  return `${formatPointValue(needed + 0.01)} pts to pass ${target.name}`;
+}
+
+function homeFinalizedMatches() {
+  return (allMatches || [])
+    .filter(match => !isCancelledMatch(match) && hasSubmittedScore(match))
+    .sort((a, b) => new Date(b.start_time || 0) - new Date(a.start_time || 0));
+}
+
+function homeMatchWinnerText(match) {
+  const { teamA, teamB } = getTwoMatchTeams(match);
+  const scoreA = Number(teamA?.score ?? 0);
+  const scoreB = Number(teamB?.score ?? 0);
+
+  if (!teamA || !teamB) return "Result submitted";
+  if (scoreA === scoreB) return `${teamA.name || "Team A"} drew ${teamB.name || "Team B"}`;
+
+  return scoreA > scoreB
+    ? `${teamA.name || "Team A"} won ${scoreA}-${scoreB}`
+    : `${teamB.name || "Team B"} won ${scoreB}-${scoreA}`;
+}
+
+function homeAllRecentRatingChanges() {
+  const changes = [];
+
+  (allMatches || []).forEach(match => {
+    if (isCancelledMatch(match)) return;
+
+    (match.match_position_rating_adjustments || []).forEach(row => {
+      const before = Number(row.rating_before ?? 0);
+      const after = Number(row.rating_after ?? 0);
+      const delta = after - before;
+      const member = row.member || memberById(row.member_id);
+
+      if (!member || !Number.isFinite(delta)) return;
+
+      changes.push({
+        memberId: cleanUuidValue(row.member_id),
+        name: memberDisplayName(member),
+        delta,
+        position: normalizeSoccerPosition(row.position_name) || row.position_name || "OVR",
+        sport: match.sports?.name || sportNameById(match.sport_id) || "Sport",
+        date: match.start_time || row.created_at
+      });
+    });
+  });
+
+  return changes.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+}
+
+function homeBiggestRatingJump() {
+  return homeAllRecentRatingChanges()
+    .filter(change => change.delta > 0)
+    .sort((a, b) => b.delta - a.delta)[0] || null;
+}
+
+function homeMostActivePlayersThisWeek(limit = 3) {
+  const { startMs, endMs } = homeThisWeekBounds();
+  const table = new Map();
+
+  homeActivitiesBetween(startMs, endMs, (allMemberActivities || []).filter(activity => activity.status !== "rejected"))
+    .forEach(activity => {
+      const memberId = cleanUuidValue(activity.member_id);
+      const member = activity.members || memberById(memberId);
+
+      if (!memberId || !member) return;
+
+      const current = table.get(memberId) || {
+        memberId,
+        name: memberDisplayName(member),
+        minutes: 0,
+        points: 0
+      };
+
+      current.minutes += Number(activity.duration_minutes || 0);
+      current.points += Number(activity.activity_points || 0);
+      table.set(memberId, current);
+    });
+
+  return Array.from(table.values())
+    .sort((a, b) => b.minutes - a.minutes || b.points - a.points || a.name.localeCompare(b.name))
+    .slice(0, limit);
+}
+
+function homeNewestMembers(limit = 3) {
+  return (allMembers || [])
+    .filter(member => member?.id && !member.is_external)
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    .slice(0, limit);
+}
+
+function homeMatchStreaks(limit = 3) {
+  const table = new Map();
+
+  homeFinalizedMatches().forEach(match => {
+    (match.match_member_points || []).forEach(point => {
+      const memberId = cleanUuidValue(point.member_id);
+      const member = point.member || memberById(memberId);
+      const row = table.get(memberId) || {
+        memberId,
+        name: member ? memberDisplayName(member) : "",
+        streak: 0,
+        stopped: false
+      };
+      const result = teamResultForMember(match, memberId).result;
+
+      if (!memberId || !member || row.stopped) return;
+
+      if (result === "win") row.streak += 1;
+      else row.stopped = true;
+
+      table.set(memberId, row);
+    });
+  });
+
+  return Array.from(table.values())
+    .filter(row => row.streak > 1)
+    .sort((a, b) => b.streak - a.streak || a.name.localeCompare(b.name))
+    .slice(0, limit);
+}
+
+async function openLogActivityFromHome() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") {
+    alert("Approved members only.");
+    return;
+  }
+
+  await loadActivityFormOptions();
+  populateMatchTimeSelects();
+  resetActivityFormForCreate();
+  $("activityModal")?.showModal();
+}
+
 function homeSnapshotCard(label, value, detail = "") {
   return `
     <article class="card home-stat-card">
@@ -1627,23 +1809,33 @@ function renderHomeSnapshot() {
   const rankIndex = rows.findIndex(row => cleanUuidValue(row.memberId) === cleanUuidValue(currentProfile.id));
   const nextMatch = homeNextMatch();
   const activeMinutes = homeWeekActivityMinutes();
+  const monthPoints = homeMonthPoints(currentProfile.id);
+  const passText = homePointsToPassText(rows, currentProfile.id);
+  const recentChanges = homeRecentRatingChanges(currentProfile.id);
+  const latestChange = recentChanges[0];
 
   box.innerHTML = `
     ${homeSnapshotCard("My points", formatPointValue(stats.totalPoints), `${formatPointValue(stats.basePoints)} activity / ${formatPointValue(stats.bonusPoints)} score`)}
     ${homeSnapshotCard("Rank", rankIndex >= 0 ? `#${rankIndex + 1}` : "-", `${rows.length} ranked player${rows.length === 1 ? "" : "s"}`)}
     ${homeSnapshotCard("Active time", formatProfileDurationMinutes(activeMinutes), "last 7 days")}
     ${homeSnapshotCard("Next match", nextMatch ? fmtDate(nextMatch.start_time) : "None", nextMatch ? (nextMatch.title || nextMatch.sports?.name || "Upcoming match") : "No joined/maybe match scheduled")}
+    ${homeSnapshotCard("This month", formatPointValue(monthPoints), "points from finalized matches and approved activities")}
+    ${homeSnapshotCard("Next target", passText, latestChange ? `Latest rating: ${latestChange.position} ${latestChange.delta >= 0 ? "+" : ""}${latestChange.delta.toFixed(2)}` : "Play rated matches to build movement")}
   `;
 }
 
 function homeActionCard(title, detail, buttonText, viewId) {
+  const action = viewId === "activityModal"
+    ? "openLogActivityFromHome()"
+    : `setActiveTab('${viewId}')`;
+
   return `
     <article class="card home-action-card">
       <div>
         <h4>${escapeHtml(title)}</h4>
         <p>${escapeHtml(detail)}</p>
       </div>
-      <button class="small-btn" type="button" onclick="setActiveTab('${viewId}')">${escapeHtml(buttonText)}</button>
+      <button class="small-btn" type="button" onclick="${action}">${escapeHtml(buttonText)}</button>
     </article>
   `;
 }
@@ -1666,14 +1858,30 @@ function renderHomeToday() {
   if (!box) return;
 
   const { startMs, endMs } = homeTodayBounds();
+  const week = homeThisWeekBounds();
   const matches = homeMatchesBetween(startMs, endMs);
+  const weekMatches = homeMatchesBetween(Date.now(), week.endMs);
   const activities = homeActivitiesBetween(startMs, endMs);
+  const recentResults = homeFinalizedMatches().slice(0, 3);
+  const pendingVoteMatches = (allMatches || [])
+    .filter(match => !isCancelledMatch(match) && isVotingOpenForMatch(match))
+    .filter(match => new Date(match.start_time || 0).getTime() >= Date.now())
+    .filter(match => {
+      const mine = matchMyStatus(match);
+      const isCreator = cleanUuidValue(match.created_by) === cleanUuidValue(currentProfile?.id);
+      return !isCreator && (!mine || mine === "invited");
+    });
   const pendingActivities = (allMemberActivities || [])
     .filter(activity => (activity.status || "pending") === "pending");
   const cards = [
     homeInfoCard("Matches today", `${matches.length} scheduled match${matches.length === 1 ? "" : "es"}.`, matches[0] ? matches[0].title || fmtDate(matches[0].start_time) : "No match on today's board.", "Today"),
+    homeInfoCard("This week", `${weekMatches.length} upcoming match${weekMatches.length === 1 ? "" : "es"} before Sunday.`, weekMatches[0] ? `Next: ${weekMatches[0].title || fmtDate(weekMatches[0].start_time)}` : "No upcoming match this week.", "Week"),
+    homeInfoCard("Pending votes", `${pendingVoteMatches.length} match${pendingVoteMatches.length === 1 ? "" : "es"} waiting for your answer.`, pendingVoteMatches[0] ? pendingVoteMatches[0].title || "Open match vote" : "No vote needed right now.", "Vote"),
     homeInfoCard("Activity logged", `${activities.length} approved activit${activities.length === 1 ? "y" : "ies"} today.`, `${formatPointValue(activities.reduce((sum, activity) => sum + Number(activity.activity_points || 0), 0))} activity pts`, "Live"),
-    homeInfoCard("Proof queue", `${pendingActivities.length} pending proof${pendingActivities.length === 1 ? "" : "s"}.`, isCurrentUserAdmin() ? "Admin review queue" : "Your pending logs stay editable until approval.", "Proofs")
+    homeInfoCard("Recent results", `${recentResults.length} recent finalized result${recentResults.length === 1 ? "" : "s"}.`, recentResults[0] ? `${recentResults[0].title || "Match"} - ${homeMatchWinnerText(recentResults[0])}` : "No result submitted yet.", "Result"),
+    homeInfoCard("Proof queue", `${pendingActivities.length} pending proof${pendingActivities.length === 1 ? "" : "s"}.`, isCurrentUserAdmin() ? "Admin review queue" : "Your pending logs stay editable until approval.", "Proofs"),
+    homeActionCard("Quick log", "Log a training session or proof-backed activity.", "Log Activity", "activityModal"),
+    homeActionCard("Quick join", "Find open matches and vote In or Maybe.", "Join Match", "matches")
   ];
 
   box.innerHTML = cards.join("");
@@ -1700,6 +1908,13 @@ function renderHomeActions() {
   const adminPendingActivities = isCurrentUserAdmin()
     ? (allMemberActivities || []).filter(activity => (activity.status || "pending") === "pending")
     : [];
+  const recalcWarnings = isCurrentUserAdmin()
+    ? (allMatches || []).filter(match =>
+        hasSubmittedScore(match) &&
+        !isCancelledMatch(match) &&
+        !(match.match_member_points || []).length
+      )
+    : [];
 
   if (pendingVoteMatches.length) {
     actions.push(homeActionCard("Vote on matches", `${pendingVoteMatches.length} match${pendingVoteMatches.length === 1 ? "" : "es"} waiting for your answer.`, "Open Matches", "matches"));
@@ -1711,10 +1926,15 @@ function renderHomeActions() {
 
   if (ownPendingActivities.length) {
     actions.push(homeActionCard("Pending activities", `${ownPendingActivities.length} activity log${ownPendingActivities.length === 1 ? "" : "s"} can still be edited before approval.`, "Open Activity", "activities"));
+    actions.push(homeActionCard("Replace proof", "Open a pending activity, edit it, and upload a replacement proof before admin approval.", "Open Activity", "activities"));
   }
 
   if (adminPendingActivities.length) {
     actions.push(homeActionCard("Review activity proofs", `${adminPendingActivities.length} pending proof${adminPendingActivities.length === 1 ? "" : "s"} need admin review.`, "Open Admin", "admin"));
+  }
+
+  if (recalcWarnings.length) {
+    actions.push(homeActionCard("Recalculate warnings", `${recalcWarnings.length} finalized match${recalcWarnings.length === 1 ? "" : "es"} have no saved points rows.`, "Open Matches", "matches"));
   }
 
   if (!actions.length) {
@@ -1735,6 +1955,15 @@ function renderHomeChallenge() {
   const goalMinutes = 180;
   const pct = Math.min(100, Math.round((weekMinutes / goalMinutes) * 100));
   const remaining = Math.max(0, goalMinutes - weekMinutes);
+  const padelMatches = homeMatchesBetween(startMs, endMs)
+    .filter(match => String(match.sports?.name || sportNameById(match.sport_id) || "").toLowerCase().includes("padel"));
+  const runWalkActivities = weekActivities.filter(activity => {
+    const text = `${activity.title || ""} ${activity.sports?.name || sportNameById(activity.sport_id) || ""}`.toLowerCase();
+    return text.includes("run") || text.includes("walk");
+  });
+  const runWalkMinutes = runWalkActivities.reduce((sum, activity) => sum + Number(activity.duration_minutes || 0), 0);
+  const activePlayers = homeMostActivePlayersThisWeek(5);
+  const badge = pct >= 100 ? "Consistency badge unlocked" : `${Math.max(0, 100 - pct)}% to weekly badge`;
 
   box.innerHTML = `
     <article class="card home-feature-card">
@@ -1747,6 +1976,43 @@ function renderHomeChallenge() {
       </div>
       <div class="home-progress"><span style="width:${pct}%"></span></div>
       <div class="meta">${formatProfileDurationMinutes(weekMinutes)} logged this week - ${formatProfileDurationMinutes(remaining)} remaining</div>
+    </article>
+    <article class="card home-feature-card">
+      <div class="home-feature-head">
+        <div>
+          <h4>Padel ladder week</h4>
+          <p>${padelMatches.length} padel match${padelMatches.length === 1 ? "" : "es"} scheduled or played this week.</p>
+        </div>
+        <span class="pill blue">Ladder</span>
+      </div>
+      <div class="meta">${padelMatches[0] ? `Next: ${padelMatches[0].title || fmtDate(padelMatches[0].start_time)}` : "No padel ladder match this week yet."}</div>
+    </article>
+    <article class="card home-feature-card">
+      <div class="home-feature-head">
+        <div>
+          <h4>Run / walk 10 km</h4>
+          <p>Distance is not tracked yet, so this uses logged run/walk time as a proxy.</p>
+        </div>
+        <strong>${formatProfileDurationMinutes(runWalkMinutes)}</strong>
+      </div>
+      <div class="meta">${runWalkActivities.length} run/walk activit${runWalkActivities.length === 1 ? "y" : "ies"} this week</div>
+    </article>
+    <article class="card home-feature-card">
+      <h4>Most active this week</h4>
+      <div class="home-mini-list">
+        ${
+          activePlayers.length
+            ? activePlayers.map((row, index) => {
+                const playerPct = Math.min(100, Math.round((Number(row.minutes || 0) / goalMinutes) * 100));
+                return `
+                  <div><span>${index + 1}. ${escapeHtml(row.name)}</span><b>${formatProfileDurationMinutes(row.minutes)}</b></div>
+                  <div class="home-mini-progress"><span style="width:${playerPct}%"></span></div>
+                `;
+              }).join("")
+            : `<div><span>No activity logged yet</span><b>-</b></div>`
+        }
+      </div>
+      <div class="meta">${escapeHtml(badge)}</div>
     </article>
   `;
 }
@@ -1777,20 +2043,97 @@ function homeActiveLeagues() {
     });
 }
 
+function homeLeagueStandingsLeader(leagueId) {
+  return homeLeagueStandingsRows(leagueId, 1)[0] || null;
+}
+
+function homeLeagueStandingsRows(leagueId, limit = 3) {
+  const table = new Map();
+
+  leagueMatches(leagueId)
+    .filter(match => !isCancelledMatch(match) && hasSubmittedScore(match))
+    .forEach(match => {
+      (match.match_member_points || []).forEach(point => {
+        const memberId = cleanUuidValue(point.member_id);
+        const member = point.member || memberById(memberId);
+
+        if (!memberId || !member) return;
+
+        const row = table.get(memberId) || {
+          name: memberDisplayName(member),
+          points: 0,
+          wins: 0
+        };
+        const result = teamResultForMember(match, memberId).result;
+
+        row.points += pointTotalPoints(point);
+        if (result === "win") row.wins += 1;
+        table.set(memberId, row);
+      });
+    });
+
+  return Array.from(table.values())
+    .sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name))
+    .slice(0, limit);
+}
+
+function homeCurrentPlayerForm(leagueId = null) {
+  const cleanId = cleanUuidValue(currentProfile?.id);
+  if (!cleanId) return "-";
+
+  const form = (allMatches || [])
+    .filter(match => !isCancelledMatch(match) && hasSubmittedScore(match))
+    .filter(match => !leagueId || match.league_id === leagueId)
+    .filter(match => (match.match_member_points || []).some(point => cleanUuidValue(point.member_id) === cleanId))
+    .sort((a, b) => new Date(b.start_time || 0) - new Date(a.start_time || 0))
+    .slice(0, 5)
+    .map(match => {
+      const result = teamResultForMember(match, cleanId).result;
+      if (result === "win") return "W";
+      if (result === "draw") return "D";
+      if (result === "loss") return "L";
+      return "P";
+    });
+
+  return form.length ? form.join("-") : "-";
+}
+
+function homeHotMatch() {
+  const now = Date.now();
+
+  return (allMatches || [])
+    .filter(match => !isCancelledMatch(match))
+    .filter(match => new Date(match.start_time || 0).getTime() >= now)
+    .map(match => {
+      const counts = invitationCounts(match);
+      return {
+        match,
+        heat: counts.inCount + counts.maybeCount + counts.invitedCount
+      };
+    })
+    .sort((a, b) => b.heat - a.heat || new Date(a.match.start_time || 0) - new Date(b.match.start_time || 0))[0] || null;
+}
+
 function renderHomeLeagueHq() {
   const box = $("homeLeagueHq");
   if (!box) return;
 
   const leagues = homeActiveLeagues().slice(0, 3);
+  const hotMatch = homeHotMatch();
 
   if (!leagues.length) {
-    box.innerHTML = `<article class="card home-feature-card"><h4>No active leagues</h4><p class="hint">Active league progress and next league matches will appear here.</p></article>`;
+    box.innerHTML = `
+      <article class="card home-feature-card"><h4>No active leagues</h4><p class="hint">Active league progress and next league matches will appear here.</p></article>
+      <article class="card home-feature-card"><h4>Hot match</h4><p class="hint">${hotMatch ? `${hotMatch.match.title || "Match"} - ${fmtDate(hotMatch.match.start_time)}` : "No upcoming hot match yet."}</p></article>
+    `;
     return;
   }
 
-  box.innerHTML = leagues.map(row => {
+  const leagueCards = leagues.map(row => {
     const total = row.matches.length;
     const pct = total ? Math.round((row.completed / total) * 100) : 0;
+    const leader = homeLeagueStandingsLeader(row.league.id);
+    const standings = homeLeagueStandingsRows(row.league.id, 3);
 
     return `
       <article class="card home-feature-card">
@@ -1803,9 +2146,27 @@ function renderHomeLeagueHq() {
         </div>
         <div class="home-progress"><span style="width:${pct}%"></span></div>
         <div class="meta">${row.next ? `Next: ${row.next.title || "Match"} - ${fmtDate(row.next.start_time)}` : "No upcoming league match scheduled."}</div>
+        <div class="meta">Leader: ${leader ? `${leader.name} (${formatPointValue(leader.points)} pts)` : "No standings yet"} - My form: ${homeCurrentPlayerForm(row.league.id)}</div>
+        <div class="home-mini-list">
+          ${
+            standings.length
+              ? standings.map((standing, index) => `<div><span>${index + 1}. ${escapeHtml(standing.name)}</span><b>${formatPointValue(standing.points)} pts</b></div>`).join("")
+              : `<div><span>No standings rows yet</span><b>-</b></div>`
+          }
+        </div>
       </article>
     `;
-  }).join("");
+  });
+
+  leagueCards.push(`
+    <article class="card home-feature-card">
+      <h4>Hot match highlight</h4>
+      <p>${hotMatch ? `${hotMatch.match.title || "Match"} has ${hotMatch.heat} active responses/invites.` : "No upcoming hot match yet."}</p>
+      <div class="meta">${hotMatch ? `${hotMatch.match.sports?.name || "Sport"} - ${fmtDate(hotMatch.match.start_time)}` : "Create or join a match to heat up the board."}</div>
+    </article>
+  `);
+
+  box.innerHTML = leagueCards.join("");
 }
 
 function homeRecentRatingChanges(memberId) {
@@ -1838,6 +2199,90 @@ function homeRecentRatingChanges(memberId) {
   return changes.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 }
 
+function homeLastThirtyDaysBounds() {
+  return {
+    startMs: Date.now() - (30 * 24 * 60 * 60 * 1000),
+    endMs: Date.now()
+  };
+}
+
+function homeLastThirtyDayPoints(memberId) {
+  const cleanId = cleanUuidValue(memberId);
+  const { startMs, endMs } = homeLastThirtyDaysBounds();
+  const totals = {
+    activity: 0,
+    score: 0,
+    total: 0
+  };
+
+  if (!cleanId) return totals;
+
+  (allMatches || [])
+    .filter(match => !isCancelledMatch(match) && hasSubmittedScore(match))
+    .filter(match => {
+      const time = new Date(match.start_time || 0).getTime();
+      return Number.isFinite(time) && time >= startMs && time <= endMs;
+    })
+    .forEach(match => {
+      (match.match_member_points || []).forEach(point => {
+        if (cleanUuidValue(point.member_id) !== cleanId) return;
+
+        const activity = Number(point.activity_points ?? point.base_points ?? 0);
+        const score = Number(point.score_points ?? point.consistency_bonus ?? 0);
+
+        totals.activity += activity;
+        totals.score += score;
+        totals.total += pointTotalPoints(point);
+      });
+    });
+
+  homeActivitiesBetween(startMs, endMs)
+    .filter(activity => cleanUuidValue(activity.member_id) === cleanId)
+    .forEach(activity => {
+      const points = Number(activity.activity_points || 0);
+      totals.activity += points;
+      totals.total += points;
+    });
+
+  return totals;
+}
+
+function homeSportBreakdown(stats) {
+  return Array.from((stats.sportDetails || new Map()).values())
+    .sort((a, b) => Number(b.totalPoints || 0) - Number(a.totalPoints || 0))
+    .slice(0, 4);
+}
+
+function homeMostImprovedSport(changes) {
+  const bySport = new Map();
+
+  (changes || []).forEach(change => {
+    const key = change.sport || "Sport";
+    bySport.set(key, (bySport.get(key) || 0) + Number(change.delta || 0));
+  });
+
+  return Array.from(bySport.entries())
+    .map(([sport, delta]) => ({ sport, delta }))
+    .sort((a, b) => b.delta - a.delta)[0] || null;
+}
+
+function homeRatingTrendHtml(changes) {
+  const recent = [...(changes || [])].reverse().slice(-6);
+
+  if (!recent.length) {
+    return `<div class="home-trend empty"><span></span><span></span><span></span><span></span></div>`;
+  }
+
+  return `
+    <div class="home-trend">
+      ${recent.map(change => {
+        const magnitude = Math.min(100, Math.max(18, Math.round(Math.abs(Number(change.delta || 0)) * 20)));
+        return `<span class="${change.delta >= 0 ? "positive" : "negative"}" style="height:${magnitude}%"></span>`;
+      }).join("")}
+    </div>
+  `;
+}
+
 function renderHomePerformance() {
   const box = $("homePerformance");
   if (!box) return;
@@ -1854,17 +2299,41 @@ function renderHomePerformance() {
   const recentChanges = homeRecentRatingChanges(currentProfile.id);
   const ratingDelta = recentChanges.slice(0, 5).reduce((sum, change) => sum + Number(change.delta || 0), 0);
   const approvedActivities = stats.activities.filter(activity => activity.status === "approved").length;
+  const lastThirty = homeLastThirtyDayPoints(currentProfile.id);
+  const breakdown = homeSportBreakdown(stats);
+  const improvedSport = homeMostImprovedSport(recentChanges);
 
   box.innerHTML = `
+    <article class="card home-feature-card">
+      <h4>Last 30 days</h4>
+      <p>${formatPointValue(lastThirty.total)} total pts</p>
+      <div class="meta">${formatPointValue(lastThirty.activity)} activity / ${formatPointValue(lastThirty.score)} score</div>
+    </article>
     <article class="card home-feature-card">
       <h4>Best sport right now</h4>
       <p>${escapeHtml(topSport?.sport || "No sport yet")}</p>
       <div class="meta">${topSport ? `${formatPointValue(topSport.totalPoints)} pts - ${topSport.games || 0} game${topSport.games === 1 ? "" : "s"} - ${approvedActivities} approved activit${approvedActivities === 1 ? "y" : "ies"}` : "Play matches or log approved activities to build your story."}</div>
     </article>
     <article class="card home-feature-card">
+      <h4>Sport breakdown</h4>
+      <div class="home-mini-list">
+        ${
+          breakdown.length
+            ? breakdown.map(row => `<div><span>${escapeHtml(row.sport)}</span><b>${formatPointValue(row.totalPoints)} pts</b></div>`).join("")
+            : `<div><span>No sport data yet</span><b>-</b></div>`
+        }
+      </div>
+    </article>
+    <article class="card home-feature-card">
       <h4>Recent rating movement</h4>
       <p>${recentChanges.length ? `${ratingDelta >= 0 ? "+" : ""}${ratingDelta.toFixed(2)} over last ${Math.min(5, recentChanges.length)} adjustment${recentChanges.length === 1 ? "" : "s"}` : "No rating movement yet"}</p>
       <div class="meta">${recentChanges[0] ? `${recentChanges[0].sport} ${recentChanges[0].position} ${recentChanges[0].delta >= 0 ? "+" : ""}${recentChanges[0].delta.toFixed(2)}` : "Ratings update after finalized rated matches."}</div>
+      ${homeRatingTrendHtml(recentChanges)}
+    </article>
+    <article class="card home-feature-card">
+      <h4>Most improved sport</h4>
+      <p>${improvedSport ? escapeHtml(improvedSport.sport) : "No improvement yet"}</p>
+      <div class="meta">${improvedSport ? `${improvedSport.delta >= 0 ? "+" : ""}${improvedSport.delta.toFixed(2)} rating movement` : "Play rated matches to unlock this."}</div>
     </article>
   `;
 }
@@ -1901,6 +2370,57 @@ function homePulseItemHtml(item) {
   `;
 }
 
+function homePulseHighlightsHtml() {
+  const latestResult = homeFinalizedMatches()[0] || null;
+  const biggestJump = homeBiggestRatingJump();
+  const streaks = homeMatchStreaks(3);
+  const activePlayers = homeMostActivePlayersThisWeek(3);
+  const newestMembers = homeNewestMembers(3);
+
+  return `
+    <article class="card home-feature-card">
+      <h4>Latest winner</h4>
+      <p>${latestResult ? `${latestResult.title || "Match"} - ${homeMatchWinnerText(latestResult)}` : "No match winner yet."}</p>
+      <div class="meta">${latestResult ? fmtDate(latestResult.start_time) : "Finalized results will appear here."}</div>
+    </article>
+    <article class="card home-feature-card">
+      <h4>Biggest rating jump</h4>
+      <p>${biggestJump ? `${biggestJump.name} ${biggestJump.delta >= 0 ? "+" : ""}${biggestJump.delta.toFixed(2)}` : "No rating jumps yet."}</p>
+      <div class="meta">${biggestJump ? `${biggestJump.sport} ${biggestJump.position}` : "Rated matches will build this pulse."}</div>
+    </article>
+    <article class="card home-feature-card">
+      <h4>Current streaks</h4>
+      <div class="home-mini-list">
+        ${
+          streaks.length
+            ? streaks.map(row => `<div><span>${escapeHtml(row.name)}</span><b>${row.streak}W</b></div>`).join("")
+            : `<div><span>No active win streaks</span><b>-</b></div>`
+        }
+      </div>
+    </article>
+    <article class="card home-feature-card">
+      <h4>Most active this week</h4>
+      <div class="home-mini-list">
+        ${
+          activePlayers.length
+            ? activePlayers.map(row => `<div><span>${escapeHtml(row.name)}</span><b>${formatProfileDurationMinutes(row.minutes)}</b></div>`).join("")
+            : `<div><span>No logged activity this week</span><b>-</b></div>`
+        }
+      </div>
+    </article>
+    <article class="card home-feature-card">
+      <h4>New members</h4>
+      <div class="home-mini-list">
+        ${
+          newestMembers.length
+            ? newestMembers.map(member => `<div><span>${escapeHtml(memberDisplayName(member))}</span><b>${member.created_at ? escapeHtml(fmtDate(member.created_at)) : "-"}</b></div>`).join("")
+            : `<div><span>No recent members loaded</span><b>-</b></div>`
+        }
+      </div>
+    </article>
+  `;
+}
+
 function renderFeed() {
   if (!$("feedList")) return;
 
@@ -1915,9 +2435,14 @@ function renderFeed() {
     .sort((a, b) => b.time - a.time)
     .slice(0, 8);
 
-  $("feedList").innerHTML = items.length
-    ? items.map(homePulseItemHtml).join("")
-    : `<article class="card"><div class="hint">No arena activity yet.</div></article>`;
+  $("feedList").innerHTML = `
+    <div class="home-feature-grid">${homePulseHighlightsHtml()}</div>
+    ${
+      items.length
+        ? items.map(homePulseItemHtml).join("")
+        : `<article class="card"><div class="hint">No arena activity yet.</div></article>`
+    }
+  `;
 }
 
 
