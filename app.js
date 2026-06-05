@@ -3885,15 +3885,6 @@ function toAmPmLabel(hour, minute = 0) {
 }
 
 function populateMatchTimeSelects() {
-  const startHour = $("match-start-hour");
-  const startMinute = $("match-start-minute");
-  const endHour = $("match-end-hour");
-  const endMinute = $("match-end-minute");
-
-  if (!startHour || !startMinute || !endHour || !endMinute) return;
-
-  if (startHour.options.length && startMinute.options.length) return;
-
   const hourOptions = Array.from({ length: 12 }, (_, i) => {
     const hour = i + 1;
     return `<option value="${hour}">${hour}</option>`;
@@ -3903,11 +3894,16 @@ function populateMatchTimeSelects() {
     return `<option value="${pad2(minute)}">${pad2(minute)}</option>`;
   }).join("");
 
-  startHour.innerHTML = hourOptions;
-  endHour.innerHTML = hourOptions;
+  ["match-start", "match-end", "activity-start", "activity-end"].forEach(prefix => {
+    const hourSelect = $(`${prefix}-hour`);
+    const minuteSelect = $(`${prefix}-minute`);
 
-  startMinute.innerHTML = minuteOptions;
-  endMinute.innerHTML = minuteOptions;
+    if (!hourSelect || !minuteSelect) return;
+    if (hourSelect.options.length && minuteSelect.options.length) return;
+
+    hourSelect.innerHTML = hourOptions;
+    minuteSelect.innerHTML = minuteOptions;
+  });
 }
 
 function setTimeParts(prefix, hour24, minute = 0) {
@@ -8283,17 +8279,24 @@ async function loadActivityFormOptions() {
 
 function activityDurationMinutesFromForm() {
   const date = $("activity-date")?.value || "";
-  const start = $("activity-start-time")?.value || "";
-  const end = $("activity-end-time")?.value || "";
+  const start = readTimeParts("activity-start");
+  const end = readTimeParts("activity-end");
 
   if (!date || !start || !end) return 0;
 
-  const startMs = new Date(`${date}T${start}`).getTime();
-  const endMs = new Date(`${date}T${end}`).getTime();
+  const startMs = new Date(`${date}T${pad2(start.hour24)}:${pad2(start.minute)}`).getTime();
+  const endMs = new Date(`${date}T${pad2(end.hour24)}:${pad2(end.minute)}`).getTime();
 
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return 0;
 
   return Math.round((endMs - startMs) / 60000);
+}
+
+function activityTimeValue(prefix) {
+  const parts = readTimeParts(prefix);
+  if (!parts) return "";
+
+  return `${pad2(parts.hour24)}:${pad2(parts.minute)}`;
 }
 
 function updateActivityPointsPreview() {
@@ -8361,7 +8364,7 @@ async function loadMemberActivities() {
     return [];
   }
 
-  const { data, error } = await supabaseClient
+  let query = supabaseClient
     .from("member_activities")
     .select(`
       id,
@@ -8396,6 +8399,12 @@ async function loadMemberActivities() {
     `)
     .order("created_at", { ascending: false });
 
+  if (!isCurrentUserAdmin()) {
+    query = query.or(`member_id.eq.${currentProfile.id},status.eq.approved`);
+  }
+
+  const { data, error } = await query;
+
   if (error) {
     console.warn("Could not load activities:", error.message);
     allMemberActivities = [];
@@ -8423,8 +8432,8 @@ async function submitActivityLog(form) {
   const sportId = cleanUuidValue(fd.get("sport_id"));
   const title = String(fd.get("title") || "").trim();
   const activityDate = String(fd.get("activity_date") || "");
-  const startTime = String(fd.get("start_time") || "");
-  const endTime = String(fd.get("end_time") || "");
+  const startTime = activityTimeValue("activity-start");
+  const endTime = activityTimeValue("activity-end");
   const notes = String(fd.get("notes") || "").trim();
   const proofFile = fd.get("proof_file");
   const durationMinutes = activityDurationMinutesFromForm();
@@ -8715,9 +8724,10 @@ function playerProfileStats(memberId) {
     new Date(b.match.start_time) - new Date(a.match.start_time)
   );
 
-  approvedLoggedActivities()
+  (allMemberActivities || [])
     .filter(activity => cleanUuidValue(activity.member_id) === cleanId)
     .forEach(activity => {
+      const approved = activity.status === "approved";
       const points = Number(activity.activity_points || 0);
       const minutes = Number(activity.duration_minutes || 0);
       const sportId = cleanUuidValue(activity.sport_id);
@@ -8736,15 +8746,18 @@ function playerProfileStats(memberId) {
         leagues: new Map()
       };
 
-      stats.totalPoints += points;
-      stats.basePoints += points;
-      stats.activityMinutes += minutes;
-      stats.loggedActivityPoints += points;
       stats.activities.push(activity);
 
-      sportDetail.totalPoints += points;
-      sportDetail.activityPoints += points;
-      stats.sportDetails.set(sportKey, sportDetail);
+      if (approved) {
+        stats.totalPoints += points;
+        stats.basePoints += points;
+        stats.activityMinutes += minutes;
+        stats.loggedActivityPoints += points;
+
+        sportDetail.totalPoints += points;
+        sportDetail.activityPoints += points;
+        stats.sportDetails.set(sportKey, sportDetail);
+      }
     });
 
   return stats;
@@ -8992,7 +9005,8 @@ function renderPlayerProfile(memberId) {
       <h4>Activities</h4>
 
       <div class="profile-sport-stat-grid">
-        <div class="profile-line"><span>Approved</span><b>${stats.activities.length}</b></div>
+        <div class="profile-line"><span>Approved</span><b>${stats.activities.filter(activity => activity.status === "approved").length}</b></div>
+        <div class="profile-line"><span>Pending</span><b>${stats.activities.filter(activity => (activity.status || "pending") === "pending").length}</b></div>
         <div class="profile-line"><span>Hours</span><b>${(Number(stats.activityMinutes || 0) / 60).toFixed(1)}</b></div>
         <div class="profile-line"><span>Activity points</span><b>${formatPointValue(stats.loggedActivityPoints)}</b></div>
       </div>
@@ -9009,10 +9023,10 @@ function renderPlayerProfile(memberId) {
                     <span>${escapeHtml(fmtDate(activity.activity_date || activity.created_at))} - ${escapeHtml(activity.sports?.name || sportNameById(activity.sport_id) || "-")}</span>
                     <em>${Number(activity.duration_minutes || 0)} min - ${formatPointValue(activity.activity_points)} pts</em>
                   </div>
-                  <b class="win">approved</b>
+                  <b class="${activity.status === "approved" ? "win" : activity.status === "rejected" ? "loss" : "draw"}">${escapeHtml(activity.status || "pending")}</b>
                 </div>
               `).join("")
-          : `<div class="hint">No approved logged activities yet.</div>`
+          : `<div class="hint">No logged activities yet.</div>`
       }
     </article>
 
@@ -9685,10 +9699,14 @@ function bindEvents() {
 
     if (btn.dataset.open === "activityModal") {
       await loadActivityFormOptions();
+      populateMatchTimeSelects();
 
       if ($("activity-date") && !$("activity-date").value) {
         $("activity-date").value = new Date().toISOString().slice(0, 10);
       }
+
+      setTimeParts("activity-start", 18, 0);
+      setTimeParts("activity-end", 19, 0);
 
       updateActivityPointsPreview();
     }
@@ -9873,8 +9891,12 @@ function bindEvents() {
   [
     "activity-sport",
     "activity-date",
-    "activity-start-time",
-    "activity-end-time"
+    "activity-start-hour",
+    "activity-start-minute",
+    "activity-start-ampm",
+    "activity-end-hour",
+    "activity-end-minute",
+    "activity-end-ampm"
   ].forEach(id => {
     $(id)?.addEventListener("change", updateActivityPointsPreview);
     $(id)?.addEventListener("input", updateActivityPointsPreview);
