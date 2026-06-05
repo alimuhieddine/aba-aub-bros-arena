@@ -8066,6 +8066,7 @@ function playerProfileStats(memberId) {
     losses: 0,
     sports: new Map(),
     leagues: new Map(),
+    sportDetails: new Map(),
     recentMatches: []
   };
 
@@ -8098,11 +8099,41 @@ function playerProfileStats(memberId) {
         stats.sports.set(match.sports.name, current + 1);
       }
 
+      const sportId = cleanUuidValue(match.sport_id);
+      const sportName = match.sports?.name || sportNameById(match.sport_id) || "Sport";
+      const sportKey = sportId || sportName.toLowerCase();
+      const sportDetail = stats.sportDetails.get(sportKey) || {
+        sportId,
+        sport: sportName,
+        games: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        totalPoints: 0,
+        activityPoints: 0,
+        scorePoints: 0,
+        leagues: new Map()
+      };
+
+      sportDetail.games += 1;
+      sportDetail.totalPoints += total;
+      sportDetail.activityPoints += activity;
+      sportDetail.scorePoints += score;
+
+      if (result === "win") sportDetail.wins += 1;
+      else if (result === "draw") sportDetail.draws += 1;
+      else if (result === "loss") sportDetail.losses += 1;
+
       if (match.league_id) {
         const leagueName = leagueNameForId(match.league_id) || "League";
         const current = stats.leagues.get(leagueName) || 0;
         stats.leagues.set(leagueName, current + 1);
+
+        const sportLeagueCurrent = sportDetail.leagues.get(leagueName) || 0;
+        sportDetail.leagues.set(leagueName, sportLeagueCurrent + 1);
       }
+
+      stats.sportDetails.set(sportKey, sportDetail);
 
       stats.recentMatches.push({
         match,
@@ -8129,6 +8160,7 @@ function playerProfilePositionRatings(memberId) {
   return (allPositionRatings || [])
     .filter(row => cleanUuidValue(row.member_id) === cleanId)
     .map(row => ({
+      sportId: cleanUuidValue(row.sport_id),
       sport: row.sports?.name || sportNameById(row.sport_id) || "Sport",
       position: normalizeSoccerPosition(row.position_name) || row.position_name || "-",
       rating: Number(row.rating || 0),
@@ -8152,6 +8184,7 @@ function playerProfilePadelRatings(memberId) {
       const sport = String(profile.sports?.name || sportNameById(profile.sport_id) || "Sport");
 
       return {
+        sportId: cleanUuidValue(profile.sport_id),
         sport,
         position: "OVR",
         rating: memberSportRating(cleanId, profile.sport_id),
@@ -8167,6 +8200,46 @@ function playerProfileRatings(memberId) {
     ...playerProfilePadelRatings(memberId),
     ...playerProfilePositionRatings(memberId)
   ];
+}
+
+function playerProfileSportKey(sportId, sportName) {
+  return cleanUuidValue(sportId) || String(sportName || "Sport").toLowerCase();
+}
+
+function playerProfileSportSummaries(stats, ratings) {
+  const summaries = new Map();
+
+  (stats.sportDetails || new Map()).forEach(detail => {
+    const key = playerProfileSportKey(detail.sportId, detail.sport);
+    summaries.set(key, {
+      ...detail,
+      ratings: []
+    });
+  });
+
+  (ratings || []).forEach(rating => {
+    const key = playerProfileSportKey(rating.sportId, rating.sport);
+    const summary = summaries.get(key) || {
+      sportId: cleanUuidValue(rating.sportId),
+      sport: rating.sport || "Sport",
+      games: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      totalPoints: 0,
+      activityPoints: 0,
+      scorePoints: 0,
+      leagues: new Map(),
+      ratings: []
+    };
+
+    summary.ratings.push(rating);
+    summary.games = Math.max(summary.games, Number(rating.gamesPlayed || 0));
+    summaries.set(key, summary);
+  });
+
+  return Array.from(summaries.values())
+    .sort((a, b) => (b.games - a.games) || a.sport.localeCompare(b.sport));
 }
 
 function sportNameById(sportId) {
@@ -8218,6 +8291,7 @@ function renderPlayerProfile(memberId) {
 
   const stats = playerProfileStats(cleanId);
   const ratings = playerProfileRatings(cleanId);
+  const sportSummaries = playerProfileSportSummaries(stats, ratings);
   const changes = playerProfileRatingChanges(cleanId).slice(0, 10);
 
   if ($("player-profile-title")) {
@@ -8229,14 +8303,6 @@ function renderPlayerProfile(memberId) {
       ? "External player profile."
       : "Member profile.";
   }
-
-  const sportText = Array.from(stats.sports.entries())
-    .map(([name, count]) => `${name} (${count})`)
-    .join(", ") || "-";
-
-  const leagueText = Array.from(stats.leagues.entries())
-    .map(([name, count]) => `${name} (${count})`)
-    .join(", ") || "-";
 
   box.innerHTML = `
     <div class="player-profile-stats">
@@ -8261,29 +8327,48 @@ function renderPlayerProfile(memberId) {
       </div>
     </div>
 
-    <div class="player-profile-grid">
-      <article class="card profile-section-card">
-        <h4>Sports & leagues</h4>
-        <div class="profile-line"><span>Sports</span><b>${escapeHtml(sportText)}</b></div>
-        <div class="profile-line"><span>Leagues</span><b>${escapeHtml(leagueText)}</b></div>
-      </article>
+    <div class="player-profile-grid profile-sport-grid">
+      ${
+        sportSummaries.length
+          ? sportSummaries.map(summary => {
+              const leagueText = Array.from((summary.leagues || new Map()).entries())
+                .map(([name, count]) => `${name} (${count})`)
+                .join(", ") || "-";
 
-      <article class="card profile-section-card">
-        <h4>Ratings</h4>
-        ${
-          ratings.length
-            ? `<div class="profile-rating-grid">
-                ${ratings.map(row => `
-                  <div class="profile-rating-pill">
-                    <span>${escapeHtml(row.sport)} • ${escapeHtml(row.position)}</span>
-                    <strong>${row.rating.toFixed(1)}</strong>
-                    <em>${row.gamesPlayed} game${row.gamesPlayed === 1 ? "" : "s"}</em>
+              return `
+                <article class="card profile-section-card profile-sport-card">
+                  <div class="profile-sport-head">
+                    <h4>${escapeHtml(summary.sport)}</h4>
+                    <span>${summary.games} game${summary.games === 1 ? "" : "s"}</span>
                   </div>
-                `).join("")}
-              </div>`
-            : `<div class="hint">No ratings yet.</div>`
-        }
-      </article>
+
+                  <div class="profile-sport-stat-grid">
+                    <div class="profile-line"><span>Record</span><b>${summary.wins}W ${summary.draws}D ${summary.losses}L</b></div>
+                    <div class="profile-line"><span>Points</span><b>${Number(summary.totalPoints || 0)} total</b></div>
+                    <div class="profile-line"><span>Activity</span><b>${Number(summary.activityPoints || 0)} pts</b></div>
+                    <div class="profile-line"><span>Score</span><b>${Number(summary.scorePoints || 0)} pts</b></div>
+                  </div>
+
+                  <div class="profile-line"><span>Leagues</span><b>${escapeHtml(leagueText)}</b></div>
+
+                  ${
+                    summary.ratings.length
+                      ? `<div class="profile-rating-grid">
+                          ${summary.ratings.map(row => `
+                            <div class="profile-rating-pill">
+                              <span>${escapeHtml(row.position)}</span>
+                              <strong>${row.rating.toFixed(1)}</strong>
+                              <em>${row.gamesPlayed} game${row.gamesPlayed === 1 ? "" : "s"}</em>
+                            </div>
+                          `).join("")}
+                        </div>`
+                      : `<div class="hint">No ratings yet.</div>`
+                  }
+                </article>
+              `;
+            }).join("")
+          : `<article class="card profile-section-card"><div class="hint">No sport stats yet.</div></article>`
+      }
     </div>
 
     <article class="card profile-section-card">
