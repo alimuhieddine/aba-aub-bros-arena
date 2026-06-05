@@ -26,6 +26,8 @@ Before starting feature work, use `docs/feature-change-checklist.md` to pick the
 
 The current points formula is documented in `docs/points-system.md`.
 
+The current padel rating formula is documented in `docs/padel-rating-system.md`.
+
 ## Target Structure
 
 ```text
