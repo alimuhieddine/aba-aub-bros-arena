@@ -129,6 +129,13 @@ h1 {
   color: #05101c;
 }
 
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .secondary-btn {
   background: rgba(255,255,255,0.06);
   color: white;
