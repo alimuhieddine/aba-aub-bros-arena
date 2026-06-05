@@ -501,6 +501,37 @@ const ACTIVITY_SPORT_APP_SETTING_KEY = "activity_sport_settings";
 const ACTIVITY_PROOF_BUCKET = "activity-proofs";
 const DEFAULT_ACTIVITY_RATE = 1;
 const DEFAULT_ACTIVITY_CAP = 3;
+const MEMBER_ACTIVITY_SELECT = `
+  id,
+  member_id,
+  sport_id,
+  title,
+  activity_date,
+  start_time,
+  end_time,
+  duration_minutes,
+  activity_points,
+  proof_path,
+  proof_file_name,
+  notes,
+  status,
+  review_notes,
+  reviewed_by,
+  reviewed_at,
+  created_at,
+  members (
+    id,
+    first_name,
+    last_name,
+    display_name,
+    email,
+    is_external
+  ),
+  sports (
+    id,
+    name
+  )
+`;
 
 
 
@@ -8366,51 +8397,69 @@ async function loadMemberActivities() {
 
   let query = supabaseClient
     .from("member_activities")
-    .select(`
-      id,
-      member_id,
-      sport_id,
-      title,
-      activity_date,
-      start_time,
-      end_time,
-      duration_minutes,
-      activity_points,
-      proof_path,
-      proof_file_name,
-      notes,
-      status,
-      review_notes,
-      reviewed_by,
-      reviewed_at,
-      created_at,
-      members (
-        id,
-        first_name,
-        last_name,
-        display_name,
-        email,
-        is_external
-      ),
-      sports (
-        id,
-        name
-      )
-    `)
+    .select(MEMBER_ACTIVITY_SELECT)
     .order("created_at", { ascending: false });
 
   if (!isCurrentUserAdmin()) {
     query = query.or(`member_id.eq.${currentProfile.id},status.eq.approved`);
   }
 
-  const { data, error } = await query;
+  let { data, error } = await query;
+
+  if (error) {
+    console.warn("Full activity load failed. Retrying without embedded member/sport rows:", error.message);
+
+    let fallbackQuery = supabaseClient
+      .from("member_activities")
+      .select(`
+        id,
+        member_id,
+        sport_id,
+        title,
+        activity_date,
+        start_time,
+        end_time,
+        duration_minutes,
+        activity_points,
+        proof_path,
+        proof_file_name,
+        notes,
+        status,
+        review_notes,
+        reviewed_by,
+        reviewed_at,
+        created_at
+      `)
+      .order("created_at", { ascending: false });
+
+    if (!isCurrentUserAdmin()) {
+      fallbackQuery = fallbackQuery.or(`member_id.eq.${currentProfile.id},status.eq.approved`);
+    }
+
+    const fallback = await fallbackQuery;
+    data = fallback.data;
+    error = fallback.error;
+
+    if (!error) {
+      data = (data || []).map(activity => ({
+        ...activity,
+        members: memberById(activity.member_id),
+        sports: (allSports || []).find(sport => sport.id === activity.sport_id) || null
+      }));
+    }
+  }
 
   if (error) {
     console.warn("Could not load activities:", error.message);
-    allMemberActivities = [];
     renderActivities();
     renderPendingActivities();
-    return [];
+    if ($("activityList") && !(allMemberActivities || []).length) {
+      $("activityList").innerHTML = `<article class="card"><div class="hint">Could not load activities: ${escapeHtml(error.message)}</div></article>`;
+    }
+    if ($("pendingActivitiesList") && !(allMemberActivities || []).length) {
+      $("pendingActivitiesList").innerHTML = `<article class="card"><div class="hint">Could not load pending activities: ${escapeHtml(error.message)}</div></article>`;
+    }
+    return allMemberActivities || [];
   }
 
   allMemberActivities = data || [];
@@ -8474,22 +8523,24 @@ async function submitActivityLog(form) {
 
   const points = loggedActivityPointsForDurationMinutes(durationMinutes, sportId);
 
+  const payload = {
+    member_id: currentProfile.id,
+    sport_id: sportId,
+    title,
+    activity_date: activityDate,
+    start_time: startTime,
+    end_time: endTime,
+    duration_minutes: durationMinutes,
+    activity_points: points,
+    proof_path: proofPath,
+    proof_file_name: proofFile.name,
+    notes: notes || null,
+    status: "pending"
+  };
+
   const { error } = await supabaseClient
     .from("member_activities")
-    .insert({
-      member_id: currentProfile.id,
-      sport_id: sportId,
-      title,
-      activity_date: activityDate,
-      start_time: startTime,
-      end_time: endTime,
-      duration_minutes: durationMinutes,
-      activity_points: points,
-      proof_path: proofPath,
-      proof_file_name: proofFile.name,
-      notes: notes || null,
-      status: "pending"
-    });
+    .insert(payload);
 
   if (error) {
     await supabaseClient.storage
@@ -8502,6 +8553,25 @@ async function submitActivityLog(form) {
 
   form.reset();
   $("activityModal")?.close();
+  const localActivity = {
+    ...payload,
+    id: crypto.randomUUID(),
+    created_at: new Date().toISOString(),
+    members: currentProfile,
+    sports: (allSports || []).find(sport => sport.id === sportId) || null
+  };
+
+  if (localActivity?.id) {
+    allMemberActivities = [
+      localActivity,
+      ...(allMemberActivities || []).filter(activity => activity.id !== localActivity.id)
+    ];
+    renderStats();
+    renderFeed();
+    renderActivities();
+    renderPendingActivities();
+    renderRankings();
+  }
   alert("Activity submitted for admin approval.");
   await loadMemberActivities();
 }
