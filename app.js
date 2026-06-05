@@ -2236,6 +2236,7 @@ async function loadMatches() {
       ),
       match_position_rating_adjustments (
         id,
+        game_id,
         member_id,
         sport_id,
         position_name,
@@ -5754,6 +5755,70 @@ async function recalculateMatchSoccerRatings(match, showAlert = true) {
   return true;
 }
 
+function padelSetEntriesForGame(match, gameId) {
+  return scoreEntriesForGame(match, gameId)
+    .filter(entry => entry.entry_type === "padel_set")
+    .map(entry => ({
+      setNumber: Number(entry.set_number || 0),
+      teamAScore: Number(entry.team_a_score || 0),
+      teamBScore: Number(entry.team_b_score || 0),
+      isCompleted: Boolean(entry.is_completed)
+    }))
+    .filter(entry => entry.setNumber > 0)
+    .sort((a, b) => a.setNumber - b.setNumber);
+}
+
+function completedPadelGamesForMatch(match) {
+  return matchSessionGames(match).filter(game =>
+    game?.id &&
+    game.status === "completed" &&
+    game.winner_team
+  );
+}
+
+async function recalculateMatchPadelRatings(match, showAlert = true) {
+  if (!canManageMatch(match) && !isCurrentUserAdmin()) {
+    alert("Only the match creator or admin can recalculate this match.");
+    return false;
+  }
+
+  if (isCancelledMatch(match) || !hasSubmittedScore(match)) {
+    if (showAlert) alert("Only finalized, non-cancelled matches can be recalculated.");
+    return false;
+  }
+
+  if (!isPadelMatch(match)) {
+    if (showAlert) alert("Padel rating recalculation applies only to padel matches.");
+    return true;
+  }
+
+  const games = completedPadelGamesForMatch(match);
+
+  if (!games.length) {
+    if (showAlert) alert("No completed padel games found for this match.");
+    return true;
+  }
+
+  for (const game of games) {
+    const saved = await savePadelGameRatingAdjustments(
+      match,
+      game.id,
+      padelSetEntriesForGame(match, game.id),
+      game.winner_team
+    );
+
+    if (!saved) return false;
+  }
+
+  if (showAlert) {
+    alert("Padel ratings recalculated.");
+    await loadSportProfiles();
+    await loadMatches();
+  }
+
+  return true;
+}
+
 async function recalculateMatchAll(matchId) {
   const match = allMatches.find(m => m.id === matchId);
 
@@ -5762,7 +5827,7 @@ async function recalculateMatchAll(matchId) {
     return;
   }
 
-  const ok = confirm("Recalculate points and soccer ratings for this finalized match?");
+  const ok = confirm("Recalculate points and sport ratings for this finalized match?");
   if (!ok) return;
 
   const pointsOk = await recalculateMatchPoints(match, false);
@@ -5770,6 +5835,9 @@ async function recalculateMatchAll(matchId) {
 
   const ratingsOk = await recalculateMatchSoccerRatings(match, false);
   if (!ratingsOk) return;
+
+  const padelRatingsOk = await recalculateMatchPadelRatings(match, false);
+  if (!padelRatingsOk) return;
 
   alert("Match recalculated.");
   await loadMatches();
@@ -5843,7 +5911,7 @@ async function recalculateAllFinalizedMatches() {
     return;
   }
 
-  const ok = confirm(`Recalculate points and soccer ratings for ${matches.length} finalized match(es)?`);
+  const ok = confirm(`Recalculate points and sport ratings for ${matches.length} finalized match(es)?`);
   if (!ok) return;
 
   for (const match of matches) {
@@ -5854,10 +5922,16 @@ async function recalculateAllFinalizedMatches() {
       const ratingsOk = await recalculateMatchSoccerRatings(match, false);
       if (!ratingsOk) return;
     }
+
+    if (isPadelMatch(match)) {
+      const ratingsOk = await recalculateMatchPadelRatings(match, false);
+      if (!ratingsOk) return;
+    }
   }
 
   alert("All finalized matches recalculated.");
   await loadPositionRatings();
+  await loadSportProfiles();
   await loadMatches();
   renderRankings();
   renderLeagues();
@@ -5968,6 +6042,287 @@ function padelGameStatusLabel(game, gameSets = []) {
   return ABAScoring.padelGameStatusLabel(game, gameSets);
 }
 
+const PADEL_RATING_POSITION = "OVERALL";
+const PADEL_RATING_K = 0.25;
+const PADEL_RATING_SCALE = 2;
+const PADEL_COMEBACK_BONUS = 0.05;
+
+function teamPlayerMemberIds(team) {
+  return (team?.match_team_players || [])
+    .map(player => cleanUuidValue(player.member_id))
+    .filter(Boolean);
+}
+
+function averageTeamSportRating(memberIds, sportId) {
+  return averageValues(
+    (memberIds || []).map(memberId => memberSportRating(memberId, sportId)),
+    5
+  );
+}
+
+function expectedPadelWinProbability(teamRating, opponentRating) {
+  return 1 / (1 + Math.pow(10, (Number(opponentRating || 0) - Number(teamRating || 0)) / PADEL_RATING_SCALE));
+}
+
+function padelSetSummary(sets = [], winnerTeam = null) {
+  const completedSets = (sets || [])
+    .filter(set => Boolean(set.isCompleted ?? set.is_completed))
+    .sort((a, b) => Number(a.setNumber ?? a.set_number ?? 0) - Number(b.setNumber ?? b.set_number ?? 0));
+
+  let teamAGames = 0;
+  let teamBGames = 0;
+  let teamASetWins = 0;
+  let teamBSetWins = 0;
+  let firstSetWinner = null;
+
+  completedSets.forEach((set, index) => {
+    const scoreA = Number(set.teamAScore ?? set.team_a_score ?? 0);
+    const scoreB = Number(set.teamBScore ?? set.team_b_score ?? 0);
+
+    teamAGames += scoreA;
+    teamBGames += scoreB;
+
+    const setWinner = scoreA > scoreB ? "A" : scoreB > scoreA ? "B" : null;
+
+    if (setWinner === "A") teamASetWins += 1;
+    if (setWinner === "B") teamBSetWins += 1;
+    if (index === 0) firstSetWinner = setWinner;
+  });
+
+  const resolvedWinner = winnerTeam || (teamASetWins > teamBSetWins ? "A" : teamBSetWins > teamASetWins ? "B" : null);
+
+  return {
+    completedSets,
+    teamAGames,
+    teamBGames,
+    teamASetWins,
+    teamBSetWins,
+    winnerTeam: resolvedWinner,
+    gameMargin: Math.abs(teamAGames - teamBGames),
+    comebackTeam: completedSets.length >= 3 && firstSetWinner && resolvedWinner && firstSetWinner !== resolvedWinner
+      ? resolvedWinner
+      : null
+  };
+}
+
+function padelMarginMultiplier(gameMargin) {
+  return clampNumber(1 + Number(gameMargin || 0) / 24, 0.85, 1.2);
+}
+
+function padelRatingDeltas(match, sets, winnerTeam) {
+  const { teamA, teamB } = getTwoMatchTeams(match);
+  const summary = padelSetSummary(sets, winnerTeam);
+
+  if (!teamA || !teamB || !summary.winnerTeam) return [];
+
+  const teamAIds = teamPlayerMemberIds(teamA);
+  const teamBIds = teamPlayerMemberIds(teamB);
+
+  if (!teamAIds.length || !teamBIds.length) return [];
+
+  const teamARating = averageTeamSportRating(teamAIds, match.sport_id);
+  const teamBRating = averageTeamSportRating(teamBIds, match.sport_id);
+  const expectedA = expectedPadelWinProbability(teamARating, teamBRating);
+  const expectedB = 1 - expectedA;
+  const actualA = summary.winnerTeam === "A" ? 1 : 0;
+  const actualB = summary.winnerTeam === "B" ? 1 : 0;
+  const multiplier = padelMarginMultiplier(summary.gameMargin);
+
+  let deltaA = PADEL_RATING_K * (actualA - expectedA) * multiplier;
+  let deltaB = PADEL_RATING_K * (actualB - expectedB) * multiplier;
+
+  if (summary.comebackTeam === "A") deltaA += PADEL_COMEBACK_BONUS;
+  if (summary.comebackTeam === "B") deltaB += PADEL_COMEBACK_BONUS;
+
+  return [
+    ...teamAIds.map(memberId => ({
+      member_id: memberId,
+      sport_id: match.sport_id,
+      adjustment: Number(deltaA.toFixed(3))
+    })),
+    ...teamBIds.map(memberId => ({
+      member_id: memberId,
+      sport_id: match.sport_id,
+      adjustment: Number(deltaB.toFixed(3))
+    }))
+  ];
+}
+
+async function setOverallSportRatingValue(memberId, sportId, ratingValue, gamesDelta) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  const cleanSportId = cleanUuidValue(sportId);
+
+  if (!cleanMemberId || !cleanSportId) return true;
+
+  const existing = sportProfileForMember(cleanMemberId, cleanSportId);
+  const currentGames = Number(existing?.games_played || 0);
+  const nextGamesPlayed = Math.max(0, currentGames + Number(gamesDelta || 0));
+  const nextRating = clampNumber(Number(ratingValue || 5), 1, 10);
+
+  const { error } = await supabaseClient
+    .from("member_sport_profiles")
+    .upsert({
+      member_id: cleanMemberId,
+      sport_id: cleanSportId,
+      rating: Number(nextRating.toFixed(2)),
+      games_played: nextGamesPlayed,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: "member_id,sport_id"
+    });
+
+  if (error) {
+    alert(error.message);
+    return false;
+  }
+
+  await loadSportProfiles();
+  return true;
+}
+
+async function applyOverallSportRatingDelta(memberId, sportId, delta, gamesDelta) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  const cleanSportId = cleanUuidValue(sportId);
+
+  if (!cleanMemberId || !cleanSportId) {
+    return {
+      ok: true,
+      skipped: true
+    };
+  }
+
+  const ratingBefore = memberSportRating(cleanMemberId, cleanSportId);
+  const ratingAfter = clampNumber(ratingBefore + Number(delta || 0), 1, 10);
+  const ok = await setOverallSportRatingValue(cleanMemberId, cleanSportId, ratingAfter, gamesDelta);
+
+  return {
+    ok,
+    ratingBefore,
+    ratingAfter
+  };
+}
+
+async function rollbackPreviousPadelGameRatingAdjustments(gameId) {
+  const cleanGameId = cleanUuidValue(gameId);
+
+  if (!cleanGameId) return true;
+
+  const { data, error } = await supabaseClient
+    .from("match_position_rating_adjustments")
+    .select("id,member_id,sport_id,adjustment,rating_before,rating_after")
+    .eq("game_id", cleanGameId)
+    .eq("position_name", PADEL_RATING_POSITION);
+
+  if (error) {
+    alert(error.message);
+    return false;
+  }
+
+  for (const row of data || []) {
+    const ok = await setOverallSportRatingValue(
+      row.member_id,
+      row.sport_id,
+      Number(row.rating_before ?? 5),
+      -1
+    );
+
+    if (!ok) return false;
+  }
+
+  if ((data || []).length) {
+    const { error: deleteError } = await supabaseClient
+      .from("match_position_rating_adjustments")
+      .delete()
+      .eq("game_id", cleanGameId)
+      .eq("position_name", PADEL_RATING_POSITION);
+
+    if (deleteError) {
+      alert(deleteError.message);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+async function savePadelGameRatingAdjustmentRow(row) {
+  const cleanRow = {
+    match_id: cleanUuidValue(row.match_id),
+    game_id: cleanUuidValue(row.game_id),
+    member_id: cleanUuidValue(row.member_id),
+    sport_id: cleanUuidValue(row.sport_id),
+    position_name: PADEL_RATING_POSITION,
+    adjustment: Number(row.adjustment || 0),
+    rating_before: Number(row.rating_before || 0),
+    rating_after: Number(row.rating_after || 0),
+    formula_version: 1,
+    settings_snapshot: {
+      engine: "padel_overall_v1",
+      k: PADEL_RATING_K,
+      scale: PADEL_RATING_SCALE,
+      comebackBonus: PADEL_COMEBACK_BONUS
+    }
+  };
+
+  if (!cleanRow.match_id || !cleanRow.game_id || !cleanRow.member_id || !cleanRow.sport_id) {
+    console.warn("Skipping invalid padel rating adjustment row:", row);
+    return true;
+  }
+
+  const { error } = await supabaseClient
+    .from("match_position_rating_adjustments")
+    .insert(cleanRow);
+
+  if (error) {
+    alert(error.message);
+    return false;
+  }
+
+  return true;
+}
+
+async function savePadelGameRatingAdjustments(match, gameId, sets, winnerTeam) {
+  if (!isPadelMatch(match)) return true;
+
+  const cleanGameId = cleanUuidValue(gameId);
+
+  if (!cleanGameId) return true;
+
+  await loadSportProfiles();
+
+  const rolledBack = await rollbackPreviousPadelGameRatingAdjustments(cleanGameId);
+  if (!rolledBack) return false;
+
+  if (!winnerTeam) return true;
+
+  const rows = padelRatingDeltas(match, sets, winnerTeam);
+
+  for (const row of rows) {
+    const result = await applyOverallSportRatingDelta(
+      row.member_id,
+      row.sport_id,
+      Number(row.adjustment || 0),
+      1
+    );
+
+    if (!result?.ok) return false;
+
+    const saved = await savePadelGameRatingAdjustmentRow({
+      match_id: match.id,
+      game_id: cleanGameId,
+      member_id: row.member_id,
+      sport_id: row.sport_id,
+      adjustment: Number(Number(row.adjustment || 0).toFixed(3)),
+      rating_before: Number(Number(result.ratingBefore).toFixed(2)),
+      rating_after: Number(Number(result.ratingAfter).toFixed(2))
+    });
+
+    if (!saved) return false;
+  }
+
+  return true;
+}
+
 async function deleteSelectedGameFromResults() {
   if (!currentScoreMatchId) {
     alert("No match selected.");
@@ -6003,6 +6358,9 @@ async function deleteSelectedGameFromResults() {
   const ok = confirm(`Delete ${game?.title || "this game"} from results? This removes its saved sets too.`);
 
   if (!ok) return;
+
+  const ratingsRolledBack = await rollbackPreviousPadelGameRatingAdjustments(gameId);
+  if (!ratingsRolledBack) return;
 
   const { error: deleteGameError } = await supabaseClient
     .from("match_games")
@@ -6229,6 +6587,15 @@ async function savePadelGameOnly() {
     return null;
   }
 
+  const ratingsSaved = await savePadelGameRatingAdjustments(
+    match,
+    gameId,
+    padelResult.validSets,
+    winnerTeam
+  );
+
+  if (!ratingsSaved) return null;
+
   return {
     gameId,
     gameStatus,
@@ -6242,7 +6609,7 @@ async function saveCurrentGameAndStayOpen() {
 
   if (!saved) return;
 
-  alert(saved.gameStatus === "completed" ? "Game saved as completed." : "Game saved as pending.");
+  alert(saved.gameStatus === "completed" ? "Game saved as completed and padel ratings updated." : "Game saved as pending.");
 
   await loadMatches();
 
@@ -7510,7 +7877,9 @@ async function finalizeCurrentMatchResult() {
 
   alert(isSoccerMatch(refreshedMatchForPoints)
     ? "Match result finalized, points saved, and soccer position ratings updated."
-    : "Match result finalized and points saved.");
+    : isPadelMatch(refreshedMatchForPoints)
+      ? "Match result finalized, points saved, and padel ratings updated."
+      : "Match result finalized and points saved.");
 
   $("scoreModal")?.close();
   currentScoreMatchId = null;
