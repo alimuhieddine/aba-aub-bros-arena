@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena test 2t</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=136" />
+  <link rel="stylesheet" href="style.css?v=137" />
 </head>
 
 <body>
@@ -67,7 +67,7 @@
       <button class="tab active" data-view="dashboard">Home</button>
       <button class="tab" data-view="leagues">Leagues</button>
       <button class="tab" data-view="matches">Matches</button>
-      <button class="tab" data-view="activities">Proof</button>
+      <button class="tab" data-view="activities">Activity</button>
       <button class="tab" data-view="rankings">Ranks</button>
       <button class="tab auth-only" data-view="account" style="display:none;">Account</button>
       <button class="tab admin-only" data-view="admin" style="display:none;">Admin</button>
@@ -87,7 +87,7 @@
           </article>
 
           <article class="card stat-card">
-            <span>Pending Proofs</span>
+            <span>Pending Activities</span>
             <strong id="pendingCount">0</strong>
           </article>
         </div>
@@ -164,11 +164,11 @@
 
       <section id="activities" class="view">
         <div class="section-head">
-          <h2>Activity Proof</h2>
-          <button class="primary-btn" data-open="activityModal" type="button">+ Submit</button>
+          <h2>Activity</h2>
+          <button class="primary-btn" data-open="activityModal" type="button">+ Log Activity</button>
         </div>
 
-        <p class="hint">Activities need 2 committee approvals before points are added.</p>
+        <p class="hint">Log non-match activities. Admin approval is required before activity points count.</p>
         <div id="activityList" class="stack"></div>
       </section>
 
@@ -280,6 +280,38 @@
             Select a sport to edit ratings.
           </div>
         </div>
+
+        <div class="section-head">
+          <div>
+            <h2>Activity Settings</h2>
+            <p class="hint">Configure activity intensity points for non-match activity logs.</p>
+          </div>
+        </div>
+
+        <div class="card activity-settings-card">
+          <div id="activity-settings-list" class="activity-settings-list">
+            Loading activity settings...
+          </div>
+
+          <div class="actions">
+            <button id="save-activity-settings-btn" class="primary-btn" type="button">
+              Save activity settings
+            </button>
+          </div>
+
+          <p id="activity-settings-status" class="hint">
+            Logged activities use continuous duration: points = min(cap, duration_minutes / 30 * rate).
+          </p>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <h2>Activity Review</h2>
+            <p class="hint">Approve logged activities before points count.</p>
+          </div>
+        </div>
+
+        <div id="pendingActivitiesList" class="stack"></div>
 
         <div class="section-head">
           <div>
@@ -526,7 +558,7 @@
 
   <dialog id="leagueModal" class="modal">
     <form method="dialog" id="leagueForm" class="modal-card">
-      <button class="close" value="cancel" type="submit">×</button>
+      <button class="close" value="cancel" type="button" onclick="document.getElementById('activityModal')?.close()">×</button>
       <h3>Create League</h3>
 
       <label>
@@ -896,33 +928,57 @@
   <dialog id="activityModal" class="modal">
     <form method="dialog" id="activityForm" class="modal-card">
       <button class="close" value="cancel" type="submit">×</button>
-      <h3>Submit Activity Proof</h3>
-
-      <label>Player
-        <input name="player" required placeholder="Ali" />
-      </label>
+      <h3>Log Activity</h3>
 
       <label>Sport
-        <select name="sport">
-          <option>Padel</option>
-          <option>Soccer</option>
-          <option>Gym</option>
-          <option>Running</option>
-          <option>Cycling</option>
+        <select id="activity-sport" name="sport_id" required>
+          <option value="">Select sport</option>
         </select>
       </label>
 
       <label>Activity
-        <input name="activity" required placeholder="90 min padel session" />
+        <input id="activity-title" name="title" required placeholder="5 km run, gym session, padel practice..." />
       </label>
 
-      <label>Proof link / note
-        <input name="proof" placeholder="Photo, watch screenshot, GPS link..." />
+      <label>Date
+        <input id="activity-date" name="activity_date" type="date" required />
       </label>
 
-      <label>Duration minutes
-        <input name="duration_minutes" type="number" min="1" step="1" value="90" />
+      <div class="grid two">
+        <label>Start time
+          <div class="ampm-time-row">
+            <select id="activity-start-hour" required></select>
+            <span>:</span>
+            <select id="activity-start-minute" required></select>
+            <select id="activity-start-ampm" required>
+              <option>AM</option>
+              <option>PM</option>
+            </select>
+          </div>
+        </label>
+
+        <label>End time
+          <div class="ampm-time-row">
+            <select id="activity-end-hour" required></select>
+            <span>:</span>
+            <select id="activity-end-minute" required></select>
+            <select id="activity-end-ampm" required>
+              <option>AM</option>
+              <option>PM</option>
+            </select>
+          </div>
+        </label>
+      </div>
+
+      <label>Proof upload
+        <input id="activity-proof-file" name="proof_file" type="file" accept="image/*,.pdf" required />
       </label>
+
+      <label>Notes
+        <textarea id="activity-notes" name="notes" rows="3" placeholder="Optional context: distance, calories, app used, teammates, gym check-in..."></textarea>
+      </label>
+
+      <p id="activity-points-preview" class="hint">Select sport and time to preview points.</p>
 
       <button class="primary-btn full" type="submit">Submit for Approval</button>
     </form>
@@ -938,7 +994,7 @@
   <script src="js/teams.js?v=1"></script>
   <script src="js/scoring.js?v=1"></script>
   <script src="js/utils.js?v=1"></script>
-  <script src="app.js?v=135"></script>
+  <script src="app.js?v=137"></script>
   <script src="js/utils-runtime-bridge.js?v=1"></script>
   <script src="js/auth-runtime-bridge.js?v=1"></script>
 

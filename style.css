@@ -1935,6 +1935,37 @@ main,
   margin-right: 5px;
 }
 
+.activity-settings-list {
+  display: grid;
+  gap: 8px;
+}
+
+.activity-setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px 130px;
+  gap: 8px;
+  align-items: end;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+}
+
+.activity-setting-row strong {
+  color: var(--text);
+  padding-bottom: 8px;
+}
+
+@media (max-width: 700px) {
+  .activity-setting-row {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-setting-row strong {
+    padding-bottom: 0;
+  }
+}
+
 .rating-pill {
   display: inline-flex;
   margin-left: 6px;

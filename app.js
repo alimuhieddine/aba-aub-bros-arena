@@ -492,6 +492,15 @@ let currentScoreMatchId = null;
 let currentRatingHistoryMemberId = null;
 let currentRatingHistorySportId = null;
 let allPendingGames = [];
+let allMemberActivities = [];
+let activitySportSettingsCache = {};
+let activitySportSettingsLoadPromise = null;
+
+const ACTIVITY_SPORT_SETTINGS_KEY = "aba_activity_sport_settings";
+const ACTIVITY_SPORT_APP_SETTING_KEY = "activity_sport_settings";
+const ACTIVITY_PROOF_BUCKET = "activity-proofs";
+const DEFAULT_ACTIVITY_RATE = 1;
+const DEFAULT_ACTIVITY_CAP = 3;
 
 
 
@@ -1209,6 +1218,7 @@ async function loadMatchFormOptions() {
   updateRatingSportOptions();
   updateRankingFilters();
   updateMatchLeagueOptions();
+  updateActivitySportOptions();
 
   renderMatchInviteOptions();
   updateMatchVenueOptions();
@@ -1413,9 +1423,12 @@ function render() {
 function renderStats() {
   if (!$("verifiedCount") || !$("pendingCount")) return;
 
-  const verified = state.activities.filter(a => a.approvals.length >= 2).length;
+  const rows = (allMemberActivities || []).length ? allMemberActivities : state.activities;
+  const verified = rows.filter(a => (a.status || (a.approvals?.length >= 2 ? "approved" : "pending")) === "approved").length;
+  const pending = rows.filter(a => (a.status || "pending") === "pending" && !(a.approvals?.length >= 2)).length;
+
   $("verifiedCount").textContent = verified;
-  $("pendingCount").textContent = state.activities.length - verified;
+  $("pendingCount").textContent = pending;
 }
 
 function renderFeed() {
@@ -1423,7 +1436,9 @@ function renderFeed() {
 
   const items = [
     ...state.matches.map(m => ({ kind: "match", time: new Date(m.date).getTime(), data: m })),
-    ...state.activities.map(a => ({ kind: "activity", time: a.createdAt, data: a }))
+    ...((allMemberActivities || []).length ? allMemberActivities : state.activities)
+      .filter(a => (a.status || (a.approvals?.length >= 2 ? "approved" : "pending")) === "approved")
+      .map(a => ({ kind: "activity", time: new Date(a.created_at || a.createdAt || 0).getTime(), data: a }))
   ].sort((a, b) => b.time - a.time).slice(0, 8);
 
   $("feedList").innerHTML =
@@ -3870,15 +3885,6 @@ function toAmPmLabel(hour, minute = 0) {
 }
 
 function populateMatchTimeSelects() {
-  const startHour = $("match-start-hour");
-  const startMinute = $("match-start-minute");
-  const endHour = $("match-end-hour");
-  const endMinute = $("match-end-minute");
-
-  if (!startHour || !startMinute || !endHour || !endMinute) return;
-
-  if (startHour.options.length && startMinute.options.length) return;
-
   const hourOptions = Array.from({ length: 12 }, (_, i) => {
     const hour = i + 1;
     return `<option value="${hour}">${hour}</option>`;
@@ -3888,11 +3894,16 @@ function populateMatchTimeSelects() {
     return `<option value="${pad2(minute)}">${pad2(minute)}</option>`;
   }).join("");
 
-  startHour.innerHTML = hourOptions;
-  endHour.innerHTML = hourOptions;
+  ["match-start", "match-end", "activity-start", "activity-end"].forEach(prefix => {
+    const hourSelect = $(`${prefix}-hour`);
+    const minuteSelect = $(`${prefix}-minute`);
 
-  startMinute.innerHTML = minuteOptions;
-  endMinute.innerHTML = minuteOptions;
+    if (!hourSelect || !minuteSelect) return;
+    if (hourSelect.options.length && minuteSelect.options.length) return;
+
+    hourSelect.innerHTML = hourOptions;
+    minuteSelect.innerHTML = minuteOptions;
+  });
 }
 
 function setTimeParts(prefix, hour24, minute = 0) {
@@ -6712,6 +6723,213 @@ function activityPointsForDurationMinutes(durationMinutes) {
   return activityPointsForDurationHours(Number(durationMinutes || 0) / 60);
 }
 
+function defaultActivityRateForSportName(name) {
+  const sportName = String(name || "").toLowerCase();
+
+  if (
+    sportName.includes("walk") ||
+    sportName.includes("stretch") ||
+    sportName.includes("yoga")
+  ) {
+    return 0.3;
+  }
+
+  if (
+    sportName.includes("gym") ||
+    sportName.includes("weight") ||
+    sportName.includes("lifting") ||
+    sportName.includes("volleyball")
+  ) {
+    return 0.7;
+  }
+
+  return 1;
+}
+
+function normalizeActivitySportSettings(settings = {}) {
+  const normalized = {};
+
+  (allSports || []).forEach(sport => {
+    const saved = settings[sport.id] || {};
+    const rate = Number(saved.rate ?? defaultActivityRateForSportName(sport.name));
+    const cap = Number(saved.cap ?? DEFAULT_ACTIVITY_CAP);
+
+    normalized[sport.id] = {
+      rate: Number.isFinite(rate) && rate >= 0 ? rate : DEFAULT_ACTIVITY_RATE,
+      cap: Number.isFinite(cap) && cap >= 0 ? cap : DEFAULT_ACTIVITY_CAP
+    };
+  });
+
+  Object.entries(settings || {}).forEach(([sportId, saved]) => {
+    if (normalized[sportId]) return;
+
+    const rate = Number(saved?.rate ?? DEFAULT_ACTIVITY_RATE);
+    const cap = Number(saved?.cap ?? DEFAULT_ACTIVITY_CAP);
+
+    normalized[sportId] = {
+      rate: Number.isFinite(rate) && rate >= 0 ? rate : DEFAULT_ACTIVITY_RATE,
+      cap: Number.isFinite(cap) && cap >= 0 ? cap : DEFAULT_ACTIVITY_CAP
+    };
+  });
+
+  return normalized;
+}
+
+function readLocalActivitySportSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(ACTIVITY_SPORT_SETTINGS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function cacheActivitySportSettings(settings = {}) {
+  activitySportSettingsCache = normalizeActivitySportSettings(settings);
+  localStorage.setItem(ACTIVITY_SPORT_SETTINGS_KEY, JSON.stringify(activitySportSettingsCache));
+  return activitySportSettingsCache;
+}
+
+function activitySportSettings() {
+  return normalizeActivitySportSettings(activitySportSettingsCache || readLocalActivitySportSettings());
+}
+
+async function loadActivitySportSettings(force = false) {
+  if (activitySportSettingsLoadPromise && !force) return activitySportSettingsLoadPromise;
+
+  activitySportSettingsLoadPromise = (async () => {
+    try {
+      const { data, error } = await supabaseClient
+        .from("app_settings")
+        .select("value")
+        .eq("key", ACTIVITY_SPORT_APP_SETTING_KEY)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      return cacheActivitySportSettings(data?.value || {});
+    } catch (error) {
+      console.warn("Using local activity sport settings fallback:", error.message);
+      return cacheActivitySportSettings(readLocalActivitySportSettings());
+    }
+  })();
+
+  return activitySportSettingsLoadPromise;
+}
+
+function activitySettingForSport(sportId) {
+  const settings = activitySportSettings();
+  const sport = (allSports || []).find(item => item.id === sportId);
+
+  return settings[sportId] || {
+    rate: defaultActivityRateForSportName(sport?.name),
+    cap: DEFAULT_ACTIVITY_CAP
+  };
+}
+
+function loggedActivityPointsForDurationMinutes(durationMinutes, sportId) {
+  const minutes = Number(durationMinutes || 0);
+  const setting = activitySettingForSport(sportId);
+  const rate = Number(setting.rate ?? DEFAULT_ACTIVITY_RATE);
+  const cap = Number(setting.cap ?? DEFAULT_ACTIVITY_CAP);
+
+  if (!Number.isFinite(minutes) || minutes <= 0) return 0;
+  if (!Number.isFinite(rate) || rate <= 0) return 0;
+
+  const raw = (minutes / 30) * rate;
+  const capped = Number.isFinite(cap) && cap >= 0 ? Math.min(cap, raw) : raw;
+
+  return Math.round(Math.max(0, capped) * 100) / 100;
+}
+
+function renderActivitySettingsForm() {
+  const box = $("activity-settings-list");
+  if (!box) return;
+
+  const settings = activitySportSettings();
+
+  if (!allSports.length) {
+    box.innerHTML = `<div class="hint">No sports found.</div>`;
+    return;
+  }
+
+  box.innerHTML = allSports.map(sport => {
+    const setting = settings[sport.id] || activitySettingForSport(sport.id);
+
+    return `
+      <div class="activity-setting-row" data-sport-id="${sport.id}">
+        <strong>${escapeHtml(sport.name)}</strong>
+
+        <label>
+          Points / 30 min
+          <input class="activity-rate-input" type="number" min="0" step="0.05" value="${Number(setting.rate || 0)}">
+        </label>
+
+        <label>
+          Max / activity
+          <input class="activity-cap-input" type="number" min="0" step="0.25" value="${Number(setting.cap || 0)}">
+        </label>
+      </div>
+    `;
+  }).join("");
+
+  if ($("activity-settings-status")) {
+    $("activity-settings-status").textContent =
+      "Logged activities use continuous duration: points = min(cap, duration_minutes / 30 * rate).";
+  }
+}
+
+function activitySettingsFromForm() {
+  const settings = {};
+
+  document.querySelectorAll(".activity-setting-row").forEach(row => {
+    const sportId = cleanUuidValue(row.dataset.sportId);
+    const rate = Number(row.querySelector(".activity-rate-input")?.value);
+    const cap = Number(row.querySelector(".activity-cap-input")?.value);
+
+    if (!sportId) return;
+
+    settings[sportId] = {
+      rate: Number.isFinite(rate) && rate >= 0 ? rate : DEFAULT_ACTIVITY_RATE,
+      cap: Number.isFinite(cap) && cap >= 0 ? cap : DEFAULT_ACTIVITY_CAP
+    };
+  });
+
+  return settings;
+}
+
+async function saveActivitySportSettings() {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin only.");
+    return;
+  }
+
+  const settings = activitySettingsFromForm();
+
+  const { error } = await supabaseClient
+    .from("app_settings")
+    .upsert({
+      key: ACTIVITY_SPORT_APP_SETTING_KEY,
+      value: settings,
+      version: 1,
+      updated_by: currentProfile?.id || null,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: "key"
+    });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  cacheActivitySportSettings(settings);
+  updateActivityPointsPreview();
+
+  if ($("activity-settings-status")) {
+    $("activity-settings-status").textContent = "Activity settings saved.";
+  }
+}
+
 function activityPointsForMatch(match) {
   return activityPointsForDurationHours(matchDurationHours(match));
 }
@@ -6765,6 +6983,13 @@ function pointTotalPoints(point) {
   }
 
   return 0;
+}
+
+function formatPointValue(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return "0";
+
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
 }
 
 async function saveMatchMemberPoints(match) {
@@ -7943,30 +8168,374 @@ function commentSection(m) {
 }
 
 function activityCard(a, compact = false) {
-  const verified = a.approvals.length >= 2;
-  const durationMinutes = Number(a.durationMinutes || 0);
+  const status = a.status || (a.approvals?.length >= 2 ? "approved" : "pending");
+  const verified = status === "approved";
+  const rejected = status === "rejected";
+  const durationMinutes = Number(a.duration_minutes ?? a.durationMinutes ?? 0);
+  const memberName = a.members ? memberDisplayName(a.members) : (a.player || "Player");
+  const sportName = a.sports?.name || a.sport || sportNameById(a.sport_id) || "Sport";
+  const title = a.title || a.activity || "Activity";
+  const points = Number(a.activity_points ?? a.points ?? 0);
+  const proofLabel = a.proof_file_name || a.proof || "proof";
   const durationText = durationMinutes > 0
-    ? ` • ${durationMinutes} min`
+    ? ` - ${durationMinutes} min`
     : "";
 
   return `
     <article class="card">
       <div class="row">
         <div>
-          <h3>${escapeHtml(a.player)} — ${escapeHtml(a.activity)}</h3>
-          <div class="meta">${escapeHtml(a.sport)}${durationText} • Activity ${a.points} pts • Proof: ${escapeHtml(a.proof || "not attached yet")}</div>
-          <div class="meta">Approvals: ${a.approvals.length}/2</div>
+          <h3>${escapeHtml(memberName)} - ${escapeHtml(title)}</h3>
+          <div class="meta">${escapeHtml(sportName)}${durationText} - Activity ${formatPointValue(points)} pts</div>
+          <div class="meta">
+            ${escapeHtml(fmtDate(a.activity_date || a.created_at))}
+            ${a.start_time && a.end_time ? ` - ${escapeHtml(a.start_time)}-${escapeHtml(a.end_time)}` : ""}
+          </div>
+          ${a.notes ? `<div class="meta">${escapeHtml(a.notes)}</div>` : ""}
+          ${a.proof_path ? `<button class="link-btn" type="button" onclick="openActivityProof('${a.id}')">Open ${escapeHtml(proofLabel)}</button>` : `<div class="meta">Proof: not attached</div>`}
+          ${rejected && a.review_notes ? `<div class="meta danger-text">Rejected: ${escapeHtml(a.review_notes)}</div>` : ""}
         </div>
-        <span class="pill ${verified ? "green" : "red"}">${verified ? "Verified" : "Pending"}</span>
+        <span class="pill ${verified ? "green" : rejected ? "red" : "gold"}">${escapeHtml(status)}</span>
       </div>
-      ${compact || verified ? "" : `<div class="actions"><button class="small-btn" onclick="approveActivity('${a.id}')">Committee approve</button></div>`}
+      ${compact || !isCurrentUserAdmin() || verified || rejected ? "" : `
+        <div class="actions">
+          <button class="small-btn" onclick="reviewActivity('${a.id}', 'approved')">Approve</button>
+          <button class="small-btn" onclick="reviewActivity('${a.id}', 'rejected')">Reject</button>
+        </div>
+      `}
     </article>
   `;
 }
 
 function renderActivities() {
   if (!$("activityList")) return;
-  $("activityList").innerHTML = state.activities.map(a => activityCard(a)).join("");
+  const loadedRows = (allMemberActivities || []).length ? allMemberActivities : state.activities;
+  const rows = isCurrentUserAdmin()
+    ? loadedRows
+    : loadedRows.filter(activity =>
+        !allMemberActivities.length ||
+        cleanUuidValue(activity.member_id) === cleanUuidValue(currentProfile?.id)
+      );
+
+  $("activityList").innerHTML = rows.length
+    ? rows.map(a => activityCard(a)).join("")
+    : `<article class="card"><div class="hint">No activities logged yet.</div></article>`;
+}
+
+function approvedLoggedActivities() {
+  return (allMemberActivities || []).filter(activity => activity.status === "approved");
+}
+
+function renderPendingActivities() {
+  const box = $("pendingActivitiesList");
+  if (!box) return;
+
+  const pending = (allMemberActivities || [])
+    .filter(activity => (activity.status || "pending") === "pending")
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+  box.innerHTML = pending.length
+    ? pending.map(activity => activityCard(activity)).join("")
+    : `<article class="card">No pending activities.</article>`;
+}
+
+function updateActivitySportOptions() {
+  const select = $("activity-sport");
+  if (!select) return;
+
+  const current = select.value || "";
+  select.innerHTML = `
+    <option value="">Select sport</option>
+    ${(allSports || []).map(sport => `
+      <option value="${sport.id}">${escapeHtml(sport.name)}</option>
+    `).join("")}
+  `;
+
+  if (current) select.value = current;
+  updateActivityPointsPreview();
+}
+
+async function loadActivityFormOptions() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") return;
+
+  if (!allSports.length) {
+    const { data, error } = await supabaseClient
+      .from("sports")
+      .select("id,name")
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.warn("Could not load activity sports:", error.message);
+      return;
+    }
+
+    allSports = data || [];
+  }
+
+  await loadActivitySportSettings();
+  updateActivitySportOptions();
+  renderActivitySettingsForm();
+}
+
+function activityDurationMinutesFromForm() {
+  const date = $("activity-date")?.value || "";
+  const start = readTimeParts("activity-start");
+  const end = readTimeParts("activity-end");
+
+  if (!date || !start || !end) return 0;
+
+  const startMs = new Date(`${date}T${pad2(start.hour24)}:${pad2(start.minute)}`).getTime();
+  const endMs = new Date(`${date}T${pad2(end.hour24)}:${pad2(end.minute)}`).getTime();
+
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return 0;
+
+  return Math.round((endMs - startMs) / 60000);
+}
+
+function activityTimeValue(prefix) {
+  const parts = readTimeParts(prefix);
+  if (!parts) return "";
+
+  return `${pad2(parts.hour24)}:${pad2(parts.minute)}`;
+}
+
+function updateActivityPointsPreview() {
+  const preview = $("activity-points-preview");
+  if (!preview) return;
+
+  const sportId = $("activity-sport")?.value || "";
+  const minutes = activityDurationMinutesFromForm();
+  const points = loggedActivityPointsForDurationMinutes(minutes, sportId);
+  const setting = activitySettingForSport(sportId);
+
+  preview.textContent = minutes > 0 && sportId
+    ? `${minutes} min - rate ${Number(setting.rate || 0)} / 30 min - ${points.toFixed(2)} activity pts`
+    : "Select sport and time to preview points.";
+}
+
+function activityProofPath(file) {
+  const memberId = cleanUuidValue(currentProfile?.id) || "member";
+  const ext = String(file?.name || "proof").split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "") || "bin";
+
+  return `${memberId}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+}
+
+async function uploadActivityProof(file) {
+  if (!file) throw new Error("Proof upload is required.");
+
+  const path = activityProofPath(file);
+  const { error } = await supabaseClient.storage
+    .from(ACTIVITY_PROOF_BUCKET)
+    .upload(path, file, {
+      cacheControl: "3600",
+      upsert: false
+    });
+
+  if (error) throw error;
+
+  return path;
+}
+
+async function openActivityProof(activityId) {
+  const activity = (allMemberActivities || []).find(row => row.id === activityId);
+
+  if (!activity?.proof_path) {
+    alert("Proof not found.");
+    return;
+  }
+
+  const { data, error } = await supabaseClient.storage
+    .from(ACTIVITY_PROOF_BUCKET)
+    .createSignedUrl(activity.proof_path, 600);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+}
+
+async function loadMemberActivities() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") {
+    allMemberActivities = [];
+    renderActivities();
+    renderPendingActivities();
+    return [];
+  }
+
+  let query = supabaseClient
+    .from("member_activities")
+    .select(`
+      id,
+      member_id,
+      sport_id,
+      title,
+      activity_date,
+      start_time,
+      end_time,
+      duration_minutes,
+      activity_points,
+      proof_path,
+      proof_file_name,
+      notes,
+      status,
+      review_notes,
+      reviewed_by,
+      reviewed_at,
+      created_at,
+      members (
+        id,
+        first_name,
+        last_name,
+        display_name,
+        email,
+        is_external
+      ),
+      sports (
+        id,
+        name
+      )
+    `)
+    .order("created_at", { ascending: false });
+
+  if (!isCurrentUserAdmin()) {
+    query = query.or(`member_id.eq.${currentProfile.id},status.eq.approved`);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.warn("Could not load activities:", error.message);
+    allMemberActivities = [];
+    renderActivities();
+    renderPendingActivities();
+    return [];
+  }
+
+  allMemberActivities = data || [];
+  renderStats();
+  renderFeed();
+  renderActivities();
+  renderPendingActivities();
+  renderRankings();
+  return allMemberActivities;
+}
+
+async function submitActivityLog(form) {
+  if (!currentProfile || currentProfile.approval_status !== "approved") {
+    alert("Approved members only.");
+    return;
+  }
+
+  const fd = new FormData(form);
+  const sportId = cleanUuidValue(fd.get("sport_id"));
+  const title = String(fd.get("title") || "").trim();
+  const activityDate = String(fd.get("activity_date") || "");
+  const startTime = activityTimeValue("activity-start");
+  const endTime = activityTimeValue("activity-end");
+  const notes = String(fd.get("notes") || "").trim();
+  const proofFile = fd.get("proof_file");
+  const durationMinutes = activityDurationMinutesFromForm();
+
+  if (!sportId) {
+    alert("Select a sport.");
+    return;
+  }
+
+  if (!title) {
+    alert("Activity title is required.");
+    return;
+  }
+
+  if (!activityDate || !startTime || !endTime || durationMinutes <= 0) {
+    alert("Enter a valid activity date, start time, and end time.");
+    return;
+  }
+
+  if (new Date(`${activityDate}T00:00`).getTime() > Date.now()) {
+    alert("Activity date cannot be in the future.");
+    return;
+  }
+
+  if (!(proofFile instanceof File) || !proofFile.name) {
+    alert("Proof upload is required.");
+    return;
+  }
+
+  let proofPath = "";
+
+  try {
+    proofPath = await uploadActivityProof(proofFile);
+  } catch (error) {
+    alert(error.message);
+    return;
+  }
+
+  const points = loggedActivityPointsForDurationMinutes(durationMinutes, sportId);
+
+  const { error } = await supabaseClient
+    .from("member_activities")
+    .insert({
+      member_id: currentProfile.id,
+      sport_id: sportId,
+      title,
+      activity_date: activityDate,
+      start_time: startTime,
+      end_time: endTime,
+      duration_minutes: durationMinutes,
+      activity_points: points,
+      proof_path: proofPath,
+      proof_file_name: proofFile.name,
+      notes: notes || null,
+      status: "pending"
+    });
+
+  if (error) {
+    await supabaseClient.storage
+      .from(ACTIVITY_PROOF_BUCKET)
+      .remove([proofPath]);
+
+    alert(error.message);
+    return;
+  }
+
+  form.reset();
+  $("activityModal")?.close();
+  alert("Activity submitted for admin approval.");
+  await loadMemberActivities();
+}
+
+async function reviewActivity(activityId, decision) {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin access required.");
+    return;
+  }
+
+  const status = decision === "approved" ? "approved" : "rejected";
+  const reviewNotes = status === "rejected"
+    ? prompt("Reason for rejection:", "Proof does not verify the activity.")
+    : "";
+
+  if (reviewNotes === null) return;
+
+  const { error } = await supabaseClient
+    .from("member_activities")
+    .update({
+      status,
+      review_notes: reviewNotes || null,
+      reviewed_by: currentProfile.id,
+      reviewed_at: new Date().toISOString()
+    })
+    .eq("id", activityId);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  await loadMemberActivities();
+  alert(`Activity ${status}.`);
 }
 
 
@@ -8038,6 +8607,9 @@ function memberById(memberId) {
   const fromRatings = (allPositionRatings || []).find(row => cleanUuidValue(row.member_id) === cleanId)?.members;
   if (fromRatings) return fromRatings;
 
+  const fromActivities = (allMemberActivities || []).find(row => cleanUuidValue(row.member_id) === cleanId)?.members;
+  if (fromActivities) return fromActivities;
+
   for (const match of (allMatches || [])) {
     const pointMember = (match.match_member_points || []).find(point => cleanUuidValue(point.member_id) === cleanId)?.member;
     if (pointMember) return pointMember;
@@ -8067,6 +8639,9 @@ function playerProfileStats(memberId) {
     sports: new Map(),
     leagues: new Map(),
     sportDetails: new Map(),
+    activities: [],
+    activityMinutes: 0,
+    loggedActivityPoints: 0,
     recentMatches: []
   };
 
@@ -8148,6 +8723,42 @@ function playerProfileStats(memberId) {
   stats.recentMatches.sort((a, b) =>
     new Date(b.match.start_time) - new Date(a.match.start_time)
   );
+
+  (allMemberActivities || [])
+    .filter(activity => cleanUuidValue(activity.member_id) === cleanId)
+    .forEach(activity => {
+      const approved = activity.status === "approved";
+      const points = Number(activity.activity_points || 0);
+      const minutes = Number(activity.duration_minutes || 0);
+      const sportId = cleanUuidValue(activity.sport_id);
+      const sportName = activity.sports?.name || sportNameById(activity.sport_id) || "Sport";
+      const sportKey = sportId || sportName.toLowerCase();
+      const sportDetail = stats.sportDetails.get(sportKey) || {
+        sportId,
+        sport: sportName,
+        games: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        totalPoints: 0,
+        activityPoints: 0,
+        scorePoints: 0,
+        leagues: new Map()
+      };
+
+      stats.activities.push(activity);
+
+      if (approved) {
+        stats.totalPoints += points;
+        stats.basePoints += points;
+        stats.activityMinutes += minutes;
+        stats.loggedActivityPoints += points;
+
+        sportDetail.totalPoints += points;
+        sportDetail.activityPoints += points;
+        stats.sportDetails.set(sportKey, sportDetail);
+      }
+    });
 
   return stats;
 }
@@ -8308,17 +8919,17 @@ function renderPlayerProfile(memberId) {
     <div class="player-profile-stats">
       <div class="profile-stat-box">
         <span>Total points</span>
-        <strong>${Number(stats.totalPoints || 0)}</strong>
+        <strong>${formatPointValue(stats.totalPoints)}</strong>
       </div>
 
       <div class="profile-stat-box">
         <span>Activity points</span>
-        <strong>${Number(stats.basePoints || 0)}</strong>
+        <strong>${formatPointValue(stats.basePoints)}</strong>
       </div>
 
       <div class="profile-stat-box">
         <span>Score points</span>
-        <strong>${Number(stats.bonusPoints || 0)}</strong>
+        <strong>${formatPointValue(stats.bonusPoints)}</strong>
       </div>
 
       <div class="profile-stat-box">
@@ -8344,9 +8955,9 @@ function renderPlayerProfile(memberId) {
 
                   <div class="profile-sport-stat-grid">
                     <div class="profile-line"><span>Record</span><b>${summary.wins}W ${summary.draws}D ${summary.losses}L</b></div>
-                    <div class="profile-line"><span>Points</span><b>${Number(summary.totalPoints || 0)} total</b></div>
-                    <div class="profile-line"><span>Activity</span><b>${Number(summary.activityPoints || 0)} pts</b></div>
-                    <div class="profile-line"><span>Score</span><b>${Number(summary.scorePoints || 0)} pts</b></div>
+                    <div class="profile-line"><span>Points</span><b>${formatPointValue(summary.totalPoints)} total</b></div>
+                    <div class="profile-line"><span>Activity</span><b>${formatPointValue(summary.activityPoints)} pts</b></div>
+                    <div class="profile-line"><span>Score</span><b>${formatPointValue(summary.scorePoints)} pts</b></div>
                   </div>
 
                   <div class="profile-line"><span>Leagues</span><b>${escapeHtml(leagueText)}</b></div>
@@ -8391,6 +9002,35 @@ function renderPlayerProfile(memberId) {
     </article>
 
     <article class="card profile-section-card">
+      <h4>Activities</h4>
+
+      <div class="profile-sport-stat-grid">
+        <div class="profile-line"><span>Approved</span><b>${stats.activities.filter(activity => activity.status === "approved").length}</b></div>
+        <div class="profile-line"><span>Pending</span><b>${stats.activities.filter(activity => (activity.status || "pending") === "pending").length}</b></div>
+        <div class="profile-line"><span>Hours</span><b>${(Number(stats.activityMinutes || 0) / 60).toFixed(1)}</b></div>
+        <div class="profile-line"><span>Activity points</span><b>${formatPointValue(stats.loggedActivityPoints)}</b></div>
+      </div>
+
+      ${
+        stats.activities.length
+          ? stats.activities
+              .sort((a, b) => new Date(b.activity_date || b.created_at) - new Date(a.activity_date || a.created_at))
+              .slice(0, 8)
+              .map(activity => `
+                <div class="profile-match-row">
+                  <div>
+                    <strong>${escapeHtml(activity.title || "Activity")}</strong>
+                    <span>${escapeHtml(fmtDate(activity.activity_date || activity.created_at))} - ${escapeHtml(activity.sports?.name || sportNameById(activity.sport_id) || "-")}</span>
+                    <em>${Number(activity.duration_minutes || 0)} min - ${formatPointValue(activity.activity_points)} pts</em>
+                  </div>
+                  <b class="${activity.status === "approved" ? "win" : activity.status === "rejected" ? "loss" : "draw"}">${escapeHtml(activity.status || "pending")}</b>
+                </div>
+              `).join("")
+          : `<div class="hint">No logged activities yet.</div>`
+      }
+    </article>
+
+    <article class="card profile-section-card">
       <h4>Recent rating changes</h4>
       ${
         changes.length
@@ -8430,6 +9070,8 @@ function playerLinkHtml(memberId, name, extraClass = "") {
 
 function rankingRows() {
   const playerType = $("rank-player-type-filter")?.value || "all";
+  const sportFilter = $("rank-sport-filter")?.value || "all";
+  const leagueFilter = $("rank-league-filter")?.value || "all";
   const table = new Map();
 
   rankingFilteredMatches().forEach(match => {
@@ -8477,6 +9119,40 @@ function rankingRows() {
     });
   });
 
+  if (leagueFilter === "all") {
+    approvedLoggedActivities().forEach(activity => {
+      const member = activity.members;
+      const memberId = activity.member_id;
+
+      if (!memberId || !member) return;
+      if (sportFilter !== "all" && activity.sport_id !== sportFilter) return;
+      if (playerType === "members" && member.is_external) return;
+      if (playerType === "external" && !member.is_external) return;
+
+      const current = table.get(memberId) || {
+        memberId,
+        member,
+        name: memberDisplayName(member),
+        isExternal: Boolean(member.is_external),
+        totalPoints: 0,
+        basePoints: 0,
+        bonusPoints: 0,
+        matches: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        sports: new Set(),
+        leagues: new Set()
+      };
+
+      current.totalPoints += Number(activity.activity_points || 0);
+      current.basePoints += Number(activity.activity_points || 0);
+      if (activity.sports?.name) current.sports.add(activity.sports.name);
+
+      table.set(memberId, current);
+    });
+  }
+
   return Array.from(table.values()).sort((a, b) =>
     b.totalPoints - a.totalPoints ||
     b.wins - a.wins ||
@@ -8504,7 +9180,7 @@ function rankingSummary(rows) {
 
       <div>
         <div class="meta">Total points</div>
-        <strong>${totalPoints}</strong>
+        <strong>${formatPointValue(totalPoints)}</strong>
       </div>
     </article>
   `;
@@ -8549,11 +9225,11 @@ function renderRankings() {
             ${row.isExternal ? `<em>External</em>` : ""}
           </span>
 
-          <strong>${Number(row.totalPoints || 0)}</strong>
+          <strong>${formatPointValue(row.totalPoints)}</strong>
 
-          <span>${Number(row.basePoints || 0)}</span>
+          <span>${formatPointValue(row.basePoints)}</span>
 
-          <span>${Number(row.bonusPoints || 0)}</span>
+          <span>${formatPointValue(row.bonusPoints)}</span>
 
           <span>${Number(row.matches || 0)}</span>
 
@@ -8562,15 +9238,6 @@ function renderRankings() {
       `).join("")}
     </article>
   `;
-}
-
-function approveActivity(id) {
-  const a = state.activities.find(x => x.id === id);
-  if (!a || a.approvals.length >= 2) return;
-
-  a.approvals.push(`Committee ${a.approvals.length + 1}`);
-  saveData();
-  render();
 }
 
 function addComment(matchId) {
@@ -8859,13 +9526,18 @@ if (currentProfile?.approval_status === "approved") {
   await loadSportProfiles();
   await loadPositionRatings();
   await loadSoccerRatingSettings();
+  await loadActivitySportSettings();
   await loadMatches();
+  await loadMemberActivities();
   restoreActiveTab();
 }
     if (isCurrentUserAdmin()) {
       await loadSportsOptions();
 await loadMatchFormOptions();
 await loadPendingMembers();
+await loadMemberActivities();
+await loadActivitySportSettings(true);
+renderActivitySettingsForm();
 await loadVenues();
 await loadMatches();
     }
@@ -8927,12 +9599,22 @@ function setActiveTab(viewId, persist = true) {
     renderRankings();
   }
 
+  if (viewId === "activities") {
+    loadMemberActivities();
+  }
+
   if (viewId === "admin") {
     loadSportsOptions();
-    loadMatchFormOptions();
+    loadMatchFormOptions().then(() => {
+      renderActivitySettingsForm();
+    });
     loadPendingMembers();
+    loadMemberActivities();
     loadVenues();
     loadMatches();
+    loadActivitySportSettings(true).then(() => {
+      renderActivitySettingsForm();
+    });
     loadSoccerRatingSettings(true).then(renderSoccerRatingSettingsForm);
   }
 }
@@ -9013,6 +9695,20 @@ function bindEvents() {
       setDefaultMatchDateTimes();
 
       await loadMatchFormOptions();
+    }
+
+    if (btn.dataset.open === "activityModal") {
+      await loadActivityFormOptions();
+      populateMatchTimeSelects();
+
+      if ($("activity-date") && !$("activity-date").value) {
+        $("activity-date").value = new Date().toISOString().slice(0, 10);
+      }
+
+      setTimeParts("activity-start", 18, 0);
+      setTimeParts("activity-end", 19, 0);
+
+      updateActivityPointsPreview();
     }
 
     const modal = $(btn.dataset.open);
@@ -9186,29 +9882,25 @@ function bindEvents() {
 }
 
   if ($("activityForm")) {
-    $("activityForm").addEventListener("submit", e => {
-      const fd = new FormData(e.target);
-      const durationRaw = Number(fd.get("duration_minutes") || 0);
-      const durationMinutes = Number.isFinite(durationRaw)
-        ? Math.max(1, Math.round(durationRaw))
-        : 1;
-
-      state.activities.unshift({
-        id: crypto.randomUUID(),
-        player: fd.get("player"),
-        sport: fd.get("sport"),
-        activity: fd.get("activity"),
-        proof: fd.get("proof"),
-        durationMinutes,
-        points: activityPointsForDurationMinutes(durationMinutes),
-        approvals: [],
-        createdAt: Date.now()
-      });
-      saveData();
-      e.target.reset();
-      render();
+    $("activityForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      await submitActivityLog(e.target);
     });
   }
+
+  [
+    "activity-sport",
+    "activity-date",
+    "activity-start-hour",
+    "activity-start-minute",
+    "activity-start-ampm",
+    "activity-end-hour",
+    "activity-end-minute",
+    "activity-end-ampm"
+  ].forEach(id => {
+    $(id)?.addEventListener("change", updateActivityPointsPreview);
+    $(id)?.addEventListener("input", updateActivityPointsPreview);
+  });
 
   $("profile-action-btn")?.addEventListener("click", async () => {
     if (profileIsEditing) {
@@ -9230,6 +9922,7 @@ function bindEvents() {
 
   $("save-soccer-settings-btn")?.addEventListener("click", saveSoccerRatingSettings);
   $("reset-soccer-settings-btn")?.addEventListener("click", resetSoccerRatingSettings);
+  $("save-activity-settings-btn")?.addEventListener("click", saveActivitySportSettings);
 
   $("recalc-all-points-btn")?.addEventListener("click", recalculateAllFinalizedPoints);
   $("recalc-all-soccer-ratings-btn")?.addEventListener("click", recalculateAllSoccerRatings);
