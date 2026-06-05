@@ -45,7 +45,9 @@ So a normal 90-minute match gives:
 - `base_points`: compatibility total for existing generated totals
 - `difficulty_factor`: currently `1`
 - `consistency_bonus`: currently `0`
-- `total_points`: existing total field read by rankings and profiles
+- `total_points`: existing legacy/generated total field
+
+When `activity_points` or `score_points` are present, rankings and profiles read `activity_points + score_points` as the authoritative total. `total_points` is only a fallback for older rows.
 
 ## Migration
 
