@@ -495,6 +495,7 @@ let allPendingGames = [];
 let allMemberActivities = [];
 let activitySportSettingsCache = {};
 let activitySportSettingsLoadPromise = null;
+let editingActivityId = null;
 
 const ACTIVITY_SPORT_SETTINGS_KEY = "aba_activity_sport_settings";
 const ACTIVITY_SPORT_APP_SETTING_KEY = "activity_sport_settings";
@@ -8208,6 +8209,20 @@ function activityCard(a, compact = false) {
   const title = a.title || a.activity || "Activity";
   const points = Number(a.activity_points ?? a.points ?? 0);
   const proofLabel = a.proof_file_name || a.proof || "proof";
+  const activityActions = compact ? [] : [
+    canEditActivity(a)
+      ? `<button class="small-btn" type="button" onclick="openEditActivity('${a.id}')">Edit</button>`
+      : "",
+    canDeleteActivity(a)
+      ? `<button class="small-btn danger-text-btn" type="button" onclick="deleteActivity('${a.id}')">Delete</button>`
+      : "",
+    isCurrentUserAdmin() && !verified && !rejected
+      ? `<button class="small-btn" type="button" onclick="reviewActivity('${a.id}', 'approved')">Approve</button>`
+      : "",
+    isCurrentUserAdmin() && !verified && !rejected
+      ? `<button class="small-btn" type="button" onclick="reviewActivity('${a.id}', 'rejected')">Reject</button>`
+      : ""
+  ].filter(Boolean);
   const durationText = durationMinutes > 0
     ? ` - ${durationMinutes} min`
     : "";
@@ -8228,12 +8243,11 @@ function activityCard(a, compact = false) {
         </div>
         <span class="pill ${verified ? "green" : rejected ? "red" : "gold"}">${escapeHtml(status)}</span>
       </div>
-      ${compact || !isCurrentUserAdmin() || verified || rejected ? "" : `
+      ${activityActions.length ? `
         <div class="actions">
-          <button class="small-btn" onclick="reviewActivity('${a.id}', 'approved')">Approve</button>
-          <button class="small-btn" onclick="reviewActivity('${a.id}', 'rejected')">Reject</button>
+          ${activityActions.join("")}
         </div>
-      `}
+      ` : ""}
     </article>
   `;
 }
@@ -8330,6 +8344,17 @@ function activityTimeValue(prefix) {
   return `${pad2(parts.hour24)}:${pad2(parts.minute)}`;
 }
 
+function setActivityTimeFromValue(prefix, value, fallbackHour = 18, fallbackMinute = 0) {
+  const match = String(value || "").match(/^(\d{1,2}):(\d{2})/);
+
+  if (!match) {
+    setTimeParts(prefix, fallbackHour, fallbackMinute);
+    return;
+  }
+
+  setTimeParts(prefix, Number(match[1]), Number(match[2]));
+}
+
 function updateActivityPointsPreview() {
   const preview = $("activity-points-preview");
   if (!preview) return;
@@ -8385,6 +8410,75 @@ async function openActivityProof(activityId) {
   }
 
   window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+}
+
+function canEditActivity(activity) {
+  if (!activity || !currentProfile) return false;
+  if (isCurrentUserAdmin()) return true;
+
+  return activity.status === "pending" &&
+    cleanUuidValue(activity.member_id) === cleanUuidValue(currentProfile.id);
+}
+
+function canDeleteActivity(activity) {
+  return canEditActivity(activity);
+}
+
+function setActivityFormMode(activity = null) {
+  const form = $("activityForm");
+  if (!form) return;
+
+  const isEditing = Boolean(activity);
+  editingActivityId = isEditing ? activity.id : null;
+
+  const title = form.querySelector("h3");
+  if (title) title.textContent = isEditing ? "Edit Activity" : "Log Activity";
+
+  const submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.textContent = isEditing ? "Save Activity" : "Submit for Approval";
+
+  const proofInput = $("activity-proof-file");
+  if (proofInput) proofInput.required = !isEditing;
+}
+
+function resetActivityFormForCreate() {
+  const form = $("activityForm");
+  if (form) form.reset();
+
+  setActivityFormMode(null);
+
+  if ($("activity-date")) {
+    $("activity-date").value = new Date().toISOString().slice(0, 10);
+  }
+
+  setTimeParts("activity-start", 18, 0);
+  setTimeParts("activity-end", 19, 0);
+  updateActivityPointsPreview();
+}
+
+async function openEditActivity(activityId) {
+  const activity = (allMemberActivities || []).find(row => row.id === activityId);
+
+  if (!canEditActivity(activity)) {
+    alert("You can only edit pending activities unless you are an admin.");
+    return;
+  }
+
+  await loadActivityFormOptions();
+  populateMatchTimeSelects();
+  setActivityFormMode(activity);
+
+  if ($("activity-sport")) $("activity-sport").value = cleanUuidValue(activity.sport_id);
+  if ($("activity-title")) $("activity-title").value = activity.title || "";
+  if ($("activity-date")) $("activity-date").value = activity.activity_date || "";
+  if ($("activity-notes")) $("activity-notes").value = activity.notes || "";
+  if ($("activity-proof-file")) $("activity-proof-file").value = "";
+
+  setActivityTimeFromValue("activity-start", activity.start_time, 18, 0);
+  setActivityTimeFromValue("activity-end", activity.end_time, 19, 0);
+  updateActivityPointsPreview();
+
+  $("activityModal")?.showModal();
 }
 
 async function loadMemberActivities() {
@@ -8477,6 +8571,16 @@ async function submitActivityLog(form) {
     return;
   }
 
+  const existingActivity = editingActivityId
+    ? (allMemberActivities || []).find(row => row.id === editingActivityId)
+    : null;
+  const isEditing = Boolean(existingActivity);
+
+  if (editingActivityId && !canEditActivity(existingActivity)) {
+    alert("You can only edit pending activities unless you are an admin.");
+    return;
+  }
+
   const fd = new FormData(form);
   const sportId = cleanUuidValue(fd.get("sport_id"));
   const title = String(fd.get("title") || "").trim();
@@ -8507,24 +8611,31 @@ async function submitActivityLog(form) {
     return;
   }
 
-  if (!(proofFile instanceof File) || !proofFile.name) {
+  const hasNewProof = proofFile instanceof File && Boolean(proofFile.name);
+
+  if (!isEditing && !hasNewProof) {
     alert("Proof upload is required.");
     return;
   }
 
-  let proofPath = "";
+  let proofPath = existingActivity?.proof_path || "";
+  let proofFileName = existingActivity?.proof_file_name || "";
+  let uploadedReplacementPath = "";
 
-  try {
-    proofPath = await uploadActivityProof(proofFile);
-  } catch (error) {
-    alert(error.message);
-    return;
+  if (hasNewProof) {
+    try {
+      uploadedReplacementPath = await uploadActivityProof(proofFile);
+      proofPath = uploadedReplacementPath;
+      proofFileName = proofFile.name;
+    } catch (error) {
+      alert(error.message);
+      return;
+    }
   }
 
   const points = loggedActivityPointsForDurationMinutes(durationMinutes, sportId);
 
   const payload = {
-    member_id: currentProfile.id,
     sport_id: sportId,
     title,
     activity_date: activityDate,
@@ -8533,28 +8644,58 @@ async function submitActivityLog(form) {
     duration_minutes: durationMinutes,
     activity_points: points,
     proof_path: proofPath,
-    proof_file_name: proofFile.name,
-    notes: notes || null,
-    status: "pending"
+    proof_file_name: proofFileName,
+    notes: notes || null
   };
 
-  const { error } = await supabaseClient
-    .from("member_activities")
-    .insert(payload);
+  let result;
 
-  if (error) {
-    await supabaseClient.storage
-      .from(ACTIVITY_PROOF_BUCKET)
-      .remove([proofPath]);
+  if (isEditing) {
+    result = await supabaseClient
+      .from("member_activities")
+      .update(payload)
+      .eq("id", existingActivity.id);
+  } else {
+    result = await supabaseClient
+      .from("member_activities")
+      .insert({
+        ...payload,
+        member_id: currentProfile.id,
+        status: "pending"
+      });
+  }
 
-    alert(error.message);
+  if (result.error) {
+    if (uploadedReplacementPath) {
+      await supabaseClient.storage
+        .from(ACTIVITY_PROOF_BUCKET)
+        .remove([uploadedReplacementPath]);
+    }
+
+    alert(result.error.message);
     return;
   }
 
+  if (isEditing && uploadedReplacementPath && existingActivity.proof_path) {
+    await supabaseClient.storage
+      .from(ACTIVITY_PROOF_BUCKET)
+      .remove([existingActivity.proof_path]);
+  }
+
   form.reset();
+  setActivityFormMode(null);
   $("activityModal")?.close();
+
+  if (isEditing) {
+    alert("Activity updated.");
+    await loadMemberActivities();
+    return;
+  }
+
   const localActivity = {
     ...payload,
+    member_id: currentProfile.id,
+    status: "pending",
     id: crypto.randomUUID(),
     created_at: new Date().toISOString(),
     members: currentProfile,
@@ -8606,6 +8747,47 @@ async function reviewActivity(activityId, decision) {
 
   await loadMemberActivities();
   alert(`Activity ${status}.`);
+}
+
+async function deleteActivity(activityId) {
+  const activity = (allMemberActivities || []).find(row => row.id === activityId);
+
+  if (!canDeleteActivity(activity)) {
+    alert("You can only delete pending activities unless you are an admin.");
+    return;
+  }
+
+  const ok = confirm("Delete this activity log? This cannot be undone.");
+  if (!ok) return;
+
+  const { error } = await supabaseClient
+    .from("member_activities")
+    .delete()
+    .eq("id", activityId);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  if (activity.proof_path) {
+    const { error: storageError } = await supabaseClient.storage
+      .from(ACTIVITY_PROOF_BUCKET)
+      .remove([activity.proof_path]);
+
+    if (storageError) {
+      console.warn("Could not delete activity proof:", storageError.message);
+    }
+  }
+
+  allMemberActivities = (allMemberActivities || []).filter(row => row.id !== activityId);
+  renderStats();
+  renderFeed();
+  renderActivities();
+  renderPendingActivities();
+  renderRankings();
+  alert("Activity deleted.");
+  await loadMemberActivities();
 }
 
 
@@ -9829,15 +10011,7 @@ function bindEvents() {
     if (btn.dataset.open === "activityModal") {
       await loadActivityFormOptions();
       populateMatchTimeSelects();
-
-      if ($("activity-date") && !$("activity-date").value) {
-        $("activity-date").value = new Date().toISOString().slice(0, 10);
-      }
-
-      setTimeParts("activity-start", 18, 0);
-      setTimeParts("activity-end", 19, 0);
-
-      updateActivityPointsPreview();
+      resetActivityFormForCreate();
     }
 
     const modal = $(btn.dataset.open);

@@ -180,6 +180,65 @@ begin
         )
       );
   end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'member_activities'
+      and policyname = 'approved members can edit own pending activities'
+  ) then
+    create policy "approved members can edit own pending activities"
+      on public.member_activities
+      for update
+      to authenticated
+      using (
+        status = 'pending'
+        and exists (
+          select 1
+          from public.members m
+          where m.auth_user_id = auth.uid()
+            and m.approval_status = 'approved'
+            and m.id = member_activities.member_id
+        )
+      )
+      with check (
+        status = 'pending'
+        and exists (
+          select 1
+          from public.members m
+          where m.auth_user_id = auth.uid()
+            and m.approval_status = 'approved'
+            and m.id = member_activities.member_id
+        )
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'member_activities'
+      and policyname = 'approved members and admins can delete activities'
+  ) then
+    create policy "approved members and admins can delete activities"
+      on public.member_activities
+      for delete
+      to authenticated
+      using (
+        exists (
+          select 1
+          from public.members m
+          where m.auth_user_id = auth.uid()
+            and m.approval_status = 'approved'
+            and (
+              m.role = 'admin'
+              or (
+                m.id = member_activities.member_id
+                and member_activities.status = 'pending'
+              )
+            )
+        )
+      );
+  end if;
 end $$;
 
 insert into storage.buckets (id, name, public)
@@ -248,6 +307,31 @@ begin
       using (
         bucket_id = 'activity-proofs'
         and owner = auth.uid()
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'activity proof owners and admins can delete'
+  ) then
+    create policy "activity proof owners and admins can delete"
+      on storage.objects
+      for delete
+      to authenticated
+      using (
+        bucket_id = 'activity-proofs'
+        and (
+          owner = auth.uid()
+          or exists (
+            select 1
+            from public.members m
+            where m.auth_user_id = auth.uid()
+              and m.role = 'admin'
+              and m.approval_status = 'approved'
+          )
+        )
       );
   end if;
 end $$;
