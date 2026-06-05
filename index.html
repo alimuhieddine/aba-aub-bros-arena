@@ -946,11 +946,27 @@
 
       <div class="grid two">
         <label>Start time
-          <input id="activity-start-time" name="start_time" type="time" required />
+          <div class="ampm-time-row">
+            <select id="activity-start-hour" required></select>
+            <span>:</span>
+            <select id="activity-start-minute" required></select>
+            <select id="activity-start-ampm" required>
+              <option>AM</option>
+              <option>PM</option>
+            </select>
+          </div>
         </label>
 
         <label>End time
-          <input id="activity-end-time" name="end_time" type="time" required />
+          <div class="ampm-time-row">
+            <select id="activity-end-hour" required></select>
+            <span>:</span>
+            <select id="activity-end-minute" required></select>
+            <select id="activity-end-ampm" required>
+              <option>AM</option>
+              <option>PM</option>
+            </select>
+          </div>
         </label>
       </div>
 
