@@ -105,12 +105,14 @@ h1 {
 .primary-btn,
 .secondary-btn,
 .ghost-btn,
+.link-btn,
 .small-btn {
   font: inherit;
   cursor: pointer;
 }
 
 .primary-btn,
+.link-btn,
 .secondary-btn {
   height: 34px;
   padding: 0 14px;
@@ -120,7 +122,8 @@ h1 {
   white-space: nowrap;
 }
 
-.primary-btn {
+.primary-btn,
+.link-btn {
   border: none;
   background: linear-gradient(90deg, #2fd28b, #36a8f5);
   color: #05101c;
