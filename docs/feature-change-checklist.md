@@ -21,6 +21,8 @@ Current helper modules:
 
 The current activity/score points formula is documented in `docs/points-system.md`.
 
+The current padel overall rating formula is documented in `docs/padel-rating-system.md`.
+
 ## Sensitive Areas
 
 Treat these areas as high-risk and test them directly when touched:
@@ -28,6 +30,7 @@ Treat these areas as high-risk and test them directly when touched:
 - score submission and result finalization
 - match point recalculation
 - soccer rating formulas and soccer position rating writes
+- padel overall rating writes
 - soccer formula settings saved in `app_settings`
 - rating audit rows in `match_position_rating_adjustments`
 - auth gating and admin-only behavior
@@ -46,6 +49,15 @@ When changing ratings, include explicit tests or manual verification for:
 - rollback of previous rating adjustments
 - `member_sport_position_ratings` updates
 - `match_position_rating_adjustments` audit data
+
+When changing padel ratings, include explicit tests or manual verification for:
+
+- completed game rating updates
+- editing a completed game rolls back previous game adjustments
+- deleting a completed game rolls back previous game adjustments
+- comeback bonus only applies to the winning team
+- `member_sport_profiles.rating` updates
+- `match_position_rating_adjustments.game_id` audit data
 
 ## Scoring Guardrails
 
