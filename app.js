@@ -3479,6 +3479,10 @@ function ratingChangeForPlayer(match, memberId, fallbackPosition = "") {
 
   if (!cleanMemberId) return null;
 
+  if (isPadelMatch(match)) {
+    return padelOverallRatingChangeForPlayer(match, cleanMemberId);
+  }
+
   const cleanFallbackPosition = normalizeSoccerPosition(fallbackPosition);
 
   const rows = (match.match_position_rating_adjustments || []).filter(row =>
@@ -3501,6 +3505,41 @@ function ratingChangeForPlayer(match, memberId, fallbackPosition = "") {
 
   return {
     position: normalizeSoccerPosition(row.position_name) || row.position_name || "",
+    before,
+    after,
+    delta
+  };
+}
+
+function padelOverallRatingChangeForPlayer(match, memberId) {
+  const rows = (match.match_position_rating_adjustments || [])
+    .filter(row =>
+      cleanUuidValue(row.member_id) === memberId &&
+      String(row.position_name || "").toUpperCase() === PADEL_RATING_POSITION
+    )
+    .sort((a, b) =>
+      new Date(a.created_at || 0) - new Date(b.created_at || 0)
+    );
+
+  if (!rows.length) return null;
+
+  const first = rows[0];
+  const last = rows[rows.length - 1];
+  const before = Number(first.rating_before ?? 0);
+  const after = Number(last.rating_after ?? before);
+  const delta = rows.reduce((sum, row) => {
+    const rowBefore = Number(row.rating_before ?? 0);
+    const rowAfter = Number(row.rating_after ?? rowBefore);
+
+    return sum + (Number.isFinite(rowBefore) && Number.isFinite(rowAfter)
+      ? rowAfter - rowBefore
+      : Number(row.adjustment || 0));
+  }, 0);
+
+  if (!Number.isFinite(before) || !Number.isFinite(after) || !Number.isFinite(delta)) return null;
+
+  return {
+    position: "OVR",
     before,
     after,
     delta
