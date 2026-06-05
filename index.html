@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena test 2t</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=139" />
+  <link rel="stylesheet" href="style.css?v=140" />
 </head>
 
 <body>
@@ -76,22 +76,20 @@
     <main>
       <section id="dashboard" class="view active-view">
         <div class="section-head">
-          <h2>Arena Feed</h2>
+          <h2>Home</h2>
           <span id="todayLabel"></span>
         </div>
 
-        <div class="grid two">
-          <article class="card stat-card">
-            <span>Verified Activities</span>
-            <strong id="verifiedCount">0</strong>
-          </article>
+        <div id="homeSnapshot" class="home-snapshot-grid"></div>
 
-          <article class="card stat-card">
-            <span>Pending Activities</span>
-            <strong id="pendingCount">0</strong>
-          </article>
+        <div class="section-head home-subhead">
+          <h3>Needs Action</h3>
         </div>
+        <div id="homeActionList" class="home-action-grid"></div>
 
+        <div class="section-head home-subhead">
+          <h3>Arena Pulse</h3>
+        </div>
         <div id="feedList" class="stack"></div>
       </section>
 
@@ -994,7 +992,7 @@
   <script src="js/teams.js?v=1"></script>
   <script src="js/scoring.js?v=1"></script>
   <script src="js/utils.js?v=1"></script>
-  <script src="app.js?v=141"></script>
+  <script src="app.js?v=142"></script>
   <script src="js/utils-runtime-bridge.js?v=1"></script>
   <script src="js/auth-runtime-bridge.js?v=1"></script>
 

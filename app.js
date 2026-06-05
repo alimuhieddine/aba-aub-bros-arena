@@ -1453,32 +1453,242 @@ function render() {
 }
 
 function renderStats() {
-  if (!$("verifiedCount") || !$("pendingCount")) return;
+  renderHomeSnapshot();
+  renderHomeActions();
+}
 
-  const rows = (allMemberActivities || []).length ? allMemberActivities : state.activities;
-  const verified = rows.filter(a => (a.status || (a.approvals?.length >= 2 ? "approved" : "pending")) === "approved").length;
-  const pending = rows.filter(a => (a.status || "pending") === "pending" && !(a.approvals?.length >= 2)).length;
+function homeApprovedActivities() {
+  return (allMemberActivities || [])
+    .filter(activity => activity.status === "approved");
+}
 
-  $("verifiedCount").textContent = verified;
-  $("pendingCount").textContent = pending;
+function homeOwnActivities() {
+  const memberId = cleanUuidValue(currentProfile?.id);
+  if (!memberId) return [];
+
+  return (allMemberActivities || [])
+    .filter(activity => cleanUuidValue(activity.member_id) === memberId);
+}
+
+function homeRankingRows() {
+  const table = new Map();
+
+  (allMatches || [])
+    .filter(match => !isCancelledMatch(match) && hasSubmittedScore(match))
+    .forEach(match => {
+      (match.match_member_points || []).forEach(point => {
+        const memberId = cleanUuidValue(point.member_id);
+        const member = point.member || memberById(memberId);
+
+        if (!memberId || !member) return;
+
+        const row = table.get(memberId) || {
+          memberId,
+          member,
+          name: memberDisplayName(member),
+          totalPoints: 0,
+          matches: 0,
+          wins: 0
+        };
+        const result = teamResultForMember(match, memberId).result || "participated";
+
+        row.totalPoints += pointTotalPoints(point);
+        row.matches += 1;
+        if (result === "win") row.wins += 1;
+        table.set(memberId, row);
+      });
+    });
+
+  homeApprovedActivities().forEach(activity => {
+    const memberId = cleanUuidValue(activity.member_id);
+    const member = activity.members || memberById(memberId);
+
+    if (!memberId || !member) return;
+
+    const row = table.get(memberId) || {
+      memberId,
+      member,
+      name: memberDisplayName(member),
+      totalPoints: 0,
+      matches: 0,
+      wins: 0
+    };
+
+    row.totalPoints += Number(activity.activity_points || 0);
+    table.set(memberId, row);
+  });
+
+  return Array.from(table.values()).sort((a, b) =>
+    b.totalPoints - a.totalPoints ||
+    b.wins - a.wins ||
+    b.matches - a.matches ||
+    a.name.localeCompare(b.name)
+  );
+}
+
+function homeNextMatch() {
+  const now = Date.now();
+  const memberId = cleanUuidValue(currentProfile?.id);
+  const upcoming = (allMatches || [])
+    .filter(match => !isCancelledMatch(match))
+    .filter(match => new Date(match.start_time).getTime() >= now)
+    .filter(match => !memberId || userIsInMatch(match, memberId) || matchMyStatus(match) === "maybe")
+    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+
+  return upcoming[0] || null;
+}
+
+function homeWeekActivityMinutes() {
+  const startMs = Date.now() - (7 * 24 * 60 * 60 * 1000);
+
+  return homeOwnActivities()
+    .filter(activity => activity.status !== "rejected")
+    .filter(activity => new Date(activity.activity_date || activity.created_at || 0).getTime() >= startMs)
+    .reduce((sum, activity) => sum + Number(activity.duration_minutes || 0), 0);
+}
+
+function homeSnapshotCard(label, value, detail = "") {
+  return `
+    <article class="card home-stat-card">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(String(value))}</strong>
+      ${detail ? `<em>${escapeHtml(detail)}</em>` : ""}
+    </article>
+  `;
+}
+
+function renderHomeSnapshot() {
+  const box = $("homeSnapshot");
+  if (!box) return;
+
+  if (!currentProfile || currentProfile.approval_status !== "approved") {
+    box.innerHTML = `
+      ${homeSnapshotCard("Status", "Welcome", "Login with an approved member account to see your arena snapshot.")}
+      ${homeSnapshotCard("Today", new Date().toLocaleDateString([], { month: "short", day: "numeric" }), "Matches, activity, and rankings live here.")}
+    `;
+    return;
+  }
+
+  const stats = playerProfileStats(currentProfile.id);
+  const rows = homeRankingRows();
+  const rankIndex = rows.findIndex(row => cleanUuidValue(row.memberId) === cleanUuidValue(currentProfile.id));
+  const nextMatch = homeNextMatch();
+  const activeMinutes = homeWeekActivityMinutes();
+
+  box.innerHTML = `
+    ${homeSnapshotCard("My points", formatPointValue(stats.totalPoints), `${formatPointValue(stats.basePoints)} activity / ${formatPointValue(stats.bonusPoints)} score`)}
+    ${homeSnapshotCard("Rank", rankIndex >= 0 ? `#${rankIndex + 1}` : "-", `${rows.length} ranked player${rows.length === 1 ? "" : "s"}`)}
+    ${homeSnapshotCard("Active time", formatProfileDurationMinutes(activeMinutes), "last 7 days")}
+    ${homeSnapshotCard("Next match", nextMatch ? fmtDate(nextMatch.start_time) : "None", nextMatch ? (nextMatch.title || nextMatch.sports?.name || "Upcoming match") : "No joined/maybe match scheduled")}
+  `;
+}
+
+function homeActionCard(title, detail, buttonText, viewId) {
+  return `
+    <article class="card home-action-card">
+      <div>
+        <h4>${escapeHtml(title)}</h4>
+        <p>${escapeHtml(detail)}</p>
+      </div>
+      <button class="small-btn" type="button" onclick="setActiveTab('${viewId}')">${escapeHtml(buttonText)}</button>
+    </article>
+  `;
+}
+
+function renderHomeActions() {
+  const box = $("homeActionList");
+  if (!box) return;
+
+  const actions = [];
+  const now = Date.now();
+  const pendingVoteMatches = (allMatches || [])
+    .filter(match => !isCancelledMatch(match) && isVotingOpenForMatch(match))
+    .filter(match => new Date(match.start_time).getTime() >= now)
+    .filter(match => {
+      const mine = matchMyStatus(match);
+      const isCreator = cleanUuidValue(match.created_by) === cleanUuidValue(currentProfile?.id);
+      return !isCreator && (!mine || mine === "invited");
+    });
+  const scoreMatches = (allMatches || [])
+    .filter(match => canSubmitScore(match) && !hasSubmittedScore(match));
+  const ownPendingActivities = homeOwnActivities()
+    .filter(activity => (activity.status || "pending") === "pending");
+  const adminPendingActivities = isCurrentUserAdmin()
+    ? (allMemberActivities || []).filter(activity => (activity.status || "pending") === "pending")
+    : [];
+
+  if (pendingVoteMatches.length) {
+    actions.push(homeActionCard("Vote on matches", `${pendingVoteMatches.length} match${pendingVoteMatches.length === 1 ? "" : "es"} waiting for your answer.`, "Open Matches", "matches"));
+  }
+
+  if (scoreMatches.length) {
+    actions.push(homeActionCard("Add results", `${scoreMatches.length} match${scoreMatches.length === 1 ? "" : "es"} can receive a result.`, "Open Matches", "matches"));
+  }
+
+  if (ownPendingActivities.length) {
+    actions.push(homeActionCard("Pending activities", `${ownPendingActivities.length} activity log${ownPendingActivities.length === 1 ? "" : "s"} can still be edited before approval.`, "Open Activity", "activities"));
+  }
+
+  if (adminPendingActivities.length) {
+    actions.push(homeActionCard("Review activity proofs", `${adminPendingActivities.length} pending proof${adminPendingActivities.length === 1 ? "" : "s"} need admin review.`, "Open Admin", "admin"));
+  }
+
+  if (!actions.length) {
+    actions.push(homeActionCard("All clear", "No pending votes, results, or activity reviews right now.", "View Matches", "matches"));
+  }
+
+  box.innerHTML = actions.join("");
+}
+
+function homePulseItemHtml(item) {
+  if (item.kind === "match") {
+    const match = item.data;
+    const status = hasSubmittedScore(match) ? scoreTextForMatch(match) : getMatchDisplayStatus(match);
+
+    return `
+      <article class="card home-pulse-card">
+        <div>
+          <h3>${escapeHtml(match.title || "Match")}</h3>
+          <div class="meta">${escapeHtml(match.sports?.name || "Sport")} - ${escapeHtml(fmtDate(match.start_time))}</div>
+          <div class="meta">${escapeHtml(status || "-")}</div>
+        </div>
+        <span class="pill blue">Match</span>
+      </article>
+    `;
+  }
+
+  const activity = item.data;
+  const memberName = activity.members ? memberDisplayName(activity.members) : "Player";
+
+  return `
+    <article class="card home-pulse-card">
+      <div>
+        <h3>${escapeHtml(memberName)} - ${escapeHtml(activity.title || "Activity")}</h3>
+        <div class="meta">${escapeHtml(activity.sports?.name || sportNameById(activity.sport_id) || "Sport")} - ${formatProfileDurationMinutes(activity.duration_minutes)}</div>
+        <div class="meta">${formatPointValue(activity.activity_points)} activity pts</div>
+      </div>
+      <span class="pill green">Activity</span>
+    </article>
+  `;
 }
 
 function renderFeed() {
   if (!$("feedList")) return;
 
   const items = [
-    ...state.matches.map(m => ({ kind: "match", time: new Date(m.date).getTime(), data: m })),
-    ...((allMemberActivities || []).length ? allMemberActivities : state.activities)
-      .filter(a => (a.status || (a.approvals?.length >= 2 ? "approved" : "pending")) === "approved")
-      .map(a => ({ kind: "activity", time: new Date(a.created_at || a.createdAt || 0).getTime(), data: a }))
-  ].sort((a, b) => b.time - a.time).slice(0, 8);
+    ...(allMatches || [])
+      .filter(match => !isCancelledMatch(match))
+      .map(match => ({ kind: "match", time: new Date(match.start_time || 0).getTime(), data: match })),
+    ...homeApprovedActivities()
+      .map(activity => ({ kind: "activity", time: new Date(activity.created_at || activity.activity_date || 0).getTime(), data: activity }))
+  ]
+    .filter(item => Number.isFinite(item.time))
+    .sort((a, b) => b.time - a.time)
+    .slice(0, 8);
 
-  $("feedList").innerHTML =
-    items.map(item =>
-      item.kind === "match"
-        ? matchCard(item.data, true)
-        : activityCard(item.data, true)
-    ).join("");
+  $("feedList").innerHTML = items.length
+    ? items.map(homePulseItemHtml).join("")
+    : `<article class="card"><div class="hint">No arena activity yet.</div></article>`;
 }
 
 
