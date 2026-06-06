@@ -11600,8 +11600,8 @@ function profileAvatarExtension(file) {
   return "jpg";
 }
 
-function profileAvatarStoragePath(memberId = currentProfile?.id, file = null) {
-  const cleanId = cleanUuidValue(memberId);
+function profileAvatarStoragePath(authUserId = currentProfile?.auth_user_id, file = null) {
+  const cleanId = cleanUuidValue(authUserId);
   return cleanId ? `${cleanId}/avatar.${profileAvatarExtension(file)}` : "";
 }
 
@@ -11646,7 +11646,7 @@ async function uploadProfileAvatar(file) {
     return;
   }
 
-  const path = profileAvatarStoragePath(currentProfile.id, file);
+  const path = profileAvatarStoragePath(currentProfile.auth_user_id, file);
   if (!path) return;
 
   const { error } = await supabaseClient
@@ -11687,8 +11687,8 @@ async function removeProfileAvatar() {
   const basePath = profileAvatarStoragePath();
   const paths = [
     basePath,
-    `${cleanUuidValue(currentProfile.id)}/avatar.png`,
-    `${cleanUuidValue(currentProfile.id)}/avatar.webp`
+    `${cleanUuidValue(currentProfile.auth_user_id)}/avatar.png`,
+    `${cleanUuidValue(currentProfile.auth_user_id)}/avatar.webp`
   ].filter(Boolean);
   if (paths.length) {
     const { error } = await supabaseClient
