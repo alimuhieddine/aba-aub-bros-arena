@@ -55,17 +55,34 @@ function formatMatchTime(value: string | null) {
 function matchInvitePayload(match: MatchRow) {
   const title = match.title || "ABA match";
   const sport = match.sports?.name || "Sport";
-  const venue = match.venues?.name || "venue TBD";
-  const time = formatMatchTime(match.start_time);
 
   return {
     title: "ABA Match Invite",
-    body: `You were invited to ${title}${time ? ` on ${time}` : ""} at ${venue}.`,
+    body: `You were invited to ${title}.`,
+    tag: `match-invite-${Date.now()}`,
+    renotify: true,
+    requireInteraction: true,
+    timestamp: Date.now(),
     url: "./index.html#matches",
     data: {
       type: "match_invite",
       match_id: match.id,
       sport
+    }
+  };
+}
+
+function testPayload() {
+  return {
+    title: "ABA Test Notification",
+    body: "Phone notifications are working on this device.",
+    tag: `test-push-${Date.now()}`,
+    renotify: true,
+    requireInteraction: true,
+    timestamp: Date.now(),
+    url: "./index.html#account",
+    data: {
+      type: "test_push"
     }
   };
 }
@@ -119,39 +136,48 @@ Deno.serve(async req => {
     return jsonResponse({ error: "Invalid JSON body." }, 400);
   }
 
-  if (body.type !== "match_invite") {
+  if (body.type !== "match_invite" && body.type !== "test_push") {
     return jsonResponse({ error: "Unsupported notification type." }, 400);
   }
 
-  const matchId = typeof body.match_id === "string" ? body.match_id : "";
-  const recipientIds = uniqueIds(body.recipient_member_ids).filter(id => id !== sender.id);
+  let allowedRecipientIds: string[] = [];
+  let payloadBody: Record<string, unknown>;
 
-  if (!matchId || !recipientIds.length) {
-    return jsonResponse({ sent: 0, failed: 0, skipped: true });
+  if (body.type === "test_push") {
+    allowedRecipientIds = [sender.id];
+    payloadBody = testPayload();
+  } else {
+    const matchId = typeof body.match_id === "string" ? body.match_id : "";
+    const recipientIds = uniqueIds(body.recipient_member_ids).filter(id => id !== sender.id);
+
+    if (!matchId || !recipientIds.length) {
+      return jsonResponse({ sent: 0, failed: 0, skipped: true });
+    }
+
+    const { data: match, error: matchError } = await adminClient
+      .from("matches")
+      .select("id,title,start_time,sports(name),venues(name)")
+      .eq("id", matchId)
+      .maybeSingle();
+
+    if (matchError || !match) {
+      return jsonResponse({ error: "Match not found." }, 404);
+    }
+
+    const { data: invitationRows, error: invitationError } = await adminClient
+      .from("match_invitations")
+      .select("member_id")
+      .eq("match_id", matchId)
+      .in("member_id", recipientIds)
+      .eq("status", "invited");
+
+    if (invitationError) {
+      return jsonResponse({ error: invitationError.message }, 500);
+    }
+
+    allowedRecipientIds = (invitationRows || []).map(row => row.member_id);
+    payloadBody = matchInvitePayload(match as MatchRow);
   }
-
-  const { data: match, error: matchError } = await adminClient
-    .from("matches")
-    .select("id,title,start_time,sports(name),venues(name)")
-    .eq("id", matchId)
-    .maybeSingle();
-
-  if (matchError || !match) {
-    return jsonResponse({ error: "Match not found." }, 404);
-  }
-
-  const { data: invitationRows, error: invitationError } = await adminClient
-    .from("match_invitations")
-    .select("member_id")
-    .eq("match_id", matchId)
-    .in("member_id", recipientIds)
-    .eq("status", "invited");
-
-  if (invitationError) {
-    return jsonResponse({ error: invitationError.message }, 500);
-  }
-
-  const allowedRecipientIds = (invitationRows || []).map(row => row.member_id);
 
   if (!allowedRecipientIds.length) {
     return jsonResponse({ sent: 0, failed: 0, skipped: true });
@@ -169,7 +195,7 @@ Deno.serve(async req => {
 
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
-  const payload = JSON.stringify(matchInvitePayload(match as MatchRow));
+  const payload = JSON.stringify(payloadBody);
   let sent = 0;
   let failed = 0;
 

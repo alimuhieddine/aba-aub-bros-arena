@@ -10827,6 +10827,7 @@ function setNotificationStatus(text) {
 function setNotificationButtons(enabled, subscribed = false) {
   const enableBtn = $("enable-notifications-btn");
   const disableBtn = $("disable-notifications-btn");
+  const testBtn = $("test-notifications-btn");
 
   if (enableBtn) {
     enableBtn.disabled = !enabled || subscribed;
@@ -10835,6 +10836,10 @@ function setNotificationButtons(enabled, subscribed = false) {
 
   if (disableBtn) {
     disableBtn.disabled = !enabled || !subscribed;
+  }
+
+  if (testBtn) {
+    testBtn.disabled = !enabled || !subscribed;
   }
 }
 
@@ -10867,6 +10872,40 @@ async function pushServiceWorkerRegistration() {
   await navigator.serviceWorker.ready;
   registration.update?.();
   return registration;
+}
+
+function bindPushDebugMessages() {
+  if (!("serviceWorker" in navigator) || bindPushDebugMessages.bound) return;
+
+  bindPushDebugMessages.bound = true;
+
+  navigator.serviceWorker.addEventListener("message", event => {
+    if (event.data?.type !== "aba_push_received") return;
+
+    console.info("ABA push received by service worker:", event.data);
+    showPushToast(event.data.title || "ABA notification", event.data.body || "");
+
+    if (event.data.notificationType === "match_invite") {
+      setNotificationStatus(`Match invite push received: ${event.data.title}`);
+    }
+  });
+}
+
+function showPushToast(title, body = "") {
+  const toast = $("push-toast");
+  if (!toast) return;
+
+  clearTimeout(showPushToast.hideTimer);
+
+  toast.innerHTML = `
+    ${escapeHtml(title)}
+    ${body ? `<span>${escapeHtml(body)}</span>` : ""}
+  `;
+  toast.hidden = false;
+
+  showPushToast.hideTimer = setTimeout(() => {
+    toast.hidden = true;
+  }, 7000);
 }
 
 async function currentPushSubscription() {
@@ -11027,10 +11066,12 @@ async function sendMatchInviteNotifications(matchId, recipientMemberIds = []) {
     .filter(Boolean)))
     .filter(id => id !== currentProfile?.id);
 
-  if (!safeMatchId || !recipients.length) return;
+  if (!safeMatchId || !recipients.length) {
+    return { sent: 0, failed: 0, skipped: true };
+  }
 
   try {
-    const { error } = await supabaseClient.functions.invoke("send-push", {
+    const { data, error } = await supabaseClient.functions.invoke("send-push", {
       body: {
         type: "match_invite",
         match_id: safeMatchId,
@@ -11039,8 +11080,51 @@ async function sendMatchInviteNotifications(matchId, recipientMemberIds = []) {
     });
 
     if (error) throw error;
+    console.info("Match invite notification result:", data);
+    return data || { sent: 0, failed: 0 };
   } catch (error) {
     console.warn("Match invite notifications were not sent:", error.message || error);
+    return {
+      sent: 0,
+      failed: recipients.length,
+      error: error.message || "Could not send match invite notifications."
+    };
+  }
+}
+
+async function sendTestNotification() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") {
+    alert("Approved members only.");
+    return;
+  }
+
+  try {
+    const subscription = await currentPushSubscription();
+
+    if (!subscription) {
+      alert("This device is not subscribed yet. Enable notifications first.");
+      await refreshNotificationUI();
+      return;
+    }
+
+    await savePushSubscription(subscription);
+
+    const { data, error } = await supabaseClient.functions.invoke("send-push", {
+      body: { type: "test_push" }
+    });
+
+    if (error) throw error;
+
+    console.info("Test notification result:", data);
+
+    if (Number(data?.sent || 0) > 0) {
+      alert(`Test notification sent to ${data.sent} device${data.sent === 1 ? "" : "s"}.`);
+    } else {
+      alert("Test notification reached the sender, but no enabled subscription was found.");
+    }
+  } catch (error) {
+    console.warn("Test notification failed:", error);
+    alert(error.message || "Test notification failed.");
   }
 }
 
@@ -11555,7 +11639,11 @@ function bindEvents() {
 
     if (!invitationResult.ok) return;
 
-    sendMatchInviteNotifications(matchId, invitationResult.notifiedMemberIds);
+    const notificationResult = await sendMatchInviteNotifications(matchId, invitationResult.notifiedMemberIds);
+
+    if (notificationResult?.error) {
+      alert(`Match saved, but phone notifications failed: ${notificationResult.error}`);
+    }
 
     alert(activeEditingMatchId ? "Match updated." : "Match created.");
 
@@ -11610,6 +11698,7 @@ function bindEvents() {
 
   $("enable-notifications-btn")?.addEventListener("click", enablePhoneNotifications);
   $("disable-notifications-btn")?.addEventListener("click", disablePhoneNotifications);
+  $("test-notifications-btn")?.addEventListener("click", sendTestNotification);
 
   $("signup-btn")?.addEventListener("click", () => {
     signUp($("auth-email").value.trim(), $("auth-password").value);
@@ -11688,6 +11777,7 @@ function bindEvents() {
 }
 
 bindEvents();
+bindPushDebugMessages();
 render();
 testConnection();
 refreshAuthUI();

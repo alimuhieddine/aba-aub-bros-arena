@@ -551,6 +551,30 @@ h3 {
   margin-top: 0;
 }
 
+.push-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 10000;
+  width: min(340px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(15,28,46,.98);
+  box-shadow: 0 18px 42px rgba(0,0,0,.35);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.push-toast span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
 #profile-action-btn {
   min-width: 150px;
   justify-content: center;

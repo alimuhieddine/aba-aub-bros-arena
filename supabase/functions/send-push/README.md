@@ -2,6 +2,11 @@
 
 Sends ABA web push notifications to saved `member_push_subscriptions`.
 
+Supported notification types:
+
+- `test_push`: sends a test notification to the authenticated member.
+- `match_invite`: sends match invite notifications to newly invited members.
+
 ## Required secrets
 
 Set these in Supabase before deploying/running the function:
