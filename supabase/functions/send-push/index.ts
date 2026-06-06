@@ -277,15 +277,25 @@ function teamAssignedPayload(match: MatchRow, teamName: string | undefined, shir
   const emoji = sportBallEmoji(match.sports?.name || "");
   const name = String(teamName || "your team").trim();
   const color = String(shirtColor || "").trim();
-  const shirtText = color ? `don't forget your ${color} T-shirt` : "don't forget your team T-shirt";
   const gameDay = matchDatePhrase(match.start_time);
-  const templates = [
-    `Ready to bring ${name} to the top${gameDay ? ` ${gameDay}` : ""}? ${shirtText}!`,
-    `${name}, time to show up strong${gameDay ? ` ${gameDay}` : ""}. ${shirtText}!`,
-    `Your squad is set: ${name}. Bring the energy and ${shirtText}!`,
-    `${name} is calling. Play smart, play loud, and ${shirtText}!`,
-    `Lineup locked for ${name}. Make it count and ${shirtText}!`
-  ];
+  const templates = color
+    ? [
+      `Ready to bring ${name} to the top${gameDay ? ` ${gameDay}` : ""}? don't forget your ${color} T-shirt!`,
+      `${name}, time to show up strong${gameDay ? ` ${gameDay}` : ""}. don't forget your ${color} T-shirt!`,
+      `Your squad is set: ${name}. Bring the energy and your ${color} T-shirt!`,
+      `${name} is calling. Play smart, play loud, and wear ${color}!`,
+      `Lineup locked for ${name}. Make it count in ${color}!`
+    ]
+    : [
+      `${name} is locked in. Ready to roast them${gameDay ? ` ${gameDay}` : ""}?`,
+      `${name}, time to make them regret showing up.`,
+      `Your lineup is ready. Their confidence is optional.`,
+      `${name}, make it look close, then end it.`,
+      `Go collect points and complaints.`,
+      `${name}, bring the heat and leave them guessing.`,
+      `Today’s plan: pressure, patience, punishment.`,
+      `${name}, save the excuses for them.`
+    ];
   const index = Math.abs([...match.id, ...name].reduce((total, char) => total + char.charCodeAt(0), 0)) % templates.length;
 
   return {
