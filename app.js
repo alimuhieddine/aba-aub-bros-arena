@@ -5251,6 +5251,8 @@ async function deleteOrCancelMatch(matchId) {
     const ok = confirm("This match is still upcoming. Delete it completely?");
     if (!ok) return;
 
+    const notificationResult = await sendMatchLifecycleNotification(matchId, "match_deleted");
+
     const { error } = await supabaseClient
       .from("matches")
       .delete()
@@ -5259,6 +5261,10 @@ async function deleteOrCancelMatch(matchId) {
     if (error) {
       alert(error.message);
       return;
+    }
+
+    if (notificationResult?.error) {
+      alert(`Match deleted, but phone notifications failed: ${notificationResult.error}`);
     }
 
     alert("Match deleted.");
@@ -5276,6 +5282,12 @@ async function deleteOrCancelMatch(matchId) {
     if (error) {
       alert(error.message);
       return;
+    }
+
+    const notificationResult = await sendMatchLifecycleNotification(matchId, "match_cancelled");
+
+    if (notificationResult?.error) {
+      alert(`Match marked as cancelled, but phone notifications failed: ${notificationResult.error}`);
     }
 
     alert("Match marked as cancelled.");
@@ -11284,6 +11296,32 @@ async function sendCreatorMatchNotification(matchId, type, extra = {}) {
       sent: 0,
       failed: 1,
       error: error.message || "Could not send creator notification."
+    };
+  }
+}
+
+async function sendMatchLifecycleNotification(matchId, type) {
+  const safeMatchId = cleanUuidValue(matchId);
+
+  if (!safeMatchId || !type) return { sent: 0, failed: 0, skipped: true };
+
+  try {
+    const { data, error } = await supabaseClient.functions.invoke("send-push", {
+      body: {
+        type,
+        match_id: safeMatchId
+      }
+    });
+
+    if (error) throw error;
+    console.info("Match lifecycle notification result:", data);
+    return data || { sent: 0, failed: 0 };
+  } catch (error) {
+    console.warn("Match lifecycle notification was not sent:", error.message || error);
+    return {
+      sent: 0,
+      failed: 1,
+      error: error.message || "Could not send match lifecycle notification."
     };
   }
 }

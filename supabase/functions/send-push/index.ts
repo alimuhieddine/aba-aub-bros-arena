@@ -27,6 +27,7 @@ type MatchRow = {
 
 type MemberRow = {
   id: string;
+  role?: string | null;
   first_name?: string | null;
   last_name?: string | null;
   display_name?: string | null;
@@ -226,6 +227,25 @@ function creatorGameFullPayload(match: MatchRow) {
   };
 }
 
+function matchLifecyclePayload(match: MatchRow, type: "match_cancelled" | "match_deleted", senderName: string) {
+  const title = match.title || "ABA match";
+  const isDeleted = type === "match_deleted";
+
+  return {
+    title: isDeleted ? "ABA Match Deleted" : "ABA Match Cancelled",
+    body: `${senderName} ${isDeleted ? "deleted" : "cancelled"} ${title}.`,
+    tag: `${isDeleted ? "deleted" : "cancelled"}-${match.id}-${Date.now()}`,
+    renotify: true,
+    requireInteraction: true,
+    timestamp: Date.now(),
+    url: isDeleted ? "./index.html#matches" : `./index.html#matches?match=${match.id}`,
+    data: {
+      type,
+      match_id: match.id
+    }
+  };
+}
+
 Deno.serve(async req => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -279,7 +299,9 @@ Deno.serve(async req => {
     "match_invite",
     "test_push",
     "creator_vote_changed",
-    "creator_game_full"
+    "creator_game_full",
+    "match_cancelled",
+    "match_deleted"
   ]);
 
   if (!supportedTypes.has(body.type || "")) {
@@ -340,31 +362,55 @@ Deno.serve(async req => {
       return jsonResponse({ error: "Match not found." }, 404);
     }
 
-    if (match.created_by === sender.id) {
-      return jsonResponse({ sent: 0, failed: 0, skipped: true });
+    if (body.type === "match_cancelled" || body.type === "match_deleted") {
+      const canManage = match.created_by === sender.id || sender.role === "admin";
+
+      if (!canManage) {
+        return jsonResponse({ error: "Only the match creator or admin can notify match cancellation/deletion." }, 403);
+      }
+
+      const { data: invitationRows, error: invitationError } = await adminClient
+        .from("match_invitations")
+        .select("member_id")
+        .eq("match_id", matchId)
+        .neq("status", "removed");
+
+      if (invitationError) {
+        return jsonResponse({ error: invitationError.message }, 500);
+      }
+
+      allowedRecipientIds = uniqueIds([
+        match.created_by,
+        ...(invitationRows || []).map(row => row.member_id)
+      ]).filter(id => id !== sender.id);
+      payloadBody = matchLifecyclePayload(match as MatchRow, body.type, memberDisplayName(sender));
+    } else {
+      if (match.created_by === sender.id) {
+        return jsonResponse({ sent: 0, failed: 0, skipped: true });
+      }
+
+      const { data: invitation, error: invitationError } = await adminClient
+        .from("match_invitations")
+        .select("id,status")
+        .eq("match_id", matchId)
+        .eq("member_id", sender.id)
+        .neq("status", "removed")
+        .maybeSingle();
+
+      if (invitationError) {
+        return jsonResponse({ error: invitationError.message }, 500);
+      }
+
+      if (!invitation) {
+        return jsonResponse({ error: "Only invited members can notify the match creator." }, 403);
+      }
+
+      allowedRecipientIds = match.created_by ? [match.created_by] : [];
+
+      payloadBody = body.type === "creator_game_full"
+        ? creatorGameFullPayload(match as MatchRow)
+        : creatorVoteChangedPayload(match as MatchRow, memberDisplayName(sender), body.vote_status);
     }
-
-    const { data: invitation, error: invitationError } = await adminClient
-      .from("match_invitations")
-      .select("id,status")
-      .eq("match_id", matchId)
-      .eq("member_id", sender.id)
-      .neq("status", "removed")
-      .maybeSingle();
-
-    if (invitationError) {
-      return jsonResponse({ error: invitationError.message }, 500);
-    }
-
-    if (!invitation) {
-      return jsonResponse({ error: "Only invited members can notify the match creator." }, 403);
-    }
-
-    allowedRecipientIds = match.created_by ? [match.created_by] : [];
-
-    payloadBody = body.type === "creator_game_full"
-      ? creatorGameFullPayload(match as MatchRow)
-      : creatorVoteChangedPayload(match as MatchRow, memberDisplayName(sender), body.vote_status);
   }
 
   if (!allowedRecipientIds.length) {
