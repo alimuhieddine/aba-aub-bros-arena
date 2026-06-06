@@ -428,16 +428,19 @@ h3 {
 
 .home-trend {
   display: flex;
-  align-items: end;
+  align-items: center;
+  justify-content: flex-start;
   gap: 5px;
   height: 42px;
-  padding-top: 6px;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .home-trend span {
+  display: block;
   width: 10px;
   min-height: 8px;
-  border-radius: 8px 8px 2px 2px;
+  border-radius: 999px;
   background: var(--accent);
 }
 
@@ -446,7 +449,6 @@ h3 {
 }
 
 .home-trend.empty span {
-  height: 12px;
   background: rgba(255,255,255,.14);
 }
 
@@ -533,6 +535,20 @@ h3 {
 
 .profile-actions {
   justify-content: center;
+}
+
+.notification-card {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.notification-card h3 {
+  margin: 0;
+}
+
+.notification-actions {
+  margin-top: 0;
 }
 
 #profile-action-btn {
