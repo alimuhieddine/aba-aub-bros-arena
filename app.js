@@ -2099,6 +2099,22 @@ function homeLeagueStandingsRows(leagueId, limit = 3) {
     .slice(0, limit);
 }
 
+function homeLatestLeagueResult(leagueId) {
+  return leagueMatches(leagueId)
+    .filter(match => !isCancelledMatch(match) && hasSubmittedScore(match))
+    .sort((a, b) => new Date(b.start_time || 0) - new Date(a.start_time || 0))[0] || null;
+}
+
+function homeLeagueChaseText(standings) {
+  if (!standings || standings.length < 2) return "Chase: waiting for more results";
+
+  const leader = standings[0];
+  const chaser = standings[1];
+  const gap = Math.max(0, Number(leader.points || 0) - Number(chaser.points || 0));
+
+  return `Chase: ${chaser.name} is ${formatPointValue(gap)} pts behind ${leader.name}`;
+}
+
 function homeCurrentPlayerForm(leagueId = null) {
   const cleanId = cleanUuidValue(currentProfile?.id);
   if (!cleanId) return "-";
@@ -2145,34 +2161,33 @@ function renderHomeLeagueHq() {
 
   if (!leagues.length) {
     box.innerHTML = `
-      <article class="card home-feature-card"><h4>No active leagues</h4><p class="hint">Active league progress and next league matches will appear here.</p></article>
+      <article class="card home-feature-card"><h4>No active leagues</h4><p class="hint">League pulse, next games, and standings stories will appear here.</p></article>
       <article class="card home-feature-card"><h4>Hot match</h4><p class="hint">${hotMatch ? `${hotMatch.match.title || "Match"} - ${fmtDate(hotMatch.match.start_time)}` : "No upcoming hot match yet."}</p></article>
     `;
     return;
   }
 
   const leagueCards = leagues.map(row => {
-    const total = row.matches.length;
-    const pct = total ? Math.round((row.completed / total) * 100) : 0;
     const leader = homeLeagueStandingsLeader(row.league.id);
-    const standings = homeLeagueStandingsRows(row.league.id, 3);
+    const standings = homeLeagueStandingsRows(row.league.id, 4);
+    const latest = homeLatestLeagueResult(row.league.id);
 
     return `
       <article class="card home-feature-card">
         <div class="home-feature-head">
           <div>
             <h4>${escapeHtml(row.league.name || "League")}</h4>
-            <p>${row.completed}/${total} finalized match${total === 1 ? "" : "es"}</p>
+            <p>${row.completed} finalized match${row.completed === 1 ? "" : "es"} - My form: ${homeCurrentPlayerForm(row.league.id)}</p>
           </div>
-          <strong>${pct}%</strong>
+          <strong>${leader ? `#1 ${escapeHtml(leader.name)}` : "Pulse"}</strong>
         </div>
-        <div class="home-progress"><span style="width:${pct}%"></span></div>
         <div class="meta">${row.next ? `Next: ${row.next.title || "Match"} - ${fmtDate(row.next.start_time)}` : "No upcoming league match scheduled."}</div>
-        <div class="meta">Leader: ${leader ? `${leader.name} (${formatPointValue(leader.points)} pts)` : "No standings yet"} - My form: ${homeCurrentPlayerForm(row.league.id)}</div>
+        <div class="meta">${latest ? `Latest: ${leagueWinnerText(latest)} - ${leagueScoreText(latest)}` : "Latest: no finalized result yet."}</div>
+        <div class="meta">${homeLeagueChaseText(standings)}</div>
         <div class="home-mini-list">
           ${
             standings.length
-              ? standings.map((standing, index) => `<div><span>${index + 1}. ${escapeHtml(standing.name)}</span><b>${formatPointValue(standing.points)} pts</b></div>`).join("")
+              ? standings.slice(0, 3).map((standing, index) => `<div><span>${index + 1}. ${escapeHtml(standing.name)}</span><b>${formatPointValue(standing.points)} pts</b></div>`).join("")
               : `<div><span>No standings rows yet</span><b>-</b></div>`
           }
         </div>
