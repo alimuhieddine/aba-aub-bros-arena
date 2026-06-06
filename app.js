@@ -6952,6 +6952,16 @@ async function saveTeams() {
     return;
   }
 
+  const teamNotificationResults = await Promise.all([
+    sendTeamAssignedNotification(teamMatchId, teamAName, assignments.teamA),
+    sendTeamAssignedNotification(teamMatchId, teamBName, assignments.teamB)
+  ]);
+  const teamNotificationError = teamNotificationResults.find(result => result?.error);
+
+  if (teamNotificationError?.error) {
+    alert(`Teams saved, but phone notifications failed: ${teamNotificationError.error}`);
+  }
+
   if (match.score_status === "submitted") {
     const pointsUpdated = await recalculatePointsAfterTeamEdit(teamMatchId);
 
@@ -11387,6 +11397,60 @@ async function sendMatchLifecycleNotification(matchId, type, extra = {}) {
       sent: 0,
       failed: 1,
       error: error.message || "Could not send match lifecycle notification."
+    };
+  }
+}
+
+function teamShirtColorFromName(teamName) {
+  const text = String(teamName || "").toLowerCase();
+  const colors = [
+    "white",
+    "black",
+    "red",
+    "blue",
+    "green",
+    "yellow",
+    "orange",
+    "purple",
+    "pink",
+    "grey",
+    "gray",
+    "navy"
+  ];
+
+  return colors.find(color => text.includes(color)) || "";
+}
+
+async function sendTeamAssignedNotification(matchId, teamName, memberIds = []) {
+  const safeMatchId = cleanUuidValue(matchId);
+  const recipients = Array.from(new Set((memberIds || [])
+    .map(id => cleanUuidValue(id))
+    .filter(Boolean)));
+
+  if (!safeMatchId || !recipients.length) {
+    return { sent: 0, failed: 0, skipped: true };
+  }
+
+  try {
+    const { data, error } = await supabaseClient.functions.invoke("send-push", {
+      body: {
+        type: "team_assigned",
+        match_id: safeMatchId,
+        recipient_member_ids: recipients,
+        team_name: teamName || "your team",
+        shirt_color: teamShirtColorFromName(teamName)
+      }
+    });
+
+    if (error) throw error;
+    console.info("Team assigned notification result:", data);
+    return data || { sent: 0, failed: 0 };
+  } catch (error) {
+    console.warn("Team assigned notification was not sent:", error.message || error);
+    return {
+      sent: 0,
+      failed: recipients.length,
+      error: error.message || "Could not send team assigned notifications."
     };
   }
 }

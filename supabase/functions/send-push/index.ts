@@ -15,6 +15,8 @@ type PushRequest = {
   vote_status?: string;
   previous_vote_status?: string;
   update_summary?: string;
+  team_name?: string;
+  shirt_color?: string;
 };
 
 type MatchRow = {
@@ -270,6 +272,37 @@ function matchUpdatedPayload(match: MatchRow, senderName: string, updateSummary:
   };
 }
 
+function teamAssignedPayload(match: MatchRow, teamName: string | undefined, shirtColor: string | undefined) {
+  const title = match.title || "ABA match";
+  const emoji = sportBallEmoji(match.sports?.name || "");
+  const name = String(teamName || "your team").trim();
+  const color = String(shirtColor || "").trim();
+  const shirtText = color ? `don't forget your ${color} T-shirt` : "don't forget your team T-shirt";
+  const gameDay = matchDatePhrase(match.start_time);
+  const templates = [
+    `Ready to bring ${name} to the top${gameDay ? ` ${gameDay}` : ""}? ${shirtText}!`,
+    `${name}, time to show up strong${gameDay ? ` ${gameDay}` : ""}. ${shirtText}!`,
+    `Your squad is set: ${name}. Bring the energy and ${shirtText}!`,
+    `${name} is calling. Play smart, play loud, and ${shirtText}!`,
+    `Lineup locked for ${name}. Make it count and ${shirtText}!`
+  ];
+  const index = Math.abs([...match.id, ...name].reduce((total, char) => total + char.charCodeAt(0), 0)) % templates.length;
+
+  return {
+    title: "ABA Team Assigned",
+    body: `${emoji} ${templates[index]}`,
+    tag: `team-assigned-${match.id}-${name}-${Date.now()}`,
+    renotify: true,
+    requireInteraction: true,
+    timestamp: Date.now(),
+    url: `./index.html#matches?match=${match.id}`,
+    data: {
+      type: "team_assigned",
+      match_id: match.id
+    }
+  };
+}
+
 Deno.serve(async req => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -326,7 +359,8 @@ Deno.serve(async req => {
     "creator_game_full",
     "match_cancelled",
     "match_deleted",
-    "match_updated"
+    "match_updated",
+    "team_assigned"
   ]);
 
   if (!supportedTypes.has(body.type || "")) {
@@ -339,9 +373,10 @@ Deno.serve(async req => {
   if (body.type === "test_push") {
     allowedRecipientIds = [sender.id];
     payloadBody = testPayload();
-  } else if (body.type === "match_invite") {
+  } else if (body.type === "match_invite" || body.type === "team_assigned") {
     const matchId = typeof body.match_id === "string" ? body.match_id : "";
-    const recipientIds = uniqueIds(body.recipient_member_ids).filter(id => id !== sender.id);
+    const recipientIds = uniqueIds(body.recipient_member_ids)
+      .filter(id => body.type === "team_assigned" || id !== sender.id);
 
     if (!matchId || !recipientIds.length) {
       return jsonResponse({ sent: 0, failed: 0, skipped: true });
@@ -349,7 +384,7 @@ Deno.serve(async req => {
 
     const { data: match, error: matchError } = await adminClient
       .from("matches")
-      .select("id,title,start_time,sports(name),venues(name)")
+      .select("id,title,start_time,created_by,sports(name),venues(name)")
       .eq("id", matchId)
       .maybeSingle();
 
@@ -357,19 +392,28 @@ Deno.serve(async req => {
       return jsonResponse({ error: "Match not found." }, 404);
     }
 
-    const { data: invitationRows, error: invitationError } = await adminClient
+    if (body.type === "team_assigned" && match.created_by !== sender.id && sender.role !== "admin") {
+      return jsonResponse({ error: "Only the match creator or admin can notify team assignments." }, 403);
+    }
+
+    const invitationQuery = adminClient
       .from("match_invitations")
       .select("member_id")
       .eq("match_id", matchId)
-      .in("member_id", recipientIds)
-      .eq("status", "invited");
+      .in("member_id", recipientIds);
+
+    const { data: invitationRows, error: invitationError } = body.type === "match_invite"
+      ? await invitationQuery.eq("status", "invited")
+      : await invitationQuery.eq("status", "in");
 
     if (invitationError) {
       return jsonResponse({ error: invitationError.message }, 500);
     }
 
     allowedRecipientIds = (invitationRows || []).map(row => row.member_id);
-    payloadBody = matchInvitePayload(match as MatchRow, memberDisplayName(sender));
+    payloadBody = body.type === "team_assigned"
+      ? teamAssignedPayload(match as MatchRow, body.team_name, body.shirt_color)
+      : matchInvitePayload(match as MatchRow, memberDisplayName(sender));
   } else {
     const matchId = typeof body.match_id === "string" ? body.match_id : "";
 
