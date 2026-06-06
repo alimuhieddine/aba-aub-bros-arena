@@ -6298,6 +6298,11 @@ function applySuggestedTeams() {
     return;
   }
 
+  if (players.length % 2 !== 0) {
+    alert("An even number of IN players is required to suggest equal teams.");
+    return;
+  }
+
   let teamA = [];
   let teamB = [];
   let positionsA = new Map();
@@ -6519,7 +6524,7 @@ function updateTeamBalanceStatus() {
   const isBalanced =
     assignments.teamA.length > 0 &&
     assignments.teamB.length > 0 &&
-    difference <= 1;
+    difference === 0;
 
   if (status) {
     status.textContent = `Team A: ${assignments.teamA.length} • Team B: ${assignments.teamB.length}`;
@@ -6724,8 +6729,8 @@ async function saveTeams() {
     return;
   }
 
-  if (teamCountDifference > 1) {
-    alert("Teams must be balanced. The number of players in Team A and Team B can differ by maximum 1 player.");
+  if (teamCountDifference !== 0) {
+    alert("Teams must have the same number of players.");
     return;
   }
 
@@ -11786,8 +11791,13 @@ function bindEvents() {
 
     if (!matchDateTimes) return;
 
-    if (!requiredPlayers || requiredPlayers < 1) {
-      alert("Required players must be at least 1.");
+    if (!requiredPlayers || requiredPlayers < 2) {
+      alert("Required players must be at least 2.");
+      return;
+    }
+
+    if (requiredPlayers % 2 !== 0) {
+      alert("Required players must be an even number so both teams have the same number of players.");
       return;
     }
 
