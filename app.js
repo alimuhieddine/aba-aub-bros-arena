@@ -499,6 +499,7 @@ let allRankingActivityRows = [];
 let activitySportSettingsCache = {};
 let activitySportSettingsLoadPromise = null;
 let editingActivityId = null;
+let voteDeadlineManuallyEdited = false;
 
 const ACTIVITY_SPORT_SETTINGS_KEY = "aba_activity_sport_settings";
 const ACTIVITY_SPORT_APP_SETTING_KEY = "activity_sport_settings";
@@ -3169,6 +3170,7 @@ async function loadMatches() {
       match_type,
       start_time,
       end_time,
+      voting_deadline_at,
       status,
       notes,
       created_at,
@@ -3303,6 +3305,7 @@ async function loadMatches() {
       match_type,
       start_time,
       end_time,
+      voting_deadline_at,
       status,
       notes,
       created_at,
@@ -3477,6 +3480,28 @@ function userIsInMatch(match, memberId = currentProfile?.id) {
   return cleanUuidValue(match.created_by) === cleanMemberId && !hasCreatorInvitation;
 }
 
+function matchVotingDeadline(match) {
+  const raw = match?.voting_deadline_at || "";
+  const deadline = raw ? new Date(raw) : null;
+
+  if (deadline && !Number.isNaN(deadline.getTime())) return deadline;
+
+  const start = match?.start_time ? new Date(match.start_time) : null;
+  if (!start || Number.isNaN(start.getTime())) return null;
+
+  return new Date(start.getTime() - 24 * 60 * 60000);
+}
+
+function hasVotingDeadlinePassed(match) {
+  const deadline = matchVotingDeadline(match);
+  return Boolean(deadline && deadline <= new Date());
+}
+
+function votingDeadlineText(match) {
+  const deadline = matchVotingDeadline(match);
+  return deadline ? fmtDate(deadline.toISOString()) : "-";
+}
+
 function voteInTimeConflict(match) {
   const cleanMatchId = cleanUuidValue(match?.id);
 
@@ -3545,7 +3570,7 @@ function getMatchStatusClass(displayStatus, isFull) {
 }
 
 function isVotingOpenForMatch(match) {
-  return ABAMatches.isVotingOpen(match);
+  return ABAMatches.isVotingOpen(match) && !hasVotingDeadlinePassed(match);
 }
 
 function isMatchEditable(match) {
@@ -4323,6 +4348,10 @@ function matchSmartBadges(match) {
     return badges;
   }
 
+  if (hasVotingDeadlinePassed(match) && !hasSubmittedScore(match)) {
+    badges.push({ text: "Voting closed", type: "danger" });
+  }
+
   if (hasSubmittedScore(match)) {
     badges.push({ text: "Result submitted", type: "success" });
     badges.push({ text: "Result locked", type: "blue" });
@@ -4765,6 +4794,10 @@ function renderMatches() {
             </div>
 
             <div class="meta">
+              Voting deadline: ${escapeHtml(votingDeadlineText(match))}
+            </div>
+
+            <div class="meta">
               📍 ${escapeHtml(match.venues?.name || "-")}
               ${match.venues?.address ? "— " + escapeHtml(match.venues.address) : ""}
             </div>
@@ -4969,7 +5002,7 @@ function populateMatchTimeSelects() {
     return `<option value="${pad2(minute)}">${pad2(minute)}</option>`;
   }).join("");
 
-  ["match-start", "match-end", "activity-start", "activity-end"].forEach(prefix => {
+  ["match-start", "match-end", "match-vote-deadline", "activity-start", "activity-end"].forEach(prefix => {
     const hourSelect = $(`${prefix}-hour`);
     const minuteSelect = $(`${prefix}-minute`);
 
@@ -5017,6 +5050,7 @@ function readTimeParts(prefix) {
 
 function setDefaultMatchDateTimes() {
   populateMatchTimeSelects();
+  voteDeadlineManuallyEdited = false;
 
   const today = new Date();
 
@@ -5025,36 +5059,52 @@ function setDefaultMatchDateTimes() {
 
   if ($("match-end-date")) $("match-end-date").value = toLocalDateValue(today);
   setTimeParts("match-end", 19, 30);
+
+  updateDefaultVoteDeadlineFromStart(true);
 }
 
-function setMatchDateTimeFields(startIso, endIso) {
+function setMatchDateTimeFields(startIso, endIso, voteDeadlineIso = "") {
   populateMatchTimeSelects();
 
   const start = startIso ? new Date(startIso) : new Date();
   const end = endIso ? new Date(endIso) : new Date(start.getTime() + 90 * 60000);
+  const defaultDeadline = new Date(start.getTime() - 24 * 60 * 60000);
+  const deadline = voteDeadlineIso
+    ? new Date(voteDeadlineIso)
+    : defaultDeadline;
+
+  voteDeadlineManuallyEdited = voteDeadlineIso
+    ? Math.abs(deadline.getTime() - defaultDeadline.getTime()) > 60000
+    : false;
 
   if ($("match-start-date")) $("match-start-date").value = toLocalDateValue(start);
   setTimeParts("match-start", start.getHours(), start.getMinutes());
 
   if ($("match-end-date")) $("match-end-date").value = toLocalDateValue(end);
   setTimeParts("match-end", end.getHours(), end.getMinutes());
+
+  if ($("match-vote-deadline-date")) $("match-vote-deadline-date").value = toLocalDateValue(deadline);
+  setTimeParts("match-vote-deadline", deadline.getHours(), deadline.getMinutes());
 }
 
 function getMatchDateTimeValues() {
   const startDate = $("match-start-date")?.value || "";
   const endDate = $("match-end-date")?.value || "";
+  const deadlineDate = $("match-vote-deadline-date")?.value || "";
   const startParts = readTimeParts("match-start");
   const endParts = readTimeParts("match-end");
+  const deadlineParts = readTimeParts("match-vote-deadline");
 
-  if (!startDate || !endDate || !startParts || !endParts) {
-    alert("Please choose match start and end date/time.");
+  if (!startDate || !endDate || !deadlineDate || !startParts || !endParts || !deadlineParts) {
+    alert("Please choose match start, end, and voting deadline date/time.");
     return null;
   }
 
   const startTimeValue = new Date(`${startDate}T${pad2(startParts.hour24)}:${pad2(startParts.minute)}:00`);
   const endTimeValue = new Date(`${endDate}T${pad2(endParts.hour24)}:${pad2(endParts.minute)}:00`);
+  const deadlineValue = new Date(`${deadlineDate}T${pad2(deadlineParts.hour24)}:${pad2(deadlineParts.minute)}:00`);
 
-  if (Number.isNaN(startTimeValue.getTime()) || Number.isNaN(endTimeValue.getTime())) {
+  if (Number.isNaN(startTimeValue.getTime()) || Number.isNaN(endTimeValue.getTime()) || Number.isNaN(deadlineValue.getTime())) {
     alert("Invalid match date or time.");
     return null;
   }
@@ -5069,10 +5119,38 @@ function getMatchDateTimeValues() {
     return null;
   }
 
+  if (deadlineValue >= startTimeValue) {
+    alert("Voting deadline must be before match start time.");
+    return null;
+  }
+
   return {
     startTime: startTimeValue,
-    endTime: endTimeValue
+    endTime: endTimeValue,
+    votingDeadline: deadlineValue
   };
+}
+
+function currentMatchStartDateTimeValue() {
+  const startDate = $("match-start-date")?.value || "";
+  const startParts = readTimeParts("match-start");
+
+  if (!startDate || !startParts) return null;
+
+  const value = new Date(`${startDate}T${pad2(startParts.hour24)}:${pad2(startParts.minute)}:00`);
+  return Number.isNaN(value.getTime()) ? null : value;
+}
+
+function updateDefaultVoteDeadlineFromStart(force = false) {
+  if (voteDeadlineManuallyEdited && !force) return;
+
+  const start = currentMatchStartDateTimeValue();
+  if (!start) return;
+
+  const deadline = new Date(start.getTime() - 24 * 60 * 60000);
+
+  if ($("match-vote-deadline-date")) $("match-vote-deadline-date").value = toLocalDateValue(deadline);
+  setTimeParts("match-vote-deadline", deadline.getHours(), deadline.getMinutes());
 }
 
 
@@ -5125,7 +5203,7 @@ async function editMatch(matchId) {
   }
   form.elements["required_players"].value = match.required_players || match.max_players || 4;
   if (form.elements["max_players"]) form.elements["max_players"].value = match.max_players || match.required_players || 4;
-  setMatchDateTimeFields(match.start_time, match.end_time);
+  setMatchDateTimeFields(match.start_time, match.end_time, match.voting_deadline_at);
   form.elements["notes"].value = match.notes || "";
 
   const invitedIds = (match.match_invitations || [])
@@ -5239,11 +5317,20 @@ async function voteMatch(matchId, newStatus) {
     return;
   }
 
+  if (hasVotingDeadlinePassed(match)) {
+    alert("Voting is closed for this match. Please contact the game creator directly if you need to be removed or changed.");
+    return;
+  }
+
   const counts = invitationCounts(match);
   const filledCount = counts.inCount;
   const maxPlayers = Number(match.max_players || 0);
   const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
   const userIsCurrentlyIn = currentVoteStatus === "in";
+  const willFillMatch = newStatus === "in" &&
+    !userIsCurrentlyIn &&
+    maxPlayers &&
+    filledCount + 1 >= maxPlayers;
 
   if (newStatus === "in" && !userIsCurrentlyIn) {
     const conflictingMatch = voteInTimeConflict(match);
@@ -5298,6 +5385,17 @@ async function voteMatch(matchId, newStatus) {
     }
 
     invitation.status = newStatus;
+  }
+
+  if (!isCreator && currentVoteStatus !== newStatus) {
+    sendCreatorMatchNotification(match.id, "creator_vote_changed", {
+      vote_status: newStatus,
+      previous_vote_status: currentVoteStatus || "none"
+    });
+  }
+
+  if (!isCreator && willFillMatch) {
+    sendCreatorMatchNotification(match.id, "creator_game_full");
   }
 
   renderMatches();
@@ -11149,6 +11247,33 @@ async function sendMatchInviteNotifications(matchId, recipientMemberIds = []) {
   }
 }
 
+async function sendCreatorMatchNotification(matchId, type, extra = {}) {
+  const safeMatchId = cleanUuidValue(matchId);
+
+  if (!safeMatchId || !type) return { sent: 0, failed: 0, skipped: true };
+
+  try {
+    const { data, error } = await supabaseClient.functions.invoke("send-push", {
+      body: {
+        type,
+        match_id: safeMatchId,
+        ...extra
+      }
+    });
+
+    if (error) throw error;
+    console.info("Creator notification result:", data);
+    return data || { sent: 0, failed: 0 };
+  } catch (error) {
+    console.warn("Creator notification was not sent:", error.message || error);
+    return {
+      sent: 0,
+      failed: 1,
+      error: error.message || "Could not send creator notification."
+    };
+  }
+}
+
 async function sendTestNotification() {
   if (!currentProfile || currentProfile.approval_status !== "approved") {
     alert("Approved members only.");
@@ -11480,6 +11605,26 @@ function bindEvents() {
   $("match-sport")?.addEventListener("change", updateMatchVenueOptions);
   $("match-type")?.addEventListener("change", updateMatchLeagueOptions);
 
+  [
+    "match-start-date",
+    "match-start-hour",
+    "match-start-minute",
+    "match-start-ampm"
+  ].forEach(id => {
+    $(id)?.addEventListener("change", () => updateDefaultVoteDeadlineFromStart(false));
+  });
+
+  [
+    "match-vote-deadline-date",
+    "match-vote-deadline-hour",
+    "match-vote-deadline-minute",
+    "match-vote-deadline-ampm"
+  ].forEach(id => {
+    $(id)?.addEventListener("change", () => {
+      voteDeadlineManuallyEdited = true;
+    });
+  });
+
   $("rank-sport-filter")?.addEventListener("change", () => {
     updateRankingFilters();
     renderRankings();
@@ -11660,6 +11805,7 @@ function bindEvents() {
       match_type: fd.get("match_type"),
       start_time: matchDateTimes.startTime.toISOString(),
       end_time: matchDateTimes.endTime.toISOString(),
+      voting_deadline_at: matchDateTimes.votingDeadline.toISOString(),
       status: "open_for_votes",
       max_players: maxPlayers,
       required_players: requiredPlayers || maxPlayers,

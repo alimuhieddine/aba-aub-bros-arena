@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena test 2t</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=152" />
+  <link rel="stylesheet" href="style.css?v=153" />
 </head>
 
 <body>
@@ -723,6 +723,30 @@
       </label>
     </div>
 
+    <div class="grid two match-date-time-grid">
+      <label>
+        Voting deadline date
+        <input id="match-vote-deadline-date" type="date" required />
+      </label>
+
+      <label>
+        Voting deadline time
+        <div class="ampm-time-row">
+          <select id="match-vote-deadline-hour" required></select>
+          <span>:</span>
+          <select id="match-vote-deadline-minute" required></select>
+          <select id="match-vote-deadline-ampm" required>
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+      </label>
+    </div>
+
+    <p class="hint">
+      Players can change votes until this deadline. Default is 24 hours before match start.
+    </p>
+
     <label>
       Invite Players
       <div id="match-invite-options" class="checkbox-list">
@@ -1027,11 +1051,11 @@
   <script src="js/admin.js?v=1"></script>
   <script src="js/venues.js?v=1"></script>
   <script src="js/leagues.js?v=1"></script>
-  <script src="js/matches.js?v=1"></script>
+  <script src="js/matches.js?v=2"></script>
   <script src="js/teams.js?v=1"></script>
   <script src="js/scoring.js?v=1"></script>
   <script src="js/utils.js?v=1"></script>
-  <script src="app.js?v=159"></script>
+  <script src="app.js?v=160"></script>
   <script src="js/utils-runtime-bridge.js?v=1"></script>
   <script src="js/auth-runtime-bridge.js?v=1"></script>
 

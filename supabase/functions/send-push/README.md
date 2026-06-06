@@ -6,6 +6,8 @@ Supported notification types:
 
 - `test_push`: sends a test notification to the authenticated member.
 - `match_invite`: sends match invite notifications to newly invited members.
+- `creator_vote_changed`: notifies the match creator when an invited player changes vote.
+- `creator_game_full`: notifies the match creator when the match becomes full.
 
 ## Required secrets
 

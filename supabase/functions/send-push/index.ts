@@ -11,12 +11,15 @@ type PushRequest = {
   type?: string;
   match_id?: string;
   recipient_member_ids?: string[];
+  vote_status?: string;
+  previous_vote_status?: string;
 };
 
 type MatchRow = {
   id: string;
   title: string | null;
   start_time: string | null;
+  created_by?: string | null;
   sports?: { name?: string | null } | null;
   venues?: { name?: string | null } | null;
 };
@@ -87,6 +90,49 @@ function testPayload() {
   };
 }
 
+function voteStatusLabel(status: string | undefined) {
+  if (status === "in") return "IN";
+  if (status === "maybe") return "Maybe";
+  if (status === "out") return "Out";
+  return status || "updated";
+}
+
+function creatorVoteChangedPayload(match: MatchRow, senderName: string, status: string | undefined) {
+  const title = match.title || "ABA match";
+
+  return {
+    title: "ABA Vote Updated",
+    body: `${senderName} changed vote to ${voteStatusLabel(status)} for ${title}.`,
+    tag: `vote-${match.id}-${Date.now()}`,
+    renotify: true,
+    requireInteraction: false,
+    timestamp: Date.now(),
+    url: `./index.html#matches?match=${match.id}`,
+    data: {
+      type: "creator_vote_changed",
+      match_id: match.id
+    }
+  };
+}
+
+function creatorGameFullPayload(match: MatchRow) {
+  const title = match.title || "ABA match";
+
+  return {
+    title: "ABA Match Full",
+    body: `${title} is now full.`,
+    tag: `full-${match.id}-${Date.now()}`,
+    renotify: true,
+    requireInteraction: true,
+    timestamp: Date.now(),
+    url: `./index.html#matches?match=${match.id}`,
+    data: {
+      type: "creator_game_full",
+      match_id: match.id
+    }
+  };
+}
+
 Deno.serve(async req => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -120,7 +166,7 @@ Deno.serve(async req => {
 
   const { data: sender, error: senderError } = await adminClient
     .from("members")
-    .select("id,role,approval_status")
+    .select("id,role,approval_status,first_name,last_name,display_name")
     .eq("auth_user_id", userData.user.id)
     .maybeSingle();
 
@@ -136,7 +182,14 @@ Deno.serve(async req => {
     return jsonResponse({ error: "Invalid JSON body." }, 400);
   }
 
-  if (body.type !== "match_invite" && body.type !== "test_push") {
+  const supportedTypes = new Set([
+    "match_invite",
+    "test_push",
+    "creator_vote_changed",
+    "creator_game_full"
+  ]);
+
+  if (!supportedTypes.has(body.type || "")) {
     return jsonResponse({ error: "Unsupported notification type." }, 400);
   }
 
@@ -146,7 +199,7 @@ Deno.serve(async req => {
   if (body.type === "test_push") {
     allowedRecipientIds = [sender.id];
     payloadBody = testPayload();
-  } else {
+  } else if (body.type === "match_invite") {
     const matchId = typeof body.match_id === "string" ? body.match_id : "";
     const recipientIds = uniqueIds(body.recipient_member_ids).filter(id => id !== sender.id);
 
@@ -177,6 +230,54 @@ Deno.serve(async req => {
 
     allowedRecipientIds = (invitationRows || []).map(row => row.member_id);
     payloadBody = matchInvitePayload(match as MatchRow);
+  } else {
+    const matchId = typeof body.match_id === "string" ? body.match_id : "";
+
+    if (!matchId) {
+      return jsonResponse({ sent: 0, failed: 0, skipped: true });
+    }
+
+    const { data: match, error: matchError } = await adminClient
+      .from("matches")
+      .select("id,title,start_time,created_by,sports(name),venues(name)")
+      .eq("id", matchId)
+      .maybeSingle();
+
+    if (matchError || !match) {
+      return jsonResponse({ error: "Match not found." }, 404);
+    }
+
+    if (match.created_by === sender.id) {
+      return jsonResponse({ sent: 0, failed: 0, skipped: true });
+    }
+
+    const { data: invitation, error: invitationError } = await adminClient
+      .from("match_invitations")
+      .select("id,status")
+      .eq("match_id", matchId)
+      .eq("member_id", sender.id)
+      .neq("status", "removed")
+      .maybeSingle();
+
+    if (invitationError) {
+      return jsonResponse({ error: invitationError.message }, 500);
+    }
+
+    if (!invitation) {
+      return jsonResponse({ error: "Only invited members can notify the match creator." }, 403);
+    }
+
+    allowedRecipientIds = match.created_by ? [match.created_by] : [];
+
+    const senderName = [
+      sender.display_name,
+      sender.first_name,
+      sender.last_name
+    ].filter(Boolean).join(" ") || "A player";
+
+    payloadBody = body.type === "creator_game_full"
+      ? creatorGameFullPayload(match as MatchRow)
+      : creatorVoteChangedPayload(match as MatchRow, senderName, body.vote_status);
   }
 
   if (!allowedRecipientIds.length) {

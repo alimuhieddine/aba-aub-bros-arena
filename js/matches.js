@@ -136,11 +136,16 @@
 
   function isVotingOpen(match) {
     const status = displayStatus(match);
+    const rawDeadline = match?.voting_deadline_at || "";
+    const deadline = rawDeadline ? new Date(rawDeadline) : null;
+    const hasDeadlinePassed = deadline && !Number.isNaN(deadline.getTime()) && deadline <= new Date();
+
     return status !== "cancelled" &&
       status !== "playing" &&
       status !== "finished" &&
       status !== "completed" &&
-      new Date(match.start_time) > new Date();
+      new Date(match.start_time) > new Date() &&
+      !hasDeadlinePassed;
   }
 
   function isEditable(match) {
