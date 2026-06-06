@@ -11594,9 +11594,15 @@ function clearProfileFields() {
   profileIsEditing = false;
 }
 
-function profileAvatarStoragePath(memberId = currentProfile?.id) {
+function profileAvatarExtension(file) {
+  if (file?.type === "image/png") return "png";
+  if (file?.type === "image/webp") return "webp";
+  return "jpg";
+}
+
+function profileAvatarStoragePath(memberId = currentProfile?.id, file = null) {
   const cleanId = cleanUuidValue(memberId);
-  return cleanId ? `${cleanId}/avatar` : "";
+  return cleanId ? `${cleanId}/avatar.${profileAvatarExtension(file)}` : "";
 }
 
 async function updateCurrentProfileAvatarUrl(avatarUrl) {
@@ -11640,7 +11646,7 @@ async function uploadProfileAvatar(file) {
     return;
   }
 
-  const path = profileAvatarStoragePath();
+  const path = profileAvatarStoragePath(currentProfile.id, file);
   if (!path) return;
 
   const { error } = await supabaseClient
@@ -11678,12 +11684,17 @@ async function removeProfileAvatar() {
   const ok = confirm("Remove your profile photo?");
   if (!ok) return;
 
-  const path = profileAvatarStoragePath();
-  if (path) {
+  const basePath = profileAvatarStoragePath();
+  const paths = [
+    basePath,
+    `${cleanUuidValue(currentProfile.id)}/avatar.png`,
+    `${cleanUuidValue(currentProfile.id)}/avatar.webp`
+  ].filter(Boolean);
+  if (paths.length) {
     const { error } = await supabaseClient
       .storage
       .from("member-avatars")
-      .remove([path]);
+      .remove(paths);
 
     if (error) {
       console.warn("Could not remove avatar object:", error.message);

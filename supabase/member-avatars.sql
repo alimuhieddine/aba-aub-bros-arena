@@ -4,6 +4,23 @@
 alter table public.members
   add column if not exists avatar_url text;
 
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'members'
+      and policyname = 'members can update own profile fields'
+  ) then
+    create policy "members can update own profile fields"
+      on public.members
+      for update
+      to authenticated
+      using (auth_user_id = auth.uid())
+      with check (auth_user_id = auth.uid());
+  end if;
+end $$;
+
 insert into storage.buckets (id, name, public)
 values ('member-avatars', 'member-avatars', true)
 on conflict (id) do update set public = true;
