@@ -129,16 +129,32 @@ function memberDisplayName(member: MemberRow) {
     "A member";
 }
 
+function sportBallEmoji(sport: string) {
+  const sportText = sport.toLowerCase();
+
+  if (sportText.includes("soccer") || sportText.includes("football")) return "⚽";
+  if (sportText.includes("volleyball")) return "🏐";
+  if (sportText.includes("basketball")) return "🏀";
+  if (sportText.includes("tennis") || sportText.includes("padel")) return "🎾";
+  if (sportText.includes("swim")) return "🏊";
+  if (sportText.includes("run")) return "🏃";
+  if (sportText.includes("gym") || sportText.includes("weight")) return "🏋️";
+  if (sportText.includes("walk")) return "🚶";
+
+  return "🏅";
+}
+
 function matchInvitePayload(match: MatchRow, senderName: string) {
   const sport = match.sports?.name || "sport";
   const sportText = sport.toLowerCase();
+  const emoji = sportBallEmoji(sport);
   const dateText = matchDatePhrase(match.start_time);
   const venueText = match.venues?.name ? ` at ${match.venues.name}` : "";
   const dateClause = dateText ? ` ${dateText}` : "";
 
   return {
     title: "ABA Match Invite",
-    body: `${senderName} invites you to a ${sportText} game${dateClause}${venueText}.`,
+    body: `${emoji} ${senderName} invites you to a ${sportText} game${dateClause}${venueText}.`,
     tag: `match-invite-${Date.now()}`,
     renotify: true,
     requireInteraction: true,
