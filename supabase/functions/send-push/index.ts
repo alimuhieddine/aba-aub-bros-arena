@@ -193,10 +193,11 @@ function voteStatusLabel(status: string | undefined) {
 
 function creatorVoteChangedPayload(match: MatchRow, senderName: string, status: string | undefined) {
   const title = match.title || "ABA match";
+  const emoji = sportBallEmoji(match.sports?.name || "");
 
   return {
     title: "ABA Vote Updated",
-    body: `${senderName} changed vote to ${voteStatusLabel(status)} for ${title}.`,
+    body: `${emoji} ${senderName} changed vote to ${voteStatusLabel(status)} for ${title}.`,
     tag: `vote-${match.id}-${Date.now()}`,
     renotify: true,
     requireInteraction: false,
@@ -211,10 +212,11 @@ function creatorVoteChangedPayload(match: MatchRow, senderName: string, status: 
 
 function creatorGameFullPayload(match: MatchRow) {
   const title = match.title || "ABA match";
+  const emoji = sportBallEmoji(match.sports?.name || "");
 
   return {
     title: "ABA Match Full",
-    body: `${title} is now full.`,
+    body: `${emoji} ${title} is now full.`,
     tag: `full-${match.id}-${Date.now()}`,
     renotify: true,
     requireInteraction: true,
@@ -230,10 +232,11 @@ function creatorGameFullPayload(match: MatchRow) {
 function matchLifecyclePayload(match: MatchRow, type: "match_cancelled" | "match_deleted", senderName: string) {
   const title = match.title || "ABA match";
   const isDeleted = type === "match_deleted";
+  const emoji = sportBallEmoji(match.sports?.name || "");
 
   return {
     title: isDeleted ? "ABA Match Deleted" : "ABA Match Cancelled",
-    body: `${senderName} ${isDeleted ? "deleted" : "cancelled"} ${title}.`,
+    body: `${emoji} ${senderName} ${isDeleted ? "deleted" : "cancelled"} ${title}.`,
     tag: `${isDeleted ? "deleted" : "cancelled"}-${match.id}-${Date.now()}`,
     renotify: true,
     requireInteraction: true,
