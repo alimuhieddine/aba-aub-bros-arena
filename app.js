@@ -5141,6 +5141,15 @@ function currentMatchStartDateTimeValue() {
   return Number.isNaN(value.getTime()) ? null : value;
 }
 
+function syncMatchEndDateToStartDate() {
+  const startDate = $("match-start-date")?.value || "";
+  const endDateInput = $("match-end-date");
+
+  if (startDate && endDateInput) {
+    endDateInput.value = startDate;
+  }
+}
+
 function updateDefaultVoteDeadlineFromStart(force = false) {
   if (voteDeadlineManuallyEdited && !force) return;
 
@@ -11611,7 +11620,10 @@ function bindEvents() {
     "match-start-minute",
     "match-start-ampm"
   ].forEach(id => {
-    $(id)?.addEventListener("change", () => updateDefaultVoteDeadlineFromStart(false));
+    $(id)?.addEventListener("change", () => {
+      if (id === "match-start-date") syncMatchEndDateToStartDate();
+      updateDefaultVoteDeadlineFromStart(false);
+    });
   });
 
   [

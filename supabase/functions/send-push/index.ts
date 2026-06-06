@@ -24,6 +24,13 @@ type MatchRow = {
   venues?: { name?: string | null } | null;
 };
 
+type MemberRow = {
+  id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  display_name?: string | null;
+};
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -55,13 +62,21 @@ function formatMatchTime(value: string | null) {
   }
 }
 
-function matchInvitePayload(match: MatchRow) {
+function memberDisplayName(member: MemberRow) {
+  return [
+    member.display_name,
+    member.first_name,
+    member.last_name
+  ].filter(Boolean).join(" ") || "A member";
+}
+
+function matchInvitePayload(match: MatchRow, senderName: string) {
   const title = match.title || "ABA match";
   const sport = match.sports?.name || "Sport";
 
   return {
     title: "ABA Match Invite",
-    body: `You were invited to ${title}.`,
+    body: `${senderName} invites you to ${title}.`,
     tag: `match-invite-${Date.now()}`,
     renotify: true,
     requireInteraction: true,
@@ -229,7 +244,7 @@ Deno.serve(async req => {
     }
 
     allowedRecipientIds = (invitationRows || []).map(row => row.member_id);
-    payloadBody = matchInvitePayload(match as MatchRow);
+    payloadBody = matchInvitePayload(match as MatchRow, memberDisplayName(sender));
   } else {
     const matchId = typeof body.match_id === "string" ? body.match_id : "";
 
@@ -269,15 +284,9 @@ Deno.serve(async req => {
 
     allowedRecipientIds = match.created_by ? [match.created_by] : [];
 
-    const senderName = [
-      sender.display_name,
-      sender.first_name,
-      sender.last_name
-    ].filter(Boolean).join(" ") || "A player";
-
     payloadBody = body.type === "creator_game_full"
       ? creatorGameFullPayload(match as MatchRow)
-      : creatorVoteChangedPayload(match as MatchRow, senderName, body.vote_status);
+      : creatorVoteChangedPayload(match as MatchRow, memberDisplayName(sender), body.vote_status);
   }
 
   if (!allowedRecipientIds.length) {
