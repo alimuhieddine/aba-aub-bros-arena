@@ -6,6 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
+const appTimeZone = "Asia/Beirut";
 
 type PushRequest = {
   type?: string;
@@ -13,6 +14,9 @@ type PushRequest = {
   recipient_member_ids?: string[];
   vote_status?: string;
   previous_vote_status?: string;
+  update_summary?: string;
+  team_name?: string;
+  shirt_color?: string;
 };
 
 type MatchRow = {
@@ -26,6 +30,7 @@ type MatchRow = {
 
 type MemberRow = {
   id: string;
+  role?: string | null;
   first_name?: string | null;
   last_name?: string | null;
   display_name?: string | null;
@@ -62,21 +67,98 @@ function formatMatchTime(value: string | null) {
   }
 }
 
+function ordinalDay(day: number) {
+  const suffix = day % 10 === 1 && day % 100 !== 11
+    ? "st"
+    : day % 10 === 2 && day % 100 !== 12
+      ? "nd"
+      : day % 10 === 3 && day % 100 !== 13
+        ? "rd"
+        : "th";
+
+  return `${day}${suffix}`;
+}
+
+function datePartsInAppTimeZone(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: appTimeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+
+  const part = (type: string) => Number(parts.find(item => item.type === type)?.value || 0);
+
+  return {
+    year: part("year"),
+    month: part("month"),
+    day: part("day")
+  };
+}
+
+function appDayStamp(date: Date) {
+  const parts = datePartsInAppTimeZone(date);
+  return Date.UTC(parts.year, parts.month - 1, parts.day);
+}
+
+function matchDatePhrase(value: string | null) {
+  if (!value) return "";
+
+  const matchDate = new Date(value);
+  if (Number.isNaN(matchDate.getTime())) return "";
+
+  const matchParts = datePartsInAppTimeZone(matchDate);
+  const dayDiff = Math.round((appDayStamp(matchDate) - appDayStamp(new Date())) / 86400000);
+
+  if (dayDiff === 0) return "today";
+  if (dayDiff === 1) return "tomorrow";
+
+  if (dayDiff > 1 && dayDiff <= 7) {
+    return `next ${new Intl.DateTimeFormat("en", {
+      timeZone: appTimeZone,
+      weekday: "long"
+    }).format(matchDate)}`;
+  }
+
+  const month = new Intl.DateTimeFormat("en", {
+    timeZone: appTimeZone,
+    month: "long"
+  }).format(matchDate);
+  return `on the ${ordinalDay(matchParts.day)} of ${month}`;
+}
+
 function memberDisplayName(member: MemberRow) {
-  return [
-    member.display_name,
-    member.first_name,
-    member.last_name
-  ].filter(Boolean).join(" ") || "A member";
+  return member.display_name ||
+    [member.first_name, member.last_name].filter(Boolean).join(" ") ||
+    "A member";
+}
+
+function sportBallEmoji(sport: string) {
+  const sportText = sport.toLowerCase();
+
+  if (sportText.includes("soccer") || sportText.includes("football")) return "⚽";
+  if (sportText.includes("volleyball")) return "🏐";
+  if (sportText.includes("basketball")) return "🏀";
+  if (sportText.includes("tennis") || sportText.includes("padel")) return "🎾";
+  if (sportText.includes("swim")) return "🏊";
+  if (sportText.includes("run")) return "🏃";
+  if (sportText.includes("gym") || sportText.includes("weight")) return "🏋️";
+  if (sportText.includes("walk")) return "🚶";
+
+  return "🏅";
 }
 
 function matchInvitePayload(match: MatchRow, senderName: string) {
-  const title = match.title || "ABA match";
-  const sport = match.sports?.name || "Sport";
+  const sport = match.sports?.name || "sport";
+  const sportText = sport.toLowerCase();
+  const emoji = sportBallEmoji(sport);
+  const dateText = matchDatePhrase(match.start_time);
+  const venueText = match.venues?.name ? ` at ${match.venues.name}` : "";
+  const dateClause = dateText ? ` ${dateText}` : "";
 
   return {
     title: "ABA Match Invite",
-    body: `${senderName} invites you to ${title}.`,
+    body: `${emoji} ${senderName} invites you to a ${sportText} game${dateClause}${venueText}.`,
     tag: `match-invite-${Date.now()}`,
     renotify: true,
     requireInteraction: true,
@@ -114,10 +196,11 @@ function voteStatusLabel(status: string | undefined) {
 
 function creatorVoteChangedPayload(match: MatchRow, senderName: string, status: string | undefined) {
   const title = match.title || "ABA match";
+  const emoji = sportBallEmoji(match.sports?.name || "");
 
   return {
     title: "ABA Vote Updated",
-    body: `${senderName} changed vote to ${voteStatusLabel(status)} for ${title}.`,
+    body: `${emoji} ${senderName} changed vote to ${voteStatusLabel(status)} for ${title}.`,
     tag: `vote-${match.id}-${Date.now()}`,
     renotify: true,
     requireInteraction: false,
@@ -132,10 +215,11 @@ function creatorVoteChangedPayload(match: MatchRow, senderName: string, status: 
 
 function creatorGameFullPayload(match: MatchRow) {
   const title = match.title || "ABA match";
+  const emoji = sportBallEmoji(match.sports?.name || "");
 
   return {
     title: "ABA Match Full",
-    body: `${title} is now full.`,
+    body: `${emoji} ${title} is now full.`,
     tag: `full-${match.id}-${Date.now()}`,
     renotify: true,
     requireInteraction: true,
@@ -143,6 +227,87 @@ function creatorGameFullPayload(match: MatchRow) {
     url: `./index.html#matches?match=${match.id}`,
     data: {
       type: "creator_game_full",
+      match_id: match.id
+    }
+  };
+}
+
+function matchLifecyclePayload(match: MatchRow, type: "match_cancelled" | "match_deleted", senderName: string) {
+  const title = match.title || "ABA match";
+  const isDeleted = type === "match_deleted";
+  const emoji = sportBallEmoji(match.sports?.name || "");
+
+  return {
+    title: isDeleted ? "ABA Match Deleted" : "ABA Match Cancelled",
+    body: `${emoji} ${senderName} ${isDeleted ? "deleted" : "cancelled"} ${title}.`,
+    tag: `${isDeleted ? "deleted" : "cancelled"}-${match.id}-${Date.now()}`,
+    renotify: true,
+    requireInteraction: true,
+    timestamp: Date.now(),
+    url: isDeleted ? "./index.html#matches" : `./index.html#matches?match=${match.id}`,
+    data: {
+      type,
+      match_id: match.id
+    }
+  };
+}
+
+function matchUpdatedPayload(match: MatchRow, senderName: string, updateSummary: string | undefined) {
+  const title = match.title || "ABA match";
+  const emoji = sportBallEmoji(match.sports?.name || "");
+  const summary = String(updateSummary || "details changed").trim().slice(0, 160);
+
+  return {
+    title: "ABA Match Updated",
+    body: `${emoji} ${senderName} updated ${title}: ${summary}.`,
+    tag: `updated-${match.id}-${Date.now()}`,
+    renotify: true,
+    requireInteraction: true,
+    timestamp: Date.now(),
+    url: `./index.html#matches?match=${match.id}`,
+    data: {
+      type: "match_updated",
+      match_id: match.id
+    }
+  };
+}
+
+function teamAssignedPayload(match: MatchRow, teamName: string | undefined, shirtColor: string | undefined) {
+  const title = match.title || "ABA match";
+  const emoji = sportBallEmoji(match.sports?.name || "");
+  const name = String(teamName || "your team").trim();
+  const color = String(shirtColor || "").trim();
+  const gameDay = matchDatePhrase(match.start_time);
+  const templates = color
+    ? [
+      `Ready to bring ${name} to the top${gameDay ? ` ${gameDay}` : ""}? don't forget your ${color} T-shirt!`,
+      `${name}, time to show up strong${gameDay ? ` ${gameDay}` : ""}. don't forget your ${color} T-shirt!`,
+      `Your squad is set: ${name}. Bring the energy and your ${color} T-shirt!`,
+      `${name} is calling. Play smart, play loud, and wear ${color}!`,
+      `Lineup locked for ${name}. Make it count in ${color}!`
+    ]
+    : [
+      `${name} is locked in. Ready to roast them${gameDay ? ` ${gameDay}` : ""}?`,
+      `${name}, time to make them regret showing up.`,
+      `Your lineup is ready. Their confidence is optional.`,
+      `${name}, make it look close, then end it.`,
+      `Go collect points and complaints.`,
+      `${name}, bring the heat and leave them guessing.`,
+      `Today’s plan: pressure, patience, punishment.`,
+      `${name}, save the excuses for them.`
+    ];
+  const index = Math.abs([...match.id, ...name].reduce((total, char) => total + char.charCodeAt(0), 0)) % templates.length;
+
+  return {
+    title: "ABA Team Assigned",
+    body: `${emoji} ${templates[index]}`,
+    tag: `team-assigned-${match.id}-${name}-${Date.now()}`,
+    renotify: true,
+    requireInteraction: true,
+    timestamp: Date.now(),
+    url: `./index.html#matches?match=${match.id}`,
+    data: {
+      type: "team_assigned",
       match_id: match.id
     }
   };
@@ -201,7 +366,11 @@ Deno.serve(async req => {
     "match_invite",
     "test_push",
     "creator_vote_changed",
-    "creator_game_full"
+    "creator_game_full",
+    "match_cancelled",
+    "match_deleted",
+    "match_updated",
+    "team_assigned"
   ]);
 
   if (!supportedTypes.has(body.type || "")) {
@@ -214,9 +383,10 @@ Deno.serve(async req => {
   if (body.type === "test_push") {
     allowedRecipientIds = [sender.id];
     payloadBody = testPayload();
-  } else if (body.type === "match_invite") {
+  } else if (body.type === "match_invite" || body.type === "team_assigned") {
     const matchId = typeof body.match_id === "string" ? body.match_id : "";
-    const recipientIds = uniqueIds(body.recipient_member_ids).filter(id => id !== sender.id);
+    const recipientIds = uniqueIds(body.recipient_member_ids)
+      .filter(id => body.type === "team_assigned" || id !== sender.id);
 
     if (!matchId || !recipientIds.length) {
       return jsonResponse({ sent: 0, failed: 0, skipped: true });
@@ -224,7 +394,7 @@ Deno.serve(async req => {
 
     const { data: match, error: matchError } = await adminClient
       .from("matches")
-      .select("id,title,start_time,sports(name),venues(name)")
+      .select("id,title,start_time,created_by,sports(name),venues(name)")
       .eq("id", matchId)
       .maybeSingle();
 
@@ -232,19 +402,28 @@ Deno.serve(async req => {
       return jsonResponse({ error: "Match not found." }, 404);
     }
 
-    const { data: invitationRows, error: invitationError } = await adminClient
+    if (body.type === "team_assigned" && match.created_by !== sender.id && sender.role !== "admin") {
+      return jsonResponse({ error: "Only the match creator or admin can notify team assignments." }, 403);
+    }
+
+    const invitationQuery = adminClient
       .from("match_invitations")
       .select("member_id")
       .eq("match_id", matchId)
-      .in("member_id", recipientIds)
-      .eq("status", "invited");
+      .in("member_id", recipientIds);
+
+    const { data: invitationRows, error: invitationError } = body.type === "match_invite"
+      ? await invitationQuery.eq("status", "invited")
+      : await invitationQuery.eq("status", "in");
 
     if (invitationError) {
       return jsonResponse({ error: invitationError.message }, 500);
     }
 
     allowedRecipientIds = (invitationRows || []).map(row => row.member_id);
-    payloadBody = matchInvitePayload(match as MatchRow, memberDisplayName(sender));
+    payloadBody = body.type === "team_assigned"
+      ? teamAssignedPayload(match as MatchRow, body.team_name, body.shirt_color)
+      : matchInvitePayload(match as MatchRow, memberDisplayName(sender));
   } else {
     const matchId = typeof body.match_id === "string" ? body.match_id : "";
 
@@ -262,31 +441,57 @@ Deno.serve(async req => {
       return jsonResponse({ error: "Match not found." }, 404);
     }
 
-    if (match.created_by === sender.id) {
-      return jsonResponse({ sent: 0, failed: 0, skipped: true });
+    if (body.type === "match_cancelled" || body.type === "match_deleted" || body.type === "match_updated") {
+      const canManage = match.created_by === sender.id || sender.role === "admin";
+
+      if (!canManage) {
+        return jsonResponse({ error: "Only the match creator or admin can notify match updates." }, 403);
+      }
+
+      const { data: invitationRows, error: invitationError } = await adminClient
+        .from("match_invitations")
+        .select("member_id")
+        .eq("match_id", matchId)
+        .neq("status", "removed");
+
+      if (invitationError) {
+        return jsonResponse({ error: invitationError.message }, 500);
+      }
+
+      allowedRecipientIds = uniqueIds([
+        match.created_by,
+        ...(invitationRows || []).map(row => row.member_id)
+      ]).filter(id => id !== sender.id);
+      payloadBody = body.type === "match_updated"
+        ? matchUpdatedPayload(match as MatchRow, memberDisplayName(sender), body.update_summary)
+        : matchLifecyclePayload(match as MatchRow, body.type as "match_cancelled" | "match_deleted", memberDisplayName(sender));
+    } else {
+      if (match.created_by === sender.id) {
+        return jsonResponse({ sent: 0, failed: 0, skipped: true });
+      }
+
+      const { data: invitation, error: invitationError } = await adminClient
+        .from("match_invitations")
+        .select("id,status")
+        .eq("match_id", matchId)
+        .eq("member_id", sender.id)
+        .neq("status", "removed")
+        .maybeSingle();
+
+      if (invitationError) {
+        return jsonResponse({ error: invitationError.message }, 500);
+      }
+
+      if (!invitation) {
+        return jsonResponse({ error: "Only invited members can notify the match creator." }, 403);
+      }
+
+      allowedRecipientIds = match.created_by ? [match.created_by] : [];
+
+      payloadBody = body.type === "creator_game_full"
+        ? creatorGameFullPayload(match as MatchRow)
+        : creatorVoteChangedPayload(match as MatchRow, memberDisplayName(sender), body.vote_status);
     }
-
-    const { data: invitation, error: invitationError } = await adminClient
-      .from("match_invitations")
-      .select("id,status")
-      .eq("match_id", matchId)
-      .eq("member_id", sender.id)
-      .neq("status", "removed")
-      .maybeSingle();
-
-    if (invitationError) {
-      return jsonResponse({ error: invitationError.message }, 500);
-    }
-
-    if (!invitation) {
-      return jsonResponse({ error: "Only invited members can notify the match creator." }, 403);
-    }
-
-    allowedRecipientIds = match.created_by ? [match.created_by] : [];
-
-    payloadBody = body.type === "creator_game_full"
-      ? creatorGameFullPayload(match as MatchRow)
-      : creatorVoteChangedPayload(match as MatchRow, memberDisplayName(sender), body.vote_status);
   }
 
   if (!allowedRecipientIds.length) {

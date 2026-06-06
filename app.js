@@ -5131,6 +5131,70 @@ function getMatchDateTimeValues() {
   };
 }
 
+function matchUpdateDateTimeText(value) {
+  if (!value) return "";
+
+  return new Date(value).toLocaleString([], {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+function venueNameById(venueId) {
+  const cleanId = cleanUuidValue(venueId);
+  if (!cleanId) return "";
+  return (allVenues || []).find(venue => cleanUuidValue(venue.id) === cleanId)?.name || "";
+}
+
+function matchUpdateSummary(previousMatch, nextMatch) {
+  if (!previousMatch || !nextMatch) return "";
+
+  const changes = [];
+  const previousStart = previousMatch.start_time ? new Date(previousMatch.start_time) : null;
+  const nextStart = nextMatch.start_time ? new Date(nextMatch.start_time) : null;
+
+  if (previousStart && nextStart && previousStart.getTime() !== nextStart.getTime()) {
+    const previousDate = toLocalDateValue(previousStart);
+    const nextDate = toLocalDateValue(nextStart);
+    const nextText = matchUpdateDateTimeText(nextStart);
+
+    if (previousDate !== nextDate) {
+      changes.push(`${nextStart > previousStart ? "date postponed" : "date moved earlier"} to ${nextText}`);
+    } else {
+      changes.push(`time changed to ${nextText}`);
+    }
+  }
+
+  if (cleanUuidValue(previousMatch.venue_id) !== cleanUuidValue(nextMatch.venue_id)) {
+    const venueName = venueNameById(nextMatch.venue_id) || nextMatch.venues?.name || "a new venue";
+    changes.push(`venue changed to ${venueName}`);
+  }
+
+  if (Number(previousMatch.required_players || previousMatch.max_players || 0) !== Number(nextMatch.required_players || nextMatch.max_players || 0)) {
+    changes.push(`required players changed to ${Number(nextMatch.required_players || nextMatch.max_players || 0)}`);
+  }
+
+  if (String(previousMatch.notes || "").trim() !== String(nextMatch.notes || "").trim()) {
+    changes.push("notes updated");
+  }
+
+  if (previousMatch.voting_deadline_at && nextMatch.voting_deadline_at) {
+    const previousDeadline = new Date(previousMatch.voting_deadline_at);
+    const nextDeadline = new Date(nextMatch.voting_deadline_at);
+
+    if (!Number.isNaN(previousDeadline.getTime()) &&
+      !Number.isNaN(nextDeadline.getTime()) &&
+      previousDeadline.getTime() !== nextDeadline.getTime()) {
+      changes.push(`voting deadline changed to ${matchUpdateDateTimeText(nextDeadline)}`);
+    }
+  }
+
+  return changes.slice(0, 3).join("; ");
+}
+
 function currentMatchStartDateTimeValue() {
   const startDate = $("match-start-date")?.value || "";
   const startParts = readTimeParts("match-start");
@@ -5251,6 +5315,8 @@ async function deleteOrCancelMatch(matchId) {
     const ok = confirm("This match is still upcoming. Delete it completely?");
     if (!ok) return;
 
+    const notificationResult = await sendMatchLifecycleNotification(matchId, "match_deleted");
+
     const { error } = await supabaseClient
       .from("matches")
       .delete()
@@ -5259,6 +5325,10 @@ async function deleteOrCancelMatch(matchId) {
     if (error) {
       alert(error.message);
       return;
+    }
+
+    if (notificationResult?.error) {
+      alert(`Match deleted, but phone notifications failed: ${notificationResult.error}`);
     }
 
     alert("Match deleted.");
@@ -5276,6 +5346,12 @@ async function deleteOrCancelMatch(matchId) {
     if (error) {
       alert(error.message);
       return;
+    }
+
+    const notificationResult = await sendMatchLifecycleNotification(matchId, "match_cancelled");
+
+    if (notificationResult?.error) {
+      alert(`Match marked as cancelled, but phone notifications failed: ${notificationResult.error}`);
     }
 
     alert("Match marked as cancelled.");
@@ -5336,10 +5412,7 @@ async function voteMatch(matchId, newStatus) {
   const maxPlayers = Number(match.max_players || 0);
   const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
   const userIsCurrentlyIn = currentVoteStatus === "in";
-  const willFillMatch = newStatus === "in" &&
-    !userIsCurrentlyIn &&
-    maxPlayers &&
-    filledCount + 1 >= maxPlayers;
+  const wasFullBeforeVote = Boolean(maxPlayers && filledCount >= maxPlayers);
 
   if (newStatus === "in" && !userIsCurrentlyIn) {
     const conflictingMatch = voteInTimeConflict(match);
@@ -5396,15 +5469,18 @@ async function voteMatch(matchId, newStatus) {
     invitation.status = newStatus;
   }
 
+  const nextCounts = invitationCounts(match);
+  const isFullAfterVote = Boolean(maxPlayers && nextCounts.inCount >= maxPlayers);
+
   if (!isCreator && currentVoteStatus !== newStatus) {
-    sendCreatorMatchNotification(match.id, "creator_vote_changed", {
+    await sendCreatorMatchNotification(match.id, "creator_vote_changed", {
       vote_status: newStatus,
       previous_vote_status: currentVoteStatus || "none"
     });
   }
 
-  if (!isCreator && willFillMatch) {
-    sendCreatorMatchNotification(match.id, "creator_game_full");
+  if (!isCreator && newStatus === "in" && !wasFullBeforeVote && isFullAfterVote) {
+    await sendCreatorMatchNotification(match.id, "creator_game_full");
   }
 
   renderMatches();
@@ -6298,6 +6374,11 @@ function applySuggestedTeams() {
     return;
   }
 
+  if (players.length % 2 !== 0) {
+    alert("An even number of IN players is required to suggest equal teams.");
+    return;
+  }
+
   let teamA = [];
   let teamB = [];
   let positionsA = new Map();
@@ -6519,7 +6600,7 @@ function updateTeamBalanceStatus() {
   const isBalanced =
     assignments.teamA.length > 0 &&
     assignments.teamB.length > 0 &&
-    difference <= 1;
+    difference === 0;
 
   if (status) {
     status.textContent = `Team A: ${assignments.teamA.length} • Team B: ${assignments.teamB.length}`;
@@ -6724,8 +6805,8 @@ async function saveTeams() {
     return;
   }
 
-  if (teamCountDifference > 1) {
-    alert("Teams must be balanced. The number of players in Team A and Team B can differ by maximum 1 player.");
+  if (teamCountDifference !== 0) {
+    alert("Teams must have the same number of players.");
     return;
   }
 
@@ -6869,6 +6950,16 @@ async function saveTeams() {
   if (matchUpdateError) {
     alert(matchUpdateError.message);
     return;
+  }
+
+  const teamNotificationResults = await Promise.all([
+    sendTeamAssignedNotification(teamMatchId, teamAName, assignments.teamA),
+    sendTeamAssignedNotification(teamMatchId, teamBName, assignments.teamB)
+  ]);
+  const teamNotificationError = teamNotificationResults.find(result => result?.error);
+
+  if (teamNotificationError?.error) {
+    alert(`Teams saved, but phone notifications failed: ${teamNotificationError.error}`);
   }
 
   if (match.score_status === "submitted") {
@@ -7338,7 +7429,7 @@ function padelSetSummary(sets = [], winnerTeam = null) {
 }
 
 function padelMarginMultiplier(gameMargin) {
-  return clampNumber(1 + Number(gameMargin || 0) / 24, 0.85, 1.2);
+  return clampNumber(1 + (Number(gameMargin || 0) / 12) * 0.2, 1, 1.2);
 }
 
 function padelRatingDeltas(match, sets, winnerTeam) {
@@ -11283,6 +11374,87 @@ async function sendCreatorMatchNotification(matchId, type, extra = {}) {
   }
 }
 
+async function sendMatchLifecycleNotification(matchId, type, extra = {}) {
+  const safeMatchId = cleanUuidValue(matchId);
+
+  if (!safeMatchId || !type) return { sent: 0, failed: 0, skipped: true };
+
+  try {
+    const { data, error } = await supabaseClient.functions.invoke("send-push", {
+      body: {
+        type,
+        match_id: safeMatchId,
+        ...extra
+      }
+    });
+
+    if (error) throw error;
+    console.info("Match lifecycle notification result:", data);
+    return data || { sent: 0, failed: 0 };
+  } catch (error) {
+    console.warn("Match lifecycle notification was not sent:", error.message || error);
+    return {
+      sent: 0,
+      failed: 1,
+      error: error.message || "Could not send match lifecycle notification."
+    };
+  }
+}
+
+function teamShirtColorFromName(teamName) {
+  const text = String(teamName || "").toLowerCase();
+  const colors = [
+    "white",
+    "black",
+    "red",
+    "blue",
+    "green",
+    "yellow",
+    "orange",
+    "purple",
+    "pink",
+    "grey",
+    "gray",
+    "navy"
+  ];
+
+  return colors.find(color => text.includes(color)) || "";
+}
+
+async function sendTeamAssignedNotification(matchId, teamName, memberIds = []) {
+  const safeMatchId = cleanUuidValue(matchId);
+  const recipients = Array.from(new Set((memberIds || [])
+    .map(id => cleanUuidValue(id))
+    .filter(Boolean)));
+
+  if (!safeMatchId || !recipients.length) {
+    return { sent: 0, failed: 0, skipped: true };
+  }
+
+  try {
+    const { data, error } = await supabaseClient.functions.invoke("send-push", {
+      body: {
+        type: "team_assigned",
+        match_id: safeMatchId,
+        recipient_member_ids: recipients,
+        team_name: teamName || "your team",
+        shirt_color: teamShirtColorFromName(teamName)
+      }
+    });
+
+    if (error) throw error;
+    console.info("Team assigned notification result:", data);
+    return data || { sent: 0, failed: 0 };
+  } catch (error) {
+    console.warn("Team assigned notification was not sent:", error.message || error);
+    return {
+      sent: 0,
+      failed: recipients.length,
+      error: error.message || "Could not send team assigned notifications."
+    };
+  }
+}
+
 async function sendTestNotification() {
   if (!currentProfile || currentProfile.approval_status !== "approved") {
     alert("Approved members only.");
@@ -11436,24 +11608,38 @@ async function saveProfile() {
     return;
   }
 
-  const profile = {
-    auth_user_id: user.id,
-    email: user.email,
+  const profileFields = {
     first_name: firstName,
     last_name: $("profile-last-name").value.trim(),
     display_name: displayName,
     birth_date: $("profile-birth-date").value || null,
-    phone: $("profile-phone").value.trim(),
-    is_external: currentProfile?.is_external ?? false,
-    is_active: currentProfile?.is_active ?? true,
-    role: currentProfile?.role ?? "member",
-    approval_status: currentProfile?.approval_status ?? "pending",
-    registration_status: currentProfile?.registration_status ?? "pending"
+    phone: $("profile-phone").value.trim()
   };
 
-  const { error } = await supabaseClient
-    .from("members")
-    .upsert(profile, { onConflict: "auth_user_id" });
+  const result = currentProfile?.id
+    ? await supabaseClient
+      .from("members")
+      .update(profileFields)
+      .eq("id", currentProfile.id)
+      .eq("auth_user_id", user.id)
+      .select("id")
+      .single()
+    : await supabaseClient
+      .from("members")
+      .insert({
+        auth_user_id: user.id,
+        email: user.email,
+        ...profileFields,
+        is_external: false,
+        is_active: true,
+        role: "member",
+        approval_status: "pending",
+        registration_status: "pending"
+      })
+      .select("id")
+      .single();
+
+  const { error } = result;
 
   if (error) {
     alert(error.message);
@@ -11786,8 +11972,13 @@ function bindEvents() {
 
     if (!matchDateTimes) return;
 
-    if (!requiredPlayers || requiredPlayers < 1) {
-      alert("Required players must be at least 1.");
+    if (!requiredPlayers || requiredPlayers < 2) {
+      alert("Required players must be at least 2.");
+      return;
+    }
+
+    if (requiredPlayers % 2 !== 0) {
+      alert("Required players must be an even number so both teams have the same number of players.");
       return;
     }
 
@@ -11829,6 +12020,14 @@ function bindEvents() {
 
     let result;
     const activeEditingMatchId = cleanUuidValue(editingMatchId);
+    const previousMatch = activeEditingMatchId
+      ? allMatches.find(existingMatch => cleanUuidValue(existingMatch.id) === activeEditingMatchId)
+      : null;
+    const updateSummary = previousMatch ? matchUpdateSummary(previousMatch, match) : "";
+
+    if (activeEditingMatchId && previousMatch?.created_by) {
+      match.created_by = previousMatch.created_by;
+    }
 
     if (activeEditingMatchId) {
       result = await supabaseClient
@@ -11849,6 +12048,16 @@ function bindEvents() {
     }
 
     const matchId = activeEditingMatchId || result.data?.[0]?.id;
+
+    if (activeEditingMatchId && updateSummary) {
+      const updateNotificationResult = await sendMatchLifecycleNotification(matchId, "match_updated", {
+        update_summary: updateSummary
+      });
+
+      if (updateNotificationResult?.error) {
+        alert(`Match updated, but phone notifications failed: ${updateNotificationResult.error}`);
+      }
+    }
 
     const invitationResult = await saveMatchInvitations(
       matchId,
