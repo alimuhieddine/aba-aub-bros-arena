@@ -7343,7 +7343,7 @@ function padelSetSummary(sets = [], winnerTeam = null) {
 }
 
 function padelMarginMultiplier(gameMargin) {
-  return clampNumber(1 + Number(gameMargin || 0) / 24, 0.85, 1.2);
+  return clampNumber(1 + (Number(gameMargin || 0) / 12) * 0.2, 1, 1.2);
 }
 
 function padelRatingDeltas(match, sets, winnerTeam) {
