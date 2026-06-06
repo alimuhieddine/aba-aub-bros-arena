@@ -6,6 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
+const appTimeZone = "Asia/Beirut";
 
 type PushRequest = {
   type?: string;
@@ -62,6 +63,66 @@ function formatMatchTime(value: string | null) {
   }
 }
 
+function ordinalDay(day: number) {
+  const suffix = day % 10 === 1 && day % 100 !== 11
+    ? "st"
+    : day % 10 === 2 && day % 100 !== 12
+      ? "nd"
+      : day % 10 === 3 && day % 100 !== 13
+        ? "rd"
+        : "th";
+
+  return `${day}${suffix}`;
+}
+
+function datePartsInAppTimeZone(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: appTimeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+
+  const part = (type: string) => Number(parts.find(item => item.type === type)?.value || 0);
+
+  return {
+    year: part("year"),
+    month: part("month"),
+    day: part("day")
+  };
+}
+
+function appDayStamp(date: Date) {
+  const parts = datePartsInAppTimeZone(date);
+  return Date.UTC(parts.year, parts.month - 1, parts.day);
+}
+
+function matchDatePhrase(value: string | null) {
+  if (!value) return "";
+
+  const matchDate = new Date(value);
+  if (Number.isNaN(matchDate.getTime())) return "";
+
+  const matchParts = datePartsInAppTimeZone(matchDate);
+  const dayDiff = Math.round((appDayStamp(matchDate) - appDayStamp(new Date())) / 86400000);
+
+  if (dayDiff === 0) return "today";
+  if (dayDiff === 1) return "tomorrow";
+
+  if (dayDiff > 1 && dayDiff <= 7) {
+    return `next ${new Intl.DateTimeFormat("en", {
+      timeZone: appTimeZone,
+      weekday: "long"
+    }).format(matchDate)}`;
+  }
+
+  const month = new Intl.DateTimeFormat("en", {
+    timeZone: appTimeZone,
+    month: "long"
+  }).format(matchDate);
+  return `on the ${ordinalDay(matchParts.day)} of ${month}`;
+}
+
 function memberDisplayName(member: MemberRow) {
   return member.display_name ||
     [member.first_name, member.last_name].filter(Boolean).join(" ") ||
@@ -69,12 +130,15 @@ function memberDisplayName(member: MemberRow) {
 }
 
 function matchInvitePayload(match: MatchRow, senderName: string) {
-  const title = match.title || "ABA match";
-  const sport = match.sports?.name || "Sport";
+  const sport = match.sports?.name || "sport";
+  const sportText = sport.toLowerCase();
+  const dateText = matchDatePhrase(match.start_time);
+  const venueText = match.venues?.name ? ` at ${match.venues.name}` : "";
+  const dateClause = dateText ? ` ${dateText}` : "";
 
   return {
     title: "ABA Match Invite",
-    body: `${senderName} invites you to ${title}.`,
+    body: `${senderName} invites you to a ${sportText} game${dateClause}${venueText}.`,
     tag: `match-invite-${Date.now()}`,
     renotify: true,
     requireInteraction: true,
