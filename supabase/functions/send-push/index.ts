@@ -63,11 +63,9 @@ function formatMatchTime(value: string | null) {
 }
 
 function memberDisplayName(member: MemberRow) {
-  return [
-    member.display_name,
-    member.first_name,
-    member.last_name
-  ].filter(Boolean).join(" ") || "A member";
+  return member.display_name ||
+    [member.first_name, member.last_name].filter(Boolean).join(" ") ||
+    "A member";
 }
 
 function matchInvitePayload(match: MatchRow, senderName: string) {

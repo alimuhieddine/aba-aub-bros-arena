@@ -5336,10 +5336,7 @@ async function voteMatch(matchId, newStatus) {
   const maxPlayers = Number(match.max_players || 0);
   const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
   const userIsCurrentlyIn = currentVoteStatus === "in";
-  const willFillMatch = newStatus === "in" &&
-    !userIsCurrentlyIn &&
-    maxPlayers &&
-    filledCount + 1 >= maxPlayers;
+  const wasFullBeforeVote = Boolean(maxPlayers && filledCount >= maxPlayers);
 
   if (newStatus === "in" && !userIsCurrentlyIn) {
     const conflictingMatch = voteInTimeConflict(match);
@@ -5396,15 +5393,18 @@ async function voteMatch(matchId, newStatus) {
     invitation.status = newStatus;
   }
 
+  const nextCounts = invitationCounts(match);
+  const isFullAfterVote = Boolean(maxPlayers && nextCounts.inCount >= maxPlayers);
+
   if (!isCreator && currentVoteStatus !== newStatus) {
-    sendCreatorMatchNotification(match.id, "creator_vote_changed", {
+    await sendCreatorMatchNotification(match.id, "creator_vote_changed", {
       vote_status: newStatus,
       previous_vote_status: currentVoteStatus || "none"
     });
   }
 
-  if (!isCreator && willFillMatch) {
-    sendCreatorMatchNotification(match.id, "creator_game_full");
+  if (!isCreator && newStatus === "in" && !wasFullBeforeVote && isFullAfterVote) {
+    await sendCreatorMatchNotification(match.id, "creator_game_full");
   }
 
   renderMatches();
