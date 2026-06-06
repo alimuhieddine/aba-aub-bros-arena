@@ -11479,24 +11479,38 @@ async function saveProfile() {
     return;
   }
 
-  const profile = {
-    auth_user_id: user.id,
-    email: user.email,
+  const profileFields = {
     first_name: firstName,
     last_name: $("profile-last-name").value.trim(),
     display_name: displayName,
     birth_date: $("profile-birth-date").value || null,
-    phone: $("profile-phone").value.trim(),
-    is_external: currentProfile?.is_external ?? false,
-    is_active: currentProfile?.is_active ?? true,
-    role: currentProfile?.role ?? "member",
-    approval_status: currentProfile?.approval_status ?? "pending",
-    registration_status: currentProfile?.registration_status ?? "pending"
+    phone: $("profile-phone").value.trim()
   };
 
-  const { error } = await supabaseClient
-    .from("members")
-    .upsert(profile, { onConflict: "auth_user_id" });
+  const result = currentProfile?.id
+    ? await supabaseClient
+      .from("members")
+      .update(profileFields)
+      .eq("id", currentProfile.id)
+      .eq("auth_user_id", user.id)
+      .select("id")
+      .single()
+    : await supabaseClient
+      .from("members")
+      .insert({
+        auth_user_id: user.id,
+        email: user.email,
+        ...profileFields,
+        is_external: false,
+        is_active: true,
+        role: "member",
+        approval_status: "pending",
+        registration_status: "pending"
+      })
+      .select("id")
+      .single();
+
+  const { error } = result;
 
   if (error) {
     alert(error.message);
