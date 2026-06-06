@@ -530,6 +530,7 @@ const MEMBER_ACTIVITY_SELECT = `
     last_name,
     display_name,
     email,
+    avatar_url,
     is_external
   ),
   sports (
@@ -609,6 +610,7 @@ async function loadPositionRatings() {
         last_name,
         display_name,
         email,
+        avatar_url,
         is_external
       ),
       sports (
@@ -763,6 +765,7 @@ async function loadSportProfiles() {
         last_name,
         display_name,
         email,
+        avatar_url,
         is_external
       ),
       sports (
@@ -1221,7 +1224,7 @@ async function loadMatchFormOptions() {
 
   const { data: membersData, error: membersError } = await supabaseClient
     .from("members")
-    .select("id,first_name,last_name,display_name,email,phone,is_external")
+    .select("id,first_name,last_name,display_name,email,phone,avatar_url,is_external")
     .eq("approval_status", "approved")
     .eq("is_active", true)
     .order("display_name", { ascending: true });
@@ -1289,6 +1292,47 @@ function memberDisplayName(member) {
     `${member?.first_name || ""} ${member?.last_name || ""}`.trim() ||
     member?.email ||
     "Unnamed";
+}
+
+function memberInitials(member) {
+  const name = memberDisplayName(member);
+  const parts = name
+    .split(/\s+/)
+    .map(part => part.trim())
+    .filter(Boolean);
+
+  return (parts.length >= 2
+    ? `${parts[0][0]}${parts[1][0]}`
+    : name.slice(0, 2)
+  ).toUpperCase();
+}
+
+function avatarHtml(member, className = "player-profile-avatar") {
+  const initials = escapeHtml(memberInitials(member));
+  const url = String(member?.avatar_url || "").trim();
+
+  return `
+    <div class="${escapeHtml(className)} ${url ? "" : "avatar-fallback"}">
+      ${url ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(memberDisplayName(member))} profile photo">` : initials}
+    </div>
+  `;
+}
+
+function renderProfileAvatarPreview(member = currentProfile) {
+  const box = $("profile-avatar-preview");
+  if (!box) return;
+
+  if (!member) {
+    box.classList.add("avatar-fallback");
+    box.innerHTML = "--";
+    return;
+  }
+
+  const url = String(member?.avatar_url || "").trim();
+  box.classList.toggle("avatar-fallback", !url);
+  box.innerHTML = url
+    ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(memberDisplayName(member))} profile photo">`
+    : escapeHtml(memberInitials(member));
 }
 
 function renderMatchInviteOptions(selectedIds = []) {
@@ -3211,6 +3255,7 @@ async function loadMatches() {
           last_name,
           display_name,
           email,
+          avatar_url,
           is_external
         )
       ),
@@ -3232,6 +3277,7 @@ async function loadMatches() {
             last_name,
             display_name,
             email,
+            avatar_url,
             is_external
           )
         )
@@ -3280,6 +3326,7 @@ async function loadMatches() {
           last_name,
           display_name,
           email,
+          avatar_url,
           is_external
         )
       ),
@@ -3299,6 +3346,7 @@ async function loadMatches() {
           last_name,
           display_name,
           email,
+          avatar_url,
           is_external
         )
       )
@@ -3346,6 +3394,7 @@ async function loadMatches() {
           last_name,
           display_name,
           email,
+          avatar_url,
           is_external
         )
       ),
@@ -3367,6 +3416,7 @@ async function loadMatches() {
             last_name,
             display_name,
             email,
+            avatar_url,
             is_external
           )
         )
@@ -3386,6 +3436,7 @@ async function loadMatches() {
           last_name,
           display_name,
           email,
+          avatar_url,
           is_external
         )
       )
@@ -5512,7 +5563,7 @@ async function loadExternalMembersForPicker(matchId) {
 
   const { data, error } = await supabaseClient
     .from("members")
-    .select("id,first_name,last_name,display_name,email,phone,is_external")
+    .select("id,first_name,last_name,display_name,email,phone,avatar_url,is_external")
     .eq("is_external", true)
     .eq("is_active", true)
     .eq("approval_status", "approved")
@@ -5732,7 +5783,7 @@ async function createExternalPlayerProfile() {
       approval_status: "approved",
       registration_status: "approved"
     })
-    .select("id,first_name,last_name,display_name,email,phone,is_external")
+    .select("id,first_name,last_name,display_name,email,phone,avatar_url,is_external")
     .single();
 
   if (error) {
@@ -9572,6 +9623,7 @@ async function loadRankingData() {
         last_name,
         display_name,
         email,
+        avatar_url,
         is_external
       ),
       matches (
@@ -9613,6 +9665,7 @@ async function loadRankingData() {
         last_name,
         display_name,
         email,
+        avatar_url,
         is_external
       ),
       sports (
@@ -10612,6 +10665,14 @@ function renderPlayerProfile(memberId) {
   }
 
   box.innerHTML = `
+    <div class="player-profile-hero">
+      ${avatarHtml(member)}
+      <div>
+        <strong>${escapeHtml(memberDisplayName(member))}</strong>
+        <div class="hint">${member.is_external ? "External player" : "Member"}</div>
+      </div>
+    </div>
+
     <div class="player-profile-stats">
       <div class="profile-stat-box">
         <span>Total points</span>
@@ -11515,6 +11576,8 @@ function clearProfileFields() {
     }
   });
 
+  renderProfileAvatarPreview(null);
+
   if ($("profile-status")) {
     $("profile-status").textContent = "Login to load your profile.";
   }
@@ -11529,6 +11592,108 @@ function clearProfileFields() {
   }
 
   profileIsEditing = false;
+}
+
+function profileAvatarStoragePath(memberId = currentProfile?.id) {
+  const cleanId = cleanUuidValue(memberId);
+  return cleanId ? `${cleanId}/avatar` : "";
+}
+
+async function updateCurrentProfileAvatarUrl(avatarUrl) {
+  if (!currentProfile?.id) {
+    alert("Save your profile before adding a photo.");
+    return false;
+  }
+
+  const { error } = await supabaseClient
+    .from("members")
+    .update({ avatar_url: avatarUrl || null })
+    .eq("id", currentProfile.id)
+    .eq("auth_user_id", currentProfile.auth_user_id);
+
+  if (error) {
+    alert(error.message);
+    return false;
+  }
+
+  currentProfile.avatar_url = avatarUrl || null;
+  renderProfileAvatarPreview(currentProfile);
+  return true;
+}
+
+async function uploadProfileAvatar(file) {
+  if (!currentProfile?.id) {
+    alert("Save your profile before adding a photo.");
+    return;
+  }
+
+  if (!file) return;
+
+  const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+  if (!allowedTypes.has(file.type)) {
+    alert("Please choose a JPG, PNG, or WebP image.");
+    return;
+  }
+
+  if (file.size > 2 * 1024 * 1024) {
+    alert("Profile photo must be 2 MB or smaller.");
+    return;
+  }
+
+  const path = profileAvatarStoragePath();
+  if (!path) return;
+
+  const { error } = await supabaseClient
+    .storage
+    .from("member-avatars")
+    .upload(path, file, {
+      upsert: true,
+      contentType: file.type,
+      cacheControl: "3600"
+    });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  const { data } = supabaseClient
+    .storage
+    .from("member-avatars")
+    .getPublicUrl(path);
+  const publicUrl = data?.publicUrl ? `${data.publicUrl}?v=${Date.now()}` : "";
+
+  if (publicUrl && await updateCurrentProfileAvatarUrl(publicUrl)) {
+    alert("Profile photo updated.");
+    await loadMyProfile();
+  }
+}
+
+async function removeProfileAvatar() {
+  if (!currentProfile?.id) {
+    alert("No profile loaded.");
+    return;
+  }
+
+  const ok = confirm("Remove your profile photo?");
+  if (!ok) return;
+
+  const path = profileAvatarStoragePath();
+  if (path) {
+    const { error } = await supabaseClient
+      .storage
+      .from("member-avatars")
+      .remove([path]);
+
+    if (error) {
+      console.warn("Could not remove avatar object:", error.message);
+    }
+  }
+
+  if (await updateCurrentProfileAvatarUrl(null)) {
+    alert("Profile photo removed.");
+    await loadMyProfile();
+  }
 }
 
 function setProfileEditing(isEditing) {
@@ -11559,7 +11724,7 @@ async function loadMyProfile() {
 
   const { data, error } = await supabaseClient
     .from("members")
-    .select("id,first_name,last_name,display_name,birth_date,phone,email,is_external,is_active,role,approval_status,registration_status,auth_user_id")
+    .select("id,first_name,last_name,display_name,birth_date,phone,email,avatar_url,is_external,is_active,role,approval_status,registration_status,auth_user_id")
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
@@ -11583,6 +11748,7 @@ async function loadMyProfile() {
     return;
   }
 
+  renderProfileAvatarPreview(data);
   $("profile-first-name").value = data.first_name || "";
   $("profile-last-name").value = data.last_name || "";
   $("profile-display-name").value = data.display_name || "";
@@ -12138,6 +12304,18 @@ function bindEvents() {
       setProfileEditing(true);
     }
   });
+
+  $("profile-avatar-upload-btn")?.addEventListener("click", () => {
+    $("profile-avatar-input")?.click();
+  });
+
+  $("profile-avatar-input")?.addEventListener("change", async e => {
+    const file = e.target.files?.[0] || null;
+    await uploadProfileAvatar(file);
+    e.target.value = "";
+  });
+
+  $("profile-avatar-remove-btn")?.addEventListener("click", removeProfileAvatar);
 
   $("enable-notifications-btn")?.addEventListener("click", enablePhoneNotifications);
   $("disable-notifications-btn")?.addEventListener("click", disablePhoneNotifications);

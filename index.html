@@ -236,6 +236,19 @@
         </div>
 
         <div class="card profile-card">
+          <div class="profile-photo-panel">
+            <div id="profile-avatar-preview" class="avatar-preview avatar-fallback">--</div>
+            <div>
+              <strong>Profile photo</strong>
+              <p class="hint">JPG, PNG, or WebP up to 2 MB.</p>
+              <input id="profile-avatar-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+              <div class="actions profile-photo-actions">
+                <button id="profile-avatar-upload-btn" class="secondary-btn" type="button">Change Photo</button>
+                <button id="profile-avatar-remove-btn" class="secondary-btn danger-text-btn" type="button">Remove</button>
+              </div>
+            </div>
+          </div>
+
           <label>
             First Name
             <input id="profile-first-name" type="text" disabled>
@@ -1055,7 +1068,7 @@
   <script src="js/teams.js?v=1"></script>
   <script src="js/scoring.js?v=1"></script>
   <script src="js/utils.js?v=1"></script>
-  <script src="app.js?v=168"></script>
+  <script src="app.js?v=169"></script>
   <script src="js/utils-runtime-bridge.js?v=1"></script>
   <script src="js/auth-runtime-bridge.js?v=1"></script>
 
