@@ -4488,6 +4488,63 @@ function resetMatchFilters() {
   renderMatches();
 }
 
+function deepLinkedMatchId() {
+  const hash = window.location.hash || "";
+
+  if (!hash.startsWith("#matches")) return "";
+
+  const queryStart = hash.indexOf("?");
+  if (queryStart < 0) return "";
+
+  const params = new URLSearchParams(hash.slice(queryStart + 1));
+  return cleanUuidValue(params.get("match"));
+}
+
+function resetMatchFiltersForDeepLink() {
+  if ($("match-filter-search")) $("match-filter-search").value = "";
+  if ($("match-filter-sport")) $("match-filter-sport").value = "all";
+  updateMatchFilterOptions();
+  if ($("match-filter-league")) $("match-filter-league").value = "all";
+  if ($("match-filter-status")) $("match-filter-status").value = "all";
+  if ($("match-filter-my-status")) $("match-filter-my-status").value = "all";
+}
+
+function focusMatchCard(matchId) {
+  const safeMatchId = cleanUuidValue(matchId);
+  if (!safeMatchId) return false;
+
+  const card = $(`match-${safeMatchId}`);
+  if (!card) return false;
+
+  document.querySelectorAll(".match-card.deep-link-target").forEach(el => {
+    el.classList.remove("deep-link-target");
+  });
+
+  card.classList.add("deep-link-target");
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
+
+  return true;
+}
+
+function openDeepLinkedMatch() {
+  const matchId = deepLinkedMatchId();
+  if (!matchId) return false;
+
+  setActiveTab("matches", false);
+  resetMatchFiltersForDeepLink();
+  renderMatches();
+
+  setTimeout(() => {
+    const found = focusMatchCard(matchId);
+
+    if (!found) {
+      showPushToast("Match not visible yet", "Refresh matches or check that you are invited to this match.");
+    }
+  }, 120);
+
+  return true;
+}
+
 
 
 
@@ -4686,7 +4743,7 @@ function renderMatches() {
     const teamsAssigned = matchHasTeamsAssigned(match);
 
     return `
-      <article class="card">
+      <article id="match-${escapeHtml(match.id)}" class="card match-card" data-match-id="${escapeHtml(match.id)}">
         <div class="row">
           <div>
             <h3>${escapeHtml(match.title || "Untitled match")}</h3>
@@ -11408,6 +11465,8 @@ function setActiveTab(viewId, persist = true) {
 }
 
 function restoreActiveTab() {
+  if (openDeepLinkedMatch()) return;
+
   const saved = localStorage.getItem(ACTIVE_TAB_KEY) || "dashboard";
   const view = $(saved) ? saved : "dashboard";
 
@@ -11447,6 +11506,8 @@ function bindEvents() {
       setActiveTab(btn.dataset.view);
     })
   );
+
+  window.addEventListener("hashchange", openDeepLinkedMatch);
 
  document.querySelectorAll("[data-open]").forEach(btn =>
   btn.addEventListener("click", async () => {

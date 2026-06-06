@@ -3273,6 +3273,13 @@ main,
   align-self: flex-start;
 }
 
+.match-card.deep-link-target {
+  border-color: rgba(47,210,139,.85);
+  box-shadow:
+    0 0 0 2px rgba(47,210,139,.22),
+    0 18px 42px rgba(0,0,0,.28);
+}
+
 .match-filters-card #match-expand-all,
 .match-filters-card #match-collapse-all {
   align-self: end;
