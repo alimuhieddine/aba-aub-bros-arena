@@ -5,6 +5,7 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = (id) => document.getElementById(id);
 
 const STORAGE_KEY = "aba_phase1_data";
+const PUSH_NOTIFICATIONS_APP_SETTING_KEY = "push_notifications";
 
 function futureDate(days, hour) {
   const d = new Date();
@@ -1324,12 +1325,12 @@ async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingV
 
   if (!safeMatchId) {
     alert("Cannot save invitations: match id is missing.");
-    return false;
+    return { ok: false, notifiedMemberIds: [] };
   }
 
   if (!matchId) {
     alert("Match id missing. Cannot save invitations.");
-    return false;
+    return { ok: false, notifiedMemberIds: [] };
   }
 
   /*
@@ -1371,10 +1372,10 @@ async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingV
 
     if (error) {
       alert(error.message);
-      return false;
+      return { ok: false, notifiedMemberIds: [] };
     }
 
-    return true;
+    return { ok: true, notifiedMemberIds: uniqueInvitedIds };
   }
 
   const match = allMatches.find(m => m.id === matchId);
@@ -1411,7 +1412,7 @@ async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingV
 
     if (removeError) {
       alert(removeError.message);
-      return false;
+      return { ok: false, notifiedMemberIds: [] };
     }
   }
 
@@ -1429,11 +1430,11 @@ async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingV
 
     if (addError) {
       alert(addError.message);
-      return false;
+      return { ok: false, notifiedMemberIds: [] };
     }
   }
 
-  return true;
+  return { ok: true, notifiedMemberIds: idsToAdd };
 }
 
 function render() {
@@ -10809,6 +10810,324 @@ function profileFieldIds() {
   ];
 }
 
+function phoneNotificationsSupported() {
+  return Boolean(
+    window.isSecureContext &&
+    "Notification" in window &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window
+  );
+}
+
+function setNotificationStatus(text) {
+  const status = $("notification-status");
+  if (status) status.textContent = text;
+}
+
+function setNotificationButtons(enabled, subscribed = false) {
+  const enableBtn = $("enable-notifications-btn");
+  const disableBtn = $("disable-notifications-btn");
+  const testBtn = $("test-notifications-btn");
+
+  if (enableBtn) {
+    enableBtn.disabled = !enabled || subscribed;
+    enableBtn.textContent = subscribed ? "Notifications Enabled" : "Enable Notifications";
+  }
+
+  if (disableBtn) {
+    disableBtn.disabled = !enabled || !subscribed;
+  }
+
+  if (testBtn) {
+    testBtn.disabled = !enabled || !subscribed;
+  }
+}
+
+function urlBase64ToUint8Array(value) {
+  const padding = "=".repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = window.atob(base64);
+  const output = new Uint8Array(raw.length);
+
+  for (let i = 0; i < raw.length; i += 1) {
+    output[i] = raw.charCodeAt(i);
+  }
+
+  return output;
+}
+
+async function loadPushNotificationSettings() {
+  const { data, error } = await supabaseClient
+    .from("app_settings")
+    .select("value")
+    .eq("key", PUSH_NOTIFICATIONS_APP_SETTING_KEY)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data?.value || {};
+}
+
+async function pushServiceWorkerRegistration() {
+  const registration = await navigator.serviceWorker.register("sw.js");
+  await navigator.serviceWorker.ready;
+  registration.update?.();
+  return registration;
+}
+
+function bindPushDebugMessages() {
+  if (!("serviceWorker" in navigator) || bindPushDebugMessages.bound) return;
+
+  bindPushDebugMessages.bound = true;
+
+  navigator.serviceWorker.addEventListener("message", event => {
+    if (event.data?.type !== "aba_push_received") return;
+
+    console.info("ABA push received by service worker:", event.data);
+    showPushToast(event.data.title || "ABA notification", event.data.body || "");
+
+    if (event.data.notificationType === "match_invite") {
+      setNotificationStatus(`Match invite push received: ${event.data.title}`);
+    }
+  });
+}
+
+function showPushToast(title, body = "") {
+  const toast = $("push-toast");
+  if (!toast) return;
+
+  clearTimeout(showPushToast.hideTimer);
+
+  toast.innerHTML = `
+    ${escapeHtml(title)}
+    ${body ? `<span>${escapeHtml(body)}</span>` : ""}
+  `;
+  toast.hidden = false;
+
+  showPushToast.hideTimer = setTimeout(() => {
+    toast.hidden = true;
+  }, 7000);
+}
+
+async function currentPushSubscription() {
+  if (!phoneNotificationsSupported()) return null;
+
+  const registration = await pushServiceWorkerRegistration();
+  return registration.pushManager.getSubscription();
+}
+
+async function savePushSubscription(subscription) {
+  if (!currentProfile?.id || !subscription) return;
+
+  const json = subscription.toJSON();
+  const { error } = await supabaseClient
+    .from("member_push_subscriptions")
+    .upsert({
+      member_id: currentProfile.id,
+      endpoint: subscription.endpoint,
+      p256dh: json.keys?.p256dh || null,
+      auth: json.keys?.auth || null,
+      subscription: json,
+      user_agent: navigator.userAgent || null,
+      enabled: true,
+      last_seen_at: new Date().toISOString()
+    }, { onConflict: "endpoint" });
+
+  if (error) throw error;
+}
+
+async function refreshNotificationUI() {
+  if (!currentProfile) {
+    setNotificationStatus("Login to manage phone notifications.");
+    setNotificationButtons(false, false);
+    return;
+  }
+
+  if (currentProfile.approval_status !== "approved") {
+    setNotificationStatus("Notifications are available after profile approval.");
+    setNotificationButtons(false, false);
+    return;
+  }
+
+  if (!phoneNotificationsSupported()) {
+    setNotificationStatus("Phone notifications need HTTPS and a browser that supports web push.");
+    setNotificationButtons(false, false);
+    return;
+  }
+
+  if (Notification.permission === "denied") {
+    setNotificationStatus("Notifications are blocked in this browser. Enable them in browser settings.");
+    setNotificationButtons(false, false);
+    return;
+  }
+
+  try {
+    const settings = await loadPushNotificationSettings();
+    const publicKey = settings.public_key || settings.vapid_public_key || "";
+
+    if (!settings.enabled || !publicKey) {
+      setNotificationStatus("Phone notifications are not configured yet.");
+      setNotificationButtons(false, false);
+      return;
+    }
+
+    const subscription = await currentPushSubscription();
+
+    if (subscription) {
+      await savePushSubscription(subscription);
+      setNotificationStatus("This device is subscribed to phone notifications.");
+      setNotificationButtons(true, true);
+    } else {
+      setNotificationStatus("Enable notifications on this device to receive match and activity alerts.");
+      setNotificationButtons(true, false);
+    }
+  } catch (error) {
+    console.warn("Could not refresh notification status:", error.message);
+    setNotificationStatus("Notification setup needs the Supabase notification SQL migration.");
+    setNotificationButtons(true, false);
+  }
+}
+
+async function enablePhoneNotifications() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") {
+    alert("Approved members only.");
+    return;
+  }
+
+  if (!phoneNotificationsSupported()) {
+    alert("Phone notifications need HTTPS and a browser that supports web push.");
+    await refreshNotificationUI();
+    return;
+  }
+
+  try {
+    const settings = await loadPushNotificationSettings();
+    const publicKey = settings.public_key || settings.vapid_public_key || "";
+
+    if (!publicKey) {
+      alert("Notification public key is not configured yet. Run the Supabase notification SQL and add your VAPID public key.");
+      return;
+    }
+
+    if (!settings.enabled) {
+      alert("Phone notifications are currently disabled in app settings.");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+
+    if (permission !== "granted") {
+      await refreshNotificationUI();
+      return;
+    }
+
+    const registration = await pushServiceWorkerRegistration();
+    const existing = await registration.pushManager.getSubscription();
+    const subscription = existing || await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey)
+    });
+
+    await savePushSubscription(subscription);
+    setNotificationStatus("This device is subscribed to phone notifications.");
+    setNotificationButtons(true, true);
+  } catch (error) {
+    console.warn("Could not enable notifications:", error);
+    alert(error.message || "Could not enable notifications.");
+    await refreshNotificationUI();
+  }
+}
+
+async function disablePhoneNotifications() {
+  try {
+    const subscription = await currentPushSubscription();
+
+    if (subscription) {
+      await supabaseClient
+        .from("member_push_subscriptions")
+        .delete()
+        .eq("endpoint", subscription.endpoint);
+
+      await subscription.unsubscribe();
+    }
+
+    setNotificationStatus("Notifications are disabled on this device.");
+    setNotificationButtons(true, false);
+  } catch (error) {
+    console.warn("Could not disable notifications:", error);
+    alert(error.message || "Could not disable notifications.");
+    await refreshNotificationUI();
+  }
+}
+
+async function sendMatchInviteNotifications(matchId, recipientMemberIds = []) {
+  const safeMatchId = cleanUuidValue(matchId);
+  const recipients = Array.from(new Set((recipientMemberIds || [])
+    .map(id => cleanUuidValue(id))
+    .filter(Boolean)))
+    .filter(id => id !== currentProfile?.id);
+
+  if (!safeMatchId || !recipients.length) {
+    return { sent: 0, failed: 0, skipped: true };
+  }
+
+  try {
+    const { data, error } = await supabaseClient.functions.invoke("send-push", {
+      body: {
+        type: "match_invite",
+        match_id: safeMatchId,
+        recipient_member_ids: recipients
+      }
+    });
+
+    if (error) throw error;
+    console.info("Match invite notification result:", data);
+    return data || { sent: 0, failed: 0 };
+  } catch (error) {
+    console.warn("Match invite notifications were not sent:", error.message || error);
+    return {
+      sent: 0,
+      failed: recipients.length,
+      error: error.message || "Could not send match invite notifications."
+    };
+  }
+}
+
+async function sendTestNotification() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") {
+    alert("Approved members only.");
+    return;
+  }
+
+  try {
+    const subscription = await currentPushSubscription();
+
+    if (!subscription) {
+      alert("This device is not subscribed yet. Enable notifications first.");
+      await refreshNotificationUI();
+      return;
+    }
+
+    await savePushSubscription(subscription);
+
+    const { data, error } = await supabaseClient.functions.invoke("send-push", {
+      body: { type: "test_push" }
+    });
+
+    if (error) throw error;
+
+    console.info("Test notification result:", data);
+
+    if (Number(data?.sent || 0) > 0) {
+      alert(`Test notification sent to ${data.sent} device${data.sent === 1 ? "" : "s"}.`);
+    } else {
+      alert("Test notification reached the sender, but no enabled subscription was found.");
+    }
+  } catch (error) {
+    console.warn("Test notification failed:", error);
+    alert(error.message || "Test notification failed.");
+  }
+}
+
 function clearProfileFields() {
   profileFieldIds().forEach(id => {
     const el = $(id);
@@ -10821,6 +11140,9 @@ function clearProfileFields() {
   if ($("profile-status")) {
     $("profile-status").textContent = "Login to load your profile.";
   }
+
+  setNotificationStatus("Login to manage phone notifications.");
+  setNotificationButtons(false, false);
 
   const btn = $("profile-action-btn");
   if (btn) {
@@ -10879,6 +11201,7 @@ async function loadMyProfile() {
     setProfileStatusText(null);
     setProfileEditing(true);
     applyAccessUI();
+    refreshNotificationUI();
     return;
   }
 
@@ -10902,6 +11225,7 @@ async function loadMyProfile() {
   }
 
   applyAccessUI();
+  refreshNotificationUI();
 }
 
 async function saveProfile() {
@@ -11307,13 +11631,19 @@ function bindEvents() {
 
     const matchId = activeEditingMatchId || result.data?.[0]?.id;
 
-    const invitationsSaved = await saveMatchInvitations(
+    const invitationResult = await saveMatchInvitations(
       matchId,
       selectedInviteIds,
       Boolean(activeEditingMatchId)
     );
 
-    if (!invitationsSaved) return;
+    if (!invitationResult.ok) return;
+
+    const notificationResult = await sendMatchInviteNotifications(matchId, invitationResult.notifiedMemberIds);
+
+    if (notificationResult?.error) {
+      alert(`Match saved, but phone notifications failed: ${notificationResult.error}`);
+    }
 
     alert(activeEditingMatchId ? "Match updated." : "Match created.");
 
@@ -11365,6 +11695,10 @@ function bindEvents() {
       setProfileEditing(true);
     }
   });
+
+  $("enable-notifications-btn")?.addEventListener("click", enablePhoneNotifications);
+  $("disable-notifications-btn")?.addEventListener("click", disablePhoneNotifications);
+  $("test-notifications-btn")?.addEventListener("click", sendTestNotification);
 
   $("signup-btn")?.addEventListener("click", () => {
     signUp($("auth-email").value.trim(), $("auth-password").value);
@@ -11443,6 +11777,7 @@ function bindEvents() {
 }
 
 bindEvents();
+bindPushDebugMessages();
 render();
 testConnection();
 refreshAuthUI();
