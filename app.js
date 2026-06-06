@@ -5131,6 +5131,70 @@ function getMatchDateTimeValues() {
   };
 }
 
+function matchUpdateDateTimeText(value) {
+  if (!value) return "";
+
+  return new Date(value).toLocaleString([], {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+function venueNameById(venueId) {
+  const cleanId = cleanUuidValue(venueId);
+  if (!cleanId) return "";
+  return (allVenues || []).find(venue => cleanUuidValue(venue.id) === cleanId)?.name || "";
+}
+
+function matchUpdateSummary(previousMatch, nextMatch) {
+  if (!previousMatch || !nextMatch) return "";
+
+  const changes = [];
+  const previousStart = previousMatch.start_time ? new Date(previousMatch.start_time) : null;
+  const nextStart = nextMatch.start_time ? new Date(nextMatch.start_time) : null;
+
+  if (previousStart && nextStart && previousStart.getTime() !== nextStart.getTime()) {
+    const previousDate = toLocalDateValue(previousStart);
+    const nextDate = toLocalDateValue(nextStart);
+    const nextText = matchUpdateDateTimeText(nextStart);
+
+    if (previousDate !== nextDate) {
+      changes.push(`${nextStart > previousStart ? "date postponed" : "date moved earlier"} to ${nextText}`);
+    } else {
+      changes.push(`time changed to ${nextText}`);
+    }
+  }
+
+  if (cleanUuidValue(previousMatch.venue_id) !== cleanUuidValue(nextMatch.venue_id)) {
+    const venueName = venueNameById(nextMatch.venue_id) || nextMatch.venues?.name || "a new venue";
+    changes.push(`venue changed to ${venueName}`);
+  }
+
+  if (Number(previousMatch.required_players || previousMatch.max_players || 0) !== Number(nextMatch.required_players || nextMatch.max_players || 0)) {
+    changes.push(`required players changed to ${Number(nextMatch.required_players || nextMatch.max_players || 0)}`);
+  }
+
+  if (String(previousMatch.notes || "").trim() !== String(nextMatch.notes || "").trim()) {
+    changes.push("notes updated");
+  }
+
+  if (previousMatch.voting_deadline_at && nextMatch.voting_deadline_at) {
+    const previousDeadline = new Date(previousMatch.voting_deadline_at);
+    const nextDeadline = new Date(nextMatch.voting_deadline_at);
+
+    if (!Number.isNaN(previousDeadline.getTime()) &&
+      !Number.isNaN(nextDeadline.getTime()) &&
+      previousDeadline.getTime() !== nextDeadline.getTime()) {
+      changes.push(`voting deadline changed to ${matchUpdateDateTimeText(nextDeadline)}`);
+    }
+  }
+
+  return changes.slice(0, 3).join("; ");
+}
+
 function currentMatchStartDateTimeValue() {
   const startDate = $("match-start-date")?.value || "";
   const startParts = readTimeParts("match-start");
@@ -11300,7 +11364,7 @@ async function sendCreatorMatchNotification(matchId, type, extra = {}) {
   }
 }
 
-async function sendMatchLifecycleNotification(matchId, type) {
+async function sendMatchLifecycleNotification(matchId, type, extra = {}) {
   const safeMatchId = cleanUuidValue(matchId);
 
   if (!safeMatchId || !type) return { sent: 0, failed: 0, skipped: true };
@@ -11309,7 +11373,8 @@ async function sendMatchLifecycleNotification(matchId, type) {
     const { data, error } = await supabaseClient.functions.invoke("send-push", {
       body: {
         type,
-        match_id: safeMatchId
+        match_id: safeMatchId,
+        ...extra
       }
     });
 
@@ -11891,6 +11956,14 @@ function bindEvents() {
 
     let result;
     const activeEditingMatchId = cleanUuidValue(editingMatchId);
+    const previousMatch = activeEditingMatchId
+      ? allMatches.find(existingMatch => cleanUuidValue(existingMatch.id) === activeEditingMatchId)
+      : null;
+    const updateSummary = previousMatch ? matchUpdateSummary(previousMatch, match) : "";
+
+    if (activeEditingMatchId && previousMatch?.created_by) {
+      match.created_by = previousMatch.created_by;
+    }
 
     if (activeEditingMatchId) {
       result = await supabaseClient
@@ -11911,6 +11984,16 @@ function bindEvents() {
     }
 
     const matchId = activeEditingMatchId || result.data?.[0]?.id;
+
+    if (activeEditingMatchId && updateSummary) {
+      const updateNotificationResult = await sendMatchLifecycleNotification(matchId, "match_updated", {
+        update_summary: updateSummary
+      });
+
+      if (updateNotificationResult?.error) {
+        alert(`Match updated, but phone notifications failed: ${updateNotificationResult.error}`);
+      }
+    }
 
     const invitationResult = await saveMatchInvitations(
       matchId,

@@ -14,6 +14,7 @@ type PushRequest = {
   recipient_member_ids?: string[];
   vote_status?: string;
   previous_vote_status?: string;
+  update_summary?: string;
 };
 
 type MatchRow = {
@@ -249,6 +250,26 @@ function matchLifecyclePayload(match: MatchRow, type: "match_cancelled" | "match
   };
 }
 
+function matchUpdatedPayload(match: MatchRow, senderName: string, updateSummary: string | undefined) {
+  const title = match.title || "ABA match";
+  const emoji = sportBallEmoji(match.sports?.name || "");
+  const summary = String(updateSummary || "details changed").trim().slice(0, 160);
+
+  return {
+    title: "ABA Match Updated",
+    body: `${emoji} ${senderName} updated ${title}: ${summary}.`,
+    tag: `updated-${match.id}-${Date.now()}`,
+    renotify: true,
+    requireInteraction: true,
+    timestamp: Date.now(),
+    url: `./index.html#matches?match=${match.id}`,
+    data: {
+      type: "match_updated",
+      match_id: match.id
+    }
+  };
+}
+
 Deno.serve(async req => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -304,7 +325,8 @@ Deno.serve(async req => {
     "creator_vote_changed",
     "creator_game_full",
     "match_cancelled",
-    "match_deleted"
+    "match_deleted",
+    "match_updated"
   ]);
 
   if (!supportedTypes.has(body.type || "")) {
@@ -365,11 +387,11 @@ Deno.serve(async req => {
       return jsonResponse({ error: "Match not found." }, 404);
     }
 
-    if (body.type === "match_cancelled" || body.type === "match_deleted") {
+    if (body.type === "match_cancelled" || body.type === "match_deleted" || body.type === "match_updated") {
       const canManage = match.created_by === sender.id || sender.role === "admin";
 
       if (!canManage) {
-        return jsonResponse({ error: "Only the match creator or admin can notify match cancellation/deletion." }, 403);
+        return jsonResponse({ error: "Only the match creator or admin can notify match updates." }, 403);
       }
 
       const { data: invitationRows, error: invitationError } = await adminClient
@@ -386,7 +408,9 @@ Deno.serve(async req => {
         match.created_by,
         ...(invitationRows || []).map(row => row.member_id)
       ]).filter(id => id !== sender.id);
-      payloadBody = matchLifecyclePayload(match as MatchRow, body.type, memberDisplayName(sender));
+      payloadBody = body.type === "match_updated"
+        ? matchUpdatedPayload(match as MatchRow, memberDisplayName(sender), body.update_summary)
+        : matchLifecyclePayload(match as MatchRow, body.type as "match_cancelled" | "match_deleted", memberDisplayName(sender));
     } else {
       if (match.created_by === sender.id) {
         return jsonResponse({ sent: 0, failed: 0, skipped: true });
