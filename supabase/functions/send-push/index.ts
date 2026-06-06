@@ -63,7 +63,7 @@ function matchInvitePayload(match: MatchRow) {
     renotify: true,
     requireInteraction: true,
     timestamp: Date.now(),
-    url: "./index.html#matches",
+    url: `./index.html#matches?match=${match.id}`,
     data: {
       type: "match_invite",
       match_id: match.id,
