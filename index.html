@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>ABA | AUB Bros Arena test 2t</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=163" />
+  <link rel="stylesheet" href="style.css?v=164" />
 </head>
 
 <body>
@@ -654,8 +654,8 @@
 
  <dialog id="matchModal" class="modal">
   <form method="dialog" id="matchForm" class="modal-card">
-    <button class="close" value="cancel" type="submit">×</button>
-    <h3>Create Match</h3>
+    <button class="close" id="match-modal-close" value="cancel" type="button">×</button>
+    <h3 id="match-modal-title">Create Match</h3>
 
     <label>
       Sport
@@ -772,7 +772,10 @@
       <input name="notes" placeholder="Optional notes..." />
     </label>
 
-    <button class="primary-btn full" type="submit">Create Match</button>
+    <div class="modal-actions">
+      <button class="secondary-btn full" id="match-cancel-btn" type="button">Cancel</button>
+      <button class="primary-btn full" id="match-submit-btn" type="submit">Create Match</button>
+    </div>
   </form>
 </dialog>
 
@@ -1068,7 +1071,7 @@
   <script src="js/teams.js?v=1"></script>
   <script src="js/scoring.js?v=1"></script>
   <script src="js/utils.js?v=1"></script>
-  <script src="app.js?v=170"></script>
+  <script src="app.js?v=171"></script>
   <script src="js/utils-runtime-bridge.js?v=1"></script>
   <script src="js/auth-runtime-bridge.js?v=1"></script>
 

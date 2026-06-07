@@ -1392,6 +1392,30 @@ function renderMatchInviteOptions(selectedIds = []) {
   `).join("");
 }
 
+function setMatchModalMode(mode = "create") {
+  const isEdit = mode === "edit";
+  const title = $("match-modal-title");
+  const submitBtn = $("match-submit-btn") || $("matchForm")?.querySelector('button[type="submit"]');
+
+  if (title) title.textContent = isEdit ? "Edit Match" : "Create Match";
+  if (submitBtn) submitBtn.textContent = isEdit ? "Save Changes" : "Create Match";
+}
+
+function resetMatchFormForCreate() {
+  editingMatchId = null;
+
+  const form = $("matchForm");
+  if (form) form.reset();
+
+  setMatchModalMode("create");
+  setDefaultMatchDateTimes();
+}
+
+function closeMatchModal() {
+  resetMatchFormForCreate();
+  $("matchModal")?.close();
+}
+
 function getSelectedInviteMemberIds() {
   return Array.from(document.querySelectorAll(".match-invite-checkbox"))
     .filter(cb => cb.checked)
@@ -4668,9 +4692,15 @@ function matchSmartBadges(match) {
 
   if (!hasTeams && displayStatus !== "cancelled" && displayStatus !== "completed") {
     if (minutesToStart !== null && minutesToStart <= 180) {
-      badges.push({ text: "Teams not assigned", type: "danger" });
+      badges.push({
+        text: isSinglesMatch(match) ? "Matchup pending" : "Teams not assigned",
+        type: "danger"
+      });
     } else if (filledPlayerCount(match) >= 2) {
-      badges.push({ text: "Teams needed", type: "gold" });
+      badges.push({
+        text: isSinglesMatch(match) ? "1v1 Matchup" : "Teams needed",
+        type: "gold"
+      });
     }
   }
 
@@ -5758,8 +5788,7 @@ async function editMatch(matchId) {
 
   renderMatchInviteOptions(invitedIds);
 
-  const submitBtn = form.querySelector('button[type="submit"]');
-  if (submitBtn) submitBtn.textContent = "Update Match";
+  setMatchModalMode("edit");
 
   $("matchModal")?.showModal();
 }
@@ -12458,6 +12487,8 @@ function bindEvents() {
 
   $("match-sport")?.addEventListener("change", updateMatchVenueOptions);
   $("match-type")?.addEventListener("change", updateMatchLeagueOptions);
+  $("match-cancel-btn")?.addEventListener("click", closeMatchModal);
+  $("match-modal-close")?.addEventListener("click", closeMatchModal);
 
   [
     "match-start-date",
@@ -12533,17 +12564,7 @@ function bindEvents() {
     }
 
     if (btn.dataset.open === "matchModal") {
-      editingMatchId = null;
-
-      const form = $("matchForm");
-      if (form) {
-        form.reset();
-
-        const submitBtn = form.querySelector('button[type="submit"]');
-        if (submitBtn) submitBtn.textContent = "Create Match";
-      }
-
-      setDefaultMatchDateTimes();
+      resetMatchFormForCreate();
 
       await loadMatchFormOptions();
     }
@@ -12734,12 +12755,7 @@ function bindEvents() {
 
     alert(activeEditingMatchId ? "Match updated." : "Match created.");
 
-    editingMatchId = null;
-    e.target.reset();
-    setDefaultMatchDateTimes();
-
-    const submitBtn = e.target.querySelector('button[type="submit"]');
-    if (submitBtn) submitBtn.textContent = "Create Match";
+    resetMatchFormForCreate();
 
     await loadMatches();
 
