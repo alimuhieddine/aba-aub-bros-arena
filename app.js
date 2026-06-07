@@ -11647,13 +11647,41 @@ function profileFieldIds() {
   ];
 }
 
+function samsungNotificationBrowserHint() {
+  const ua = navigator.userAgent || "";
+  const isSamsungInternet = /SamsungBrowser/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+
+  if (isSamsungInternet) {
+    return " Samsung Internet can block Web Push on some phones; try opening ABA in Chrome and allow notifications there.";
+  }
+
+  if (isAndroid) {
+    return " On Android, use Chrome or another browser with Web Push enabled, then allow notifications for this site.";
+  }
+
+  return "";
+}
+
+function phoneNotificationSupportIssue() {
+  if (!window.isSecureContext) return "Phone notifications need HTTPS.";
+  if (!("Notification" in window)) return "This browser does not expose notification permission.";
+  if (!("serviceWorker" in navigator)) return "This browser does not support service workers.";
+  if (!("PushManager" in window)) return "This browser does not support Web Push.";
+
+  return "";
+}
+
 function phoneNotificationsSupported() {
-  return Boolean(
-    window.isSecureContext &&
-    "Notification" in window &&
-    "serviceWorker" in navigator &&
-    "PushManager" in window
-  );
+  return !phoneNotificationSupportIssue();
+}
+
+function phoneNotificationSupportMessage() {
+  const issue = phoneNotificationSupportIssue();
+
+  return issue
+    ? `${issue}${samsungNotificationBrowserHint()}`
+    : "Phone notifications are supported on this device.";
 }
 
 function setNotificationStatus(text) {
@@ -11680,9 +11708,14 @@ function setNotificationButtons(enabled, subscribed = false) {
   }
 }
 
+function normalizedVapidPublicKey(value) {
+  return String(value || "").trim().replace(/\s+/g, "");
+}
+
 function urlBase64ToUint8Array(value) {
-  const padding = "=".repeat((4 - value.length % 4) % 4);
-  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const cleanValue = normalizedVapidPublicKey(value);
+  const padding = "=".repeat((4 - cleanValue.length % 4) % 4);
+  const base64 = (cleanValue + padding).replace(/-/g, "+").replace(/_/g, "/");
   const raw = window.atob(base64);
   const output = new Uint8Array(raw.length);
 
@@ -11786,7 +11819,7 @@ async function refreshNotificationUI() {
   }
 
   if (!phoneNotificationsSupported()) {
-    setNotificationStatus("Phone notifications need HTTPS and a browser that supports web push.");
+    setNotificationStatus(phoneNotificationSupportMessage());
     setNotificationButtons(false, false);
     return;
   }
@@ -11799,7 +11832,7 @@ async function refreshNotificationUI() {
 
   try {
     const settings = await loadPushNotificationSettings();
-    const publicKey = settings.public_key || settings.vapid_public_key || "";
+    const publicKey = normalizedVapidPublicKey(settings.public_key || settings.vapid_public_key || "");
 
     if (!settings.enabled || !publicKey) {
       setNotificationStatus("Phone notifications are not configured yet.");
@@ -11831,14 +11864,14 @@ async function enablePhoneNotifications() {
   }
 
   if (!phoneNotificationsSupported()) {
-    alert("Phone notifications need HTTPS and a browser that supports web push.");
+    alert(phoneNotificationSupportMessage());
     await refreshNotificationUI();
     return;
   }
 
   try {
     const settings = await loadPushNotificationSettings();
-    const publicKey = settings.public_key || settings.vapid_public_key || "";
+    const publicKey = normalizedVapidPublicKey(settings.public_key || settings.vapid_public_key || "");
 
     if (!publicKey) {
       alert("Notification public key is not configured yet. Run the Supabase notification SQL and add your VAPID public key.");
@@ -11850,27 +11883,44 @@ async function enablePhoneNotifications() {
       return;
     }
 
+    setNotificationStatus("Requesting notification permission...");
     const permission = await Notification.requestPermission();
 
     if (permission !== "granted") {
+      const permissionMessage = permission === "denied"
+        ? "Notifications are blocked for this site. Enable them in browser or phone app settings."
+        : "Notification permission was not granted. Tap Enable Notifications again and choose Allow.";
       await refreshNotificationUI();
+      setNotificationStatus(permissionMessage);
       return;
     }
 
+    setNotificationStatus("Registering notification service...");
     const registration = await pushServiceWorkerRegistration();
     const existing = await registration.pushManager.getSubscription();
+
+    setNotificationStatus("Subscribing this device...");
     const subscription = existing || await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey)
     });
 
+    setNotificationStatus("Saving this device...");
     await savePushSubscription(subscription);
     setNotificationStatus("This device is subscribed to phone notifications.");
     setNotificationButtons(true, true);
   } catch (error) {
     console.warn("Could not enable notifications:", error);
-    alert(error.message || "Could not enable notifications.");
+    const detail = error?.message || String(error || "");
+    const samsungHint = samsungNotificationBrowserHint();
+    const message = detail
+      ? `Could not enable notifications: ${detail}.${samsungHint}`
+      : `Could not enable notifications.${samsungHint}`;
+
+    setNotificationStatus(message);
+    alert(message);
     await refreshNotificationUI();
+    setNotificationStatus(message);
   }
 }
 
