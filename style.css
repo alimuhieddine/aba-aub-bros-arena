@@ -875,13 +875,13 @@ textarea:disabled {
   }
 
   .logged-in-box {
-    align-items: center !important;
+    align-items: flex-end !important;
     gap: 6px;
   }
 
   .logged-user {
-    align-items: center;
-    text-align: center;
+    align-items: flex-end;
+    text-align: right;
   }
 
   .logged-label {
@@ -894,14 +894,14 @@ textarea:disabled {
     overflow: visible;
     text-overflow: unset;
     max-width: none;
-    justify-content: center;
+    justify-content: flex-end;
   }
 
   #logout-btn {
     width: 60px;
     min-width: 60px;
     height: 24px;
-    align-self: center !important;
+    align-self: flex-end !important;
     font-size: 10px;
   }
 
