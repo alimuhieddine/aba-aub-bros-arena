@@ -637,8 +637,9 @@ h3 {
 
 .logged-player-identity {
   justify-content: flex-end;
-  width: 100%;
+  width: max-content;
   max-width: 100%;
+  margin-left: auto;
 }
 
 .mini-player-row {
@@ -3449,6 +3450,8 @@ main,
 
 .mini-player-link {
   justify-self: end;
+  margin-left: auto;
+  text-align: right;
   max-width: 100%;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
