@@ -1004,7 +1004,7 @@
 
   <dialog id="activityModal" class="modal">
     <form method="dialog" id="activityForm" class="modal-card">
-      <button class="close" value="cancel" type="submit">×</button>
+      <button class="close" id="activity-modal-close" value="cancel" type="button">×</button>
       <h3>Log Activity</h3>
 
       <label>Sport
@@ -1057,7 +1057,10 @@
 
       <p id="activity-points-preview" class="hint">Select sport and time to preview points.</p>
 
-      <button class="primary-btn full" type="submit">Submit for Approval</button>
+      <div class="modal-actions">
+        <button class="secondary-btn full" id="activity-cancel-btn" type="button">Cancel</button>
+        <button class="primary-btn full" type="submit">Submit for Approval</button>
+      </div>
     </form>
   </dialog>
 
@@ -1071,7 +1074,7 @@
   <script src="js/teams.js?v=1"></script>
   <script src="js/scoring.js?v=1"></script>
   <script src="js/utils.js?v=1"></script>
-  <script src="app.js?v=171"></script>
+  <script src="app.js?v=172"></script>
   <script src="js/utils-runtime-bridge.js?v=1"></script>
   <script src="js/auth-runtime-bridge.js?v=1"></script>
 
