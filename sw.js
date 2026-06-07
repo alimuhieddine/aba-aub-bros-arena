@@ -1,5 +1,31 @@
+self.addEventListener("fetch", event => {
+  const request = event.request;
+  if (request.method !== "GET") return;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
+  if (request.mode === "navigate") {
+    event.respondWith(fetch(request).catch(() => caches.match("./index.html")));
+    return;
+  }
+
+  event.respondWith(caches.match(request).then(cached => cached || fetch(request)));
+});
+
 self.addEventListener("install", event => {
-  event.waitUntil(self.skipWaiting());
+  event.waitUntil((async () => {
+    const cache = await caches.open("aba-pwa-shell-v1");
+    await cache.addAll([
+      "./index.html",
+      "./manifest.json",
+      "./assets/icons/icon-192.png",
+      "./assets/icons/icon-512.png",
+      "./assets/icons/maskable-192.png",
+      "./assets/icons/maskable-512.png"
+    ]);
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener("activate", event => {
