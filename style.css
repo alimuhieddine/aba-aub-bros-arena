@@ -528,6 +528,17 @@ h3 {
   margin-top: 8px;
 }
 
+.modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.modal-actions .full {
+  margin-top: 0;
+}
+
 .hint {
   color: var(--muted);
   margin-top: 4px;
