@@ -3030,6 +3030,41 @@ function leagueHasLinkedData(leagueId) {
   return leagueMatches(leagueId).length > 0 || leagueCompletedGames(leagueId).length > 0;
 }
 
+async function leagueLinkedDataCounts(leagueId) {
+  const safeLeagueId = cleanUuidValue(leagueId);
+
+  if (!safeLeagueId) return {
+    matches: 0,
+    games: 0,
+    error: "League id is missing."
+  };
+
+  const [matchesResult, gamesResult] = await Promise.all([
+    supabaseClient
+      .from("matches")
+      .select("id", { count: "exact", head: true })
+      .eq("league_id", safeLeagueId),
+    supabaseClient
+      .from("match_games")
+      .select("id", { count: "exact", head: true })
+      .eq("league_id", safeLeagueId)
+  ]);
+
+  if (matchesResult.error || gamesResult.error) {
+    return {
+      matches: leagueMatches(safeLeagueId).length,
+      games: leagueCompletedGames(safeLeagueId).length,
+      error: matchesResult.error?.message || gamesResult.error?.message || ""
+    };
+  }
+
+  return {
+    matches: Number(matchesResult.count || 0),
+    games: Number(gamesResult.count || 0),
+    error: ""
+  };
+}
+
 async function openEditLeague(leagueId) {
   const league = leagueById(leagueId);
 
@@ -3080,8 +3115,10 @@ async function deleteLeague(leagueId) {
     return;
   }
 
-  if (leagueHasLinkedData(leagueId)) {
-    alert("This league already has linked matches or games. Mark it as completed instead of deleting it.");
+  const linkedCounts = await leagueLinkedDataCounts(leagueId);
+
+  if (linkedCounts.matches || linkedCounts.games) {
+    alert(`This league still has ${linkedCounts.matches} linked match(es) and ${linkedCounts.games} linked game(s). Delete/reset those first, then try again.`);
     return;
   }
 
