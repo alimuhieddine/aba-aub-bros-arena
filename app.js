@@ -5902,6 +5902,12 @@ async function deleteOrCancelMatch(matchId) {
     if (!ok) return;
 
     const notificationResult = await sendMatchLifecycleNotification(matchId, "match_deleted");
+    const childDeleteResult = await deleteMatchChildRows(match);
+
+    if (!childDeleteResult.ok) {
+      alert(`Could not delete match details first. ${childDeleteResult.error}`);
+      return;
+    }
 
     const { error } = await supabaseClient
       .from("matches")
@@ -7063,6 +7069,69 @@ function applySuggestedTeams() {
   if (isSoccerMatch(match) && soccerSuggestion && $("team-rating-status")) {
     $("team-rating-status").textContent = soccerBalanceSummaryText(soccerSuggestion);
   }
+}
+
+async function deleteMatchChildRows(match) {
+  const matchId = cleanUuidValue(match?.id);
+
+  if (!matchId) return {
+    ok: false,
+    error: "Match id is missing."
+  };
+
+  const teamIds = (match.match_teams || [])
+    .map(team => cleanUuidValue(team.id))
+    .filter(Boolean);
+
+  const deleteSteps = [
+    {
+      table: "match_position_rating_adjustments",
+      query: () => supabaseClient.from("match_position_rating_adjustments").delete().eq("match_id", matchId)
+    },
+    {
+      table: "match_member_points",
+      query: () => supabaseClient.from("match_member_points").delete().eq("match_id", matchId)
+    },
+    {
+      table: "match_score_entries",
+      query: () => supabaseClient.from("match_score_entries").delete().eq("match_id", matchId)
+    },
+    {
+      table: "match_game_sessions",
+      query: () => supabaseClient.from("match_game_sessions").delete().eq("match_id", matchId)
+    },
+    {
+      table: "match_team_players",
+      skip: !teamIds.length,
+      query: () => supabaseClient.from("match_team_players").delete().in("match_team_id", teamIds)
+    },
+    {
+      table: "match_teams",
+      query: () => supabaseClient.from("match_teams").delete().eq("match_id", matchId)
+    },
+    {
+      table: "match_invitations",
+      query: () => supabaseClient.from("match_invitations").delete().eq("match_id", matchId)
+    }
+  ];
+
+  for (const step of deleteSteps) {
+    if (step.skip) continue;
+
+    const { error } = await step.query();
+
+    if (error) {
+      return {
+        ok: false,
+        error: `${step.table}: ${error.message}`
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    error: ""
+  };
 }
 
 function openTeamAssignment(matchId, scope = "full") {
