@@ -11996,6 +11996,53 @@ function setNotificationButtons(enabled, subscribed = false) {
   }
 }
 
+function setNotificationBusy(isBusy, label = "Working...") {
+  const enableBtn = $("enable-notifications-btn");
+
+  if (!enableBtn) return;
+
+  enableBtn.disabled = Boolean(isBusy);
+
+  if (isBusy) {
+    enableBtn.dataset.previousLabel = enableBtn.textContent || "Enable Notifications";
+    enableBtn.dataset.busyLabel = label;
+    enableBtn.textContent = label;
+  } else if (enableBtn.dataset.previousLabel && enableBtn.textContent === enableBtn.dataset.busyLabel) {
+    enableBtn.textContent = enableBtn.dataset.previousLabel;
+    delete enableBtn.dataset.previousLabel;
+    delete enableBtn.dataset.busyLabel;
+  } else {
+    delete enableBtn.dataset.previousLabel;
+    delete enableBtn.dataset.busyLabel;
+  }
+}
+
+function withTimeout(promise, timeoutMs, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(message)), timeoutMs);
+    })
+  ]);
+}
+
+async function requestNotificationPermissionSafely() {
+  if (Notification.permission === "granted") return "granted";
+  if (Notification.permission === "denied") return "denied";
+
+  if (Notification.requestPermission.length > 0) {
+    return await withTimeout(new Promise(resolve => {
+      Notification.requestPermission(resolve);
+    }), 15000, "Notification permission prompt did not respond. Check browser notification settings and try again.");
+  }
+
+  return await withTimeout(
+    Notification.requestPermission(),
+    15000,
+    "Notification permission prompt did not respond. Check browser notification settings and try again."
+  );
+}
+
 function urlBase64ToUint8Array(value) {
   const padding = "=".repeat((4 - value.length % 4) % 4);
   const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -12171,10 +12218,13 @@ async function enablePhoneNotifications() {
   }
 
   if (!phoneNotificationsSupported()) {
-    alert("Phone notifications need HTTPS and a browser that supports web push.");
+    alert("Phone notifications need HTTPS and a browser that supports web push. On iPhone/iPad, open ABA from the installed home-screen app. On Android, use Chrome or Samsung Internet with notifications allowed.");
     await refreshNotificationUI();
     return;
   }
+
+  setNotificationBusy(true, "Enabling...");
+  setNotificationStatus("Starting phone notification setup...");
 
   try {
     const settings = await loadPushNotificationSettings();
@@ -12190,27 +12240,56 @@ async function enablePhoneNotifications() {
       return;
     }
 
-    const permission = await Notification.requestPermission();
+    setNotificationStatus("Waiting for browser notification permission...");
+    const permission = await requestNotificationPermissionSafely();
 
     if (permission !== "granted") {
+      setNotificationStatus("Notifications were not allowed on this device.");
       await refreshNotificationUI();
       return;
     }
 
-    const registration = await pushServiceWorkerRegistration();
-    const existing = await registration.pushManager.getSubscription();
-    const subscription = existing || await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey)
-    });
+    setNotificationStatus("Registering this device...");
+    const registration = await withTimeout(
+      pushServiceWorkerRegistration(),
+      15000,
+      "Service worker registration timed out. Refresh the app, then try again."
+    );
+    const existing = await withTimeout(
+      registration.pushManager.getSubscription(),
+      10000,
+      "Could not read the existing phone subscription."
+    );
+    const subscription = existing || await withTimeout(
+      registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey)
+      }),
+      15000,
+      "Browser push subscription timed out. Check that notifications are allowed for this site."
+    );
 
     try {
-      await savePushSubscription(subscription);
+      setNotificationStatus("Saving this device...");
+      await withTimeout(
+        savePushSubscription(subscription),
+        15000,
+        "Saving the phone subscription timed out. Check your connection and try again."
+      );
     } catch (saveError) {
       if (!isPushSubscriptionOwnershipError(saveError)) throw saveError;
 
-      const freshSubscription = await freshPushSubscription(registration, publicKey);
-      await savePushSubscription(freshSubscription);
+      setNotificationStatus("Refreshing this device subscription...");
+      const freshSubscription = await withTimeout(
+        freshPushSubscription(registration, publicKey),
+        15000,
+        "Refreshing the phone subscription timed out. Disable notifications for this site in browser settings, then try again."
+      );
+      await withTimeout(
+        savePushSubscription(freshSubscription),
+        15000,
+        "Saving the refreshed phone subscription timed out. Check your connection and try again."
+      );
     }
 
     setNotificationStatus("This device is subscribed to phone notifications.");
@@ -12218,7 +12297,10 @@ async function enablePhoneNotifications() {
   } catch (error) {
     console.warn("Could not enable notifications:", error);
     alert(error.message || "Could not enable notifications.");
+    setNotificationStatus(error.message || "Could not enable notifications on this device.");
     await refreshNotificationUI();
+  } finally {
+    setNotificationBusy(false);
   }
 }
 

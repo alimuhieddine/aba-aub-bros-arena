@@ -16,14 +16,16 @@ self.addEventListener("fetch", event => {
 self.addEventListener("install", event => {
   event.waitUntil((async () => {
     const cache = await caches.open("aba-pwa-shell-v1");
-    await cache.addAll([
+    await Promise.all([
       "./index.html",
       "./manifest.json",
       "./assets/icons/icon-192.png",
       "./assets/icons/icon-512.png",
       "./assets/icons/maskable-192.png",
       "./assets/icons/maskable-512.png"
-    ]);
+    ].map(url => cache.add(url).catch(error => {
+      console.warn("ABA cache add skipped:", url, error);
+    })));
     await self.skipWaiting();
   })());
 });
