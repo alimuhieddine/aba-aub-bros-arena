@@ -7232,6 +7232,7 @@ function openTeamAssignment(matchId, scope = "full") {
   currentTeamMatchId = safeMatchId;
 
   const teams = match.match_teams || [];
+  const singles = isSinglesMatch(match);
 
   if ($("team-a-name")) {
     $("team-a-name").value = teamDisplayName(match, teams[0], singles ? "Player 1" : "Team A");
