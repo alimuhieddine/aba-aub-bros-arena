@@ -1371,6 +1371,20 @@ main,
   white-space: nowrap !important;
 }
 
+.match-invite-chip .mini-player-identity {
+  display: inline-flex !important;
+  flex: 1 1 auto !important;
+  align-items: center !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.match-invite-chip .mini-player-link,
+.match-invite-chip .mini-player-name {
+  margin-left: 0 !important;
+  text-align: left !important;
+}
+
 @media (max-width: 800px) {
   #venue-sports-options.checkbox-list {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;

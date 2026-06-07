@@ -1380,14 +1380,14 @@ function renderMatchInviteOptions(selectedIds = []) {
   }
 
   box.innerHTML = allMembers.map(member => `
-    <label class="sport-chip">
+    <label class="sport-chip match-invite-chip">
       <input
         type="checkbox"
         value="${member.id}"
         class="match-invite-checkbox"
         ${selected.has(member.id) ? "checked" : ""}
       >
-      <span>${memberMiniIdentityHtml(member, member.id, memberDisplayName(member))}</span>
+      ${memberMiniIdentityHtml(member, member.id, memberDisplayName(member), "invite-player-identity")}
     </label>
   `).join("");
 }
@@ -3791,6 +3791,128 @@ function singlesSideNameFromAssignments(match, assignments, side, fallback) {
   return matchMemberName(match, memberId) || fallback;
 }
 
+async function ensureSinglesMatchup(matchId, { showAlert = false } = {}) {
+  const safeMatchId = cleanUuidValue(matchId);
+  const match = allMatches.find(row => row.id === safeMatchId);
+
+  if (!match || !isSinglesMatch(match)) return match || null;
+  if (matchHasTeamsAssigned(match)) return match;
+
+  const players = inPlayerInvitations(match).slice(0, 2);
+
+  if (players.length !== 2) {
+    if (showAlert) alert("Two IN players are needed before saving this singles result.");
+    return null;
+  }
+
+  const sides = players.map((invitation, index) => {
+    const member = invitationMember(invitation);
+    const memberId = cleanUuidValue(member?.id || invitation.member_id);
+
+    return {
+      memberId,
+      isExternal: Boolean(member?.is_external),
+      name: invitationMemberDisplayName(invitation) || `Player ${index + 1}`,
+      color: index === 0 ? "A" : "B"
+    };
+  });
+
+  if (sides.some(side => !side.memberId)) {
+    if (showAlert) alert("Could not identify both singles players.");
+    return null;
+  }
+
+  const existingTeamIds = (match.match_teams || []).map(team => team.id).filter(Boolean);
+
+  if (existingTeamIds.length) {
+    const { error: deletePlayersError } = await supabaseClient
+      .from("match_team_players")
+      .delete()
+      .in("match_team_id", existingTeamIds);
+
+    if (deletePlayersError) {
+      if (showAlert) alert(deletePlayersError.message);
+      return null;
+    }
+
+    const { error: deleteTeamsError } = await supabaseClient
+      .from("match_teams")
+      .delete()
+      .eq("match_id", safeMatchId);
+
+    if (deleteTeamsError) {
+      if (showAlert) alert(deleteTeamsError.message);
+      return null;
+    }
+  }
+
+  const { data: teamsData, error: teamsError } = await supabaseClient
+    .from("match_teams")
+    .insert(sides.map(side => ({
+      match_id: safeMatchId,
+      name: side.name,
+      color: side.color,
+      score: 0,
+      result: null
+    })))
+    .select("id,name,color");
+
+  if (teamsError) {
+    if (showAlert) alert(teamsError.message);
+    return null;
+  }
+
+  const teamAId = teamsData?.find(team => team.color === "A")?.id || teamsData?.[0]?.id;
+  const teamBId = teamsData?.find(team => team.color === "B")?.id || teamsData?.[1]?.id;
+
+  if (!teamAId || !teamBId) {
+    if (showAlert) alert("Could not create both singles sides.");
+    return null;
+  }
+
+  const playerRows = [
+    {
+      match_team_id: teamAId,
+      member_id: sides[0].memberId,
+      is_external: sides[0].isExternal,
+      formation_position: null,
+      is_captain: false
+    },
+    {
+      match_team_id: teamBId,
+      member_id: sides[1].memberId,
+      is_external: sides[1].isExternal,
+      formation_position: null,
+      is_captain: false
+    }
+  ];
+
+  const { error: playersError } = await supabaseClient
+    .from("match_team_players")
+    .insert(playerRows);
+
+  if (playersError) {
+    if (showAlert) alert(playersError.message);
+    return null;
+  }
+
+  const { error: matchUpdateError } = await supabaseClient
+    .from("matches")
+    .update({
+      team_status: "assigned"
+    })
+    .eq("id", safeMatchId);
+
+  if (matchUpdateError) {
+    if (showAlert) alert(matchUpdateError.message);
+    return null;
+  }
+
+  await loadMatches();
+
+  return allMatches.find(row => row.id === safeMatchId) || null;
+}
+
 function assignmentGroupHeader(match, side, playersCount) {
   const team = (match?.match_teams || []).find(row => teamSideForTeam(match, row) === side);
   const teamName = side
@@ -5279,9 +5401,9 @@ function renderMatches() {
                 }
 
                 ${
-                  isTeamEditable(match) && counts.inCount >= 2
+                  !isSinglesMatch(match) && isTeamEditable(match) && counts.inCount >= 2
                     ? `<button class="small-btn" onclick="openTeamAssignment('${match.id}', 'full')">
-                        ${isSinglesMatch(match) ? "Set Matchup" : "Assign Teams"}
+                        Assign Teams
                       </button>`
                     : ""
                 }
@@ -5832,6 +5954,10 @@ async function voteMatch(matchId, newStatus) {
 
   if (!isCreator && newStatus === "in" && !wasFullBeforeVote && isFullAfterVote) {
     await sendCreatorMatchNotification(match.id, "creator_game_full");
+  }
+
+  if (isSinglesMatch(match) && isFullAfterVote && !matchHasTeamsAssigned(match)) {
+    await ensureSinglesMatchup(match.id);
   }
 
   renderMatches();
@@ -7668,23 +7794,31 @@ async function openScoreSubmission(matchId) {
     return;
   }
 
-  const { teamA, teamB } = getTwoMatchTeams(match);
+  const scoreMatch = isSinglesMatch(match) && !matchHasTeamsAssigned(match)
+    ? await ensureSinglesMatchup(match.id, { showAlert: true })
+    : match;
+
+  if (!scoreMatch) return;
+
+  const { teamA, teamB } = getTwoMatchTeams(scoreMatch);
 
   if (!teamA || !teamB) {
-    alert("Assign teams before adding or editing the result.");
+    alert(isSinglesMatch(scoreMatch)
+      ? "Two IN players are needed before adding or editing the result."
+      : "Assign teams before adding or editing the result.");
     return;
   }
 
   currentScoreMatchId = matchId;
 
   if ($("score-match-label")) {
-    const leagueName = leagueNameForId(match.league_id);
+    const leagueName = leagueNameForId(scoreMatch.league_id);
     $("score-match-label").textContent =
-      `${match.title || "Match result"} — ${match.sports?.name || ""}${leagueName ? " — League: " + leagueName : ""}`;
+      `${scoreMatch.title || "Match result"} — ${scoreMatch.sports?.name || ""}${leagueName ? " — League: " + leagueName : ""}`;
   }
 
-  const teamAName = teamDisplayName(match, teamA, "Team A");
-  const teamBName = teamDisplayName(match, teamB, "Team B");
+  const teamAName = teamDisplayName(scoreMatch, teamA, "Team A");
+  const teamBName = teamDisplayName(scoreMatch, teamB, "Team B");
 
   if ($("score-team-a-label")) $("score-team-a-label").textContent = `${teamAName} score`;
   if ($("score-team-b-label")) $("score-team-b-label").textContent = `${teamBName} score`;
@@ -7694,18 +7828,18 @@ async function openScoreSubmission(matchId) {
 
   if ($("score-team-a")) $("score-team-a").value = Number(teamA.score || 0);
   if ($("score-team-b")) $("score-team-b").value = Number(teamB.score || 0);
-  if ($("score-summary")) $("score-summary").value = match.notes || "";
+  if ($("score-summary")) $("score-summary").value = scoreMatch.notes || "";
 
-  setScoreMode(match);
+  setScoreMode(scoreMatch);
 
-  if (isPadelMatch(match)) {
-    await loadPendingPadelGames(match);
+  if (isPadelMatch(scoreMatch)) {
+    await loadPendingPadelGames(scoreMatch);
     renderPendingGameOptions();
 
     if ($("padel-game-mode")) $("padel-game-mode").value = "new";
     setPadelGameModeUI();
 
-    const nextGameNumber = matchSessionGames(match).length + 1;
+    const nextGameNumber = matchSessionGames(scoreMatch).length + 1;
     if ($("padel-game-title")) $("padel-game-title").value = `Game ${nextGameNumber}`;
 
     clearPadelSetInputs();
