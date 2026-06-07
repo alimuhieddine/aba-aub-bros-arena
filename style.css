@@ -154,6 +154,7 @@ h1 {
   flex-direction: column;
   align-items: flex-end;
   text-align: right;
+  gap: 4px;
 }
 
 .logged-label {
@@ -163,6 +164,10 @@ h1 {
 }
 
 #current-user {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
   font-size: 12px;
   font-weight: 600;
   color: white;
@@ -578,6 +583,69 @@ h3 {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.mini-avatar {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: linear-gradient(135deg, rgba(36,209,126,.18), rgba(49,168,255,.18));
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.mini-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.mini-player-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.mini-player-identity .player-link,
+.mini-player-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logged-player-identity .mini-avatar {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+  font-size: 10px;
+}
+
+.mini-player-row {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  vertical-align: middle;
+}
+
+.match-player-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .player-profile-hero {
@@ -3364,6 +3432,23 @@ main,
 
 .inline-player-link {
   font-size: inherit;
+}
+
+.mini-player-link {
+  max-width: 100%;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.inline-player-identity {
+  gap: 5px;
+}
+
+.inline-player-identity .mini-avatar {
+  width: 20px;
+  height: 20px;
+  flex-basis: 20px;
+  font-size: 8px;
 }
 
 .player-profile-content {
