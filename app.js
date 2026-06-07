@@ -12454,6 +12454,28 @@ async function sendTestNotification() {
   }
 }
 
+async function sendMemberApprovalRequestedNotification() {
+  try {
+    const { data, error } = await supabaseClient.functions.invoke("send-push", {
+      body: {
+        type: "member_approval_requested"
+      }
+    });
+
+    if (error) throw error;
+
+    console.info("Member approval notification result:", data);
+    return data || { sent: 0, failed: 0 };
+  } catch (error) {
+    console.warn("Member approval notification was not sent:", error.message || error);
+    return {
+      sent: 0,
+      failed: 1,
+      error: error.message || "Could not send member approval notification."
+    };
+  }
+}
+
 function clearProfileFields() {
   profileFieldIds().forEach(id => {
     const el = $(id);
@@ -12695,6 +12717,7 @@ async function saveProfile() {
     phone: $("profile-phone").value.trim()
   };
 
+  const isNewProfile = !currentProfile?.id;
   const result = currentProfile?.id
     ? await supabaseClient
       .from("members")
@@ -12726,6 +12749,11 @@ async function saveProfile() {
   }
 
   alert("Profile saved.");
+
+  if (isNewProfile) {
+    await sendMemberApprovalRequestedNotification();
+  }
+
   await loadMyProfile();
 }
 

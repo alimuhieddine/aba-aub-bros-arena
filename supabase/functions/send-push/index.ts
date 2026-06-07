@@ -31,9 +31,11 @@ type MatchRow = {
 type MemberRow = {
   id: string;
   role?: string | null;
+  approval_status?: string | null;
   first_name?: string | null;
   last_name?: string | null;
   display_name?: string | null;
+  email?: string | null;
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -211,6 +213,25 @@ function testPayload() {
   };
 }
 
+function memberApprovalRequestedPayload(member: MemberRow) {
+  const name = memberDisplayName(member);
+  const emailText = member.email ? ` (${member.email})` : "";
+
+  return {
+    title: "ABA Profile Approval",
+    body: `${name}${emailText} is waiting for profile approval.`,
+    tag: `member-approval-${member.id}`,
+    renotify: true,
+    requireInteraction: true,
+    timestamp: Date.now(),
+    url: "./index.html#admin",
+    data: {
+      type: "member_approval_requested",
+      member_id: member.id
+    }
+  };
+}
+
 function voteStatusLabel(status: string | undefined) {
   if (status === "in") return "IN";
   if (status === "maybe") return "Maybe";
@@ -368,22 +389,22 @@ Deno.serve(async req => {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
-  const { data: sender, error: senderError } = await adminClient
-    .from("members")
-    .select("id,role,approval_status,first_name,last_name,display_name")
-    .eq("auth_user_id", userData.user.id)
-    .maybeSingle();
-
-  if (senderError || !sender || sender.approval_status !== "approved") {
-    return jsonResponse({ error: "Approved member required." }, 403);
-  }
-
   let body: PushRequest;
 
   try {
     body = await req.json();
   } catch {
     return jsonResponse({ error: "Invalid JSON body." }, 400);
+  }
+
+  const { data: sender, error: senderError } = await adminClient
+    .from("members")
+    .select("id,role,approval_status,first_name,last_name,display_name,email")
+    .eq("auth_user_id", userData.user.id)
+    .maybeSingle();
+
+  if (senderError || !sender) {
+    return jsonResponse({ error: "Member profile required." }, 403);
   }
 
   const supportedTypes = new Set([
@@ -395,7 +416,8 @@ Deno.serve(async req => {
     "match_cancelled",
     "match_deleted",
     "match_updated",
-    "team_assigned"
+    "team_assigned",
+    "member_approval_requested"
   ]);
 
   if (!supportedTypes.has(body.type || "")) {
@@ -405,7 +427,29 @@ Deno.serve(async req => {
   let allowedRecipientIds: string[] = [];
   let payloadBody: Record<string, unknown>;
 
-  if (body.type === "test_push") {
+  if (body.type !== "member_approval_requested" && sender.approval_status !== "approved") {
+    return jsonResponse({ error: "Approved member required." }, 403);
+  }
+
+  if (body.type === "member_approval_requested") {
+    if (sender.approval_status !== "pending") {
+      return jsonResponse({ sent: 0, failed: 0, skipped: true });
+    }
+
+    const { data: admins, error: adminError } = await adminClient
+      .from("members")
+      .select("id")
+      .eq("role", "admin")
+      .eq("approval_status", "approved")
+      .eq("is_active", true);
+
+    if (adminError) {
+      return jsonResponse({ error: adminError.message }, 500);
+    }
+
+    allowedRecipientIds = (admins || []).map(admin => admin.id).filter(id => id !== sender.id);
+    payloadBody = memberApprovalRequestedPayload(sender);
+  } else if (body.type === "test_push") {
     allowedRecipientIds = [sender.id];
     payloadBody = testPayload();
   } else if (body.type === "match_invite" || body.type === "team_assigned" || body.type === "match_invite_cancelled") {
