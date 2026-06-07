@@ -3546,6 +3546,7 @@ async function loadMatches() {
   );
 
   await loadRankingData();
+  updateMatchFilterOptions();
   renderMatches();
   renderLeagues();
   renderRankings();
@@ -4937,10 +4938,27 @@ function updateMatchFilterOptions() {
 
   if (sportSelect) {
     const current = sportSelect.value || "all";
+    const sportOptions = new Map();
+
+    (allSports || []).forEach(sport => {
+      const sportId = cleanUuidValue(sport.id);
+      if (sportId) sportOptions.set(sportId, sport.name || "Sport");
+    });
+
+    (allMatches || []).forEach(match => {
+      const sportId = cleanUuidValue(match.sport_id || match.sports?.id);
+      const sportName = match.sports?.name || sportNameById(sportId);
+      if (sportId && sportName && !sportOptions.has(sportId)) {
+        sportOptions.set(sportId, sportName);
+      }
+    });
+
+    const sports = Array.from(sportOptions, ([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     sportSelect.innerHTML = `
       <option value="all">All sports</option>
-      ${(allSports || []).map(sport => `
+      ${sports.map(sport => `
         <option value="${sport.id}">${escapeHtml(sport.name)}</option>
       `).join("")}
     `;
