@@ -10788,6 +10788,8 @@ function memberById(memberId) {
 
   if (!cleanId) return null;
 
+  if (cleanUuidValue(currentProfile?.id) === cleanId) return currentProfile;
+
   const fromMembers = (allMembers || []).find(member => cleanUuidValue(member.id) === cleanId);
   if (fromMembers) return fromMembers;
 
@@ -10817,6 +10819,13 @@ function memberById(memberId) {
   }
 
   return null;
+}
+
+function memberProfileTypeLabel(member) {
+  if (member?.is_external) return "External player";
+  if (member?.role === "admin") return "Admin";
+
+  return "Member";
 }
 
 function playerProfileStats(memberId) {
@@ -11159,15 +11168,14 @@ function renderPlayerProfile(memberId) {
   const ratings = playerProfileRatings(cleanId);
   const sportSummaries = playerProfileSportSummaries(stats, ratings);
   const changes = playerProfileRatingChanges(cleanId).slice(0, 10);
+  const profileTypeLabel = memberProfileTypeLabel(member);
 
   if ($("player-profile-title")) {
     $("player-profile-title").textContent = memberDisplayName(member);
   }
 
   if ($("player-profile-subtitle")) {
-    $("player-profile-subtitle").textContent = member.is_external
-      ? "External player profile."
-      : "Member profile.";
+    $("player-profile-subtitle").textContent = `${profileTypeLabel} profile.`;
   }
 
   box.innerHTML = `
@@ -11175,7 +11183,7 @@ function renderPlayerProfile(memberId) {
       ${avatarHtml(member)}
       <div>
         <strong>${escapeHtml(memberDisplayName(member))}</strong>
-        <div class="hint">${member.is_external ? "External player" : "Member"}</div>
+        <div class="hint">${escapeHtml(profileTypeLabel)}</div>
       </div>
     </div>
 
