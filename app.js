@@ -10364,6 +10364,11 @@ function resetActivityFormForCreate() {
   updateActivityPointsPreview();
 }
 
+function closeActivityModal() {
+  resetActivityFormForCreate();
+  $("activityModal")?.close();
+}
+
 async function openEditActivity(activityId) {
   const activity = (allMemberActivities || []).find(row => row.id === activityId);
 
@@ -12776,6 +12781,9 @@ function bindEvents() {
       await submitActivityLog(e.target);
     });
   }
+
+  $("activity-cancel-btn")?.addEventListener("click", closeActivityModal);
+  $("activity-modal-close")?.addEventListener("click", closeActivityModal);
 
   [
     "activity-sport",
