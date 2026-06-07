@@ -852,7 +852,7 @@ function scoreTextForMatch(match) {
 
   if (!teamA || !teamB) return "-";
 
-  return `${teamA.name || "Team A"} ${Number(teamA.score || 0)} - ${Number(teamB.score || 0)} ${teamB.name || "Team B"}`;
+  return `${teamDisplayName(match, teamA, "Team A")} ${Number(teamA.score || 0)} - ${Number(teamB.score || 0)} ${teamDisplayName(match, teamB, "Team B")}`;
 }
 
 function currentRatingHistoryPlayer() {
@@ -1380,14 +1380,14 @@ function renderMatchInviteOptions(selectedIds = []) {
   }
 
   box.innerHTML = allMembers.map(member => `
-    <label class="sport-chip">
+    <label class="sport-chip match-invite-chip">
       <input
         type="checkbox"
         value="${member.id}"
         class="match-invite-checkbox"
         ${selected.has(member.id) ? "checked" : ""}
       >
-      <span>${memberMiniIdentityHtml(member, member.id, memberDisplayName(member))}</span>
+      ${memberMiniIdentityHtml(member, member.id, memberDisplayName(member), "invite-player-identity")}
     </label>
   `).join("");
 }
@@ -1763,11 +1763,14 @@ function homeMatchWinnerText(match) {
   const scoreB = Number(teamB?.score ?? 0);
 
   if (!teamA || !teamB) return "Result submitted";
-  if (scoreA === scoreB) return `${teamA.name || "Team A"} drew ${teamB.name || "Team B"}`;
+  const teamAName = teamDisplayName(match, teamA, "Team A");
+  const teamBName = teamDisplayName(match, teamB, "Team B");
+
+  if (scoreA === scoreB) return `${teamAName} drew ${teamBName}`;
 
   return scoreA > scoreB
-    ? `${teamA.name || "Team A"} won ${scoreA}-${scoreB}`
-    : `${teamB.name || "Team B"} won ${scoreB}-${scoreA}`;
+    ? `${teamAName} won ${scoreA}-${scoreB}`
+    : `${teamBName} won ${scoreB}-${scoreA}`;
 }
 
 function homeAllRecentRatingChanges() {
@@ -2689,7 +2692,7 @@ function leagueScoreText(match) {
 
   if (!teamA || !teamB || !hasSubmittedScore(match)) return "-";
 
-  return `${teamA.name || "Team A"} ${Number(teamA.score || 0)} - ${Number(teamB.score || 0)} ${teamB.name || "Team B"}`;
+  return `${teamDisplayName(match, teamA, "Team A")} ${Number(teamA.score || 0)} - ${Number(teamB.score || 0)} ${teamDisplayName(match, teamB, "Team B")}`;
 }
 
 function leagueWinnerText(match) {
@@ -2697,8 +2700,8 @@ function leagueWinnerText(match) {
 
   if (!teamA || !teamB || !hasSubmittedScore(match)) return "-";
 
-  if (teamA.result === "win") return teamA.name || "Team A";
-  if (teamB.result === "win") return teamB.name || "Team B";
+  if (teamA.result === "win") return teamDisplayName(match, teamA, "Team A");
+  if (teamB.result === "win") return teamDisplayName(match, teamB, "Team B");
 
   return "Draw";
 }
@@ -2822,8 +2825,8 @@ function leagueTeamGameStandings(leagueId) {
       // Soccer/simple sports: count the finalized booking result once.
       if (!hasSubmittedScore(match) || !teamA || !teamB) return;
 
-      const rowA = ensureTeam(teamA.name || "Team A");
-      const rowB = ensureTeam(teamB.name || "Team B");
+      const rowA = ensureTeam(teamDisplayName(match, teamA, "Team A"));
+      const rowB = ensureTeam(teamDisplayName(match, teamB, "Team B"));
 
       rowA.played += 1;
       rowB.played += 1;
@@ -3751,8 +3754,170 @@ function teamNameForSide(match, side) {
   return ABATeams.teamNameForSide(match, side);
 }
 
+function isSinglesMatch(match) {
+  return Number(match?.max_players || match?.required_players || 0) === 2;
+}
+
+function matchMemberName(match, memberId) {
+  const cleanId = cleanUuidValue(memberId);
+  if (!cleanId) return "";
+
+  const invitation = (match?.match_invitations || []).find(inv =>
+    cleanUuidValue(inv.member_id) === cleanId
+  );
+  const member = invitation?.member || memberById(cleanId);
+
+  return member ? memberDisplayName(member) : "";
+}
+
+function teamDisplayName(match, team, fallback = "Team") {
+  if (isSinglesMatch(match)) {
+    const player = (team?.match_team_players || [])[0];
+    const member = player ? player.member || memberById(player.member_id) || null : null;
+    const playerName = member
+      ? memberDisplayName(member)
+      : matchMemberName(match, player?.member_id);
+
+    return playerName || team?.name || fallback;
+  }
+
+  return team?.name || fallback;
+}
+
+function singlesSideNameFromAssignments(match, assignments, side, fallback) {
+  const memberIds = side === "A" ? assignments.teamA : assignments.teamB;
+  const memberId = memberIds[0] || "";
+
+  return matchMemberName(match, memberId) || fallback;
+}
+
+async function ensureSinglesMatchup(matchId, { showAlert = false } = {}) {
+  const safeMatchId = cleanUuidValue(matchId);
+  const match = allMatches.find(row => row.id === safeMatchId);
+
+  if (!match || !isSinglesMatch(match)) return match || null;
+  if (matchHasTeamsAssigned(match)) return match;
+
+  const players = inPlayerInvitations(match).slice(0, 2);
+
+  if (players.length !== 2) {
+    if (showAlert) alert("Two IN players are needed before saving this singles result.");
+    return null;
+  }
+
+  const sides = players.map((invitation, index) => {
+    const member = invitationMember(invitation);
+    const memberId = cleanUuidValue(member?.id || invitation.member_id);
+
+    return {
+      memberId,
+      isExternal: Boolean(member?.is_external),
+      name: invitationMemberDisplayName(invitation) || `Player ${index + 1}`,
+      color: index === 0 ? "A" : "B"
+    };
+  });
+
+  if (sides.some(side => !side.memberId)) {
+    if (showAlert) alert("Could not identify both singles players.");
+    return null;
+  }
+
+  const existingTeamIds = (match.match_teams || []).map(team => team.id).filter(Boolean);
+
+  if (existingTeamIds.length) {
+    const { error: deletePlayersError } = await supabaseClient
+      .from("match_team_players")
+      .delete()
+      .in("match_team_id", existingTeamIds);
+
+    if (deletePlayersError) {
+      if (showAlert) alert(deletePlayersError.message);
+      return null;
+    }
+
+    const { error: deleteTeamsError } = await supabaseClient
+      .from("match_teams")
+      .delete()
+      .eq("match_id", safeMatchId);
+
+    if (deleteTeamsError) {
+      if (showAlert) alert(deleteTeamsError.message);
+      return null;
+    }
+  }
+
+  const { data: teamsData, error: teamsError } = await supabaseClient
+    .from("match_teams")
+    .insert(sides.map(side => ({
+      match_id: safeMatchId,
+      name: side.name,
+      color: side.color,
+      score: 0,
+      result: null
+    })))
+    .select("id,name,color");
+
+  if (teamsError) {
+    if (showAlert) alert(teamsError.message);
+    return null;
+  }
+
+  const teamAId = teamsData?.find(team => team.color === "A")?.id || teamsData?.[0]?.id;
+  const teamBId = teamsData?.find(team => team.color === "B")?.id || teamsData?.[1]?.id;
+
+  if (!teamAId || !teamBId) {
+    if (showAlert) alert("Could not create both singles sides.");
+    return null;
+  }
+
+  const playerRows = [
+    {
+      match_team_id: teamAId,
+      member_id: sides[0].memberId,
+      is_external: sides[0].isExternal,
+      formation_position: null,
+      is_captain: false
+    },
+    {
+      match_team_id: teamBId,
+      member_id: sides[1].memberId,
+      is_external: sides[1].isExternal,
+      formation_position: null,
+      is_captain: false
+    }
+  ];
+
+  const { error: playersError } = await supabaseClient
+    .from("match_team_players")
+    .insert(playerRows);
+
+  if (playersError) {
+    if (showAlert) alert(playersError.message);
+    return null;
+  }
+
+  const { error: matchUpdateError } = await supabaseClient
+    .from("matches")
+    .update({
+      team_status: "assigned"
+    })
+    .eq("id", safeMatchId);
+
+  if (matchUpdateError) {
+    if (showAlert) alert(matchUpdateError.message);
+    return null;
+  }
+
+  await loadMatches();
+
+  return allMatches.find(row => row.id === safeMatchId) || null;
+}
+
 function assignmentGroupHeader(match, side, playersCount) {
-  const teamName = side ? teamNameForSide(match, side) : "Unassigned";
+  const team = (match?.match_teams || []).find(row => teamSideForTeam(match, row) === side);
+  const teamName = side
+    ? teamDisplayName(match, team, teamNameForSide(match, side))
+    : "Unassigned";
   const captainSides = captainSidesForCurrentUser(match);
   const isMyCaptainTeam = isFormationOnlyMode() && captainSides.includes(side);
 
@@ -3854,12 +4019,13 @@ function renderTeamsSummary(match) {
     <div class="teams-summary">
       ${teams.map(team => {
         const pointsText = teamPointText(match, team);
+        const name = teamDisplayName(match, team, "Team");
 
         return `
           <div class="team-summary-row enhanced-team-summary-row">
             <div class="team-summary-left">
               <div class="team-summary-main">
-                <strong>${escapeHtml(team.name || "Team")}</strong>
+                <strong>${escapeHtml(name)}</strong>
                 ${teamScoreResultLine(match, team)}
               </div>
 
@@ -5235,7 +5401,7 @@ function renderMatches() {
                 }
 
                 ${
-                  isTeamEditable(match) && counts.inCount >= 2
+                  !isSinglesMatch(match) && isTeamEditable(match) && counts.inCount >= 2
                     ? `<button class="small-btn" onclick="openTeamAssignment('${match.id}', 'full')">
                         Assign Teams
                       </button>`
@@ -5790,6 +5956,10 @@ async function voteMatch(matchId, newStatus) {
     await sendCreatorMatchNotification(match.id, "creator_game_full");
   }
 
+  if (isSinglesMatch(match) && isFullAfterVote && !matchHasTeamsAssigned(match)) {
+    await ensureSinglesMatchup(match.id);
+  }
+
   renderMatches();
   await loadMatches();
 }
@@ -6140,6 +6310,8 @@ function renderTeamAssignmentList(match) {
   const teams = match.match_teams || [];
   const teamA = teams[0] || null;
   const teamB = teams[1] || null;
+  const sideALabel = isSinglesMatch(match) ? "Player 1" : "A";
+  const sideBLabel = isSinglesMatch(match) ? "Player 2" : "B";
   const assignedMap = currentTeamByMemberId(match);
   const playerMap = currentTeamPlayerByMemberId(match);
   const showFormation = isSoccerMatch(match);
@@ -6230,7 +6402,7 @@ function renderTeamAssignmentList(match) {
                   ${formationOnly ? "disabled" : ""}
                   ${selectedSide === "A" ? "checked" : ""}
                 >
-                <span>A</span>
+                <span>${sideALabel}</span>
               </label>
 
               <label class="team-choice-chip">
@@ -6243,7 +6415,7 @@ function renderTeamAssignmentList(match) {
                   ${formationOnly ? "disabled" : ""}
                   ${selectedSide === "B" ? "checked" : ""}
                 >
-                <span>B</span>
+                <span>${sideBLabel}</span>
               </label>
 
               <label class="team-choice-chip">
@@ -6827,28 +6999,42 @@ function openTeamAssignment(matchId, scope = "full") {
   const teams = match.match_teams || [];
 
   if ($("team-a-name")) {
-    $("team-a-name").value = teams[0]?.name || "Team A";
-    $("team-a-name").disabled = isFormationOnlyMode();
+    $("team-a-name").value = teamDisplayName(match, teams[0], singles ? "Player 1" : "Team A");
+    $("team-a-name").disabled = isFormationOnlyMode() || singles;
   }
 
   if ($("team-b-name")) {
-    $("team-b-name").value = teams[1]?.name || "Team B";
-    $("team-b-name").disabled = isFormationOnlyMode();
+    $("team-b-name").value = teamDisplayName(match, teams[1], singles ? "Player 2" : "Team B");
+    $("team-b-name").disabled = isFormationOnlyMode() || singles;
   }
 
   if ($("suggest-teams-btn")) {
-    $("suggest-teams-btn").style.display = isFormationOnlyMode() ? "none" : "";
+    $("suggest-teams-btn").style.display = isFormationOnlyMode() || singles ? "none" : "";
+  }
+
+  if ($("team-modal-title")) {
+    $("team-modal-title").textContent = isFormationOnlyMode()
+      ? "Edit Formation"
+      : singles
+        ? "Set Singles Matchup"
+        : "Assign Teams";
   }
 
   if ($("team-match-label")) {
     $("team-match-label").textContent = isFormationOnlyMode()
       ? `${match.title || "Match"} — edit formation only.`
-      : `${match.title || "Match"} — assign ${players.length} IN player(s).`;
+      : singles
+        ? `${match.title || "Match"} — choose the two singles opponents.`
+        : `${match.title || "Match"} — assign ${players.length} IN player(s).`;
   }
 
   const submitBtn = $("save-teams-btn");
   if (submitBtn) {
-    submitBtn.textContent = isFormationOnlyMode() ? "Save Formation" : "Save Teams";
+    submitBtn.textContent = isFormationOnlyMode()
+      ? "Save Formation"
+      : singles
+        ? "Save Matchup"
+        : "Save Teams";
   }
 
   clearSuggestedFormationSummary();
@@ -6910,7 +7096,19 @@ function updateTeamBalanceStatus() {
     difference === 0;
 
   if (status) {
-    status.textContent = `Team A: ${assignments.teamA.length} • Team B: ${assignments.teamB.length}`;
+    const match = allMatches.find(m => m.id === currentTeamMatchId);
+
+    if (isSinglesMatch(match)) {
+      const nameA = singlesSideNameFromAssignments(match, assignments, "A", "Player 1");
+      const nameB = singlesSideNameFromAssignments(match, assignments, "B", "Player 2");
+
+      status.textContent = `${nameA}: ${assignments.teamA.length} • ${nameB}: ${assignments.teamB.length}`;
+
+      if ($("team-a-name")) $("team-a-name").value = nameA;
+      if ($("team-b-name")) $("team-b-name").value = nameB;
+    } else {
+      status.textContent = `Team A: ${assignments.teamA.length} • Team B: ${assignments.teamB.length}`;
+    }
 
     status.classList.toggle("balanced", isBalanced);
     status.classList.toggle("unbalanced", !isBalanced);
@@ -6919,6 +7117,12 @@ function updateTeamBalanceStatus() {
   if (ratingStatus) {
     const match = allMatches.find(m => m.id === currentTeamMatchId);
     const sportId = match?.sport_id;
+    const nameA = isSinglesMatch(match)
+      ? singlesSideNameFromAssignments(match, assignments, "A", "Player 1")
+      : "Team A";
+    const nameB = isSinglesMatch(match)
+      ? singlesSideNameFromAssignments(match, assignments, "B", "Player 2")
+      : "Team B";
 
     const ratingA = assignments.teamA.reduce((sum, memberId) =>
       sum + memberSportRating(memberId, sportId), 0
@@ -6931,7 +7135,7 @@ function updateTeamBalanceStatus() {
     const diff = Math.abs(ratingA - ratingB);
 
     ratingStatus.textContent =
-      `Ratings: Team A ${ratingA.toFixed(1)} • Team B ${ratingB.toFixed(1)} • Diff ${diff.toFixed(1)}`;
+      `Ratings: ${nameA} ${ratingA.toFixed(1)} • ${nameB} ${ratingB.toFixed(1)} • Diff ${diff.toFixed(1)}`;
 
     ratingStatus.classList.toggle("balanced", diff <= 1.5 && isBalanced);
     ratingStatus.classList.toggle("unbalanced", !(diff <= 1.5 && isBalanced));
@@ -7102,9 +7306,6 @@ async function saveTeams() {
     return;
   }
 
-  const teamAName = $("team-a-name")?.value.trim() || "Team A";
-  const teamBName = $("team-b-name")?.value.trim() || "Team B";
-
   const teamCountDifference = Math.abs(assignments.teamA.length - assignments.teamB.length);
 
   if (assignments.teamA.length === 0 || assignments.teamB.length === 0) {
@@ -7116,6 +7317,13 @@ async function saveTeams() {
     alert("Teams must have the same number of players.");
     return;
   }
+
+  const teamAName = isSinglesMatch(match)
+    ? singlesSideNameFromAssignments(match, assignments, "A", "Player 1")
+    : $("team-a-name")?.value.trim() || "Team A";
+  const teamBName = isSinglesMatch(match)
+    ? singlesSideNameFromAssignments(match, assignments, "B", "Player 2")
+    : $("team-b-name")?.value.trim() || "Team B";
 
   if (isSoccerMatch(match)) {
     const assignedPlayers = assignments.all.filter(player => player.team);
@@ -7259,14 +7467,16 @@ async function saveTeams() {
     return;
   }
 
-  const teamNotificationResults = await Promise.all([
-    sendTeamAssignedNotification(teamMatchId, teamAName, assignments.teamA),
-    sendTeamAssignedNotification(teamMatchId, teamBName, assignments.teamB)
-  ]);
-  const teamNotificationError = teamNotificationResults.find(result => result?.error);
+  if (!isSinglesMatch(match)) {
+    const teamNotificationResults = await Promise.all([
+      sendTeamAssignedNotification(teamMatchId, teamAName, assignments.teamA),
+      sendTeamAssignedNotification(teamMatchId, teamBName, assignments.teamB)
+    ]);
+    const teamNotificationError = teamNotificationResults.find(result => result?.error);
 
-  if (teamNotificationError?.error) {
-    alert(`Teams saved, but phone notifications failed: ${teamNotificationError.error}`);
+    if (teamNotificationError?.error) {
+      alert(`Teams saved, but phone notifications failed: ${teamNotificationError.error}`);
+    }
   }
 
   if (match.score_status === "submitted") {
@@ -7274,9 +7484,9 @@ async function saveTeams() {
 
     if (!pointsUpdated) return;
 
-    alert("Teams saved and points recalculated.");
+    alert(`${isSinglesMatch(match) ? "Matchup" : "Teams"} saved and points recalculated.`);
   } else {
-    alert("Teams saved.");
+    alert(`${isSinglesMatch(match) ? "Matchup" : "Teams"} saved.`);
   }
 
   $("teamModal")?.close();
@@ -7584,41 +7794,52 @@ async function openScoreSubmission(matchId) {
     return;
   }
 
-  const { teamA, teamB } = getTwoMatchTeams(match);
+  const scoreMatch = isSinglesMatch(match) && !matchHasTeamsAssigned(match)
+    ? await ensureSinglesMatchup(match.id, { showAlert: true })
+    : match;
+
+  if (!scoreMatch) return;
+
+  const { teamA, teamB } = getTwoMatchTeams(scoreMatch);
 
   if (!teamA || !teamB) {
-    alert("Assign teams before adding or editing the result.");
+    alert(isSinglesMatch(scoreMatch)
+      ? "Two IN players are needed before adding or editing the result."
+      : "Assign teams before adding or editing the result.");
     return;
   }
 
   currentScoreMatchId = matchId;
 
   if ($("score-match-label")) {
-    const leagueName = leagueNameForId(match.league_id);
+    const leagueName = leagueNameForId(scoreMatch.league_id);
     $("score-match-label").textContent =
-      `${match.title || "Match result"} — ${match.sports?.name || ""}${leagueName ? " — League: " + leagueName : ""}`;
+      `${scoreMatch.title || "Match result"} — ${scoreMatch.sports?.name || ""}${leagueName ? " — League: " + leagueName : ""}`;
   }
 
-  if ($("score-team-a-label")) $("score-team-a-label").textContent = `${teamA.name || "Team A"} score`;
-  if ($("score-team-b-label")) $("score-team-b-label").textContent = `${teamB.name || "Team B"} score`;
+  const teamAName = teamDisplayName(scoreMatch, teamA, "Team A");
+  const teamBName = teamDisplayName(scoreMatch, teamB, "Team B");
 
-  if ($("padel-team-a-head")) $("padel-team-a-head").textContent = teamA.name || "Team A";
-  if ($("padel-team-b-head")) $("padel-team-b-head").textContent = teamB.name || "Team B";
+  if ($("score-team-a-label")) $("score-team-a-label").textContent = `${teamAName} score`;
+  if ($("score-team-b-label")) $("score-team-b-label").textContent = `${teamBName} score`;
+
+  if ($("padel-team-a-head")) $("padel-team-a-head").textContent = teamAName;
+  if ($("padel-team-b-head")) $("padel-team-b-head").textContent = teamBName;
 
   if ($("score-team-a")) $("score-team-a").value = Number(teamA.score || 0);
   if ($("score-team-b")) $("score-team-b").value = Number(teamB.score || 0);
-  if ($("score-summary")) $("score-summary").value = match.notes || "";
+  if ($("score-summary")) $("score-summary").value = scoreMatch.notes || "";
 
-  setScoreMode(match);
+  setScoreMode(scoreMatch);
 
-  if (isPadelMatch(match)) {
-    await loadPendingPadelGames(match);
+  if (isPadelMatch(scoreMatch)) {
+    await loadPendingPadelGames(scoreMatch);
     renderPendingGameOptions();
 
     if ($("padel-game-mode")) $("padel-game-mode").value = "new";
     setPadelGameModeUI();
 
-    const nextGameNumber = matchSessionGames(match).length + 1;
+    const nextGameNumber = matchSessionGames(scoreMatch).length + 1;
     if ($("padel-game-title")) $("padel-game-title").value = `Game ${nextGameNumber}`;
 
     clearPadelSetInputs();
@@ -8069,6 +8290,8 @@ async function savePadelGameOnly() {
   let gameId = null;
   const winnerTeam = padelGameWinnerFromSets(padelResult);
   const gameStatus = winnerTeam ? "completed" : "in_progress";
+  const teamAName = teamDisplayName(match, teamA, "Team A");
+  const teamBName = teamDisplayName(match, teamB, "Team B");
 
   if (mode === "continue") {
     gameId = $("padel-pending-game")?.value || "";
@@ -8082,8 +8305,8 @@ async function savePadelGameOnly() {
       .from("match_games")
       .update({
         title: gameTitle,
-        team_a_name: teamA.name || "Team A",
-        team_b_name: teamB.name || "Team B",
+        team_a_name: teamAName,
+        team_b_name: teamBName,
         team_a_score: padelResult.teamASetWins,
         team_b_score: padelResult.teamBSetWins,
         winner_team: winnerTeam,
@@ -8103,8 +8326,8 @@ async function savePadelGameOnly() {
         league_id: match.league_id || null,
         title: gameTitle,
         status: gameStatus,
-        team_a_name: teamA.name || "Team A",
-        team_b_name: teamB.name || "Team B",
+        team_a_name: teamAName,
+        team_b_name: teamBName,
         team_a_score: padelResult.teamASetWins,
         team_b_score: padelResult.teamBSetWins,
         winner_team: winnerTeam,
@@ -9555,6 +9778,8 @@ async function finalizeCurrentMatchResult() {
   const summary = $("score-summary")?.value.trim() || null;
   let scoreA = Number(teamA.score || 0);
   let scoreB = Number(teamB.score || 0);
+  const teamAName = teamDisplayName(match, teamA, "Team A");
+  const teamBName = teamDisplayName(match, teamB, "Team B");
 
   if (isPadelMatch(match)) {
     const savedGame = await savePadelGameOnly();
@@ -9585,8 +9810,8 @@ async function finalizeCurrentMatchResult() {
         league_id: match.league_id || null, // automatically inherited from the booking/match league
         title: match.title || "Game",
         status: "completed",
-        team_a_name: teamA.name || "Team A",
-        team_b_name: teamB.name || "Team B",
+        team_a_name: teamAName,
+        team_b_name: teamBName,
         team_a_score: scoreA,
         team_b_score: scoreB,
         winner_team: winnerTeam,
