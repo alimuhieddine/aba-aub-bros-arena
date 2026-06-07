@@ -10532,7 +10532,7 @@ async function loadRankingData() {
     allRankingPointRows = [];
   } else {
     allRankingPointRows = (pointsResult.data || [])
-      .filter(row => row.matches && !isCancelledMatch(row.matches) && hasSubmittedScore(row.matches));
+      .filter(row => row.matches && !isCancelledMatch(row.matches));
   }
 
   const activitiesResult = await supabaseClient
@@ -11103,10 +11103,38 @@ function updateRankingFilters() {
 
   if (sportSelect) {
     const current = sportSelect.value || "all";
+    const sportOptions = new Map();
+
+    (allSports || []).forEach(sport => {
+      const sportId = cleanUuidValue(sport.id);
+      if (sportId) sportOptions.set(sportId, sport.name || "Sport");
+    });
+
+    (allMatches || []).forEach(match => {
+      const sportId = cleanUuidValue(match.sport_id || match.sports?.id);
+      const sportName = match.sports?.name || sportNameById(sportId);
+      if (sportId && sportName && !sportOptions.has(sportId)) sportOptions.set(sportId, sportName);
+    });
+
+    (allRankingPointRows || []).forEach(point => {
+      const match = point.matches || {};
+      const sportId = cleanUuidValue(match.sport_id || match.sports?.id);
+      const sportName = match.sports?.name || sportNameById(sportId);
+      if (sportId && sportName && !sportOptions.has(sportId)) sportOptions.set(sportId, sportName);
+    });
+
+    approvedLoggedActivities().forEach(activity => {
+      const sportId = cleanUuidValue(activity.sport_id || activity.sports?.id);
+      const sportName = activity.sports?.name || sportNameById(sportId);
+      if (sportId && sportName && !sportOptions.has(sportId)) sportOptions.set(sportId, sportName);
+    });
+
+    const sports = Array.from(sportOptions, ([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     sportSelect.innerHTML = `
       <option value="all">All sports</option>
-      ${(allSports || []).map(sport => `
+      ${sports.map(sport => `
         <option value="${sport.id}">${escapeHtml(sport.name)}</option>
       `).join("")}
     `;
@@ -11143,7 +11171,11 @@ function rankingFilteredMatches() {
   const leagueId = $("rank-league-filter")?.value || "all";
 
   return (allMatches || []).filter(match => {
-    if (match.score_status !== "submitted" && match.status !== "completed") return false;
+    if (
+      match.score_status !== "submitted" &&
+      match.status !== "completed" &&
+      !(match.match_member_points || []).length
+    ) return false;
     if (sportId !== "all" && match.sport_id !== sportId) return false;
 
     if (leagueId === "none" && match.league_id) return false;
@@ -11156,16 +11188,32 @@ function rankingFilteredMatches() {
 function filteredRankingPointRows() {
   const sportId = $("rank-sport-filter")?.value || "all";
   const leagueId = $("rank-league-filter")?.value || "all";
+  const rowsByKey = new Map();
 
-  return (allRankingPointRows || []).filter(point => {
+  (allRankingPointRows || []).forEach(point => {
     const match = point.matches || {};
 
-    if (sportId !== "all" && match.sport_id !== sportId) return false;
-    if (leagueId === "none" && match.league_id) return false;
-    if (leagueId !== "all" && leagueId !== "none" && match.league_id !== leagueId) return false;
+    if (sportId !== "all" && match.sport_id !== sportId) return;
+    if (leagueId === "none" && match.league_id) return;
+    if (leagueId !== "all" && leagueId !== "none" && match.league_id !== leagueId) return;
 
-    return true;
+    const key = point.id || `${match.id || "match"}|${point.member_id}`;
+    rowsByKey.set(key, point);
   });
+
+  rankingFilteredMatches().forEach(match => {
+    (match.match_member_points || []).forEach(point => {
+      const key = point.id || `${match.id || "match"}|${point.member_id}`;
+
+      rowsByKey.set(key, {
+        ...rowsByKey.get(key),
+        ...point,
+        matches: match
+      });
+    });
+  });
+
+  return Array.from(rowsByKey.values());
 }
 
 
@@ -11729,6 +11777,8 @@ function rankingRows() {
       if (!memberId) return;
       if (playerType === "members" && isExternal) return;
       if (playerType === "external" && !isExternal) return;
+      const teamInfo = teamResultForMember(match, memberId);
+      const result = teamInfo.result || "participated";
 
       const current = table.get(memberId) || {
         memberId,
@@ -11750,6 +11800,10 @@ function rankingRows() {
       current.basePoints += Number(point.activity_points ?? point.base_points ?? 0);
       current.bonusPoints += Number(point.score_points ?? point.consistency_bonus ?? 0);
       current.matches += 1;
+
+      if (result === "win") current.wins += 1;
+      else if (result === "draw") current.draws += 1;
+      else if (result === "loss") current.losses += 1;
 
       if (match.sports?.name) current.sports.add(match.sports.name);
       if (match.league_id) current.leagues.add(match.league_id);
