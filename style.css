@@ -875,13 +875,13 @@ textarea:disabled {
   }
 
   .logged-in-box {
-    align-items: flex-end !important;
+    align-items: center !important;
     gap: 6px;
   }
 
   .logged-user {
-    align-items: flex-end;
-    text-align: right;
+    align-items: center;
+    text-align: center;
   }
 
   .logged-label {
@@ -894,13 +894,14 @@ textarea:disabled {
     overflow: visible;
     text-overflow: unset;
     max-width: none;
+    justify-content: center;
   }
 
   #logout-btn {
     width: 60px;
     min-width: 60px;
     height: 24px;
-    align-self: flex-end !important;
+    align-self: center !important;
     font-size: 10px;
   }
 
@@ -4229,6 +4230,22 @@ main,
 
 .game-stats-team-simple {
   font-size: 13px;
+}
+
+.match-formation-body .team-members-line {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.match-formation-body .team-player-chip {
+  width: 100%;
+  max-width: 100%;
+}
+
+.match-formation-body .team-player-main-line {
+  width: 100%;
 }
 
 @media (max-width: 520px) {
