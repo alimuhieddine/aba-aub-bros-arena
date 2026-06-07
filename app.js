@@ -4080,12 +4080,16 @@ function teamPlayerChips(team, match = null) {
 
   return players.map(player => {
     const ratingChange = match ? ratingChangeForPlayer(match, player.memberId, player.formationPosition) : null;
+    const currentRating = match
+      ? currentMatchPlayerRating(player.memberId, match.sport_id, player.formationPosition)
+      : null;
 
     return `
       <span class="team-player-chip stacked-player-chip">
         <span class="team-player-main-line">
           ${player.formationPosition ? `<small class="position-chip">${escapeHtml(player.formationPosition)}</small>` : ""}
           ${player.memberId ? memberMiniIdentityHtml(player.member, player.memberId, player.name, "inline-player-identity") : escapeHtml(player.name)}
+          ${currentRating ? `<small class="rating-pill">R ${currentRating.toFixed(1)}</small>` : ""}
           ${player.isCaptain ? `<b>C</b>` : ""}
           ${player.isExternal ? `<em>External</em>` : ""}
           ${ratingChangeInlineHtml(ratingChange)}
@@ -4093,6 +4097,20 @@ function teamPlayerChips(team, match = null) {
       </span>
     `;
   }).join("");
+}
+
+function currentMatchPlayerRating(memberId, sportId, formationPosition = "") {
+  const cleanMemberId = cleanUuidValue(memberId);
+  const cleanSportId = cleanUuidValue(sportId);
+  const position = normalizeSoccerPosition(formationPosition);
+
+  if (!cleanMemberId || !cleanSportId) return null;
+
+  const rating = position
+    ? positionRatingForMember(cleanMemberId, cleanSportId, position)
+    : memberSportRating(cleanMemberId, cleanSportId);
+
+  return Number.isFinite(rating) ? rating : null;
 }
 
 function renderTeamsSummary(match) {
