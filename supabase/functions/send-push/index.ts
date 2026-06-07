@@ -172,6 +172,30 @@ function matchInvitePayload(match: MatchRow, senderName: string) {
   };
 }
 
+function matchInviteCancelledPayload(match: MatchRow, senderName: string) {
+  const sport = match.sports?.name || "sport";
+  const sportText = sport.toLowerCase();
+  const emoji = sportBallEmoji(sport);
+  const dateText = matchDatePhrase(match.start_time);
+  const venueText = match.venues?.name ? ` at ${match.venues.name}` : "";
+  const dateClause = dateText ? ` ${dateText}` : "";
+
+  return {
+    title: "ABA Match Invite Cancelled",
+    body: `${emoji} ${senderName} removed your invitation to a ${sportText} game${dateClause}${venueText}.`,
+    tag: `match-invite-cancelled-${match.id}-${Date.now()}`,
+    renotify: true,
+    requireInteraction: true,
+    timestamp: Date.now(),
+    url: "./index.html#matches",
+    data: {
+      type: "match_invite_cancelled",
+      match_id: match.id,
+      sport
+    }
+  };
+}
+
 function testPayload() {
   return {
     title: "ABA Test Notification",
@@ -364,6 +388,7 @@ Deno.serve(async req => {
 
   const supportedTypes = new Set([
     "match_invite",
+    "match_invite_cancelled",
     "test_push",
     "creator_vote_changed",
     "creator_game_full",
@@ -383,7 +408,7 @@ Deno.serve(async req => {
   if (body.type === "test_push") {
     allowedRecipientIds = [sender.id];
     payloadBody = testPayload();
-  } else if (body.type === "match_invite" || body.type === "team_assigned") {
+  } else if (body.type === "match_invite" || body.type === "team_assigned" || body.type === "match_invite_cancelled") {
     const matchId = typeof body.match_id === "string" ? body.match_id : "";
     const recipientIds = uniqueIds(body.recipient_member_ids)
       .filter(id => body.type === "team_assigned" || id !== sender.id);
@@ -402,8 +427,12 @@ Deno.serve(async req => {
       return jsonResponse({ error: "Match not found." }, 404);
     }
 
-    if (body.type === "team_assigned" && match.created_by !== sender.id && sender.role !== "admin") {
-      return jsonResponse({ error: "Only the match creator or admin can notify team assignments." }, 403);
+    if (
+      (body.type === "team_assigned" || body.type === "match_invite_cancelled") &&
+      match.created_by !== sender.id &&
+      sender.role !== "admin"
+    ) {
+      return jsonResponse({ error: "Only the match creator or admin can notify this match update." }, 403);
     }
 
     const invitationQuery = adminClient
@@ -414,7 +443,9 @@ Deno.serve(async req => {
 
     const { data: invitationRows, error: invitationError } = body.type === "match_invite"
       ? await invitationQuery.eq("status", "invited")
-      : await invitationQuery.eq("status", "in");
+      : body.type === "match_invite_cancelled"
+        ? await invitationQuery.eq("status", "removed")
+        : await invitationQuery.eq("status", "in");
 
     if (invitationError) {
       return jsonResponse({ error: invitationError.message }, 500);
@@ -423,7 +454,9 @@ Deno.serve(async req => {
     allowedRecipientIds = (invitationRows || []).map(row => row.member_id);
     payloadBody = body.type === "team_assigned"
       ? teamAssignedPayload(match as MatchRow, body.team_name, body.shirt_color)
-      : matchInvitePayload(match as MatchRow, memberDisplayName(sender));
+      : body.type === "match_invite_cancelled"
+        ? matchInviteCancelledPayload(match as MatchRow, memberDisplayName(sender))
+        : matchInvitePayload(match as MatchRow, memberDisplayName(sender));
   } else {
     const matchId = typeof body.match_id === "string" ? body.match_id : "";
 

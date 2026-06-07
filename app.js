@@ -1482,7 +1482,6 @@ async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingV
 
   const match = allMatches.find(m => m.id === matchId);
   const existingInvitations = match?.match_invitations || [];
-  const existingIds = existingInvitations.map(inv => inv.member_id);
 
   /*
     Remove only real member invitations that were unchecked.
@@ -1494,13 +1493,18 @@ async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingV
       const member = invitationMember(inv);
       return (
         inv.member_id !== currentProfile?.id &&
+        inv.status !== "removed" &&
         !member?.is_external &&
         !uniqueInvitedIds.includes(inv.member_id)
       );
     })
     .map(inv => inv.member_id);
 
-  const idsToAdd = uniqueInvitedIds.filter(id => !existingIds.includes(id));
+  const idsToAdd = uniqueInvitedIds.filter(id =>
+    !existingInvitations.some(inv =>
+      inv.member_id === id && inv.status !== "removed"
+    )
+  );
 
   if (idsToRemove.length > 0) {
     const { error: removeError } = await supabaseClient
@@ -1528,7 +1532,9 @@ async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingV
 
     const { error: addError } = await supabaseClient
       .from("match_invitations")
-      .insert(rows);
+      .upsert(rows, {
+        onConflict: "match_id,member_id"
+      });
 
     if (addError) {
       alert(addError.message);
@@ -1536,7 +1542,7 @@ async function saveMatchInvitations(matchId, invitedMemberIds, preserveExistingV
     }
   }
 
-  return { ok: true, notifiedMemberIds: idsToAdd };
+  return { ok: true, notifiedMemberIds: idsToAdd, removedMemberIds: idsToRemove };
 }
 
 function render() {
@@ -4810,9 +4816,9 @@ function matchVoteGroups(match) {
 
   (match?.match_invitations || []).forEach(invitation => {
     const memberId = cleanUuidValue(invitation.member_id);
-    const status = groups[invitation.status] ? invitation.status : "invited";
+    const status = groups[invitation.status] ? invitation.status : null;
 
-    if (!memberId || seen.has(memberId)) return;
+    if (!memberId || !status || seen.has(memberId)) return;
 
     seen.add(memberId);
     const member = invitationMember(invitation) || memberById(memberId);
@@ -11923,6 +11929,39 @@ async function sendMatchInviteNotifications(matchId, recipientMemberIds = []) {
   }
 }
 
+async function sendMatchInviteCancelledNotifications(matchId, recipientMemberIds = []) {
+  const safeMatchId = cleanUuidValue(matchId);
+  const recipients = Array.from(new Set((recipientMemberIds || [])
+    .map(id => cleanUuidValue(id))
+    .filter(Boolean)))
+    .filter(id => id !== currentProfile?.id);
+
+  if (!safeMatchId || !recipients.length) {
+    return { sent: 0, failed: 0, skipped: true };
+  }
+
+  try {
+    const { data, error } = await supabaseClient.functions.invoke("send-push", {
+      body: {
+        type: "match_invite_cancelled",
+        match_id: safeMatchId,
+        recipient_member_ids: recipients
+      }
+    });
+
+    if (error) throw error;
+    console.info("Match invite cancelled notification result:", data);
+    return data || { sent: 0, failed: 0 };
+  } catch (error) {
+    console.warn("Match invite cancelled notifications were not sent:", error.message || error);
+    return {
+      sent: 0,
+      failed: recipients.length,
+      error: error.message || "Could not send match invite cancelled notifications."
+    };
+  }
+}
+
 async function sendCreatorMatchNotification(matchId, type, extra = {}) {
   const safeMatchId = cleanUuidValue(matchId);
 
@@ -12753,9 +12792,14 @@ function bindEvents() {
     if (!invitationResult.ok) return;
 
     const notificationResult = await sendMatchInviteNotifications(matchId, invitationResult.notifiedMemberIds);
+    const inviteCancelledResult = await sendMatchInviteCancelledNotifications(matchId, invitationResult.removedMemberIds);
 
     if (notificationResult?.error) {
       alert(`Match saved, but phone notifications failed: ${notificationResult.error}`);
+    }
+
+    if (inviteCancelledResult?.error) {
+      alert(`Match saved, but invite cancellation notifications failed: ${inviteCancelledResult.error}`);
     }
 
     alert(activeEditingMatchId ? "Match updated." : "Match created.");
