@@ -827,6 +827,10 @@ function approvedRatingMembers() {
     if (member?.id) byId.set(member.id, member);
   });
 
+  (allExternalMembers || []).forEach(member => {
+    if (member?.id) byId.set(member.id, member);
+  });
+
   (allSportProfiles || []).forEach(profile => {
     if (profile.members?.id) byId.set(profile.members.id, profile.members);
   });
@@ -6128,26 +6132,14 @@ async function loadExternalMembersForPicker(matchId) {
     return;
   }
 
-  const { data, error } = await supabaseClient
-    .from("members")
-    .select("id,first_name,last_name,display_name,email,phone,avatar_url,is_external")
-    .eq("is_external", true)
-    .eq("is_active", true)
-    .eq("approval_status", "approved")
-    .order("display_name", { ascending: true });
-
-  if (error) {
-    alert(error.message);
-    return;
-  }
+  const externalMembers = await loadExternalMembers();
+  if (!externalMembers) return;
 
   const alreadyLinkedIds = new Set(
     (match.match_invitations || [])
       .filter(inv => inv.status !== "removed")
       .map(inv => inv.member_id)
   );
-
-  allExternalMembers = data || [];
 
   const box = $("external-player-options");
   if (!box) return;
@@ -6175,6 +6167,26 @@ async function loadExternalMembersForPicker(matchId) {
       </label>
     `;
   }).join("");
+}
+
+async function loadExternalMembers() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") return [];
+
+  const { data, error } = await supabaseClient
+    .from("members")
+    .select("id,first_name,last_name,display_name,email,phone,avatar_url,is_external")
+    .eq("is_external", true)
+    .eq("is_active", true)
+    .eq("approval_status", "approved")
+    .order("display_name", { ascending: true });
+
+  if (error) {
+    alert(error.message);
+    return null;
+  }
+
+  allExternalMembers = data || [];
+  return allExternalMembers;
 }
 
 async function openExternalPlayerPicker(matchId) {
@@ -6362,6 +6374,8 @@ async function createExternalPlayerProfile() {
 
   const ok = await addExternalMemberIdsToMatch(currentExternalMatchId, [data.id]);
   if (!ok) return;
+  await loadExternalMembers();
+  renderSportRatingManager();
 
   if ($("new-external-name")) $("new-external-name").value = "";
   if ($("new-external-phone")) $("new-external-phone").value = "";
@@ -13000,6 +13014,7 @@ function setActiveTab(viewId, persist = true) {
     loadMatchFormOptions().then(() => {
       renderActivitySettingsForm();
     });
+    loadExternalMembers().then(renderSportRatingManager);
     loadPendingMembers();
     loadMemberActivities();
     loadVenues();
