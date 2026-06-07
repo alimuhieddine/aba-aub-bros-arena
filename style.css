@@ -3139,6 +3139,75 @@ main,
   color: var(--accent2);
 }
 
+.match-status-grid {
+  margin: 10px 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.match-status-box {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.035);
+}
+
+.match-status-box span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.match-status-box strong {
+  min-width: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 950;
+  overflow-wrap: anywhere;
+}
+
+.match-status-box em {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
+.match-status-box.is-open,
+.match-status-box.is-in {
+  border-color: rgba(36,209,126,.30);
+  background: rgba(36,209,126,.08);
+}
+
+.match-status-box.is-full,
+.match-status-box.is-closed {
+  border-color: rgba(255,209,102,.28);
+  background: rgba(255,209,102,.07);
+}
+
+.match-status-box.is-out {
+  border-color: rgba(255,95,103,.30);
+  background: rgba(255,95,103,.08);
+}
+
+@media (max-width: 800px) {
+  .match-status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .match-status-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 
 /* === FINALIZED MATCH LOCKING === */
 .small-btn.locked-result-btn {

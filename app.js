@@ -4405,6 +4405,72 @@ function renderSmartBadges(match) {
   `;
 }
 
+function matchVoteStatusText(status, isCreator = false) {
+  if (isCreator && (!status || status === "in")) return "In - creator";
+  if (status === "in") return "In";
+  if (status === "maybe") return "Maybe";
+  if (status === "out") return "Out";
+  if (status === "invited") return "Invited";
+  return "No vote";
+}
+
+function renderMatchStatusGrid({
+  match,
+  counts,
+  externalCount = 0,
+  maxPlayers = 0,
+  filledCount = 0,
+  currentVoteStatus = null,
+  isCreator = false,
+  votingOpen = false,
+  isFull = false
+} = {}) {
+  const remaining = maxPlayers ? Math.max(0, maxPlayers - filledCount) : 0;
+  const spotsValue = maxPlayers
+    ? `${filledCount}/${maxPlayers}`
+    : String(filledCount);
+  const spotsDetail = maxPlayers
+    ? (isFull ? "Full" : `${remaining} open spot${remaining === 1 ? "" : "s"}`)
+    : "No player cap";
+  const voteText = matchVoteStatusText(currentVoteStatus, isCreator);
+  const voteDetail = votingOpen
+    ? "Can change before deadline"
+    : "Voting locked";
+  const deadline = matchVotingDeadline(match);
+  const deadlineValue = votingOpen ? "Open" : "Closed";
+  const deadlineDetail = deadline ? votingDeadlineText(match) : "No deadline set";
+  const responseValue = `${counts.inCount} in / ${counts.maybeCount} maybe`;
+  const responseDetail = `${counts.outCount} out - ${counts.invitedCount} invited - ${externalCount} external`;
+
+  return `
+    <div class="match-status-grid">
+      <div class="match-status-box ${isFull ? "is-full" : ""}">
+        <span>Spots</span>
+        <strong>${escapeHtml(spotsValue)}</strong>
+        <em>${escapeHtml(spotsDetail)}</em>
+      </div>
+
+      <div class="match-status-box ${currentVoteStatus === "in" ? "is-in" : currentVoteStatus === "out" ? "is-out" : ""}">
+        <span>My vote</span>
+        <strong>${escapeHtml(voteText)}</strong>
+        <em>${escapeHtml(voteDetail)}</em>
+      </div>
+
+      <div class="match-status-box ${votingOpen ? "is-open" : "is-closed"}">
+        <span>Voting</span>
+        <strong>${escapeHtml(deadlineValue)}</strong>
+        <em>${escapeHtml(deadlineDetail)}</em>
+      </div>
+
+      <div class="match-status-box">
+        <span>Responses</span>
+        <strong>${escapeHtml(responseValue)}</strong>
+        <em>${escapeHtml(responseDetail)}</em>
+      </div>
+    </div>
+  `;
+}
+
 
 function updateMatchFilterOptions() {
   const sportSelect = $("match-filter-sport");
@@ -4761,10 +4827,6 @@ function renderMatches() {
     const currentVoteStatus = invitation?.status || (isCreator ? "in" : null);
 
     const maxPlayers = Number(match.max_players || 0);
-    const spotsLabel = maxPlayers
-      ? `${filledCount}/${maxPlayers} filled`
-      : `${filledCount} filled`;
-
     const isFull = maxPlayers && filledCount >= maxPlayers;
     const userIsIn = currentVoteStatus === "in";
     const canVoteThisMatch = Boolean(invitation || isCreator || isAdmin);
@@ -4804,18 +4866,17 @@ function renderMatches() {
 
             ${renderSmartBadges(match)}
 
-            ${
-              !teamsAssigned
-                ? `<div class="meta">
-                    Players: ${spotsLabel}
-                    • IN: ${counts.inCount}
-                    • External: ${externalCount}
-                    • Maybe: ${counts.maybeCount}
-                    • Out: ${counts.outCount}
-                    • Invited: ${counts.invitedCount}
-                  </div>`
-                : ""
-            }
+            ${renderMatchStatusGrid({
+              match,
+              counts,
+              externalCount,
+              maxPlayers,
+              filledCount,
+              currentVoteStatus,
+              isCreator,
+              votingOpen,
+              isFull
+            })}
 
             ${
               !teamsAssigned
