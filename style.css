@@ -155,6 +155,7 @@ h1 {
   align-items: flex-end;
   text-align: right;
   gap: 4px;
+  width: 100%;
 }
 
 .logged-label {
@@ -168,7 +169,7 @@ h1 {
   align-items: center;
   justify-content: flex-end;
   align-self: flex-end;
-  width: auto;
+  width: 100%;
   min-width: 0;
   font-size: 12px;
   font-weight: 600;
@@ -636,8 +637,8 @@ h3 {
 
 .logged-player-identity {
   justify-content: flex-end;
-  width: auto;
-  max-width: max-content;
+  width: 100%;
+  max-width: 100%;
 }
 
 .mini-player-row {
@@ -900,7 +901,7 @@ textarea:disabled {
     font-size: 10px;
     display: inline-flex;
     align-self: flex-end;
-    width: auto;
+    width: 100%;
     white-space: nowrap;
     overflow: visible;
     text-overflow: unset;
