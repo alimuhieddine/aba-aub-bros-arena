@@ -4385,6 +4385,14 @@ function isPadelMatch(match) {
   return ABAMatches.isPadel(match);
 }
 
+function isTennisMatch(match) {
+  return sportName(match).includes("tennis");
+}
+
+function isRacketRatingMatch(match) {
+  return isPadelMatch(match) || isTennisMatch(match);
+}
+
 function isSimpleScoreMatch(match) {
   return ABAMatches.isSimpleScore(match);
 }
@@ -6417,6 +6425,7 @@ function renderTeamAssignmentList(match) {
           selectedPosition,
           rating
         } = player;
+        const ratingChange = ratingChangeForPlayer(match, memberId, selectedPosition);
 
         return `
           <div class="team-player-row team-player-row-${selectedSide || "unassigned"}">
@@ -6424,6 +6433,7 @@ function renderTeamAssignmentList(match) {
               ${escapeHtml(invitationMemberDisplayName(inv))}
               ${member?.is_external ? `<span class="mini-pill">External</span>` : ""}
               <span class="rating-pill">R ${Number(rating).toFixed(1)}${preferredPosition ? ` • ${escapeHtml(preferredPosition)}` : ""}</span>
+              ${ratingChangeInlineHtml(ratingChange)}
             </div>
 
             <div class="team-choice">
@@ -7118,6 +7128,49 @@ function collectTeamAssignments() {
   };
 }
 
+function temporaryTeamFromAssignments(assignments, side) {
+  return {
+    match_team_players: (assignments.all || [])
+      .filter(row => row.team === side)
+      .map(row => ({
+        member_id: cleanUuidValue(row.memberId),
+        formation_position: normalizeSoccerPosition(row.position)
+      }))
+      .filter(row => row.member_id)
+  };
+}
+
+function assignmentExpectationText(match, assignments, nameA, nameB) {
+  if (!match || !assignments.teamA.length || !assignments.teamB.length) return "";
+
+  if (isRacketRatingMatch(match)) {
+    const teamAInfo = isPadelMatch(match)
+      ? effectivePadelTeamRating(assignments.teamA, match.sport_id)
+      : { baseRating: averageTeamSportRating(assignments.teamA, match.sport_id), chemistry: { bonus: 0 }, effectiveRating: averageTeamSportRating(assignments.teamA, match.sport_id) };
+    const teamBInfo = isPadelMatch(match)
+      ? effectivePadelTeamRating(assignments.teamB, match.sport_id)
+      : { baseRating: averageTeamSportRating(assignments.teamB, match.sport_id), chemistry: { bonus: 0 }, effectiveRating: averageTeamSportRating(assignments.teamB, match.sport_id) };
+    const expectedA = expectedPadelWinProbability(teamAInfo.effectiveRating, teamBInfo.effectiveRating);
+    const expectedB = 1 - expectedA;
+    const chemistryNote = isPadelMatch(match) && (teamAInfo.chemistry.bonus || teamBInfo.chemistry.bonus)
+      ? ` • Chemistry ${teamAInfo.chemistry.bonus >= 0 ? "+" : ""}${teamAInfo.chemistry.bonus.toFixed(2)} / ${teamBInfo.chemistry.bonus >= 0 ? "+" : ""}${teamBInfo.chemistry.bonus.toFixed(2)}`
+      : "";
+
+    return `${nameA} win ${(expectedA * 100).toFixed(1)}% - ${nameB} win ${(expectedB * 100).toFixed(1)}%${chemistryNote}`;
+  }
+
+  if (isSoccerMatch(match)) {
+    const tempTeamA = temporaryTeamFromAssignments(assignments, "A");
+    const tempTeamB = temporaryTeamFromAssignments(assignments, "B");
+    const expectedA = soccerExpectedGoalsForTeam(match, tempTeamA, tempTeamB, match.sport_id);
+    const expectedB = soccerExpectedGoalsForTeam(match, tempTeamB, tempTeamA, match.sport_id);
+
+    return `${nameA} ${Math.round(expectedA.expectedGoals)} - ${Math.round(expectedB.expectedGoals)} ${nameB}`;
+  }
+
+  return "";
+}
+
 
 function updateTeamBalanceStatus() {
   const status = $("team-balance-status");
@@ -7159,17 +7212,13 @@ function updateTeamBalanceStatus() {
       ? singlesSideNameFromAssignments(match, assignments, "B", "Player 2")
       : "Team B";
 
-    const ratingA = assignments.teamA.reduce((sum, memberId) =>
-      sum + memberSportRating(memberId, sportId), 0
-    );
-
-    const ratingB = assignments.teamB.reduce((sum, memberId) =>
-      sum + memberSportRating(memberId, sportId), 0
-    );
+    const expectation = assignmentExpectationText(match, assignments, nameA, nameB);
+    const ratingA = averageTeamSportRating(assignments.teamA, sportId);
+    const ratingB = averageTeamSportRating(assignments.teamB, sportId);
 
     const diff = Math.abs(ratingA - ratingB);
 
-    ratingStatus.textContent =
+    ratingStatus.textContent = expectation ||
       `Ratings: ${nameA} ${ratingA.toFixed(1)} • ${nameB} ${ratingB.toFixed(1)} • Diff ${diff.toFixed(1)}`;
 
     ratingStatus.classList.toggle("balanced", diff <= 1.5 && isBalanced);
@@ -7932,6 +7981,9 @@ const PADEL_RATING_POSITION = "OVERALL";
 const PADEL_RATING_K = 0.25;
 const PADEL_RATING_SCALE = 2;
 const PADEL_COMEBACK_BONUS = 0.05;
+const PADEL_CHEMISTRY_WEIGHT = 0.8;
+const PADEL_CHEMISTRY_MAX_BONUS = 0.5;
+const PADEL_CHEMISTRY_CONFIDENCE_GAMES = 8;
 
 function teamPlayerMemberIds(team) {
   return (team?.match_team_players || [])
@@ -7944,6 +7996,15 @@ function averageTeamSportRating(memberIds, sportId) {
     (memberIds || []).map(memberId => memberSportRating(memberId, sportId)),
     5
   );
+}
+
+function padelPairKey(memberIds) {
+  const ids = (memberIds || [])
+    .map(cleanUuidValue)
+    .filter(Boolean)
+    .sort();
+
+  return ids.length === 2 ? ids.join("|") : "";
 }
 
 function expectedPadelWinProbability(teamRating, opponentRating) {
@@ -7995,7 +8056,121 @@ function padelMarginMultiplier(gameMargin) {
   return clampNumber(1 + (Number(gameMargin || 0) / 12) * 0.2, 1, 1.2);
 }
 
-function padelRatingDeltas(match, sets, winnerTeam) {
+function padelGamePerformanceScore(summary, side) {
+  const teamGames = side === "A" ? summary.teamAGames : summary.teamBGames;
+  const opponentGames = side === "A" ? summary.teamBGames : summary.teamAGames;
+  const totalGames = teamGames + opponentGames;
+  const gameShare = totalGames > 0 ? teamGames / totalGames : 0.5;
+  const won = summary.winnerTeam === side;
+
+  return clampNumber((won ? 0.65 : 0.35) + ((gameShare - 0.5) * 0.7), 0, 1);
+}
+
+function padelGameDateValue(match, game) {
+  return new Date(game?.created_at || match?.start_time || match?.created_at || 0).getTime();
+}
+
+function padelHistoricalCutoffDate(excludeGameId) {
+  const excluded = cleanUuidValue(excludeGameId);
+
+  if (!excluded) return 0;
+
+  for (const match of (allMatches || [])) {
+    const game = completedPadelGamesForMatch(match)
+      .find(row => cleanUuidValue(row.id) === excluded);
+
+    if (game) return padelGameDateValue(match, game);
+  }
+
+  return 0;
+}
+
+function historicalPadelPairChemistry(memberIds, sportId, excludeGameId = "") {
+  const pairKey = padelPairKey(memberIds);
+
+  if (!pairKey) return {
+    bonus: 0,
+    games: 0,
+    label: "Neutral"
+  };
+
+  const excluded = cleanUuidValue(excludeGameId);
+  const cutoffDate = padelHistoricalCutoffDate(excluded);
+  const performances = [];
+
+  (allMatches || []).forEach(match => {
+    if (!isPadelMatch(match) || match.sport_id !== sportId) return;
+
+    const { teamA, teamB } = getTwoMatchTeams(match);
+    const teamAIds = teamPlayerMemberIds(teamA);
+    const teamBIds = teamPlayerMemberIds(teamB);
+    const keyA = padelPairKey(teamAIds);
+    const keyB = padelPairKey(teamBIds);
+
+    if (!keyA || !keyB || (pairKey !== keyA && pairKey !== keyB)) return;
+
+    completedPadelGamesForMatch(match).forEach(game => {
+      const gameId = cleanUuidValue(game.id);
+
+      if (excluded && gameId === excluded) return;
+      if (cutoffDate && padelGameDateValue(match, game) >= cutoffDate) return;
+
+      const summary = padelSetSummary(padelSetEntriesForGame(match, gameId), game.winner_team);
+      if (!summary.winnerTeam) return;
+
+      const side = pairKey === keyA ? "A" : "B";
+      const pairRating = averageTeamSportRating(side === "A" ? teamAIds : teamBIds, sportId);
+      const opponentRating = averageTeamSportRating(side === "A" ? teamBIds : teamAIds, sportId);
+      const expected = expectedPadelWinProbability(pairRating, opponentRating);
+      const actual = padelGamePerformanceScore(summary, side);
+
+      performances.push(actual - expected);
+    });
+  });
+
+  if (!performances.length) return {
+    bonus: 0,
+    games: 0,
+    label: "Neutral"
+  };
+
+  const averagePerformance = performances.reduce((sum, value) => sum + value, 0) / performances.length;
+  const confidence = Math.min(1, performances.length / PADEL_CHEMISTRY_CONFIDENCE_GAMES);
+  const bonus = clampNumber(
+    averagePerformance * PADEL_CHEMISTRY_WEIGHT * confidence,
+    -PADEL_CHEMISTRY_MAX_BONUS,
+    PADEL_CHEMISTRY_MAX_BONUS
+  );
+
+  return {
+    bonus: Number(bonus.toFixed(3)),
+    games: performances.length,
+    label: padelChemistryLabel(bonus)
+  };
+}
+
+function padelChemistryLabel(bonus) {
+  const value = Number(bonus || 0);
+
+  if (value >= 0.35) return "Excellent chemistry";
+  if (value >= 0.2) return "Strong chemistry";
+  if (value <= -0.35) return "Poor fit";
+  if (value <= -0.2) return "Needs work";
+  return "Neutral";
+}
+
+function effectivePadelTeamRating(memberIds, sportId, excludeGameId = "") {
+  const baseRating = averageTeamSportRating(memberIds, sportId);
+  const chemistry = historicalPadelPairChemistry(memberIds, sportId, excludeGameId);
+
+  return {
+    baseRating,
+    chemistry,
+    effectiveRating: clampNumber(baseRating + chemistry.bonus, 1, 10)
+  };
+}
+
+function padelRatingDeltas(match, sets, winnerTeam, gameId = "") {
   const { teamA, teamB } = getTwoMatchTeams(match);
   const summary = padelSetSummary(sets, winnerTeam);
 
@@ -8006,8 +8181,10 @@ function padelRatingDeltas(match, sets, winnerTeam) {
 
   if (!teamAIds.length || !teamBIds.length) return [];
 
-  const teamARating = averageTeamSportRating(teamAIds, match.sport_id);
-  const teamBRating = averageTeamSportRating(teamBIds, match.sport_id);
+  const teamAEffective = effectivePadelTeamRating(teamAIds, match.sport_id, gameId);
+  const teamBEffective = effectivePadelTeamRating(teamBIds, match.sport_id, gameId);
+  const teamARating = teamAEffective.effectiveRating;
+  const teamBRating = teamBEffective.effectiveRating;
   const expectedA = expectedPadelWinProbability(teamARating, teamBRating);
   const expectedB = 1 - expectedA;
   const actualA = summary.winnerTeam === "A" ? 1 : 0;
@@ -8181,7 +8358,7 @@ async function savePadelGameRatingAdjustments(match, gameId, sets, winnerTeam) {
 
   if (!winnerTeam) return true;
 
-  const rows = padelRatingDeltas(match, sets, winnerTeam);
+  const rows = padelRatingDeltas(match, sets, winnerTeam, cleanGameId);
 
   for (const row of rows) {
     const result = await applyOverallSportRatingDelta(
