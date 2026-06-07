@@ -11772,6 +11772,30 @@ async function savePushSubscription(subscription) {
   if (error) throw error;
 }
 
+function isPushSubscriptionOwnershipError(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+
+  return message.includes("member_push_subscriptions") &&
+    (
+      message.includes("row-level security") ||
+      message.includes("rls") ||
+      message.includes("using expression")
+    );
+}
+
+async function freshPushSubscription(registration, publicKey) {
+  const existing = await registration.pushManager.getSubscription();
+
+  if (existing) {
+    await existing.unsubscribe();
+  }
+
+  return registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(publicKey)
+  });
+}
+
 async function refreshNotificationUI() {
   if (!currentProfile) {
     setNotificationStatus("Login to manage phone notifications.");
@@ -11864,7 +11888,15 @@ async function enablePhoneNotifications() {
       applicationServerKey: urlBase64ToUint8Array(publicKey)
     });
 
-    await savePushSubscription(subscription);
+    try {
+      await savePushSubscription(subscription);
+    } catch (saveError) {
+      if (!isPushSubscriptionOwnershipError(saveError)) throw saveError;
+
+      const freshSubscription = await freshPushSubscription(registration, publicKey);
+      await savePushSubscription(freshSubscription);
+    }
+
     setNotificationStatus("This device is subscribed to phone notifications.");
     setNotificationButtons(true, true);
   } catch (error) {
