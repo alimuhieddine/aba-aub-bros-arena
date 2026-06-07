@@ -4603,6 +4603,123 @@ function renderMatchStatusGrid({
   `;
 }
 
+function matchVoteGroups(match) {
+  const groups = {
+    in: [],
+    maybe: [],
+    out: [],
+    invited: []
+  };
+  const seen = new Set();
+
+  (match?.match_invitations || []).forEach(invitation => {
+    const memberId = cleanUuidValue(invitation.member_id);
+    const status = groups[invitation.status] ? invitation.status : "invited";
+
+    if (!memberId || seen.has(memberId)) return;
+
+    seen.add(memberId);
+    const member = invitationMember(invitation) || memberById(memberId);
+    groups[status].push({
+      memberId,
+      member,
+      name: member ? memberDisplayName(member) : invitationMemberDisplayName(invitation),
+      isExternal: isExternalInvitation(invitation)
+    });
+  });
+
+  const creatorId = cleanUuidValue(match?.created_by);
+  if (creatorId && !seen.has(creatorId)) {
+    const creator = memberById(creatorId);
+    groups.in.unshift({
+      memberId: creatorId,
+      member: creator,
+      name: creator ? memberDisplayName(creator) : "Creator",
+      isCreator: true,
+      isExternal: Boolean(creator?.is_external)
+    });
+  }
+
+  Object.values(groups).forEach(rows => {
+    rows.sort((a, b) =>
+      Number(Boolean(b.isCreator)) - Number(Boolean(a.isCreator)) ||
+      a.name.localeCompare(b.name)
+    );
+  });
+
+  return groups;
+}
+
+function matchVoteGroupHtml(title, rows, emptyText) {
+  return `
+    <div class="match-vote-group">
+      <div class="match-vote-group-title">
+        <span>${escapeHtml(title)}</span>
+        <b>${rows.length}</b>
+      </div>
+      ${
+        rows.length
+          ? `<div class="match-vote-names">
+              ${rows.map(row => `
+                <span>
+                  ${memberMiniIdentityHtml(row.member, row.memberId, row.name, "match-vote-player")}
+                  ${row.isCreator ? `<em>Creator</em>` : ""}
+                  ${row.isExternal ? `<em>External</em>` : ""}
+                </span>
+              `).join("")}
+            </div>`
+          : `<div class="match-vote-empty">${escapeHtml(emptyText)}</div>`
+      }
+    </div>
+  `;
+}
+
+function renderMatchVoteGroups(match) {
+  const groups = matchVoteGroups(match);
+
+  return `
+    <div class="match-vote-groups">
+      ${matchVoteGroupHtml("IN", groups.in, "No confirmed players yet")}
+      ${matchVoteGroupHtml("Maybe", groups.maybe, "No maybe votes")}
+      ${matchVoteGroupHtml("Out", groups.out, "No out votes")}
+      ${matchVoteGroupHtml("Invited", groups.invited, "No pending invites")}
+    </div>
+  `;
+}
+
+function renderMatchNotice({ votingOpen = false, isFull = false, teamsAssigned = false, isFuture = false } = {}) {
+  const notices = [];
+
+  if (isFull) {
+    notices.push({
+      type: "success",
+      title: "Match is full",
+      text: "All player spots are currently taken."
+    });
+  }
+
+  if (!votingOpen && isFuture && !teamsAssigned) {
+    notices.push({
+      type: "warning",
+      title: "Voting is closed",
+      text: "Players can no longer change votes here. Contact the game creator if you need to change availability."
+    });
+  }
+
+  if (!notices.length) return "";
+
+  return `
+    <div class="match-notices">
+      ${notices.map(notice => `
+        <div class="match-notice ${escapeHtml(notice.type)}">
+          <strong>${escapeHtml(notice.title)}</strong>
+          <span>${escapeHtml(notice.text)}</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
 
 function updateMatchFilterOptions() {
   const sportSelect = $("match-filter-sport");
@@ -5010,11 +5127,14 @@ function renderMatches() {
               isFull
             })}
 
-            ${
-              !teamsAssigned
-                ? `<div class="meta match-player-line">IN players: ${inPlayerIdentityHtml(match)}</div>`
-                : ""
-            }
+            ${renderMatchNotice({
+              votingOpen,
+              isFull,
+              teamsAssigned,
+              isFuture
+            })}
+
+            ${!teamsAssigned ? renderMatchVoteGroups(match) : ""}
 
             ${
               conflictingVoteMatch
@@ -5029,12 +5149,6 @@ function renderMatches() {
             ${
               externalCount && canManageMatch(match) && matchEditable
                 ? `<div class="meta"><button class="tiny-btn" onclick="openExternalPlayersModal('${match.id}')">Manage external players</button></div>`
-                : ""
-            }
-
-            ${
-              isFull
-                ? `<div class="meta">Match is full.</div>`
                 : ""
             }
 

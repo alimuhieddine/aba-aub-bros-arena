@@ -3334,14 +3334,115 @@ main,
   background: rgba(255,95,103,.08);
 }
 
+.match-notices {
+  display: grid;
+  gap: 7px;
+  margin: 8px 0;
+}
+
+.match-notice {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.035);
+}
+
+.match-notice strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.match-notice span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.match-notice.success {
+  border-color: rgba(36,209,126,.30);
+  background: rgba(36,209,126,.08);
+}
+
+.match-notice.warning {
+  border-color: rgba(255,209,102,.30);
+  background: rgba(255,209,102,.08);
+}
+
+.match-vote-groups {
+  margin: 10px 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.match-vote-group {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.025);
+}
+
+.match-vote-group-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.match-vote-group-title b {
+  color: var(--gold);
+}
+
+.match-vote-names {
+  display: grid;
+  gap: 5px;
+}
+
+.match-vote-names span,
+.match-vote-empty {
+  min-width: 0;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.match-vote-empty {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.match-vote-names em {
+  display: inline-flex;
+  margin-left: 5px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  color: var(--accent2);
+  background: rgba(49,168,255,.10);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 900;
+}
+
 @media (max-width: 800px) {
-  .match-status-grid {
+  .match-status-grid,
+  .match-vote-groups {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 420px) {
-  .match-status-grid {
+  .match-status-grid,
+  .match-vote-groups {
     grid-template-columns: 1fr;
   }
 }
