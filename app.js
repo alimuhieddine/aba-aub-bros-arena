@@ -530,6 +530,7 @@ const MEMBER_ACTIVITY_SELECT = `
     last_name,
     display_name,
     email,
+    avatar_url,
     is_external
   ),
   sports (
@@ -609,6 +610,7 @@ async function loadPositionRatings() {
         last_name,
         display_name,
         email,
+        avatar_url,
         is_external
       ),
       sports (
@@ -726,7 +728,7 @@ function renderPositionRankings() {
                   ? rows.slice(0, 10).map((row, index) => `
                     <div class="position-ranking-row">
                       <span>${index + 1}</span>
-                      <strong>${playerLinkHtml(row.memberId, row.name)}</strong>
+                      <strong>${memberMiniIdentityHtml(row.member, row.memberId, row.name)}</strong>
                       ${row.isExternal ? `<em>External</em>` : ""}
                       <b>${row.rating.toFixed(1)}</b>
                     </div>
@@ -763,6 +765,7 @@ async function loadSportProfiles() {
         last_name,
         display_name,
         email,
+        avatar_url,
         is_external
       ),
       sports (
@@ -1035,7 +1038,7 @@ function renderSportRatingManager() {
     return `
       <div class="sport-rating-row" data-member-id="${member.id}">
         <div>
-          <strong>${escapeHtml(memberDisplayName(member))}</strong>
+          <strong>${memberMiniIdentityHtml(member, member.id, memberDisplayName(member))}</strong>
           ${member.is_external ? `<span class="mini-pill">External</span>` : ""}
         </div>
 
@@ -1221,7 +1224,7 @@ async function loadMatchFormOptions() {
 
   const { data: membersData, error: membersError } = await supabaseClient
     .from("members")
-    .select("id,first_name,last_name,display_name,email,phone,is_external")
+    .select("id,first_name,last_name,display_name,email,phone,avatar_url,is_external,created_at")
     .eq("approval_status", "approved")
     .eq("is_active", true)
     .order("display_name", { ascending: true });
@@ -1291,6 +1294,80 @@ function memberDisplayName(member) {
     "Unnamed";
 }
 
+function memberInitials(member) {
+  const name = memberDisplayName(member);
+  const parts = name
+    .split(/\s+/)
+    .map(part => part.trim())
+    .filter(Boolean);
+
+  return (parts.length >= 2
+    ? `${parts[0][0]}${parts[1][0]}`
+    : name.slice(0, 2)
+  ).toUpperCase();
+}
+
+function avatarHtml(member, className = "player-profile-avatar") {
+  const initials = escapeHtml(memberInitials(member));
+  const url = String(member?.avatar_url || "").trim();
+
+  return `
+    <div class="${escapeHtml(className)} ${url ? "" : "avatar-fallback"}">
+      ${url ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(memberDisplayName(member))} profile photo">` : initials}
+    </div>
+  `;
+}
+
+function memberMiniIdentityHtml(member, memberId = "", name = "", extraClass = "") {
+  const cleanId = cleanUuidValue(memberId || member?.id);
+  const resolvedMember = member || memberById(cleanId) || null;
+  const displayName = name || (resolvedMember ? memberDisplayName(resolvedMember) : "Player");
+  const avatar = avatarHtml(resolvedMember || { display_name: displayName }, "mini-avatar");
+  const label = cleanId
+    ? playerLinkHtml(cleanId, displayName, "mini-player-link")
+    : `<span class="mini-player-name">${escapeHtml(displayName)}</span>`;
+
+  return `
+    <span class="mini-player-identity ${escapeHtml(extraClass)}">
+      ${avatar}
+      ${label}
+    </span>
+  `;
+}
+
+function currentUserIdentityHtml(sessionUser = null) {
+  const member = currentProfile || null;
+  const displayName = member
+    ? memberDisplayName(member)
+    : sessionUser?.email || "Member";
+
+  return memberMiniIdentityHtml(member, member?.id || "", displayName, "logged-player-identity");
+}
+
+function renderLoggedInIdentity(sessionUser = null) {
+  const box = $("current-user");
+  if (!box) return;
+
+  box.innerHTML = currentUserIdentityHtml(sessionUser);
+}
+
+function renderProfileAvatarPreview(member = currentProfile) {
+  const box = $("profile-avatar-preview");
+  if (!box) return;
+
+  if (!member) {
+    box.classList.add("avatar-fallback");
+    box.innerHTML = "--";
+    return;
+  }
+
+  const url = String(member?.avatar_url || "").trim();
+  box.classList.toggle("avatar-fallback", !url);
+  box.innerHTML = url
+    ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(memberDisplayName(member))} profile photo">`
+    : escapeHtml(memberInitials(member));
+}
+
 function renderMatchInviteOptions(selectedIds = []) {
   const box = $("match-invite-options");
   if (!box) return;
@@ -1310,7 +1387,7 @@ function renderMatchInviteOptions(selectedIds = []) {
         class="match-invite-checkbox"
         ${selected.has(member.id) ? "checked" : ""}
       >
-      <span>${escapeHtml(memberDisplayName(member))}</span>
+      <span>${memberMiniIdentityHtml(member, member.id, memberDisplayName(member))}</span>
     </label>
   `).join("");
 }
@@ -1709,6 +1786,7 @@ function homeAllRecentRatingChanges() {
 
       changes.push({
         memberId: cleanUuidValue(row.member_id),
+        member,
         name: memberDisplayName(member),
         delta,
         position: normalizeSoccerPosition(row.position_name) || row.position_name || "OVR",
@@ -1740,6 +1818,7 @@ function homeMostActivePlayersThisWeek(limit = 3) {
 
       const current = table.get(memberId) || {
         memberId,
+        member,
         name: memberDisplayName(member),
         minutes: 0,
         points: 0
@@ -1771,6 +1850,7 @@ function homeMatchStreaks(limit = 3) {
       const member = point.member || memberById(memberId);
       const row = table.get(memberId) || {
         memberId,
+        member,
         name: member ? memberDisplayName(member) : "",
         streak: 0,
         stopped: false
@@ -2027,7 +2107,7 @@ function renderHomeChallenge() {
             ? activePlayers.map((row, index) => {
                 const playerPct = Math.min(100, Math.round((Number(row.minutes || 0) / goalMinutes) * 100));
                 return `
-                  <div><span>${index + 1}. ${escapeHtml(row.name)}</span><b>${formatProfileDurationMinutes(row.minutes)}</b></div>
+                  <div><span>${index + 1}. ${memberMiniIdentityHtml(row.member, row.memberId, row.name)}</span><b>${formatProfileDurationMinutes(row.minutes)}</b></div>
                   <div class="home-mini-progress"><span style="width:${playerPct}%"></span></div>
                 `;
               }).join("")
@@ -2082,6 +2162,8 @@ function homeLeagueStandingsRows(leagueId, limit = 3) {
         if (!memberId || !member) return;
 
         const row = table.get(memberId) || {
+          memberId,
+          member,
           name: memberDisplayName(member),
           points: 0,
           wins: 0
@@ -2097,6 +2179,22 @@ function homeLeagueStandingsRows(leagueId, limit = 3) {
   return Array.from(table.values())
     .sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name))
     .slice(0, limit);
+}
+
+function homeLatestLeagueResult(leagueId) {
+  return leagueMatches(leagueId)
+    .filter(match => !isCancelledMatch(match) && hasSubmittedScore(match))
+    .sort((a, b) => new Date(b.start_time || 0) - new Date(a.start_time || 0))[0] || null;
+}
+
+function homeLeagueChaseText(standings) {
+  if (!standings || standings.length < 2) return "Chase: waiting for more results";
+
+  const leader = standings[0];
+  const chaser = standings[1];
+  const gap = Math.max(0, Number(leader.points || 0) - Number(chaser.points || 0));
+
+  return `Chase: ${chaser.name} is ${formatPointValue(gap)} pts behind ${leader.name}`;
 }
 
 function homeCurrentPlayerForm(leagueId = null) {
@@ -2145,34 +2243,33 @@ function renderHomeLeagueHq() {
 
   if (!leagues.length) {
     box.innerHTML = `
-      <article class="card home-feature-card"><h4>No active leagues</h4><p class="hint">Active league progress and next league matches will appear here.</p></article>
+      <article class="card home-feature-card"><h4>No active leagues</h4><p class="hint">League pulse, next games, and standings stories will appear here.</p></article>
       <article class="card home-feature-card"><h4>Hot match</h4><p class="hint">${hotMatch ? `${hotMatch.match.title || "Match"} - ${fmtDate(hotMatch.match.start_time)}` : "No upcoming hot match yet."}</p></article>
     `;
     return;
   }
 
   const leagueCards = leagues.map(row => {
-    const total = row.matches.length;
-    const pct = total ? Math.round((row.completed / total) * 100) : 0;
     const leader = homeLeagueStandingsLeader(row.league.id);
-    const standings = homeLeagueStandingsRows(row.league.id, 3);
+    const standings = homeLeagueStandingsRows(row.league.id, 4);
+    const latest = homeLatestLeagueResult(row.league.id);
 
     return `
       <article class="card home-feature-card">
         <div class="home-feature-head">
           <div>
             <h4>${escapeHtml(row.league.name || "League")}</h4>
-            <p>${row.completed}/${total} finalized match${total === 1 ? "" : "es"}</p>
+            <p>${row.completed} finalized match${row.completed === 1 ? "" : "es"} - My form: ${homeCurrentPlayerForm(row.league.id)}</p>
           </div>
-          <strong>${pct}%</strong>
+          <strong>${leader ? `#1 ${escapeHtml(leader.name)}` : "Pulse"}</strong>
         </div>
-        <div class="home-progress"><span style="width:${pct}%"></span></div>
         <div class="meta">${row.next ? `Next: ${row.next.title || "Match"} - ${fmtDate(row.next.start_time)}` : "No upcoming league match scheduled."}</div>
-        <div class="meta">Leader: ${leader ? `${leader.name} (${formatPointValue(leader.points)} pts)` : "No standings yet"} - My form: ${homeCurrentPlayerForm(row.league.id)}</div>
+        <div class="meta">${latest ? `Latest: ${leagueWinnerText(latest)} - ${leagueScoreText(latest)}` : "Latest: no finalized result yet."}</div>
+        <div class="meta">${homeLeagueChaseText(standings)}</div>
         <div class="home-mini-list">
           ${
             standings.length
-              ? standings.map((standing, index) => `<div><span>${index + 1}. ${escapeHtml(standing.name)}</span><b>${formatPointValue(standing.points)} pts</b></div>`).join("")
+              ? standings.slice(0, 3).map((standing, index) => `<div><span>${index + 1}. ${memberMiniIdentityHtml(standing.member, standing.memberId, standing.name)}</span><b>${formatPointValue(standing.points)} pts</b></div>`).join("")
               : `<div><span>No standings rows yet</span><b>-</b></div>`
           }
         </div>
@@ -2383,7 +2480,7 @@ function homePulseItemHtml(item) {
   return `
     <article class="card home-pulse-card">
       <div>
-        <h3>${escapeHtml(memberName)} - ${escapeHtml(activity.title || "Activity")}</h3>
+        <h3>${memberMiniIdentityHtml(activity.members, activity.member_id, memberName)} - ${escapeHtml(activity.title || "Activity")}</h3>
         <div class="meta">${escapeHtml(activity.sports?.name || sportNameById(activity.sport_id) || "Sport")} - ${formatProfileDurationMinutes(activity.duration_minutes)}</div>
         <div class="meta">${formatPointValue(activity.activity_points)} activity pts</div>
       </div>
@@ -2407,7 +2504,7 @@ function homePulseHighlightsHtml() {
     </article>
     <article class="card home-feature-card">
       <h4>Biggest rating jump</h4>
-      <p>${biggestJump ? `${biggestJump.name} ${biggestJump.delta >= 0 ? "+" : ""}${biggestJump.delta.toFixed(2)}` : "No rating jumps yet."}</p>
+      <p>${biggestJump ? `${memberMiniIdentityHtml(biggestJump.member, biggestJump.memberId, biggestJump.name)} ${biggestJump.delta >= 0 ? "+" : ""}${biggestJump.delta.toFixed(2)}` : "No rating jumps yet."}</p>
       <div class="meta">${biggestJump ? `${biggestJump.sport} ${biggestJump.position}` : "Rated matches will build this pulse."}</div>
     </article>
     <article class="card home-feature-card">
@@ -2415,7 +2512,7 @@ function homePulseHighlightsHtml() {
       <div class="home-mini-list">
         ${
           streaks.length
-            ? streaks.map(row => `<div><span>${escapeHtml(row.name)}</span><b>${row.streak}W</b></div>`).join("")
+            ? streaks.map(row => `<div><span>${memberMiniIdentityHtml(row.member, row.memberId, row.name)}</span><b>${row.streak}W</b></div>`).join("")
             : `<div><span>No active win streaks</span><b>-</b></div>`
         }
       </div>
@@ -2425,7 +2522,7 @@ function homePulseHighlightsHtml() {
       <div class="home-mini-list">
         ${
           activePlayers.length
-            ? activePlayers.map(row => `<div><span>${escapeHtml(row.name)}</span><b>${formatProfileDurationMinutes(row.minutes)}</b></div>`).join("")
+            ? activePlayers.map(row => `<div><span>${memberMiniIdentityHtml(row.member, row.memberId, row.name)}</span><b>${formatProfileDurationMinutes(row.minutes)}</b></div>`).join("")
             : `<div><span>No logged activity this week</span><b>-</b></div>`
         }
       </div>
@@ -2435,7 +2532,7 @@ function homePulseHighlightsHtml() {
       <div class="home-mini-list">
         ${
           newestMembers.length
-            ? newestMembers.map(member => `<div><span>${escapeHtml(memberDisplayName(member))}</span><b>${member.created_at ? escapeHtml(fmtDate(member.created_at)) : "-"}</b></div>`).join("")
+            ? newestMembers.map(member => `<div><span>${memberMiniIdentityHtml(member, member.id, memberDisplayName(member))}</span><b>${member.created_at ? escapeHtml(fmtDate(member.created_at)) : "-"}</b></div>`).join("")
             : `<div><span>No recent members loaded</span><b>-</b></div>`
         }
       </div>
@@ -2566,6 +2663,7 @@ function leaguePositionLeaders(leagueId) {
 
       rowsByPosition.get(position).push({
         memberId: row.member_id,
+        member: row.members,
         name: memberDisplayName(row.members),
         rating: Number(row.rating || 0),
         gamesPlayed: Number(row.games_played || 0),
@@ -2777,7 +2875,7 @@ function renderLeaguePlayerStandings(leagueId) {
         return `
           <div class="league-standings-row league-player-row">
             <span>${index + 1}</span>
-            <span>${playerLinkHtml(row.memberId, row.name)}</span>
+            <span>${memberMiniIdentityHtml(row.member, row.memberId, row.name)}</span>
             <span>${row.matches}</span>
             <span>${row.wins}-${row.draws}-${row.losses}</span>
             <span><strong>${Number(row.points || 0)}</strong></span>
@@ -2848,7 +2946,7 @@ function renderLeaguePositionLeaders(leagueId) {
                   ? rows.map((row, index) => `
                     <div class="league-position-row">
                       <span>${index + 1}</span>
-                      <strong>${playerLinkHtml(row.memberId, row.name)}</strong>
+                      <strong>${memberMiniIdentityHtml(row.member, row.memberId, row.name)}</strong>
                       <b>${row.rating.toFixed(1)}</b>
                     </div>
                   `).join("")
@@ -3196,6 +3294,7 @@ async function loadMatches() {
           last_name,
           display_name,
           email,
+          avatar_url,
           is_external
         )
       ),
@@ -3217,6 +3316,7 @@ async function loadMatches() {
             last_name,
             display_name,
             email,
+            avatar_url,
             is_external
           )
         )
@@ -3265,6 +3365,7 @@ async function loadMatches() {
           last_name,
           display_name,
           email,
+          avatar_url,
           is_external
         )
       ),
@@ -3284,6 +3385,7 @@ async function loadMatches() {
           last_name,
           display_name,
           email,
+          avatar_url,
           is_external
         )
       )
@@ -3331,6 +3433,7 @@ async function loadMatches() {
           last_name,
           display_name,
           email,
+          avatar_url,
           is_external
         )
       ),
@@ -3352,6 +3455,7 @@ async function loadMatches() {
             last_name,
             display_name,
             email,
+            avatar_url,
             is_external
           )
         )
@@ -3371,6 +3475,7 @@ async function loadMatches() {
           last_name,
           display_name,
           email,
+          avatar_url,
           is_external
         )
       )
@@ -3560,6 +3665,32 @@ function inPlayerNames(match) {
   return ABAMatches.inPlayerNames(match, invitationMemberDisplayName);
 }
 
+function inPlayerIdentityHtml(match) {
+  const rows = [];
+  const seen = new Set();
+
+  (match?.match_invitations || []).forEach(invitation => {
+    if (invitation.status !== "in") return;
+
+    const memberId = cleanUuidValue(invitation.member_id);
+    const member = invitationMember(invitation) || memberById(memberId);
+
+    if (!memberId || seen.has(memberId)) return;
+
+    seen.add(memberId);
+    rows.push(memberMiniIdentityHtml(member, memberId, member ? memberDisplayName(member) : invitationMemberDisplayName(invitation), "match-player-identity"));
+  });
+
+  if (cleanUuidValue(match?.created_by) && !seen.has(cleanUuidValue(match.created_by))) {
+    const member = memberById(match.created_by);
+    if (member) rows.unshift(memberMiniIdentityHtml(member, member.id, memberDisplayName(member), "match-player-identity"));
+  }
+
+  return rows.length
+    ? `<span class="mini-player-row">${rows.join("")}</span>`
+    : "-";
+}
+
 
 function getMatchDisplayStatus(match) {
   return ABAMatches.displayStatus(match);
@@ -3648,6 +3779,7 @@ function teamAssignments(match) {
     players: sortTeamPlayers((team.match_team_players || []).map(tp => ({
       teamPlayerId: tp.id,
       memberId: tp.member_id,
+      member: tp.member,
       name: memberDisplayName(tp.member),
       isExternal: Boolean(tp.member?.is_external),
       formationPosition: normalizeSoccerPosition(tp.formation_position),
@@ -3702,7 +3834,7 @@ function teamPlayerChips(team, match = null) {
       <span class="team-player-chip stacked-player-chip">
         <span class="team-player-main-line">
           ${player.formationPosition ? `<small class="position-chip">${escapeHtml(player.formationPosition)}</small>` : ""}
-          ${player.memberId ? playerLinkHtml(player.memberId, player.name, "inline-player-link") : escapeHtml(player.name)}
+          ${player.memberId ? memberMiniIdentityHtml(player.member, player.memberId, player.name, "inline-player-identity") : escapeHtml(player.name)}
           ${player.isCaptain ? `<b>C</b>` : ""}
           ${player.isExternal ? `<em>External</em>` : ""}
         </span>
@@ -4880,7 +5012,7 @@ function renderMatches() {
 
             ${
               !teamsAssigned
-                ? `<div class="meta">IN players: ${inPlayerNames(match).length ? escapeHtml(inPlayerNames(match).join(", ")) : "-"}</div>`
+                ? `<div class="meta match-player-line">IN players: ${inPlayerIdentityHtml(match)}</div>`
                 : ""
             }
 
@@ -5558,7 +5690,7 @@ async function loadExternalMembersForPicker(matchId) {
 
   const { data, error } = await supabaseClient
     .from("members")
-    .select("id,first_name,last_name,display_name,email,phone,is_external")
+    .select("id,first_name,last_name,display_name,email,phone,avatar_url,is_external")
     .eq("is_external", true)
     .eq("is_active", true)
     .eq("approval_status", "approved")
@@ -5597,7 +5729,7 @@ async function loadExternalMembersForPicker(matchId) {
           ${alreadyInMatch ? "disabled" : ""}
         >
         <span>
-          ${escapeHtml(memberDisplayName(member))}
+          ${memberMiniIdentityHtml(member, member.id, memberDisplayName(member))}
           ${alreadyInMatch ? " — already added" : ""}
         </span>
       </label>
@@ -5778,7 +5910,7 @@ async function createExternalPlayerProfile() {
       approval_status: "approved",
       registration_status: "approved"
     })
-    .select("id,first_name,last_name,display_name,email,phone,is_external")
+    .select("id,first_name,last_name,display_name,email,phone,avatar_url,is_external")
     .single();
 
   if (error) {
@@ -9533,7 +9665,7 @@ function activityCard(a, compact = false) {
     <article class="card">
       <div class="row">
         <div>
-          <h3>${escapeHtml(memberName)} - ${escapeHtml(title)}</h3>
+          <h3>${memberMiniIdentityHtml(a.members, a.member_id, memberName)} - ${escapeHtml(title)}</h3>
           <div class="meta">${escapeHtml(sportName)}${durationText} - Activity ${formatPointValue(points)} pts</div>
           <div class="meta">
             ${escapeHtml(fmtDate(a.activity_date || a.created_at))}
@@ -9618,6 +9750,7 @@ async function loadRankingData() {
         last_name,
         display_name,
         email,
+        avatar_url,
         is_external
       ),
       matches (
@@ -9659,6 +9792,7 @@ async function loadRankingData() {
         last_name,
         display_name,
         email,
+        avatar_url,
         is_external
       ),
       sports (
@@ -10658,6 +10792,14 @@ function renderPlayerProfile(memberId) {
   }
 
   box.innerHTML = `
+    <div class="player-profile-hero">
+      ${avatarHtml(member)}
+      <div>
+        <strong>${escapeHtml(memberDisplayName(member))}</strong>
+        <div class="hint">${member.is_external ? "External player" : "Member"}</div>
+      </div>
+    </div>
+
     <div class="player-profile-stats">
       <div class="profile-stat-box">
         <span>Total points</span>
@@ -11002,7 +11144,7 @@ function renderRankings() {
           <span class="rank-number-mini">${index + 1}</span>
 
           <span>
-            ${playerLinkHtml(row.memberId, row.name)}
+            ${memberMiniIdentityHtml(row.member, row.memberId, row.name)}
             ${row.isExternal ? `<em>External</em>` : ""}
           </span>
 
@@ -11561,6 +11703,8 @@ function clearProfileFields() {
     }
   });
 
+  renderProfileAvatarPreview(null);
+
   if ($("profile-status")) {
     $("profile-status").textContent = "Login to load your profile.";
   }
@@ -11575,6 +11719,119 @@ function clearProfileFields() {
   }
 
   profileIsEditing = false;
+}
+
+function profileAvatarExtension(file) {
+  if (file?.type === "image/png") return "png";
+  if (file?.type === "image/webp") return "webp";
+  return "jpg";
+}
+
+function profileAvatarStoragePath(authUserId = currentProfile?.auth_user_id, file = null) {
+  const cleanId = cleanUuidValue(authUserId);
+  return cleanId ? `${cleanId}/avatar.${profileAvatarExtension(file)}` : "";
+}
+
+async function updateCurrentProfileAvatarUrl(avatarUrl) {
+  if (!currentProfile?.id) {
+    alert("Save your profile before adding a photo.");
+    return false;
+  }
+
+  const { error } = await supabaseClient
+    .from("members")
+    .update({ avatar_url: avatarUrl || null })
+    .eq("id", currentProfile.id)
+    .eq("auth_user_id", currentProfile.auth_user_id);
+
+  if (error) {
+    alert(error.message);
+    return false;
+  }
+
+  currentProfile.avatar_url = avatarUrl || null;
+  renderProfileAvatarPreview(currentProfile);
+  return true;
+}
+
+async function uploadProfileAvatar(file) {
+  if (!currentProfile?.id) {
+    alert("Save your profile before adding a photo.");
+    return;
+  }
+
+  if (!file) return;
+
+  const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+  if (!allowedTypes.has(file.type)) {
+    alert("Please choose a JPG, PNG, or WebP image.");
+    return;
+  }
+
+  if (file.size > 2 * 1024 * 1024) {
+    alert("Profile photo must be 2 MB or smaller.");
+    return;
+  }
+
+  const path = profileAvatarStoragePath(currentProfile.auth_user_id, file);
+  if (!path) return;
+
+  const { error } = await supabaseClient
+    .storage
+    .from("member-avatars")
+    .upload(path, file, {
+      upsert: true,
+      contentType: file.type,
+      cacheControl: "3600"
+    });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  const { data } = supabaseClient
+    .storage
+    .from("member-avatars")
+    .getPublicUrl(path);
+  const publicUrl = data?.publicUrl ? `${data.publicUrl}?v=${Date.now()}` : "";
+
+  if (publicUrl && await updateCurrentProfileAvatarUrl(publicUrl)) {
+    alert("Profile photo updated.");
+    await loadMyProfile();
+  }
+}
+
+async function removeProfileAvatar() {
+  if (!currentProfile?.id) {
+    alert("No profile loaded.");
+    return;
+  }
+
+  const ok = confirm("Remove your profile photo?");
+  if (!ok) return;
+
+  const basePath = profileAvatarStoragePath();
+  const paths = [
+    basePath,
+    `${cleanUuidValue(currentProfile.auth_user_id)}/avatar.png`,
+    `${cleanUuidValue(currentProfile.auth_user_id)}/avatar.webp`
+  ].filter(Boolean);
+  if (paths.length) {
+    const { error } = await supabaseClient
+      .storage
+      .from("member-avatars")
+      .remove(paths);
+
+    if (error) {
+      console.warn("Could not remove avatar object:", error.message);
+    }
+  }
+
+  if (await updateCurrentProfileAvatarUrl(null)) {
+    alert("Profile photo removed.");
+    await loadMyProfile();
+  }
 }
 
 function setProfileEditing(isEditing) {
@@ -11605,7 +11862,7 @@ async function loadMyProfile() {
 
   const { data, error } = await supabaseClient
     .from("members")
-    .select("id,first_name,last_name,display_name,birth_date,phone,email,is_external,is_active,role,approval_status,registration_status,auth_user_id")
+    .select("id,first_name,last_name,display_name,birth_date,phone,email,avatar_url,is_external,is_active,role,approval_status,registration_status,auth_user_id")
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
@@ -11629,6 +11886,7 @@ async function loadMyProfile() {
     return;
   }
 
+  renderProfileAvatarPreview(data);
   $("profile-first-name").value = data.first_name || "";
   $("profile-last-name").value = data.last_name || "";
   $("profile-display-name").value = data.display_name || "";
@@ -11718,7 +11976,7 @@ async function refreshAuthUI() {
   if (session) {
     $("auth-logged-out").style.display = "none";
     $("auth-logged-in").style.display = "flex";
-    $("current-user").textContent = session.user.email;
+    renderLoggedInIdentity(session.user);
 
     // Show Account tab after login
     document.querySelectorAll(".auth-only").forEach(el => {
@@ -11746,6 +12004,7 @@ async function refreshAuthUI() {
     }
 
     await loadMyProfile();
+    renderLoggedInIdentity(session.user);
     applyAccessUI();
 if (currentProfile?.approval_status === "approved") {
   await loadLeagues();
@@ -12184,6 +12443,18 @@ function bindEvents() {
       setProfileEditing(true);
     }
   });
+
+  $("profile-avatar-upload-btn")?.addEventListener("click", () => {
+    $("profile-avatar-input")?.click();
+  });
+
+  $("profile-avatar-input")?.addEventListener("change", async e => {
+    const file = e.target.files?.[0] || null;
+    await uploadProfileAvatar(file);
+    e.target.value = "";
+  });
+
+  $("profile-avatar-remove-btn")?.addEventListener("click", removeProfileAvatar);
 
   $("enable-notifications-btn")?.addEventListener("click", enablePhoneNotifications);
   $("disable-notifications-btn")?.addEventListener("click", disablePhoneNotifications);
