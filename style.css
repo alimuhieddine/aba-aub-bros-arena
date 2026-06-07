@@ -640,6 +640,7 @@ h3 {
   width: max-content;
   max-width: 100%;
   margin-left: auto;
+  flex-direction: row-reverse;
 }
 
 .mini-player-row {
