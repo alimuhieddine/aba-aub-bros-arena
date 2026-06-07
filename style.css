@@ -3448,6 +3448,7 @@ main,
 }
 
 .mini-player-link {
+  justify-self: end;
   max-width: 100%;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
