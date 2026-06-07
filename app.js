@@ -4018,6 +4018,20 @@ function teamResultLine(match, team) {
   `;
 }
 
+function matchHasVisibleTeamScore(match) {
+  const { teamA, teamB } = getTwoMatchTeams(match);
+
+  if (!teamA || !teamB) return false;
+  if (hasSubmittedScore(match)) return true;
+
+  return Boolean(
+    teamA.result ||
+    teamB.result ||
+    Number(teamA.score || 0) > 0 ||
+    Number(teamB.score || 0) > 0
+  );
+}
+
 function teamPlayerChips(team, match = null) {
   const players = team.players || [];
 
@@ -4033,9 +4047,8 @@ function teamPlayerChips(team, match = null) {
           ${player.memberId ? memberMiniIdentityHtml(player.member, player.memberId, player.name, "inline-player-identity") : escapeHtml(player.name)}
           ${player.isCaptain ? `<b>C</b>` : ""}
           ${player.isExternal ? `<em>External</em>` : ""}
+          ${ratingChangeInlineHtml(ratingChange)}
         </span>
-
-        ${ratingChangeInlineHtml(ratingChange)}
       </span>
     `;
   }).join("");
@@ -5226,8 +5239,44 @@ function formationSectionTitleParts(match) {
   return ABATeams.formationTitleParts({
     teamA,
     teamB,
-    hasScore: hasSubmittedScore(match)
+    hasScore: matchHasVisibleTeamScore(match)
   });
+}
+
+function assignmentShapeFromMatchTeams(match) {
+  const { teamA, teamB } = getTwoMatchTeams(match);
+  const teamAIds = teamPlayerMemberIds(teamA);
+  const teamBIds = teamPlayerMemberIds(teamB);
+
+  return {
+    teamA: teamAIds,
+    teamB: teamBIds,
+    all: [
+      ...(teamA?.match_team_players || []).map(player => ({
+        memberId: cleanUuidValue(player.member_id),
+        team: "A",
+        position: normalizeSoccerPosition(player.formation_position)
+      })),
+      ...(teamB?.match_team_players || []).map(player => ({
+        memberId: cleanUuidValue(player.member_id),
+        team: "B",
+        position: normalizeSoccerPosition(player.formation_position)
+      }))
+    ].filter(row => row.memberId)
+  };
+}
+
+function gameStatsExpectationHtml(match, teamAName, teamBName) {
+  const expectation = assignmentExpectationText(
+    match,
+    assignmentShapeFromMatchTeams(match),
+    teamAName,
+    teamBName
+  );
+
+  return expectation
+    ? `<span class="game-stats-expectation">Expected: ${escapeHtml(expectation)}</span>`
+    : "";
 }
 
 function formationSectionTitleHtml(match) {
@@ -5236,6 +5285,8 @@ function formationSectionTitleHtml(match) {
   if (!parts.teamAName || !parts.teamBName) {
     return `<span class="game-stats-title-simple"><span class="game-stats-heading-simple">Game Stats</span></span>`;
   }
+
+  const expectationHtml = gameStatsExpectationHtml(match, parts.teamAName, parts.teamBName);
 
   return `
     <span class="game-stats-title-simple">
@@ -5247,6 +5298,7 @@ function formationSectionTitleHtml(match) {
           : `<span class="game-stats-score-simple">vs</span>`
       }
       <span class="game-stats-team-simple">${escapeHtml(parts.teamBName)}</span>
+      ${expectationHtml}
     </span>
   `;
 }

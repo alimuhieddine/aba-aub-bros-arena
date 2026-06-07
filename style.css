@@ -4357,6 +4357,14 @@ main,
   white-space: nowrap;
 }
 
+.game-stats-expectation {
+  flex: 1 1 100%;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
 .match-formation-toggle > b {
   flex: 0 0 auto;
   color: var(--gold);
