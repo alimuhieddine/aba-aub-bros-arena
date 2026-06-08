@@ -17,6 +17,8 @@ type PushRequest = {
   update_summary?: string;
   team_name?: string;
   shirt_color?: string;
+  title?: string;
+  url?: string;
 };
 
 type MatchRow = {
@@ -135,6 +137,10 @@ function memberDisplayName(member: MemberRow) {
     "A member";
 }
 
+function isAdminRole(role: string | null | undefined) {
+  return String(role || "").toLowerCase() === "admin";
+}
+
 function sportBallEmoji(sport: string) {
   const sportText = sport.toLowerCase();
 
@@ -206,7 +212,7 @@ function testPayload() {
     renotify: true,
     requireInteraction: true,
     timestamp: Date.now(),
-    url: "./index.html#account",
+    url: "./#dashboard",
     data: {
       type: "test_push"
     }
@@ -228,6 +234,21 @@ function memberApprovalRequestedPayload(member: MemberRow) {
     data: {
       type: "member_approval_requested",
       member_id: member.id
+    }
+  };
+}
+
+function adminDirectPayload(title: string | undefined, message: string | undefined, url: string | undefined) {
+  return {
+    title: title?.trim() || "ABA Notification",
+    body: message?.trim() || "",
+    tag: `admin-direct-${Date.now()}`,
+    renotify: true,
+    requireInteraction: true,
+    timestamp: Date.now(),
+    url: url || "./#dashboard",
+    data: {
+      type: "admin_direct"
     }
   };
 }
@@ -368,7 +389,10 @@ Deno.serve(async req => {
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const serviceRoleKey =
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("SERVICE_ROLE_KEY") ||
+    Deno.env.get("SUPABASE_SERVICE_ROLE");
   const vapidSubject = Deno.env.get("VAPID_SUBJECT") || "mailto:admin@example.com";
   const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
   const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
@@ -407,9 +431,14 @@ Deno.serve(async req => {
     return jsonResponse({ error: "Member profile required." }, 403);
   }
 
+  const requestType = typeof body.type === "string"
+    ? body.type.toLowerCase().trim()
+    : "";
+
   const supportedTypes = new Set([
     "match_invite",
     "match_invite_cancelled",
+    "test",
     "test_push",
     "creator_vote_changed",
     "creator_game_full",
@@ -417,21 +446,22 @@ Deno.serve(async req => {
     "match_deleted",
     "match_updated",
     "team_assigned",
-    "member_approval_requested"
+    "member_approval_requested",
+    "admin_direct"
   ]);
 
-  if (!supportedTypes.has(body.type || "")) {
+  if (!supportedTypes.has(requestType)) {
     return jsonResponse({ error: "Unsupported notification type." }, 400);
   }
 
   let allowedRecipientIds: string[] = [];
   let payloadBody: Record<string, unknown>;
 
-  if (body.type !== "member_approval_requested" && sender.approval_status !== "approved") {
+  if (requestType !== "member_approval_requested" && sender.approval_status !== "approved") {
     return jsonResponse({ error: "Approved member required." }, 403);
   }
 
-  if (body.type === "member_approval_requested") {
+  if (requestType === "member_approval_requested") {
     if (sender.approval_status !== "pending") {
       return jsonResponse({ sent: 0, failed: 0, skipped: true });
     }
@@ -449,13 +479,20 @@ Deno.serve(async req => {
 
     allowedRecipientIds = (admins || []).map(admin => admin.id).filter(id => id !== sender.id);
     payloadBody = memberApprovalRequestedPayload(sender);
-  } else if (body.type === "test_push") {
+  } else if (requestType === "admin_direct" || requestType === "test") {
+    if (!isAdminRole(sender.role)) {
+      return jsonResponse({ error: "Only admins can send direct admin notifications." }, 403);
+    }
+
+    allowedRecipientIds = uniqueIds(body.recipient_member_ids);
+    payloadBody = adminDirectPayload(body.title, body.body, body.url);
+  } else if (requestType === "test_push") {
     allowedRecipientIds = [sender.id];
     payloadBody = testPayload();
-  } else if (body.type === "match_invite" || body.type === "team_assigned" || body.type === "match_invite_cancelled") {
+  } else if (requestType === "match_invite" || requestType === "team_assigned" || requestType === "match_invite_cancelled") {
     const matchId = typeof body.match_id === "string" ? body.match_id : "";
     const recipientIds = uniqueIds(body.recipient_member_ids)
-      .filter(id => body.type === "team_assigned" || id !== sender.id);
+      .filter(id => requestType === "team_assigned" || id !== sender.id);
 
     if (!matchId || !recipientIds.length) {
       return jsonResponse({ sent: 0, failed: 0, skipped: true });
@@ -472,9 +509,9 @@ Deno.serve(async req => {
     }
 
     if (
-      (body.type === "team_assigned" || body.type === "match_invite_cancelled") &&
+      (requestType === "team_assigned" || requestType === "match_invite_cancelled") &&
       match.created_by !== sender.id &&
-      sender.role !== "admin"
+      !isAdminRole(sender.role)
     ) {
       return jsonResponse({ error: "Only the match creator or admin can notify this match update." }, 403);
     }
@@ -485,9 +522,9 @@ Deno.serve(async req => {
       .eq("match_id", matchId)
       .in("member_id", recipientIds);
 
-    const { data: invitationRows, error: invitationError } = body.type === "match_invite"
+    const { data: invitationRows, error: invitationError } = requestType === "match_invite"
       ? await invitationQuery.eq("status", "invited")
-      : body.type === "match_invite_cancelled"
+      : requestType === "match_invite_cancelled"
         ? await invitationQuery.eq("status", "removed")
         : await invitationQuery.eq("status", "in");
 
@@ -496,9 +533,9 @@ Deno.serve(async req => {
     }
 
     allowedRecipientIds = (invitationRows || []).map(row => row.member_id);
-    payloadBody = body.type === "team_assigned"
+    payloadBody = requestType === "team_assigned"
       ? teamAssignedPayload(match as MatchRow, body.team_name, body.shirt_color)
-      : body.type === "match_invite_cancelled"
+      : requestType === "match_invite_cancelled"
         ? matchInviteCancelledPayload(match as MatchRow, memberDisplayName(sender))
         : matchInvitePayload(match as MatchRow, memberDisplayName(sender));
   } else {
@@ -518,7 +555,11 @@ Deno.serve(async req => {
       return jsonResponse({ error: "Match not found." }, 404);
     }
 
-    if (body.type === "match_cancelled" || body.type === "match_deleted" || body.type === "match_updated") {
+    if (
+      requestType === "match_cancelled" ||
+      requestType === "match_deleted" ||
+      requestType === "match_updated"
+    ) {
       const canManage = match.created_by === sender.id || sender.role === "admin";
 
       if (!canManage) {
@@ -539,9 +580,9 @@ Deno.serve(async req => {
         match.created_by,
         ...(invitationRows || []).map(row => row.member_id)
       ]).filter(id => id !== sender.id);
-      payloadBody = body.type === "match_updated"
+      payloadBody = requestType === "match_updated"
         ? matchUpdatedPayload(match as MatchRow, memberDisplayName(sender), body.update_summary)
-        : matchLifecyclePayload(match as MatchRow, body.type as "match_cancelled" | "match_deleted", memberDisplayName(sender));
+        : matchLifecyclePayload(match as MatchRow, requestType as "match_cancelled" | "match_deleted", memberDisplayName(sender));
     } else {
       if (match.created_by === sender.id) {
         return jsonResponse({ sent: 0, failed: 0, skipped: true });
@@ -565,7 +606,7 @@ Deno.serve(async req => {
 
       allowedRecipientIds = match.created_by ? [match.created_by] : [];
 
-      payloadBody = body.type === "creator_game_full"
+      payloadBody = requestType === "creator_game_full"
         ? creatorGameFullPayload(match as MatchRow)
         : creatorVoteChangedPayload(match as MatchRow, memberDisplayName(sender), body.vote_status);
     }

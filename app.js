@@ -402,6 +402,112 @@ async function reviewMember(memberId, decision) {
 
 
 
+async function loadAdminNotificationMembers() {
+  if (!isCurrentUserAdmin()) return;
+
+  const { data, error } = await supabaseClient
+    .from("members")
+    .select("id,first_name,last_name,display_name,email,is_external")
+    .eq("approval_status", "approved")
+    .eq("is_active", true)
+    .order("display_name", { ascending: true });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  adminNotificationMembers = (data || []).filter(member => member?.id);
+  const select = $("admin-notify-member");
+
+  if (!select) return;
+
+  select.innerHTML = `
+    <option value="">Choose member</option>
+    <option value="__all__">All approved members</option>
+    ${adminNotificationMembers.map(member => `
+      <option value="${member.id}">${escapeHtml(memberDisplayName(member))}</option>
+    `).join("")}
+  `;
+}
+
+function getAdminNotificationPayload() {
+  return {
+    title: $("admin-notify-title")?.value?.trim() || "ABA Notification Test",
+    message: $("admin-notify-message")?.value?.trim() || ""
+  };
+}
+
+async function sendAdminPushNotification() {
+  const status = $("admin-notify-status");
+  const selected = $("admin-notify-member")?.value || "";
+  const { title, message } = getAdminNotificationPayload();
+
+  if (status) status.textContent = "";
+
+  if (!message) {
+    alert("Please type a message before sending.");
+    return;
+  }
+
+  let recipientIds = [];
+
+  if (selected === "__all__") {
+    recipientIds = adminNotificationMembers.map(member => member.id).filter(Boolean);
+  } else if (selected) {
+    recipientIds = [selected];
+  } else {
+    alert("Please select a member or choose All approved members.");
+    return;
+  }
+
+  if (recipientIds.length === 0) {
+    alert("No active recipients found.");
+    return;
+  }
+
+  const { data: sendResult, error } = await supabaseClient.functions.invoke("send-push", {
+    body: {
+      type: "admin_direct",
+      recipient_member_ids: recipientIds,
+      title,
+      body: message,
+      url: "./#dashboard"
+    }
+  });
+
+  if (error) {
+    const contextBody = error.context?.body
+      ? ` ${typeof error.context.body === "string" ? error.context.body : JSON.stringify(error.context.body)}`
+      : "";
+    const contextText = error.context ? JSON.stringify(error.context) : "";
+    const details = contextBody || contextText || "";
+    alert(`Notification failed: ${error.message}${details ? `\\n${details}` : ""}`);
+    if (status) status.textContent = "Notification failed.";
+    return;
+  }
+
+  if (status) {
+    const sent = Number(sendResult?.sent || 0);
+    const skipped = sendResult?.skipped ? " (skipped)" : "";
+    status.textContent = `Notification request sent. Sent: ${sent}${skipped}.`;
+  }
+
+  if (selected === "__all__" && $("admin-notify-member")) {
+    $("admin-notify-member").value = "";
+  }
+}
+
+async function sendAdminPushNotificationToAll() {
+  if ($("admin-notify-member")) {
+    $("admin-notify-member").value = "__all__";
+  }
+
+  await sendAdminPushNotification();
+}
+
+let adminNotificationMembers = [];
+
 function applyAccessUI() {
   const appTabs = ["dashboard", "leagues", "matches", "activities", "rankings"];
   const status = currentProfile?.approval_status;
@@ -504,6 +610,7 @@ let voteDeadlineManuallyEdited = false;
 const ACTIVITY_SPORT_SETTINGS_KEY = "aba_activity_sport_settings";
 const ACTIVITY_SPORT_APP_SETTING_KEY = "activity_sport_settings";
 const ACTIVITY_PROOF_BUCKET = "activity-proofs";
+const MATCH_RESULT_PHOTO_BUCKET = "match-result-photos";
 const DEFAULT_ACTIVITY_RATE = 1;
 const DEFAULT_ACTIVITY_CAP = 3;
 const MEMBER_ACTIVITY_SELECT = `
@@ -3345,6 +3452,8 @@ async function loadMatches() {
       voting_deadline_at,
       status,
       notes,
+      result_photo_path,
+      result_photo_file_name,
       created_at,
       sports (
         id,
@@ -5483,6 +5592,8 @@ function renderMatches() {
 
             ${renderScoreSummary(match)}
 
+            ${renderMatchResultPhoto(match)}
+
             ${renderPointsSummary(match)}
 
             ${
@@ -7197,6 +7308,18 @@ async function deleteMatchChildRows(match) {
     }
   }
 
+  const resultPhotoPath = String(match?.result_photo_path || "").trim();
+  if (resultPhotoPath) {
+    const { error: photoDeleteError } = await supabaseClient
+      .storage
+      .from(MATCH_RESULT_PHOTO_BUCKET)
+      .remove([resultPhotoPath]);
+
+    if (photoDeleteError) {
+      console.warn("Could not remove match result photo:", photoDeleteError.message);
+    }
+  }
+
   return {
     ok: true,
     error: ""
@@ -8122,6 +8245,8 @@ async function openScoreSubmission(matchId) {
   if ($("score-team-a")) $("score-team-a").value = Number(teamA.score || 0);
   if ($("score-team-b")) $("score-team-b").value = Number(teamB.score || 0);
   if ($("score-summary")) $("score-summary").value = scoreMatch.notes || "";
+  if ($("score-result-photo")) $("score-result-photo").value = "";
+  updateScorePhotoPreview(scoreMatch);
 
   setScoreMode(scoreMatch);
 
@@ -10197,6 +10322,7 @@ async function finalizeCurrentMatchResult() {
   }
 
   const summary = $("score-summary")?.value.trim() || null;
+  const resultPhotoFile = $("score-result-photo")?.files?.[0] || null;
   let scoreA = Number(teamA.score || 0);
   let scoreB = Number(teamB.score || 0);
   const teamAName = teamDisplayName(match, teamA, "Team A");
@@ -10365,14 +10491,28 @@ async function finalizeCurrentMatchResult() {
 
   if (!ratingsSaved) return;
 
-  alert(isSoccerMatch(refreshedMatchForPoints)
+  let photoSaveNote = "";
+
+  if (resultPhotoFile) {
+    const photoResult = await saveMatchResultPhoto(match, resultPhotoFile);
+
+    if (!photoResult.ok) {
+      console.warn("Match result photo could not be saved:", photoResult.error);
+      photoSaveNote = ` Photo note: ${photoResult.error}`;
+    }
+  }
+
+  const finalMessage = isSoccerMatch(refreshedMatchForPoints)
     ? "Match result finalized, points saved, and soccer position ratings updated."
     : isPadelMatch(refreshedMatchForPoints)
       ? "Match result finalized, points saved, and padel ratings updated."
-      : "Match result finalized and points saved.");
+      : "Match result finalized and points saved.";
+
+  alert(`${finalMessage}${photoSaveNote}`);
 
   $("scoreModal")?.close();
   currentScoreMatchId = null;
+  updateScorePhotoPreview(null);
 
   await loadMatches();
 }
@@ -12720,6 +12860,167 @@ function profileAvatarStoragePath(authUserId = currentProfile?.auth_user_id, fil
   return cleanId ? `${cleanId}/avatar.${profileAvatarExtension(file)}` : "";
 }
 
+function matchResultPhotoStoragePath(matchId, file, authUserId = currentProfile?.auth_user_id) {
+  const cleanMatchId = cleanUuidValue(matchId);
+  const cleanAuthId = cleanUuidValue(authUserId);
+
+  if (!cleanMatchId || !cleanAuthId || !file) return "";
+
+  return `${cleanAuthId}/${cleanMatchId}/${Date.now()}-${crypto.randomUUID()}.${profileAvatarExtension(file)}`;
+}
+
+function matchResultPhotoPublicUrl(photoPath) {
+  const cleanPath = String(photoPath || "").trim();
+  if (!cleanPath) return "";
+
+  const { data } = supabaseClient
+    .storage
+    .from(MATCH_RESULT_PHOTO_BUCKET)
+    .getPublicUrl(cleanPath);
+
+  return data?.publicUrl || "";
+}
+
+function renderMatchResultPhoto(match) {
+  const photoUrl = matchResultPhotoPublicUrl(match?.result_photo_path);
+  if (!photoUrl) return "";
+
+  const fileName = match?.result_photo_file_name || "Match result photo";
+
+  return `
+    <div class="match-result-photo">
+      <img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(match?.title || "Match result")} photo">
+      <div class="match-result-photo-caption">
+        <strong>${escapeHtml(fileName)}</strong>
+        <span>End-of-game photo attached to this result.</span>
+      </div>
+    </div>
+  `;
+}
+
+function updateScorePhotoPreview(match) {
+  const box = $("score-result-photo-preview");
+  if (!box) return;
+
+  const photoUrl = matchResultPhotoPublicUrl(match?.result_photo_path);
+
+  if (!photoUrl) {
+    box.innerHTML = `<div class="hint">No result photo attached yet.</div>`;
+    return;
+  }
+
+  const fileName = match?.result_photo_file_name || "Match result photo";
+
+  box.innerHTML = `
+    <img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(match?.title || "Match result")} photo">
+    <div class="match-result-photo-caption">
+      <strong>Current photo</strong>
+      <span>${escapeHtml(fileName)}</span>
+    </div>
+  `;
+}
+
+async function uploadMatchResultPhoto(matchId, file) {
+  if (!file) return { ok: true, skipped: true };
+
+  const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+  if (!allowedTypes.has(file.type)) {
+    return {
+      ok: false,
+      error: "Please choose a JPG, PNG, or WebP image for the result photo."
+    };
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    return {
+      ok: false,
+      error: "Result photo must be 5 MB or smaller."
+    };
+  }
+
+  const path = matchResultPhotoStoragePath(matchId, file);
+  if (!path) {
+    return {
+      ok: false,
+      error: "Could not prepare the result photo upload path."
+    };
+  }
+
+  const { error: uploadError } = await supabaseClient
+    .storage
+    .from(MATCH_RESULT_PHOTO_BUCKET)
+    .upload(path, file, {
+      upsert: true,
+      contentType: file.type,
+      cacheControl: "3600"
+    });
+
+  if (uploadError) {
+    return {
+      ok: false,
+      error: uploadError.message
+    };
+  }
+
+  return {
+    ok: true,
+    path,
+    fileName: file.name
+  };
+}
+
+async function saveMatchResultPhoto(match, file) {
+  if (!match || !file) return { ok: true, skipped: true };
+
+  const currentPath = String(match.result_photo_path || "").trim();
+  const uploadResult = await uploadMatchResultPhoto(match.id, file);
+
+  if (!uploadResult.ok) {
+    return uploadResult;
+  }
+
+  const nextPath = uploadResult.path;
+  const { error } = await supabaseClient
+    .from("matches")
+    .update({
+      result_photo_path: nextPath,
+      result_photo_file_name: uploadResult.fileName || file.name
+    })
+    .eq("id", match.id);
+
+  if (error) {
+    const removeResult = await supabaseClient
+      .storage
+      .from(MATCH_RESULT_PHOTO_BUCKET)
+      .remove([nextPath]);
+
+    if (removeResult?.error) {
+      console.warn("Could not remove failed match photo upload:", removeResult.error.message);
+    }
+
+    return {
+      ok: false,
+      error: error.message
+    };
+  }
+
+  if (currentPath && currentPath !== nextPath && currentPath.startsWith(`${cleanUuidValue(currentProfile?.auth_user_id)}/`)) {
+    const cleanupResult = await supabaseClient
+      .storage
+      .from(MATCH_RESULT_PHOTO_BUCKET)
+      .remove([currentPath]);
+
+    if (cleanupResult?.error) {
+      console.warn("Could not remove previous match photo:", cleanupResult.error.message);
+    }
+  }
+
+  return {
+    ok: true,
+    path: nextPath
+  };
+}
+
 async function updateCurrentProfileAvatarUrl(avatarUrl) {
   if (!currentProfile?.id) {
     alert("Save your profile before adding a photo.");
@@ -13012,13 +13313,14 @@ if (currentProfile?.approval_status === "approved") {
 }
     if (isCurrentUserAdmin()) {
       await loadSportsOptions();
-await loadMatchFormOptions();
-await loadPendingMembers();
-await loadMemberActivities();
-await loadActivitySportSettings(true);
-renderActivitySettingsForm();
-await loadVenues();
-await loadMatches();
+      await loadMatchFormOptions();
+      await loadAdminNotificationMembers();
+      await loadPendingMembers();
+      await loadMemberActivities();
+      await loadActivitySportSettings(true);
+      renderActivitySettingsForm();
+      await loadVenues();
+      await loadMatches();
     }
 
     return;
@@ -13088,6 +13390,7 @@ function setActiveTab(viewId, persist = true) {
       renderActivitySettingsForm();
     });
     loadExternalMembers().then(renderSportRatingManager);
+    loadAdminNotificationMembers();
     loadPendingMembers();
     loadMemberActivities();
     loadVenues();
@@ -13449,6 +13752,8 @@ function bindEvents() {
   $("enable-notifications-btn")?.addEventListener("click", enablePhoneNotifications);
   $("disable-notifications-btn")?.addEventListener("click", disablePhoneNotifications);
   $("test-notifications-btn")?.addEventListener("click", sendTestNotification);
+  $("send-admin-notification-btn")?.addEventListener("click", sendAdminPushNotification);
+  $("send-admin-notification-all-btn")?.addEventListener("click", sendAdminPushNotificationToAll);
 
   $("signup-btn")?.addEventListener("click", () => {
     signUp($("auth-email").value.trim(), $("auth-password").value);

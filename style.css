@@ -1977,6 +1977,48 @@ main,
   font-size: 12px;
 }
 
+.score-photo-field {
+  display: grid;
+  gap: 6px;
+}
+
+.score-photo-preview,
+.match-result-photo {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.04);
+  display: grid;
+  gap: 8px;
+}
+
+.score-photo-preview img,
+.match-result-photo img {
+  width: 100%;
+  display: block;
+  border-radius: 12px;
+  object-fit: cover;
+  max-height: 260px;
+  background: #08111f;
+}
+
+.score-photo-preview .hint {
+  margin: 0;
+}
+
+.match-result-photo-caption {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.match-result-photo-caption strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
 
 /* === SPORT-SPECIFIC SCORING === */
 .padel-set-grid {

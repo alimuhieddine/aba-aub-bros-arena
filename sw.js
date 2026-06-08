@@ -47,6 +47,21 @@ self.addEventListener("push", event => {
   }
 
   const title = payload.title || "ABA";
+  const resolveTargetUrl = rawUrl => {
+    const fallback = "./index.html";
+    const scope = self.registration?.scope || self.location?.href || fallback;
+
+    try {
+      return new URL(rawUrl || fallback, scope).href;
+    } catch {
+      try {
+        return new URL(fallback, scope).href;
+      } catch {
+        return fallback;
+      }
+    }
+  };
+
   const options = {
     body: payload.body || "New ABA notification",
     tag: payload.tag || undefined,
@@ -54,7 +69,7 @@ self.addEventListener("push", event => {
     requireInteraction: Boolean(payload.requireInteraction),
     timestamp: Number(payload.timestamp || Date.now()),
     data: {
-      url: payload.url || "./index.html",
+      url: resolveTargetUrl(payload.url),
       ...payload.data
     }
   };
@@ -84,7 +99,14 @@ self.addEventListener("push", event => {
 self.addEventListener("notificationclick", event => {
   event.notification.close();
 
-  const targetUrl = event.notification.data?.url || "./index.html";
+  const rawTargetUrl = event.notification.data?.url || "./index.html";
+  const targetUrl = (() => {
+    try {
+      return new URL(rawTargetUrl, self.registration?.scope || self.location?.href || "./index.html").href;
+    } catch {
+      return rawTargetUrl || "./index.html";
+    }
+  })();
 
   event.waitUntil((async () => {
     const windows = await clients.matchAll({

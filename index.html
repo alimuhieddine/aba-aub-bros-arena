@@ -317,6 +317,45 @@
 
         <div class="section-head">
           <div>
+            <h2>Admin Notifications</h2>
+            <p class="hint">Send a custom test notification to a single member or to all members.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <label>
+            Member
+            <select id="admin-notify-member">
+              <option value="">Choose member</option>
+              <option value="__all__">All approved members</option>
+            </select>
+          </label>
+
+          <label>
+            Title
+            <input id="admin-notify-title" type="text" value="ABA Notification Test" />
+          </label>
+
+          <label>
+            Message
+            <textarea id="admin-notify-message" rows="3" placeholder="Type your test message"></textarea>
+          </label>
+
+          <div class="actions">
+            <button id="send-admin-notification-btn" class="primary-btn" type="button">
+              Send to Selected
+            </button>
+
+            <button id="send-admin-notification-all-btn" class="secondary-btn" type="button">
+              Send to All
+            </button>
+          </div>
+
+          <p id="admin-notify-status" class="hint"></p>
+        </div>
+
+        <div class="section-head">
+          <div>
             <h2>Sport Ratings</h2>
             <p class="hint">Set player ratings by sport for future team suggestions.</p>
           </div>
@@ -989,6 +1028,15 @@
         Match summary / notes
         <textarea id="score-summary" rows="4" placeholder="Optional match summary..."></textarea>
       </label>
+
+      <label class="score-photo-field">
+        Result photo
+        <input id="score-result-photo" type="file" accept="image/jpeg,image/png,image/webp">
+      </label>
+
+      <div id="score-result-photo-preview" class="score-photo-preview">
+        <div class="hint">No result photo attached yet.</div>
+      </div>
 
       <div class="actions score-actions">
         <button id="save-game-btn" class="secondary-btn" type="button">
