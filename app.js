@@ -12888,7 +12888,11 @@ function matchResultPhotoStoragePath(matchId, file, authUserId = currentProfile?
 }
 
 function matchResultPhotoRow(match) {
-  return (match?.match_result_photos || [])[0] || null;
+  const row = match?.match_result_photos;
+  if (Array.isArray(row)) {
+    return row[0] || null;
+  }
+  return row || null;
 }
 
 function matchResultPhotoPath(match) {
