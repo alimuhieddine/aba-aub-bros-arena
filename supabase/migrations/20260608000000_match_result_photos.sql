@@ -27,20 +27,11 @@ create policy "approved members can read match result photos"
       from public.members viewer
       where viewer.auth_user_id = auth.uid()
         and viewer.approval_status = 'approved'
-        and (
-          viewer.role = 'admin'
-          or exists (
-            select 1
-            from public.matches m
-            where m.id = match_result_photos.match_id
-              and m.created_by = viewer.id
-          )
-        )
     )
   );
 
-drop policy if exists "approved members can manage own match result photos" on public.match_result_photos;
-create policy "approved members can manage own match result photos"
+drop policy if exists "approved members can manage match result photos" on public.match_result_photos;
+create policy "approved members can manage match result photos"
   on public.match_result_photos
   for all
   to authenticated
@@ -50,15 +41,6 @@ create policy "approved members can manage own match result photos"
       from public.members m
       where m.auth_user_id = auth.uid()
         and m.approval_status = 'approved'
-        and (
-          m.role = 'admin'
-          or exists (
-            select 1
-            from public.matches match_row
-            where match_row.id = match_result_photos.match_id
-              and match_row.created_by = m.id
-          )
-        )
     )
   )
   with check (
@@ -67,15 +49,6 @@ create policy "approved members can manage own match result photos"
       from public.members m
       where m.auth_user_id = auth.uid()
         and m.approval_status = 'approved'
-        and (
-          m.role = 'admin'
-          or exists (
-            select 1
-            from public.matches match_row
-            where match_row.id = match_result_photos.match_id
-              and match_row.created_by = m.id
-          )
-        )
     )
   );
 
@@ -88,6 +61,32 @@ create policy "approved members can upload match result photos"
   on storage.objects
   for insert
   to authenticated
+  with check (
+    bucket_id = 'match-result-photos'
+    and (storage.foldername(name))[1] = auth.uid()::text
+    and exists (
+      select 1
+      from public.members m
+      where m.auth_user_id = auth.uid()
+        and m.approval_status = 'approved'
+    )
+  );
+
+drop policy if exists "approved members can update match result photos" on storage.objects;
+create policy "approved members can update match result photos"
+  on storage.objects
+  for update
+  to authenticated
+  using (
+    bucket_id = 'match-result-photos'
+    and (storage.foldername(name))[1] = auth.uid()::text
+    and exists (
+      select 1
+      from public.members m
+      where m.auth_user_id = auth.uid()
+        and m.approval_status = 'approved'
+    )
+  )
   with check (
     bucket_id = 'match-result-photos'
     and (storage.foldername(name))[1] = auth.uid()::text
