@@ -3515,6 +3515,15 @@ async function loadMatches() {
         is_completed,
         notes
       ),
+      match_result_photos (
+        id,
+        match_id,
+        member_id,
+        photo_path,
+        photo_file_name,
+        created_at,
+        updated_at
+      ),
       match_game_sessions (
         id,
         game_id,
@@ -3661,6 +3670,15 @@ async function loadMatches() {
           avatar_url,
           is_external
         )
+      ),
+      match_result_photos (
+        id,
+        match_id,
+        member_id,
+        photo_path,
+        photo_file_name,
+        created_at,
+        updated_at
       )
     `;
 
@@ -7308,7 +7326,7 @@ async function deleteMatchChildRows(match) {
     }
   }
 
-  const resultPhotoPath = String(match?.result_photo_path || "").trim();
+  const resultPhotoPath = matchResultPhotoPath(match);
   if (resultPhotoPath) {
     const { error: photoDeleteError } = await supabaseClient
       .storage
@@ -12869,12 +12887,22 @@ function matchResultPhotoStoragePath(matchId, file, authUserId = currentProfile?
   return `${cleanAuthId}/${cleanMatchId}/${Date.now()}-${crypto.randomUUID()}.${profileAvatarExtension(file)}`;
 }
 
-function matchResultPhotoPublicUrl(photoPath) {
-  const cleanPath = String(photoPath || "").trim();
+function matchResultPhotoRow(match) {
+  return (match?.match_result_photos || [])[0] || null;
+}
+
+function matchResultPhotoPath(match) {
+  const row = matchResultPhotoRow(match);
+  const cleanPath = String(row?.photo_path || match?.result_photo_path || "").trim();
+  if (!cleanPath) return "";
+  return cleanPath;
+}
+
+function matchResultPhotoPublicUrl(match) {
+  const cleanPath = matchResultPhotoPath(match);
   if (!cleanPath) return "";
 
-  const { data } = supabaseClient
-    .storage
+  const { data } = supabaseClient.storage
     .from(MATCH_RESULT_PHOTO_BUCKET)
     .getPublicUrl(cleanPath);
 
@@ -12882,10 +12910,10 @@ function matchResultPhotoPublicUrl(photoPath) {
 }
 
 function renderMatchResultPhoto(match) {
-  const photoUrl = matchResultPhotoPublicUrl(match?.result_photo_path);
+  const photoUrl = matchResultPhotoPublicUrl(match);
   if (!photoUrl) return "";
 
-  const fileName = match?.result_photo_file_name || "Match result photo";
+  const fileName = matchResultPhotoRow(match)?.photo_file_name || match?.result_photo_file_name || "Match result photo";
 
   return `
     <div class="match-result-photo">
@@ -12902,14 +12930,14 @@ function updateScorePhotoPreview(match) {
   const box = $("score-result-photo-preview");
   if (!box) return;
 
-  const photoUrl = matchResultPhotoPublicUrl(match?.result_photo_path);
+  const photoUrl = matchResultPhotoPublicUrl(match);
 
   if (!photoUrl) {
     box.innerHTML = `<div class="hint">No result photo attached yet.</div>`;
     return;
   }
 
-  const fileName = match?.result_photo_file_name || "Match result photo";
+  const fileName = matchResultPhotoRow(match)?.photo_file_name || match?.result_photo_file_name || "Match result photo";
 
   box.innerHTML = `
     <img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(match?.title || "Match result")} photo">
@@ -12972,7 +13000,7 @@ async function uploadMatchResultPhoto(matchId, file) {
 async function saveMatchResultPhoto(match, file) {
   if (!match || !file) return { ok: true, skipped: true };
 
-  const currentPath = String(match.result_photo_path || "").trim();
+  const currentPath = matchResultPhotoPath(match);
   const uploadResult = await uploadMatchResultPhoto(match.id, file);
 
   if (!uploadResult.ok) {
@@ -12981,12 +13009,16 @@ async function saveMatchResultPhoto(match, file) {
 
   const nextPath = uploadResult.path;
   const { error } = await supabaseClient
-    .from("matches")
-    .update({
-      result_photo_path: nextPath,
-      result_photo_file_name: uploadResult.fileName || file.name
-    })
-    .eq("id", match.id);
+    .from("match_result_photos")
+    .upsert({
+      match_id: match.id,
+      member_id: currentProfile?.id,
+      photo_path: nextPath,
+      photo_file_name: uploadResult.fileName || file.name,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: "match_id"
+    });
 
   if (error) {
     const removeResult = await supabaseClient
