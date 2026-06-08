@@ -1996,10 +1996,13 @@ main,
 .score-photo-preview img,
 .match-result-photo img {
   width: 100%;
+  aspect-ratio: 16 / 9;
   display: block;
   border-radius: 12px;
   object-fit: cover;
-  max-height: 260px;
+  height: 100%;
+  min-height: 220px;
+  max-height: 340px;
   background: #08111f;
 }
 
