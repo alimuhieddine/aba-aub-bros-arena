@@ -18,7 +18,10 @@ type PushRequest = {
   team_name?: string;
   shirt_color?: string;
   title?: string;
+  body?: string;
   url?: string;
+  role?: string;
+  sports?: string[];
 };
 
 type MatchRow = {
@@ -26,6 +29,7 @@ type MatchRow = {
   title: string | null;
   start_time: string | null;
   created_by?: string | null;
+  sport_id?: string | null;
   sports?: { name?: string | null } | null;
   venues?: { name?: string | null } | null;
 };
@@ -138,7 +142,23 @@ function memberDisplayName(member: MemberRow) {
 }
 
 function isAdminRole(role: string | null | undefined) {
-  return String(role || "").toLowerCase() === "admin";
+  return ["owner", "admin"].includes(String(role || "").toLowerCase());
+}
+
+async function senderCanManageMatch(adminClient: any, sender: MemberRow, match: MatchRow) {
+  if (match.created_by === sender.id || isAdminRole(sender.role)) return true;
+  if (String(sender.role || "").toLowerCase() !== "committee" || !match.sport_id) return false;
+
+  const { data, error } = await adminClient
+    .from("member_sport_permissions")
+    .select("id")
+    .eq("member_id", sender.id)
+    .eq("sport_id", match.sport_id)
+    .eq("permission", "manage")
+    .maybeSingle();
+
+  if (error) return false;
+  return Boolean(data);
 }
 
 function sportBallEmoji(sport: string) {
@@ -249,6 +269,36 @@ function adminDirectPayload(title: string | undefined, message: string | undefin
     url: url || "./#dashboard",
     data: {
       type: "admin_direct"
+    }
+  };
+}
+
+function roleChangedPayload(role: string | undefined, sports: string[] | undefined) {
+  const cleanRole = String(role || "member").toLowerCase();
+  const roleLabel = cleanRole === "owner"
+    ? "owner"
+    : cleanRole === "admin"
+      ? "admin"
+      : cleanRole === "committee"
+        ? "sport committee member"
+        : "member";
+  const sportList = Array.isArray(sports) ? sports.filter(Boolean) : [];
+  const sportText = sportList.length
+    ? ` for ${sportList.join(", ")}`
+    : "";
+
+  return {
+    title: "ABA Role Updated",
+    body: `You have been assigned as ${roleLabel}${sportText}.`,
+    tag: `role-updated-${Date.now()}`,
+    renotify: true,
+    requireInteraction: true,
+    timestamp: Date.now(),
+    url: "./index.html#account",
+    data: {
+      type: "role_changed",
+      role: cleanRole,
+      sports: sportList
     }
   };
 }
@@ -447,7 +497,8 @@ Deno.serve(async req => {
     "match_updated",
     "team_assigned",
     "member_approval_requested",
-    "admin_direct"
+    "admin_direct",
+    "role_changed"
   ]);
 
   if (!supportedTypes.has(requestType)) {
@@ -469,7 +520,7 @@ Deno.serve(async req => {
     const { data: admins, error: adminError } = await adminClient
       .from("members")
       .select("id")
-      .eq("role", "admin")
+      .in("role", ["owner", "admin"])
       .eq("approval_status", "approved")
       .eq("is_active", true);
 
@@ -479,6 +530,14 @@ Deno.serve(async req => {
 
     allowedRecipientIds = (admins || []).map(admin => admin.id).filter(id => id !== sender.id);
     payloadBody = memberApprovalRequestedPayload(sender);
+  } else if (requestType === "role_changed") {
+    if (!isAdminRole(sender.role)) {
+      return jsonResponse({ error: "Only owners or admins can send role update notifications." }, 403);
+    }
+
+    allowedRecipientIds = uniqueIds(body.recipient_member_ids)
+      .filter(id => id !== sender.id);
+    payloadBody = roleChangedPayload(body.role, body.sports);
   } else if (requestType === "admin_direct" || requestType === "test") {
     if (!isAdminRole(sender.role)) {
       return jsonResponse({ error: "Only admins can send direct admin notifications." }, 403);
@@ -500,7 +559,7 @@ Deno.serve(async req => {
 
     const { data: match, error: matchError } = await adminClient
       .from("matches")
-      .select("id,title,start_time,created_by,sports(name),venues(name)")
+      .select("id,title,start_time,created_by,sport_id,sports(name),venues(name)")
       .eq("id", matchId)
       .maybeSingle();
 
@@ -510,10 +569,9 @@ Deno.serve(async req => {
 
     if (
       (requestType === "team_assigned" || requestType === "match_invite_cancelled") &&
-      match.created_by !== sender.id &&
-      !isAdminRole(sender.role)
+      !(await senderCanManageMatch(adminClient, sender, match as MatchRow))
     ) {
-      return jsonResponse({ error: "Only the match creator or admin can notify this match update." }, 403);
+      return jsonResponse({ error: "Only sport managers can notify this match update." }, 403);
     }
 
     const invitationQuery = adminClient
@@ -547,7 +605,7 @@ Deno.serve(async req => {
 
     const { data: match, error: matchError } = await adminClient
       .from("matches")
-      .select("id,title,start_time,created_by,sports(name),venues(name)")
+      .select("id,title,start_time,created_by,sport_id,sports(name),venues(name)")
       .eq("id", matchId)
       .maybeSingle();
 
@@ -560,10 +618,10 @@ Deno.serve(async req => {
       requestType === "match_deleted" ||
       requestType === "match_updated"
     ) {
-      const canManage = match.created_by === sender.id || sender.role === "admin";
+      const canManage = await senderCanManageMatch(adminClient, sender, match as MatchRow);
 
       if (!canManage) {
-        return jsonResponse({ error: "Only the match creator or admin can notify match updates." }, 403);
+        return jsonResponse({ error: "Only sport managers can notify match updates." }, 403);
       }
 
       const { data: invitationRows, error: invitationError } = await adminClient

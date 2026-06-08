@@ -310,10 +310,41 @@ async function saveVenue() {
 }
 
 
+function currentUserRole() {
+  return String(currentProfile?.role || "member").toLowerCase();
+}
+
+function isApprovedCurrentUser() {
+  return Boolean(currentProfile && currentProfile.approval_status === "approved");
+}
+
+function isCurrentUserOwner() {
+  return isApprovedCurrentUser() && currentUserRole() === "owner";
+}
+
 function isCurrentUserAdmin() {
-  return currentProfile &&
-    currentProfile.role === "admin" &&
-    currentProfile.approval_status === "approved";
+  return isApprovedCurrentUser() && ["owner", "admin"].includes(currentUserRole());
+}
+
+function isCurrentUserCommittee() {
+  return isApprovedCurrentUser() && currentUserRole() === "committee";
+}
+
+function canManageSport(sportId) {
+  const cleanSportId = cleanUuidValue(sportId);
+  if (!isApprovedCurrentUser() || !cleanSportId) return false;
+  if (isCurrentUserAdmin()) return true;
+  return isCurrentUserCommittee() && currentMemberSportPermissionIds.has(cleanSportId);
+}
+
+function manageableSports() {
+  if (!isApprovedCurrentUser()) return [];
+  if (isCurrentUserAdmin()) return allSports || [];
+  return (allSports || []).filter(sport => canManageSport(sport.id));
+}
+
+function canManageAnySport() {
+  return isCurrentUserAdmin() || (isCurrentUserCommittee() && currentMemberSportPermissionIds.size > 0);
 }
 
 async function loadPendingMembers() {
@@ -387,6 +418,240 @@ async function reviewMember(memberId, decision) {
 
   alert(`Member ${decision}.`);
   await loadPendingMembers();
+}
+
+async function ensureSportsLoaded() {
+  if ((allSports || []).length) return allSports;
+
+  const { data, error } = await supabaseClient
+    .from("sports")
+    .select("id,name")
+    .order("name", { ascending: true });
+
+  if (error) {
+    console.warn("Could not load sports:", error.message);
+    return [];
+  }
+
+  allSports = data || [];
+  return allSports;
+}
+
+async function loadCurrentMemberSportPermissions() {
+  currentMemberSportPermissionIds = new Set();
+
+  if (!isApprovedCurrentUser()) return currentMemberSportPermissionIds;
+
+  const { data, error } = await supabaseClient
+    .from("member_sport_permissions")
+    .select("sport_id")
+    .eq("member_id", currentProfile.id)
+    .eq("permission", "manage");
+
+  if (error) {
+    console.warn("Could not load sport permissions:", error.message);
+    return currentMemberSportPermissionIds;
+  }
+
+  currentMemberSportPermissionIds = new Set(
+    (data || []).map(row => cleanUuidValue(row.sport_id)).filter(Boolean)
+  );
+  return currentMemberSportPermissionIds;
+}
+
+function memberRoleLabel(role) {
+  const clean = String(role || "member").toLowerCase();
+  if (clean === "owner") return "Owner";
+  if (clean === "admin") return "Admin";
+  if (clean === "committee") return "Committee";
+  return "Member";
+}
+
+function memberPermissionSportIds(memberId) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  return new Set(
+    (allMemberSportPermissions || [])
+      .filter(row => cleanUuidValue(row.member_id) === cleanMemberId)
+      .map(row => cleanUuidValue(row.sport_id))
+      .filter(Boolean)
+  );
+}
+
+function renderMemberRoleManager(members = []) {
+  const box = $("memberRoleList");
+  if (!box) return;
+
+  if (!isCurrentUserOwner()) {
+    box.innerHTML = `<article class="card">Owner access required.</article>`;
+    return;
+  }
+
+  if (!members.length) {
+    box.innerHTML = `<article class="card">No approved members found.</article>`;
+    return;
+  }
+
+  box.innerHTML = members.map(member => {
+    const role = String(member.role || "member").toLowerCase();
+    const sportIds = memberPermissionSportIds(member.id);
+    const canEditRole = !isCurrentUserOwner() && role === "owner" ? false : true;
+
+    return `
+      <article class="card member-role-card" data-member-id="${member.id}">
+        <div class="row">
+          <div>
+            <h3>${memberMiniIdentityHtml(member, member.id, memberDisplayName(member))}</h3>
+            <div class="meta">${escapeHtml(member.email || "")}</div>
+          </div>
+          <span class="pill ${role === "owner" || role === "admin" ? "green" : role === "committee" ? "blue" : ""}">
+            ${escapeHtml(memberRoleLabel(role))}
+          </span>
+        </div>
+
+        <label>
+          Role
+          <select class="member-role-select" ${canEditRole ? "" : "disabled"}>
+            <option value="member" ${role === "member" ? "selected" : ""}>Member</option>
+            <option value="committee" ${role === "committee" ? "selected" : ""}>Committee</option>
+            <option value="admin" ${role === "admin" ? "selected" : ""}>Admin</option>
+            <option value="owner" ${role === "owner" ? "selected" : ""}>Owner</option>
+          </select>
+        </label>
+
+        <div class="member-permission-sports">
+          ${(allSports || []).map(sport => `
+            <label class="checkbox-item">
+              <input
+                type="checkbox"
+                class="member-sport-permission-checkbox"
+                value="${sport.id}"
+                ${sportIds.has(cleanUuidValue(sport.id)) ? "checked" : ""}
+              >
+              ${escapeHtml(sport.name)}
+            </label>
+          `).join("") || `<div class="hint">No sports found.</div>`}
+        </div>
+
+        <div class="actions">
+          <button class="small-btn" type="button" onclick="saveMemberRolePermissions('${member.id}')">
+            Save Role
+          </button>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+async function loadMemberRoleManager() {
+  const box = $("memberRoleList");
+  if (!box) return;
+
+  if (!isCurrentUserOwner()) {
+    box.innerHTML = `<article class="card">Owner access required.</article>`;
+    return;
+  }
+
+  await ensureSportsLoaded();
+
+  const { data: members, error: membersError } = await supabaseClient
+    .from("members")
+    .select("id,first_name,last_name,display_name,email,avatar_url,role,approval_status,is_external")
+    .eq("approval_status", "approved")
+    .eq("is_active", true)
+    .eq("is_external", false)
+    .order("display_name", { ascending: true });
+
+  if (membersError) {
+    box.innerHTML = `<article class="card">Could not load members: ${escapeHtml(membersError.message)}</article>`;
+    return;
+  }
+
+  const { data: permissions, error: permissionsError } = await supabaseClient
+    .from("member_sport_permissions")
+    .select("id,member_id,sport_id,permission");
+
+  if (permissionsError) {
+    box.innerHTML = `<article class="card">Could not load sport permissions: ${escapeHtml(permissionsError.message)}</article>`;
+    return;
+  }
+
+  allMemberSportPermissions = permissions || [];
+  renderMemberRoleManager(members || []);
+}
+
+async function saveMemberRolePermissions(memberId) {
+  if (!isCurrentUserOwner()) {
+    alert("Owner access required.");
+    return;
+  }
+
+  const cleanMemberId = cleanUuidValue(memberId);
+  const card = document.querySelector(`.member-role-card[data-member-id="${cleanMemberId}"]`);
+  if (!cleanMemberId || !card) return;
+
+  const nextRole = card.querySelector(".member-role-select")?.value || "member";
+  const sportIds = Array.from(card.querySelectorAll(".member-sport-permission-checkbox"))
+    .filter(input => input.checked)
+    .map(input => cleanUuidValue(input.value))
+    .filter(Boolean);
+  const sportNames = sportIds
+    .map(sportId => (allSports || []).find(sport => cleanUuidValue(sport.id) === sportId)?.name || "")
+    .filter(Boolean);
+
+  const { error: roleError } = await supabaseClient
+    .from("members")
+    .update({ role: nextRole })
+    .eq("id", cleanMemberId);
+
+  if (roleError) {
+    alert(roleError.message);
+    return;
+  }
+
+  const { error: deleteError } = await supabaseClient
+    .from("member_sport_permissions")
+    .delete()
+    .eq("member_id", cleanMemberId)
+    .eq("permission", "manage");
+
+  if (deleteError) {
+    alert(deleteError.message);
+    return;
+  }
+
+  if (sportIds.length) {
+    const rows = sportIds.map(sportId => ({
+      member_id: cleanMemberId,
+      sport_id: sportId,
+      permission: "manage",
+      granted_by: currentProfile.id
+    }));
+
+    const { error: insertError } = await supabaseClient
+      .from("member_sport_permissions")
+      .insert(rows);
+
+    if (insertError) {
+      alert(insertError.message);
+      return;
+    }
+  }
+
+  if (cleanMemberId === cleanUuidValue(currentProfile.id)) {
+    currentProfile.role = nextRole;
+    await loadCurrentMemberSportPermissions();
+    applyAccessUI();
+  }
+
+  const notificationResult = await sendMemberRoleChangedNotification(cleanMemberId, nextRole, sportNames);
+
+  if (notificationResult?.error) {
+    alert(`Member role permissions saved, but phone notification failed: ${notificationResult.error}`);
+  } else {
+    alert("Member role permissions saved.");
+  }
+
+  await loadMemberRoleManager();
 }
 
 
@@ -544,6 +809,11 @@ function applyAccessUI() {
     });
   }
 
+  const matchCreateButton = document.querySelector('[data-open="matchModal"]');
+  if (matchCreateButton) {
+    matchCreateButton.style.display = canManageAnySport() ? "" : "none";
+  }
+
   // Approved admins can see the Admin tab.
   if (isCurrentUserAdmin()) {
     document.querySelectorAll(".admin-only").forEach(el => {
@@ -561,6 +831,84 @@ function resetAppTabsForLoggedOut() {
   document.querySelectorAll(".admin-only").forEach(el => {
     el.style.display = "none";
   });
+}
+
+function adminPanelNameForHeading(heading) {
+  const text = String(heading || "").toLowerCase();
+  if (text.includes("review") || text.includes("member roles")) return "Members";
+  if (text.includes("notifications")) return "Notifications";
+  if (text.includes("sport ratings")) return "Sports";
+  if (text.includes("activity")) return "Activities";
+  if (text.includes("soccer rating formula")) return "Soccer Formula";
+  if (text.includes("maintenance")) return "Maintenance";
+  if (text.includes("venue")) return "Venues";
+  return "Other";
+}
+
+function activateAdminPanel(panelName) {
+  const cleanName = String(panelName || "Members");
+
+  document.querySelectorAll(".admin-subtab").forEach(button => {
+    button.classList.toggle("active", button.dataset.adminPanel === cleanName);
+  });
+
+  document.querySelectorAll(".admin-panel").forEach(panel => {
+    panel.classList.toggle("active-admin-panel", panel.dataset.adminPanel === cleanName);
+  });
+
+  localStorage.setItem("aba_admin_panel", cleanName);
+}
+
+function organizeAdminSections() {
+  const admin = $("admin");
+  if (!admin || admin.dataset.organized === "true") return;
+
+  const children = Array.from(admin.children);
+  const panels = new Map();
+  let currentPanelName = "";
+
+  children.forEach(child => {
+    if (child.classList.contains("section-head")) {
+      const heading = child.querySelector("h2")?.textContent || "";
+      currentPanelName = adminPanelNameForHeading(heading);
+    }
+
+    if (!currentPanelName) currentPanelName = "Members";
+
+    if (!panels.has(currentPanelName)) {
+      const panel = document.createElement("div");
+      panel.className = "admin-panel";
+      panel.dataset.adminPanel = currentPanelName;
+      panels.set(currentPanelName, panel);
+    }
+
+    panels.get(currentPanelName).appendChild(child);
+  });
+
+  const nav = document.createElement("div");
+  nav.className = "admin-subtabs";
+
+  Array.from(panels.keys()).forEach(name => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "admin-subtab";
+    button.dataset.adminPanel = name;
+    button.textContent = name;
+    button.addEventListener("click", () => activateAdminPanel(name));
+    nav.appendChild(button);
+  });
+
+  const content = document.createElement("div");
+  content.className = "admin-panel-stack";
+  panels.forEach(panel => content.appendChild(panel));
+
+  admin.appendChild(nav);
+  admin.appendChild(content);
+  admin.dataset.organized = "true";
+
+  const saved = localStorage.getItem("aba_admin_panel");
+  const firstPanel = panels.keys().next().value || "Members";
+  activateAdminPanel(panels.has(saved) ? saved : firstPanel);
 }
 
 function loadData() {
@@ -602,15 +950,19 @@ let allPendingGames = [];
 let allMemberActivities = [];
 let allRankingPointRows = [];
 let allRankingActivityRows = [];
+let allMemberSportPermissions = [];
+let currentMemberSportPermissionIds = new Set();
 let activitySportSettingsCache = {};
 let activitySportSettingsLoadPromise = null;
 let editingActivityId = null;
+let currentGarminConnection = null;
 let voteDeadlineManuallyEdited = false;
 
 const ACTIVITY_SPORT_SETTINGS_KEY = "aba_activity_sport_settings";
 const ACTIVITY_SPORT_APP_SETTING_KEY = "activity_sport_settings";
 const ACTIVITY_PROOF_BUCKET = "activity-proofs";
 const MATCH_RESULT_PHOTO_BUCKET = "match-result-photos";
+const GARMIN_ACTIVITY_SOURCE = "garmin";
 const DEFAULT_ACTIVITY_RATE = 1;
 const DEFAULT_ACTIVITY_CAP = 3;
 const MEMBER_ACTIVITY_SELECT = `
@@ -625,6 +977,9 @@ const MEMBER_ACTIVITY_SELECT = `
   activity_points,
   proof_path,
   proof_file_name,
+  source,
+  external_source_id,
+  external_url,
   notes,
   status,
   review_notes,
@@ -1355,10 +1710,11 @@ async function loadMatchFormOptions() {
 
   await loadSportProfiles();
   const sportSelect = $("match-sport");
+  const creatableSports = manageableSports();
   if (sportSelect) {
     sportSelect.innerHTML = `
       <option value="">Select sport</option>
-      ${allSports.map(s => `
+      ${creatableSports.map(s => `
         <option value="${s.id}">${escapeHtml(s.name)}</option>
       `).join("")}
     `;
@@ -1477,6 +1833,161 @@ function renderProfileAvatarPreview(member = currentProfile) {
   box.innerHTML = url
     ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(memberDisplayName(member))} profile photo">`
     : escapeHtml(memberInitials(member));
+}
+
+function garminReturnStatusText(value) {
+  if (value === "connected") return "Garmin connected. New synced activities can now be imported.";
+  if (value === "declined") return "Garmin connection was cancelled.";
+  if (value === "not_configured") return "Garmin credentials are not configured yet.";
+  if (value) return "Garmin connection could not be completed.";
+  return "";
+}
+
+function consumeGarminReturnStatus() {
+  const url = new URL(window.location.href);
+  const status = url.searchParams.get("garmin");
+  if (!status) return "";
+
+  url.searchParams.delete("garmin");
+  window.history.replaceState({}, document.title, url.toString());
+  return garminReturnStatusText(status);
+}
+
+function renderGarminConnectionPanel(message = "") {
+  const box = $("garmin-connection-panel");
+  if (!box) return;
+
+  const isApproved = currentProfile?.approval_status === "approved";
+  const connected = currentGarminConnection?.status === "connected";
+  const lastSync = currentGarminConnection?.last_sync_at
+    ? fmtDate(currentGarminConnection.last_sync_at)
+    : "Not synced yet";
+  const permissionCount = Array.isArray(currentGarminConnection?.permissions)
+    ? currentGarminConnection.permissions.length
+    : 0;
+
+  if (!currentProfile) {
+    box.innerHTML = `
+      <div>
+        <strong>Garmin Connect</strong>
+        <p class="hint">Login to connect a Garmin smartwatch.</p>
+      </div>
+      <span class="pill">Offline</span>
+    `;
+    return;
+  }
+
+  if (!isApproved) {
+    box.innerHTML = `
+      <div>
+        <strong>Garmin Connect</strong>
+        <p class="hint">Available after profile approval.</p>
+      </div>
+      <span class="pill">Locked</span>
+    `;
+    return;
+  }
+
+  box.innerHTML = `
+    <div class="garmin-panel-copy">
+      <div class="garmin-panel-head">
+        <strong>Garmin Connect</strong>
+        <span class="pill ${connected ? "green" : "blue"}">${connected ? "Connected" : "Not connected"}</span>
+      </div>
+      <p class="hint">
+        ${connected
+          ? `Last sync: ${escapeHtml(lastSync)}${permissionCount ? ` - ${permissionCount} permission${permissionCount === 1 ? "" : "s"}` : ""}.`
+          : "Automatically import synced smartwatch activities into your ABA activity log."}
+      </p>
+      ${message ? `<p class="hint garmin-status-text">${escapeHtml(message)}</p>` : ""}
+    </div>
+    <div class="actions garmin-actions">
+      ${connected
+        ? `<button id="garmin-disconnect-btn" class="secondary-btn danger-text-btn" type="button">Disconnect Garmin</button>`
+        : `<button id="garmin-connect-btn" class="secondary-btn" type="button">Connect Garmin</button>`}
+    </div>
+  `;
+
+  $("garmin-connect-btn")?.addEventListener("click", connectGarmin);
+  $("garmin-disconnect-btn")?.addEventListener("click", disconnectGarmin);
+}
+
+async function loadGarminConnection(message = "") {
+  if (!currentProfile || currentProfile.approval_status !== "approved") {
+    currentGarminConnection = null;
+    renderGarminConnectionPanel(message);
+    return null;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("member_garmin_connections")
+    .select("id,garmin_user_id,status,permissions,last_sync_at,last_activity_at,error_message,connected_at")
+    .eq("member_id", currentProfile.id)
+    .maybeSingle();
+
+  if (error) {
+    currentGarminConnection = null;
+    renderGarminConnectionPanel("Garmin integration is not installed in Supabase yet.");
+    console.warn("Could not load Garmin connection:", error.message);
+    return null;
+  }
+
+  currentGarminConnection = data || null;
+  renderGarminConnectionPanel(message);
+  return currentGarminConnection;
+}
+
+async function connectGarmin() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") {
+    alert("Approved members only.");
+    return;
+  }
+
+  renderGarminConnectionPanel("Preparing Garmin connection...");
+
+  const appReturnUrl = `${window.location.origin}${window.location.pathname}`;
+  const { data, error } = await supabaseClient.functions.invoke("garmin-oauth-start", {
+    body: { app_return_url: appReturnUrl }
+  });
+
+  if (error) {
+    renderGarminConnectionPanel("Could not start Garmin connection.");
+    alert(error.message);
+    return;
+  }
+
+  if (data?.configured === false) {
+    renderGarminConnectionPanel(data.error || "Garmin credentials are not configured yet.");
+    return;
+  }
+
+  if (!data?.authUrl) {
+    renderGarminConnectionPanel("Garmin did not return a connection link.");
+    return;
+  }
+
+  window.location.href = data.authUrl;
+}
+
+async function disconnectGarmin() {
+  if (!currentGarminConnection) return;
+  const ok = confirm("Disconnect Garmin from your ABA profile?");
+  if (!ok) return;
+
+  renderGarminConnectionPanel("Disconnecting Garmin...");
+
+  const { error } = await supabaseClient.functions.invoke("garmin-disconnect", {
+    body: {}
+  });
+
+  if (error) {
+    renderGarminConnectionPanel("Could not disconnect Garmin.");
+    alert(error.message);
+    return;
+  }
+
+  currentGarminConnection = null;
+  renderGarminConnectionPanel("Garmin disconnected.");
 }
 
 function renderMatchInviteOptions(selectedIds = []) {
@@ -3703,15 +4214,7 @@ async function loadMatches() {
     return;
   }
 
-  const myId = currentProfile?.id;
-
-  allMatches = (data || []).filter(match =>
-    isCurrentUserAdmin() ||
-    match.created_by === myId ||
-    (match.match_invitations || []).some(inv =>
-      inv.member_id === myId && inv.status !== "removed"
-    )
-  );
+  allMatches = data || [];
 
   await loadRankingData();
   updateMatchFilterOptions();
@@ -3830,7 +4333,15 @@ function timeConflictMessage(match, conflictingMatch) {
 }
 
 function canManageMatch(match) {
-  return isCurrentUserAdmin() || match.created_by === currentProfile?.id;
+  return Boolean(match && canManageSport(match.sport_id || match.sports?.id));
+}
+
+function canAssessMatchPerformance(match) {
+  if (!match || getMatchDisplayStatus(match) === "cancelled") return false;
+  if (isCurrentUserAdmin()) return true;
+  return isCurrentUserCommittee() &&
+    canManageSport(match.sport_id || match.sports?.id) &&
+    userIsInMatch(match, currentProfile?.id);
 }
 
 
@@ -6011,7 +6522,7 @@ async function editMatch(matchId) {
   }
 
   if (!canManageMatch(match)) {
-    alert("Only the match creator or admin can edit this match.");
+    alert("You can only edit matches for sports you manage.");
     return;
   }
 
@@ -6074,7 +6585,7 @@ async function deleteOrCancelMatch(matchId) {
   }
 
   if (!canManageMatch(match)) {
-    alert("Only the match creator or admin can delete/cancel this match.");
+    alert("You can only delete or cancel matches for sports you manage.");
     return;
   }
 
@@ -6345,7 +6856,7 @@ async function openExternalPlayerPicker(matchId) {
   }
 
   if (!canManageMatch(match)) {
-    alert("Only the match creator or admin can add external players.");
+    alert("You can only add external players for sports you manage.");
     return;
   }
 
@@ -6393,7 +6904,7 @@ async function addExternalMemberIdsToMatch(matchId, memberIds) {
   }
 
   if (!canManageMatch(match)) {
-    alert("Only the match creator or admin can add external players.");
+    alert("You can only add external players for sports you manage.");
     return false;
   }
 
@@ -6540,7 +7051,7 @@ async function renameExternalMember(memberId, matchId, currentName) {
   }
 
   if (!canManageMatch(match)) {
-    alert("Only the match creator or admin can rename external players.");
+    alert("You can only rename external players for sports you manage.");
     return;
   }
 
@@ -6590,7 +7101,7 @@ async function removeExternalMemberFromMatch(invitationId, matchId) {
   }
 
   if (!canManageMatch(match)) {
-    alert("Only the match creator or admin can remove external players.");
+    alert("You can only remove external players for sports you manage.");
     return;
   }
 
@@ -7357,7 +7868,7 @@ function openTeamAssignment(matchId, scope = "full") {
 
   if (isFormationOnlyMode()) {
     if (!canEditFormation(match)) {
-      alert("Only captains, the match creator, or admin can edit formation.");
+      alert("Only captains or sport managers can edit formation.");
       return;
     }
 
@@ -7367,7 +7878,7 @@ function openTeamAssignment(matchId, scope = "full") {
     }
   } else {
     if (!canManageMatch(match)) {
-      alert("Only the match creator or admin can assign teams.");
+      alert("You can only assign teams for sports you manage.");
       return;
     }
 
@@ -7722,7 +8233,7 @@ async function saveTeams() {
 
   if (isFormationOnlyMode()) {
     if (!canEditFormation(match)) {
-      alert("Only captains, the match creator, or admin can save formation.");
+      alert("Only captains or sport managers can save formation.");
       return;
     }
 
@@ -7731,7 +8242,7 @@ async function saveTeams() {
   }
 
   if (!canManageMatch(match)) {
-    alert("Only the match creator or admin can save teams.");
+    alert("You can only save teams for sports you manage.");
     return;
   }
 
@@ -7966,8 +8477,8 @@ function scoreContextForMatch(match) {
 }
 
 async function recalculateMatchPoints(match, showAlert = true) {
-  if (!canManageMatch(match) && !isCurrentUserAdmin()) {
-    alert("Only the match creator or admin can recalculate this match.");
+  if (!canManageMatch(match)) {
+    alert("You can only recalculate matches for sports you manage.");
     return false;
   }
 
@@ -7989,8 +8500,8 @@ async function recalculateMatchPoints(match, showAlert = true) {
 }
 
 async function recalculateMatchSoccerRatings(match, showAlert = true) {
-  if (!canManageMatch(match) && !isCurrentUserAdmin()) {
-    alert("Only the match creator or admin can recalculate this match.");
+  if (!canManageMatch(match)) {
+    alert("You can only recalculate matches for sports you manage.");
     return false;
   }
 
@@ -8051,8 +8562,8 @@ function completedPadelGamesForMatch(match) {
 }
 
 async function recalculateMatchPadelRatings(match, showAlert = true) {
-  if (!canManageMatch(match) && !isCurrentUserAdmin()) {
-    alert("Only the match creator or admin can recalculate this match.");
+  if (!canManageMatch(match)) {
+    alert("You can only recalculate matches for sports you manage.");
     return false;
   }
 
@@ -8098,6 +8609,11 @@ async function recalculateMatchAll(matchId) {
 
   if (!match) {
     alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("You can only recalculate matches for sports you manage.");
     return;
   }
 
@@ -10582,7 +11098,8 @@ function activityCard(a, compact = false) {
   const sportName = a.sports?.name || a.sport || sportNameById(a.sport_id) || "Sport";
   const title = a.title || a.activity || "Activity";
   const points = Number(a.activity_points ?? a.points ?? 0);
-  const proofLabel = a.proof_file_name || a.proof || "proof";
+  const isGarminActivity = a.source === GARMIN_ACTIVITY_SOURCE;
+  const proofLabel = a.proof_file_name || (isGarminActivity ? "Garmin proof" : a.proof || "proof");
   const activityActions = compact ? [] : [
     canEditActivity(a)
       ? `<button class="small-btn" type="button" onclick="openEditActivity('${a.id}')">Edit</button>`
@@ -10612,7 +11129,7 @@ function activityCard(a, compact = false) {
             ${a.start_time && a.end_time ? ` - ${escapeHtml(a.start_time)}-${escapeHtml(a.end_time)}` : ""}
           </div>
           ${a.notes ? `<div class="meta">${escapeHtml(a.notes)}</div>` : ""}
-          ${a.proof_path ? `<button class="link-btn" type="button" onclick="openActivityProof('${a.id}')">Open ${escapeHtml(proofLabel)}</button>` : `<div class="meta">Proof: not attached</div>`}
+          ${a.proof_path || a.external_url || isGarminActivity ? `<button class="link-btn" type="button" onclick="openActivityProof('${a.id}')">Open ${escapeHtml(proofLabel)}</button>` : `<div class="meta">Proof: not attached</div>`}
           ${rejected && a.review_notes ? `<div class="meta danger-text">Rejected: ${escapeHtml(a.review_notes)}</div>` : ""}
         </div>
         <span class="pill ${verified ? "green" : rejected ? "red" : "gold"}">${escapeHtml(status)}</span>
@@ -10875,6 +11392,16 @@ async function uploadActivityProof(file) {
 async function openActivityProof(activityId) {
   const activity = (allMemberActivities || []).find(row => row.id === activityId);
 
+  if (activity?.external_url) {
+    window.open(activity.external_url, "_blank", "noopener,noreferrer");
+    return;
+  }
+
+  if (activity?.source === GARMIN_ACTIVITY_SOURCE) {
+    alert("This activity was imported from Garmin Connect and uses Garmin as the verification source.");
+    return;
+  }
+
   if (!activity?.proof_path) {
     alert("Proof not found.");
     return;
@@ -11002,6 +11529,9 @@ async function loadMemberActivities() {
         activity_points,
         proof_path,
         proof_file_name,
+        source,
+        external_source_id,
+        external_url,
         notes,
         status,
         review_notes,
@@ -12862,6 +13392,33 @@ async function sendMemberApprovalRequestedNotification() {
   }
 }
 
+async function sendMemberRoleChangedNotification(memberId, role, sports = []) {
+  const recipientId = cleanUuidValue(memberId);
+  if (!recipientId) return { sent: 0, failed: 0, skipped: true };
+
+  try {
+    const { data, error } = await supabaseClient.functions.invoke("send-push", {
+      body: {
+        type: "role_changed",
+        recipient_member_ids: [recipientId],
+        role,
+        sports
+      }
+    });
+
+    if (error) throw error;
+    console.info("Member role notification result:", data);
+    return data || { sent: 0, failed: 0 };
+  } catch (error) {
+    console.warn("Member role notification was not sent:", error.message || error);
+    return {
+      sent: 0,
+      failed: 1,
+      error: error.message || "Could not send member role notification."
+    };
+  }
+}
+
 function clearProfileFields() {
   profileFieldIds().forEach(id => {
     const el = $(id);
@@ -12879,6 +13436,10 @@ function clearProfileFields() {
 
   setNotificationStatus("Login to manage phone notifications.");
   setNotificationButtons(false, false);
+  currentGarminConnection = null;
+  allMemberSportPermissions = [];
+  currentMemberSportPermissionIds = new Set();
+  renderGarminConnectionPanel();
 
   const btn = $("profile-action-btn");
   if (btn) {
@@ -13244,6 +13805,7 @@ async function loadMyProfile() {
 
   setProfileStatusText(data);
   setProfileEditing(false);
+  await loadGarminConnection(consumeGarminReturnStatus());
 
   if (data.approval_status === "rejected" || data.approval_status === "suspended") {
     profileFieldIds().forEach(id => {
@@ -13347,7 +13909,7 @@ async function refreshAuthUI() {
 
       if (
         cachedAccess &&
-        cachedAccess.role === "admin" &&
+        ["owner", "admin"].includes(String(cachedAccess.role || "").toLowerCase()) &&
         cachedAccess.approval_status === "approved"
       ) {
         document.querySelectorAll(".admin-only").forEach(el => {
@@ -13359,6 +13921,7 @@ async function refreshAuthUI() {
     }
 
     await loadMyProfile();
+    await loadCurrentMemberSportPermissions();
     renderLoggedInIdentity(session.user);
     applyAccessUI();
 if (currentProfile?.approval_status === "approved") {
@@ -13376,6 +13939,7 @@ if (currentProfile?.approval_status === "approved") {
       await loadMatchFormOptions();
       await loadAdminNotificationMembers();
       await loadPendingMembers();
+      await loadMemberRoleManager();
       await loadMemberActivities();
       await loadActivitySportSettings(true);
       renderActivitySettingsForm();
@@ -13445,6 +14009,7 @@ function setActiveTab(viewId, persist = true) {
   }
 
   if (viewId === "admin") {
+    organizeAdminSections();
     loadSportsOptions();
     loadMatchFormOptions().then(() => {
       renderActivitySettingsForm();
@@ -13452,6 +14017,7 @@ function setActiveTab(viewId, persist = true) {
     loadExternalMembers().then(renderSportRatingManager);
     loadAdminNotificationMembers();
     loadPendingMembers();
+    loadMemberRoleManager();
     loadMemberActivities();
     loadVenues();
     loadMatches();
@@ -13472,6 +14038,7 @@ function restoreActiveTab() {
 }
 
 function bindEvents() {
+  organizeAdminSections();
   populateMatchTimeSelects();
   setDefaultMatchDateTimes();
 
@@ -13556,6 +14123,13 @@ function bindEvents() {
     if (btn.dataset.open === "matchModal") {
       resetMatchFormForCreate();
 
+      await ensureSportsLoaded();
+      await loadCurrentMemberSportPermissions();
+      if (!canManageAnySport()) {
+        alert("You do not have permission to create matches for any sport yet.");
+        return;
+      }
+
       await loadMatchFormOptions();
     }
 
@@ -13638,6 +14212,12 @@ if ($("matchForm")) {
       return;
     }
 
+    const selectedSportId = cleanUuidValue(fd.get("sport_id"));
+    if (!canManageSport(selectedSportId)) {
+      alert("You can only create or edit matches for sports assigned to you.");
+      return;
+    }
+
     const requiredPlayers = Number(fd.get("required_players") || 0);
     const maxPlayers = requiredPlayers;
     const matchDateTimes = getMatchDateTimeValues();
@@ -13672,7 +14252,7 @@ if ($("matchForm")) {
     }
 
     const match = {
-      sport_id: fd.get("sport_id"),
+      sport_id: selectedSportId,
       venue_id: fd.get("venue_id"),
       league_id: fd.get("match_type") === "league" ? (fd.get("league_id") || null) : null,
       created_by: currentProfile.id,

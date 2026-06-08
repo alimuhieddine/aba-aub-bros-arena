@@ -575,6 +575,104 @@ h3 {
   margin-top: 8px;
 }
 
+.garmin-connection-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.garmin-panel-copy {
+  min-width: 0;
+}
+
+.garmin-panel-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.garmin-actions {
+  flex-shrink: 0;
+  justify-content: flex-end;
+  margin-top: 0;
+}
+
+.garmin-status-text {
+  color: var(--accent);
+}
+
+.member-role-card {
+  display: grid;
+  gap: 12px;
+}
+
+.member-role-card label {
+  margin: 0;
+}
+
+.member-permission-sports {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.member-permission-sports .checkbox-item {
+  margin: 0;
+}
+
+.admin-subtabs {
+  position: sticky;
+  top: 64px;
+  z-index: 3;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 8px 0 14px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(7,17,31,.92);
+  backdrop-filter: blur(12px);
+}
+
+.admin-subtab {
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.admin-subtab.active {
+  border-color: rgba(47,210,139,.32);
+  background: rgba(47,210,139,.12);
+  color: var(--text);
+}
+
+.admin-panel {
+  display: none;
+}
+
+.admin-panel.active-admin-panel {
+  display: block;
+}
+
+@media (max-width: 560px) {
+  .garmin-connection-card,
+  .garmin-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
+
 .avatar-preview,
 .player-profile-avatar {
   width: 76px;
