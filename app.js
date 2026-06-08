@@ -10515,8 +10515,8 @@ async function finalizeCurrentMatchResult() {
     const photoResult = await saveMatchResultPhoto(match, resultPhotoFile);
 
     if (!photoResult.ok) {
-      console.warn("Match result photo could not be saved:", photoResult.error);
-      photoSaveNote = ` Photo note: ${photoResult.error}`;
+      console.warn("Match result photo could not be saved:", photoResult.stage || "photo save", photoResult.error);
+      photoSaveNote = ` Photo note: ${photoResult.stage ? `${photoResult.stage}: ` : ""}${photoResult.error}`;
     }
   }
 
@@ -12978,7 +12978,7 @@ async function uploadMatchResultPhoto(matchId, file) {
     .storage
     .from(MATCH_RESULT_PHOTO_BUCKET)
     .upload(path, file, {
-      upsert: true,
+      upsert: false,
       contentType: file.type,
       cacheControl: "3600"
     });
@@ -12986,6 +12986,7 @@ async function uploadMatchResultPhoto(matchId, file) {
   if (uploadError) {
     return {
       ok: false,
+      stage: "storage upload",
       error: uploadError.message
     };
   }
@@ -13032,6 +13033,7 @@ async function saveMatchResultPhoto(match, file) {
 
     return {
       ok: false,
+      stage: "match_result_photos row",
       error: error.message
     };
   }
