@@ -13549,6 +13549,7 @@ function bindEvents() {
 );
   if ($("leagueForm")) {
     $("leagueForm").addEventListener("submit", async e => {
+      e.preventDefault();
       const fd = new FormData(e.target);
 
       if (!currentProfile || currentProfile.approval_status !== "approved") {
@@ -13605,8 +13606,9 @@ function bindEvents() {
   }
 
 
- if ($("matchForm")) {
+if ($("matchForm")) {
   $("matchForm").addEventListener("submit", async e => {
+    e.preventDefault();
     const fd = new FormData(e.target);
 
     if (!currentProfile || currentProfile.approval_status !== "approved") {
