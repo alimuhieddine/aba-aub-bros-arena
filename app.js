@@ -9498,6 +9498,7 @@ const DEFAULT_SOCCER_RATING_SETTINGS = {
   midDefenseShare: 0.15,
   defDefenseShare: 0.50,
   gkDefenseShare: 0.35,
+  committeeAssessmentWeight: 0.25,
   winModifier: 0.10,
   lossModifier: -0.10,
   maxGain: 0.35,
@@ -9531,6 +9532,19 @@ function normalizeSoccerRatingSettings(raw = {}, version = null) {
   if (settings.midDefenseWeight !== undefined && settings.midDefenseShare === undefined) {
     settings.midDefenseShare = Number(settings.midDefenseWeight);
   }
+
+  if (settings.committeeAssessmentWeight !== undefined) {
+    const rawWeight = Number(settings.committeeAssessmentWeight);
+    settings.committeeAssessmentWeight = Number.isFinite(rawWeight) && rawWeight > 1
+      ? rawWeight / 100
+      : rawWeight;
+  }
+
+  settings.committeeAssessmentWeight = clampNumber(
+    Number(settings.committeeAssessmentWeight ?? DEFAULT_SOCCER_RATING_SETTINGS.committeeAssessmentWeight),
+    0,
+    1
+  );
 
   settings.formulaVersion = Number(version || settings.formulaVersion || 1);
   return settings;
@@ -9587,6 +9601,13 @@ function soccerRatingSettingsFromForm() {
     midDefenseShare: readSoccerSettingInput("soccer-setting-mid-defense-share", defaults.midDefenseShare),
     defDefenseShare: readSoccerSettingInput("soccer-setting-def-defense-share", defaults.defDefenseShare),
     gkDefenseShare: readSoccerSettingInput("soccer-setting-gk-defense-share", defaults.gkDefenseShare),
+    committeeAssessmentWeight: Math.max(
+      0,
+      Math.min(
+        1,
+        readSoccerSettingInput("soccer-setting-committee-assessment-weight", defaults.committeeAssessmentWeight * 100) / 100
+      )
+    ),
     winModifier: readSoccerSettingInput("soccer-setting-win", defaults.winModifier),
     lossModifier: readSoccerSettingInput("soccer-setting-loss", defaults.lossModifier),
     maxGain: Math.abs(readSoccerSettingInput("soccer-setting-max-gain", defaults.maxGain)),
@@ -9650,6 +9671,7 @@ function renderSoccerRatingSettingsForm() {
   setSoccerSettingInput("soccer-setting-mid-defense-share", settings.midDefenseShare);
   setSoccerSettingInput("soccer-setting-def-defense-share", settings.defDefenseShare);
   setSoccerSettingInput("soccer-setting-gk-defense-share", settings.gkDefenseShare);
+  setSoccerSettingInput("soccer-setting-committee-assessment-weight", (settings.committeeAssessmentWeight || 0) * 100);
   setSoccerSettingInput("soccer-setting-win", settings.winModifier);
   setSoccerSettingInput("soccer-setting-loss", settings.lossModifier);
   setSoccerSettingInput("soccer-setting-max-gain", settings.maxGain);
