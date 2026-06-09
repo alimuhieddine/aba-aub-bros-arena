@@ -4,6 +4,10 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const $ = (id) => document.getElementById(id);
 
+if ("scrollRestoration" in history) {
+  history.scrollRestoration = "manual";
+}
+
 const STORAGE_KEY = "aba_phase1_data";
 const PUSH_NOTIFICATIONS_APP_SETTING_KEY = "push_notifications";
 
@@ -477,6 +481,71 @@ function memberPermissionSportIds(memberId) {
   );
 }
 
+function memberRoleDropdownIdentityHtml(member, showRole = true) {
+  const name = memberDisplayName(member);
+  const role = memberRoleLabel(member.role);
+
+  return `
+    <span class="member-role-option-identity">
+      ${avatarHtml(member, "mini-avatar")}
+      <span>
+        <strong>${escapeHtml(name)}</strong>
+        ${showRole ? `<small>${escapeHtml(role)}</small>` : ""}
+      </span>
+    </span>
+  `;
+}
+
+function renderMemberRoleEditor(member) {
+  const role = String(member.role || "member").toLowerCase();
+  const sportIds = memberPermissionSportIds(member.id);
+  const canEditRole = !isCurrentUserOwner() && role === "owner" ? false : true;
+
+  return `
+    <article class="card member-role-card" data-member-id="${member.id}">
+      <div class="row">
+        <div>
+          <h3>${memberMiniIdentityHtml(member, member.id, memberDisplayName(member))}</h3>
+          <div class="meta">${escapeHtml(member.email || "")}</div>
+        </div>
+        <span class="pill ${role === "owner" || role === "admin" ? "green" : role === "committee" ? "blue" : ""}">
+          ${escapeHtml(memberRoleLabel(role))}
+        </span>
+      </div>
+
+      <label>
+        Role
+        <select class="member-role-select" ${canEditRole ? "" : "disabled"}>
+          <option value="member" ${role === "member" ? "selected" : ""}>Member</option>
+          <option value="committee" ${role === "committee" ? "selected" : ""}>Committee</option>
+          <option value="admin" ${role === "admin" ? "selected" : ""}>Admin</option>
+          <option value="owner" ${role === "owner" ? "selected" : ""}>Owner</option>
+        </select>
+      </label>
+
+      <div class="member-permission-sports">
+        ${(allSports || []).map(sport => `
+          <label class="checkbox-item">
+            <input
+              type="checkbox"
+              class="member-sport-permission-checkbox"
+              value="${sport.id}"
+              ${sportIds.has(cleanUuidValue(sport.id)) ? "checked" : ""}
+            >
+            ${escapeHtml(sport.name)}
+          </label>
+        `).join("") || `<div class="hint">No sports found.</div>`}
+      </div>
+
+      <div class="actions">
+        <button class="small-btn" type="button" onclick="saveMemberRolePermissions('${member.id}')">
+          Save Role
+        </button>
+      </div>
+    </article>
+  `;
+}
+
 function renderMemberRoleManager(members = []) {
   const box = $("memberRoleList");
   if (!box) return;
@@ -491,55 +560,45 @@ function renderMemberRoleManager(members = []) {
     return;
   }
 
-  box.innerHTML = members.map(member => {
-    const role = String(member.role || "member").toLowerCase();
-    const sportIds = memberPermissionSportIds(member.id);
-    const canEditRole = !isCurrentUserOwner() && role === "owner" ? false : true;
+  allMemberRoleManagerMembers = members;
+  const selectedMember = members.find(member =>
+    cleanUuidValue(member.id) === cleanUuidValue(currentMemberRoleManagerId)
+  ) || null;
 
-    return `
-      <article class="card member-role-card" data-member-id="${member.id}">
-        <div class="row">
-          <div>
-            <h3>${memberMiniIdentityHtml(member, member.id, memberDisplayName(member))}</h3>
-            <div class="meta">${escapeHtml(member.email || "")}</div>
-          </div>
-          <span class="pill ${role === "owner" || role === "admin" ? "green" : role === "committee" ? "blue" : ""}">
-            ${escapeHtml(memberRoleLabel(role))}
-          </span>
+  box.innerHTML = `
+    <article class="card member-role-picker-card">
+      <span class="field-label">Member</span>
+      <details id="member-role-dropdown" class="member-role-dropdown">
+        <summary>
+          ${selectedMember
+            ? memberRoleDropdownIdentityHtml(selectedMember)
+            : `<span class="hint">Select a member</span>`}
+        </summary>
+        <div class="member-role-option-list" role="listbox" aria-label="Members">
+          ${members.map(member => `
+            <button
+              class="member-role-option ${selectedMember?.id === member.id ? "selected" : ""}"
+              type="button"
+              role="option"
+              aria-selected="${selectedMember?.id === member.id ? "true" : "false"}"
+              onclick="selectMemberRoleEditor('${member.id}')"
+            >
+              ${memberRoleDropdownIdentityHtml(member)}
+            </button>
+          `).join("")}
         </div>
+      </details>
+    </article>
 
-        <label>
-          Role
-          <select class="member-role-select" ${canEditRole ? "" : "disabled"}>
-            <option value="member" ${role === "member" ? "selected" : ""}>Member</option>
-            <option value="committee" ${role === "committee" ? "selected" : ""}>Committee</option>
-            <option value="admin" ${role === "admin" ? "selected" : ""}>Admin</option>
-            <option value="owner" ${role === "owner" ? "selected" : ""}>Owner</option>
-          </select>
-        </label>
+    <div id="member-role-editor-slot">
+      ${selectedMember ? renderMemberRoleEditor(selectedMember) : ""}
+    </div>
+  `;
+}
 
-        <div class="member-permission-sports">
-          ${(allSports || []).map(sport => `
-            <label class="checkbox-item">
-              <input
-                type="checkbox"
-                class="member-sport-permission-checkbox"
-                value="${sport.id}"
-                ${sportIds.has(cleanUuidValue(sport.id)) ? "checked" : ""}
-              >
-              ${escapeHtml(sport.name)}
-            </label>
-          `).join("") || `<div class="hint">No sports found.</div>`}
-        </div>
-
-        <div class="actions">
-          <button class="small-btn" type="button" onclick="saveMemberRolePermissions('${member.id}')">
-            Save Role
-          </button>
-        </div>
-      </article>
-    `;
-  }).join("");
+function selectMemberRoleEditor(memberId) {
+  currentMemberRoleManagerId = cleanUuidValue(memberId);
+  renderMemberRoleManager(allMemberRoleManagerMembers || []);
 }
 
 async function loadMemberRoleManager() {
@@ -845,7 +904,8 @@ function adminPanelNameForHeading(heading) {
   return "Other";
 }
 
-function activateAdminPanel(panelName) {
+function activateAdminPanel(panelName, options = {}) {
+  const { persist = true, savePosition = true } = options;
   const cleanName = String(panelName || "Members");
 
   document.querySelectorAll(".admin-subtab").forEach(button => {
@@ -856,7 +916,8 @@ function activateAdminPanel(panelName) {
     panel.classList.toggle("active-admin-panel", panel.dataset.adminPanel === cleanName);
   });
 
-  localStorage.setItem("aba_admin_panel", cleanName);
+  if (persist) localStorage.setItem("aba_admin_panel", cleanName);
+  if (savePosition) saveScrollState();
 }
 
 function organizeAdminSections() {
@@ -908,7 +969,7 @@ function organizeAdminSections() {
 
   const saved = localStorage.getItem("aba_admin_panel");
   const firstPanel = panels.keys().next().value || "Members";
-  activateAdminPanel(panels.has(saved) ? saved : firstPanel);
+  activateAdminPanel(panels.has(saved) ? saved : firstPanel, { savePosition: false });
 }
 
 function loadData() {
@@ -951,7 +1012,11 @@ let allMemberActivities = [];
 let allRankingPointRows = [];
 let allRankingActivityRows = [];
 let allMemberSportPermissions = [];
+let allMemberRoleManagerMembers = [];
 let currentMemberSportPermissionIds = new Set();
+let currentMemberRoleManagerId = "";
+let currentSoccerAssessmentMatchId = "";
+let currentSportRatingMemberId = "";
 let activitySportSettingsCache = {};
 let activitySportSettingsLoadPromise = null;
 let editingActivityId = null;
@@ -1450,6 +1515,87 @@ function openRatingHistory(memberId) {
   $("ratingHistoryModal")?.showModal();
 }
 
+function renderSportRatingEditor(member, sportId, isSoccer) {
+  const profile = sportProfileForMember(member.id, sportId);
+  const rating = profile?.rating ?? "";
+  const position = normalizeSoccerPosition(profile?.preferred_position) || profile?.preferred_position || "";
+
+  const positionInputs = isSoccer
+    ? `
+      <div class="position-rating-inputs">
+        ${SOCCER_POSITIONS.map(positionName => {
+          const positionRating = positionRatingForMember(member.id, sportId, positionName);
+
+          return `
+            <label>
+              ${positionName}
+              <input
+                class="position-rating-input"
+                data-position="${positionName}"
+                type="number"
+                min="1"
+                max="10"
+                step="0.1"
+                value="${Number(positionRating || 5).toFixed(1)}"
+              >
+            </label>
+          `;
+        }).join("")}
+      </div>
+    `
+    : "";
+
+  return `
+    <div class="sport-rating-row" data-member-id="${member.id}">
+      <div>
+        <strong>${memberMiniIdentityHtml(member, member.id, memberDisplayName(member))}</strong>
+        ${member.is_external ? `<span class="mini-pill">External</span>` : ""}
+      </div>
+
+      <label>
+        Overall
+        <input
+          class="sport-rating-input"
+          type="number"
+          min="1"
+          max="10"
+          step="0.1"
+          value="${escapeHtml(String(rating))}"
+          placeholder="5"
+        >
+      </label>
+
+      <label>
+        Preferred
+        <select class="sport-position-input">
+          ${preferredPositionOptions(position, isSoccer)}
+        </select>
+      </label>
+
+      ${positionInputs}
+
+      <div class="sport-rating-actions">
+        <button class="small-btn" type="button" onclick="saveMemberSportProfile('${member.id}')">
+          Save
+        </button>
+
+        <button class="small-btn" type="button" onclick="openRatingHistory('${member.id}')">
+          History
+        </button>
+
+        <button class="small-btn" type="button" onclick="openPlayerProfile('${member.id}')">
+          Profile
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function selectSportRatingMember(memberId) {
+  currentSportRatingMemberId = cleanUuidValue(memberId);
+  renderSportRatingManager();
+}
+
 function renderSportRatingManager() {
   const box = $("sportRatingList");
   if (!box) return;
@@ -1471,81 +1617,30 @@ function renderSportRatingManager() {
     return;
   }
 
-  box.innerHTML = members.map(member => {
-    const profile = sportProfileForMember(member.id, sportId);
-    const rating = profile?.rating ?? "";
-    const position = normalizeSoccerPosition(profile?.preferred_position) || profile?.preferred_position || "";
+  const selectedMember = members.find(member =>
+    cleanUuidValue(member.id) === cleanUuidValue(currentSportRatingMemberId)
+  ) || null;
 
-    const positionInputs = isSoccer
-      ? `
-        <div class="position-rating-inputs">
-          ${SOCCER_POSITIONS.map(positionName => {
-            const positionRating = positionRatingForMember(member.id, sportId, positionName);
-
-            return `
-              <label>
-                ${positionName}
-                <input
-                  class="position-rating-input"
-                  data-position="${positionName}"
-                  type="number"
-                  min="1"
-                  max="10"
-                  step="0.1"
-                  value="${Number(positionRating || 5).toFixed(1)}"
-                >
-              </label>
-            `;
-          }).join("")}
-        </div>
-      `
-      : "";
-
-    return `
-      <div class="sport-rating-row" data-member-id="${member.id}">
-        <div>
-          <strong>${memberMiniIdentityHtml(member, member.id, memberDisplayName(member))}</strong>
-          ${member.is_external ? `<span class="mini-pill">External</span>` : ""}
-        </div>
-
-        <label>
-          Overall
-          <input
-            class="sport-rating-input"
-            type="number"
-            min="1"
-            max="10"
-            step="0.1"
-            value="${escapeHtml(String(rating))}"
-            placeholder="5"
-          >
-        </label>
-
-        <label>
-          Preferred
-          <select class="sport-position-input">
-            ${preferredPositionOptions(position, isSoccer)}
-          </select>
-        </label>
-
-        ${positionInputs}
-
-        <div class="sport-rating-actions">
-          <button class="small-btn" type="button" onclick="saveMemberSportProfile('${member.id}')">
-            Save
-          </button>
-
-          <button class="small-btn" type="button" onclick="openRatingHistory('${member.id}')">
-            History
-          </button>
-
-          <button class="small-btn" type="button" onclick="openPlayerProfile('${member.id}')">
-            Profile
-          </button>
-        </div>
+  box.innerHTML = `
+    <article class="card sport-rating-picker-card">
+      <label>
+        Player
+        <select id="sport-rating-member-picker" onchange="selectSportRatingMember(this.value)">
+          <option value="">Select a player</option>
+          ${members.map(member => `
+            <option value="${member.id}" ${selectedMember?.id === member.id ? "selected" : ""}>
+              ${escapeHtml(memberDisplayName(member))}
+            </option>
+          `).join("")}
+        </select>
+      </label>
+      <div class="member-role-selected-preview">
+        ${selectedMember ? memberMiniIdentityHtml(selectedMember, selectedMember.id, memberDisplayName(selectedMember)) : `<span class="hint">Choose one player to edit ratings.</span>`}
       </div>
-    `;
-  }).join("");
+    </article>
+
+    ${selectedMember ? renderSportRatingEditor(selectedMember, sportId, isSoccer) : ""}
+  `;
 }
 
 async function saveMemberSportProfile(memberId) {
@@ -4215,6 +4310,7 @@ async function loadMatches() {
   }
 
   allMatches = data || [];
+  await attachSoccerPerformanceAssessments();
 
   await loadRankingData();
   updateMatchFilterOptions();
@@ -4336,12 +4432,84 @@ function canManageMatch(match) {
   return Boolean(match && canManageSport(match.sport_id || match.sports?.id));
 }
 
+function memberPlayedInMatch(match, memberId = currentProfile?.id) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  if (!match || !cleanMemberId) return false;
+
+  return (match.match_teams || []).some(team =>
+    (team.match_team_players || []).some(player =>
+      cleanUuidValue(player.member_id) === cleanMemberId
+    )
+  );
+}
+
 function canAssessMatchPerformance(match) {
   if (!match || getMatchDisplayStatus(match) === "cancelled") return false;
   if (isCurrentUserAdmin()) return true;
   return isCurrentUserCommittee() &&
     canManageSport(match.sport_id || match.sports?.id) &&
-    userIsInMatch(match, currentProfile?.id);
+    memberPlayedInMatch(match, currentProfile?.id);
+}
+
+async function attachSoccerPerformanceAssessments() {
+  const matchIds = (allMatches || [])
+    .filter(match => isSoccerMatch(match))
+    .map(match => cleanUuidValue(match.id))
+    .filter(Boolean);
+
+  if (!matchIds.length) return;
+
+  const { data, error } = await supabaseClient
+    .from("match_soccer_performance_assessments")
+    .select(`
+      id,
+      match_id,
+      assessor_member_id,
+      assessed_member_id,
+      sport_id,
+      position_name,
+      performance_score,
+      notes,
+      created_at,
+      updated_at,
+      assessor:members!match_soccer_performance_assessments_assessor_member_id_fkey (
+        id,
+        first_name,
+        last_name,
+        display_name,
+        email,
+        avatar_url,
+        is_external
+      ),
+      assessed_member:members!match_soccer_performance_assessments_assessed_member_id_fkey (
+        id,
+        first_name,
+        last_name,
+        display_name,
+        email,
+        avatar_url,
+        is_external
+      )
+    `)
+    .in("match_id", matchIds);
+
+  if (error) {
+    console.warn("Could not load soccer performance assessments:", error.message);
+    return;
+  }
+
+  const byMatch = new Map();
+  (data || []).forEach(row => {
+    const matchId = cleanUuidValue(row.match_id);
+    if (!matchId) return;
+    if (!byMatch.has(matchId)) byMatch.set(matchId, []);
+    byMatch.get(matchId).push(row);
+  });
+
+  allMatches = (allMatches || []).map(match => ({
+    ...match,
+    match_soccer_performance_assessments: byMatch.get(cleanUuidValue(match.id)) || []
+  }));
 }
 
 
@@ -5827,6 +5995,25 @@ function openDeepLinkedMatch() {
   return true;
 }
 
+function hashRouteViewId() {
+  const hash = (window.location.hash || "").replace(/^#/, "");
+  const viewId = hash.split("?")[0].trim();
+  const view = viewId ? $(viewId) : null;
+
+  return view?.classList?.contains("view") ? viewId : "";
+}
+
+function openHashRoute({ restoreScroll = false } = {}) {
+  if (openDeepLinkedMatch()) return true;
+
+  const viewId = hashRouteViewId();
+  if (!viewId) return false;
+
+  setActiveTab(viewId, false);
+  if (restoreScroll) restoreScrollPosition();
+  return true;
+}
+
 
 
 
@@ -6209,6 +6396,14 @@ function renderMatches() {
                   hasSubmittedScore(match)
                     ? `<button class="small-btn" onclick="recalculateMatchAll('${match.id}')">
                         Recalculate
+                      </button>`
+                    : ""
+                }
+
+                ${
+                  isSoccerMatch(match) && hasSubmittedScore(match) && canAssessMatchPerformance(match)
+                    ? `<button class="small-btn" onclick="openSoccerPerformanceAssessment('${match.id}')">
+                        Assess Performance
                       </button>`
                     : ""
                 }
@@ -10417,6 +10612,40 @@ function soccerPositionGroupCount(players, position) {
   ).length;
 }
 
+function soccerPerformanceAssessmentRows(match, memberId) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  if (!match || !cleanMemberId) return [];
+
+  return (match.match_soccer_performance_assessments || []).filter(row =>
+    cleanUuidValue(row.assessed_member_id) === cleanMemberId
+  );
+}
+
+function soccerAssessmentSummaryForMember(match, memberId, settings = soccerRatingSettings()) {
+  const rows = soccerPerformanceAssessmentRows(match, memberId)
+    .map(row => Number(row.performance_score))
+    .filter(score => Number.isFinite(score) && score >= 1 && score <= 10);
+
+  if (!rows.length) {
+    return {
+      count: 0,
+      average: null,
+      adjustment: 0
+    };
+  }
+
+  const average = rows.reduce((sum, score) => sum + score, 0) / rows.length;
+  const maxImpact = Math.abs(Number(settings.maxGain || DEFAULT_SOCCER_RATING_SETTINGS.maxGain));
+  const rawAdjustment = ((average - 5) / 5) * maxImpact;
+  const weightedAdjustment = rawAdjustment * clampNumber(Number(settings.committeeAssessmentWeight || 0), 0, 1);
+
+  return {
+    count: rows.length,
+    average,
+    adjustment: weightedAdjustment
+  };
+}
+
 function soccerRatingRowsForTeam(team, opponentTeam, sportId, goalsFor, goalsAgainst, result, match = null) {
   const settings = soccerRatingSettings();
   const expected = soccerExpectedGoalsForTeam(match, team, opponentTeam, sportId);
@@ -10464,6 +10693,9 @@ function soccerRatingRowsForTeam(team, opponentTeam, sportId, goalsFor, goalsAga
           : 0;
       }
 
+      const assessment = soccerAssessmentSummaryForMember(match, player.member_id, settings);
+      adjustment += assessment.adjustment;
+
       adjustment = clampNumber(
         adjustment,
         -Math.abs(settings.maxLoss),
@@ -10480,11 +10712,205 @@ function soccerRatingRowsForTeam(team, opponentTeam, sportId, goalsFor, goalsAga
           expected_goals_against: Number(expected.expectedGoalsAgainst.toFixed(3)),
           attack_performance: Number(attackPerformance.toFixed(3)),
           defense_performance: Number(defensePerformance.toFixed(3)),
+          assessment_count: assessment.count,
+          assessment_average: assessment.average === null ? null : Number(assessment.average.toFixed(2)),
+          assessment_adjustment: Number(assessment.adjustment.toFixed(3)),
           avg_total_goals: Number(expected.avgTotalGoals.toFixed(3))
         }
       };
     })
     .filter(Boolean);
+}
+
+function soccerAssessmentPlayers(match) {
+  const players = [];
+  const seen = new Set();
+
+  (match?.match_teams || []).forEach(team => {
+    const side = teamSideForTeam(match, team);
+    (team.match_team_players || []).forEach(player => {
+      const memberId = cleanUuidValue(player.member_id);
+      const position = normalizeSoccerPosition(player.formation_position);
+
+      if (!memberId || !position || seen.has(memberId)) return;
+      seen.add(memberId);
+
+      players.push({
+        memberId,
+        member: player.member,
+        teamName: teamDisplayName(match, team, side === "B" ? "Team B" : "Team A"),
+        position
+      });
+    });
+  });
+
+  return players.sort((a, b) =>
+    soccerPositionSortValue(a.position) - soccerPositionSortValue(b.position) ||
+    memberDisplayName(a.member).localeCompare(memberDisplayName(b.member))
+  );
+}
+
+function currentUserAssessmentForPlayer(match, memberId) {
+  const myId = cleanUuidValue(currentProfile?.id);
+  const cleanMemberId = cleanUuidValue(memberId);
+
+  return (match?.match_soccer_performance_assessments || []).find(row =>
+    cleanUuidValue(row.assessor_member_id) === myId &&
+    cleanUuidValue(row.assessed_member_id) === cleanMemberId
+  ) || null;
+}
+
+function renderSoccerAssessmentModal(match) {
+  const list = $("soccerAssessmentList");
+  if (!list) return;
+
+  if (!match) {
+    list.innerHTML = `<article class="card">Match not found.</article>`;
+    return;
+  }
+
+  const players = soccerAssessmentPlayers(match);
+  if (!players.length) {
+    list.innerHTML = `<article class="card">Assign soccer teams and formation positions before assessing performance.</article>`;
+    return;
+  }
+
+  list.innerHTML = players.map(player => {
+    const existing = currentUserAssessmentForPlayer(match, player.memberId);
+    const summary = soccerAssessmentSummaryForMember(match, player.memberId);
+    const score = Number(existing?.performance_score || 5);
+
+    return `
+      <article class="soccer-assessment-row" data-member-id="${player.memberId}" data-position="${player.position}">
+        <div>
+          <strong>${memberMiniIdentityHtml(player.member, player.memberId, memberDisplayName(player.member))}</strong>
+          <div class="meta">${escapeHtml(player.teamName)} - ${escapeHtml(player.position)}</div>
+          <div class="meta">
+            Average: ${summary.average === null ? "No assessments yet" : `${summary.average.toFixed(1)} from ${summary.count}`}
+          </div>
+        </div>
+
+        <label>
+          Score
+          <input
+            class="soccer-performance-score"
+            type="number"
+            min="1"
+            max="10"
+            step="0.5"
+            value="${escapeHtml(String(score))}"
+          >
+        </label>
+
+        <label>
+          Note
+          <input
+            class="soccer-performance-note"
+            type="text"
+            maxlength="240"
+            value="${escapeHtml(existing?.notes || "")}"
+            placeholder="Optional"
+          >
+        </label>
+      </article>
+    `;
+  }).join("");
+}
+
+function openSoccerPerformanceAssessment(matchId) {
+  const cleanMatchId = cleanUuidValue(matchId);
+  const match = allMatches.find(row => cleanUuidValue(row.id) === cleanMatchId);
+
+  if (!match || !isSoccerMatch(match)) {
+    alert("Performance assessment is available for soccer matches only.");
+    return;
+  }
+
+  if (!hasSubmittedScore(match)) {
+    alert("Submit the match result before assessing performance.");
+    return;
+  }
+
+  if (!canAssessMatchPerformance(match)) {
+    alert("Only admins, or soccer committee members who played this game, can assess player performance.");
+    return;
+  }
+
+  currentSoccerAssessmentMatchId = cleanMatchId;
+  if ($("soccer-assessment-title")) $("soccer-assessment-title").textContent = match.title || "Soccer Performance";
+  if ($("soccer-assessment-subtitle")) {
+    $("soccer-assessment-subtitle").textContent =
+      `${sportName(match)} - ${fmtDate(match.start_time)} - score ${scoreTextForMatch(match)}`;
+  }
+
+  renderSoccerAssessmentModal(match);
+  $("soccerAssessmentModal")?.showModal();
+}
+
+async function saveSoccerPerformanceAssessments() {
+  const matchId = cleanUuidValue(currentSoccerAssessmentMatchId);
+  const match = allMatches.find(row => cleanUuidValue(row.id) === matchId);
+
+  if (!match || !canAssessMatchPerformance(match)) {
+    alert("You cannot assess this match.");
+    return;
+  }
+
+  const rows = Array.from(document.querySelectorAll(".soccer-assessment-row")).map(row => {
+    const score = Number(row.querySelector(".soccer-performance-score")?.value || 5);
+    return {
+      match_id: matchId,
+      assessor_member_id: currentProfile.id,
+      assessed_member_id: cleanUuidValue(row.dataset.memberId),
+      sport_id: match.sport_id,
+      position_name: normalizeSoccerPosition(row.dataset.position),
+      performance_score: Number(score.toFixed(1)),
+      notes: row.querySelector(".soccer-performance-note")?.value.trim() || null,
+      updated_at: new Date().toISOString()
+    };
+  });
+
+  const invalid = rows.find(row =>
+    !row.assessed_member_id ||
+    !row.position_name ||
+    !Number.isFinite(row.performance_score) ||
+    row.performance_score < 1 ||
+    row.performance_score > 10
+  );
+
+  if (invalid) {
+    alert("Performance scores must be between 1 and 10.");
+    return;
+  }
+
+  if (!rows.length) {
+    alert("No soccer players found to assess.");
+    return;
+  }
+
+  const { error } = await supabaseClient
+    .from("match_soccer_performance_assessments")
+    .upsert(rows, {
+      onConflict: "match_id,assessor_member_id,assessed_member_id"
+    });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  await loadMatches();
+  const refreshedMatch = allMatches.find(row => cleanUuidValue(row.id) === matchId);
+
+  if (refreshedMatch && hasSubmittedScore(refreshedMatch)) {
+    const recalculated = await recalculateMatchSoccerRatings(refreshedMatch, false);
+    if (!recalculated) return;
+    await loadMatches();
+  }
+
+  $("soccerAssessmentModal")?.close();
+  currentSoccerAssessmentMatchId = "";
+  alert("Soccer performance assessments saved and ratings recalculated.");
 }
 
 function currentPositionRatingRow(memberId, sportId, positionName) {
@@ -13945,6 +14371,7 @@ if (currentProfile?.approval_status === "approved") {
       renderActivitySettingsForm();
       await loadVenues();
       await loadMatches();
+      if (activeViewId() === "admin") restoreScrollPosition();
     }
 
     return;
@@ -13966,6 +14393,7 @@ if (currentProfile?.approval_status === "approved") {
 
   localStorage.removeItem("aba_user_access");
   localStorage.removeItem(ACTIVE_TAB_KEY);
+  localStorage.removeItem(SCROLL_STATE_KEY);
   currentProfile = null;
   clearProfileFields();
 
@@ -13974,6 +14402,88 @@ if (currentProfile?.approval_status === "approved") {
 
 
 const ACTIVE_TAB_KEY = "aba_active_tab";
+const SCROLL_STATE_KEY = "aba_scroll_state";
+let scrollSaveFrame = null;
+let pageStateRestored = false;
+
+function activeViewId() {
+  return document.querySelector(".view.active-view")?.id ||
+    localStorage.getItem(ACTIVE_TAB_KEY) ||
+    "dashboard";
+}
+
+function activeAdminPanelName() {
+  return document.querySelector(".admin-subtab.active")?.dataset.adminPanel ||
+    localStorage.getItem("aba_admin_panel") ||
+    "";
+}
+
+function saveScrollState(options = {}) {
+  const { force = false } = options;
+  if (!pageStateRestored && !force) return;
+
+  const state = {
+    viewId: activeViewId(),
+    adminPanel: activeAdminPanelName(),
+    scrollY: Math.max(0, Math.round(window.scrollY || 0)),
+    savedAt: Date.now()
+  };
+
+  try {
+    localStorage.setItem(SCROLL_STATE_KEY, JSON.stringify(state));
+  } catch {
+    // Ignore storage errors; tab restore should still work.
+  }
+}
+
+function scheduleScrollStateSave() {
+  if (!pageStateRestored) return;
+  if (scrollSaveFrame) return;
+
+  scrollSaveFrame = requestAnimationFrame(() => {
+    scrollSaveFrame = null;
+    saveScrollState();
+  });
+}
+
+function savedScrollState() {
+  try {
+    const state = JSON.parse(localStorage.getItem(SCROLL_STATE_KEY) || "null");
+    return state && typeof state === "object" ? state : null;
+  } catch {
+    return null;
+  }
+}
+
+function restoreScrollPosition() {
+  const state = savedScrollState();
+  if (!state) return;
+
+  const viewId = activeViewId();
+  if (state.viewId && state.viewId !== viewId) return;
+  if (viewId === "admin" && state.adminPanel && state.adminPanel !== activeAdminPanelName()) return;
+
+  const y = Math.max(0, Number(state.scrollY || 0));
+
+  [0, 120, 350, 800, 1600, 2600].forEach(delay => {
+    setTimeout(() => {
+      window.scrollTo({
+        top: y,
+        left: 0,
+        behavior: "auto"
+      });
+    }, delay);
+  });
+}
+
+function saveScrollStateNow() {
+  saveScrollState({ force: true });
+}
+
+function finishPageStateRestore() {
+  pageStateRestored = true;
+  setTimeout(saveScrollState, 1000);
+}
 
 function setActiveTab(viewId, persist = true) {
   const targetView = $(viewId);
@@ -13989,6 +14499,7 @@ function setActiveTab(viewId, persist = true) {
 
   if (persist) {
     localStorage.setItem(ACTIVE_TAB_KEY, viewId);
+    saveScrollState();
   }
 
   if (viewId === "account") {
@@ -14029,12 +14540,17 @@ function setActiveTab(viewId, persist = true) {
 }
 
 function restoreActiveTab() {
-  if (openDeepLinkedMatch()) return;
+  if (openHashRoute({ restoreScroll: true })) {
+    finishPageStateRestore();
+    return;
+  }
 
   const saved = localStorage.getItem(ACTIVE_TAB_KEY) || "dashboard";
   const view = $(saved) ? saved : "dashboard";
 
   setActiveTab(view, false);
+  restoreScrollPosition();
+  finishPageStateRestore();
 }
 
 function bindEvents() {
@@ -14088,16 +14604,23 @@ function bindEvents() {
   $("match-filter-my-status")?.addEventListener("change", renderMatches);
   $("match-filter-reset")?.addEventListener("click", resetMatchFilters);
 
-  $("rating-sport-filter")?.addEventListener("change", renderSportRatingManager);
+  $("rating-sport-filter")?.addEventListener("change", () => {
+    currentSportRatingMemberId = "";
+    renderSportRatingManager();
+  });
   $("rating-history-position-filter")?.addEventListener("change", renderRatingHistoryModal);
   $("rating-history-sort")?.addEventListener("change", renderRatingHistoryModal);
   document.querySelectorAll(".tab").forEach(btn =>
     btn.addEventListener("click", () => {
+      pageStateRestored = true;
       setActiveTab(btn.dataset.view);
     })
   );
 
-  window.addEventListener("hashchange", openDeepLinkedMatch);
+  window.addEventListener("hashchange", () => openHashRoute());
+  window.addEventListener("scroll", scheduleScrollStateSave, { passive: true });
+  window.addEventListener("pagehide", saveScrollStateNow);
+  window.addEventListener("beforeunload", saveScrollStateNow);
 
  document.querySelectorAll("[data-open]").forEach(btn =>
   btn.addEventListener("click", async () => {
@@ -14435,6 +14958,7 @@ if ($("matchForm")) {
   $("delete-game-btn")?.addEventListener("click", deleteSelectedGameFromResults);
 
   $("save-score-btn")?.addEventListener("click", saveScore);
+  $("save-soccer-assessments-btn")?.addEventListener("click", saveSoccerPerformanceAssessments);
 
   document.querySelectorAll("#padel-score-section input").forEach(input => {
     input.addEventListener("input", () => {

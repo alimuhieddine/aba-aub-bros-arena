@@ -1081,6 +1081,28 @@
     </form>
   </dialog>
 
+  <dialog id="soccerAssessmentModal" class="modal wide-modal">
+    <form method="dialog" class="modal-card soccer-assessment-modal-card">
+      <div class="modal-head">
+        <div>
+          <h3 id="soccer-assessment-title">Soccer Performance</h3>
+          <p id="soccer-assessment-subtitle" class="hint">Assess player performance for this game.</p>
+        </div>
+        <button class="icon-btn modal-close-btn" value="cancel" aria-label="Close soccer performance assessment">×</button>
+      </div>
+
+      <div id="soccerAssessmentList" class="soccer-assessment-list">
+        Select a soccer match to assess.
+      </div>
+
+      <div class="actions score-actions">
+        <button id="save-soccer-assessments-btn" class="primary-btn" type="button">
+          Save Assessments
+        </button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="activityModal" class="modal">
     <form method="dialog" id="activityForm" class="modal-card">
       <button class="close" id="activity-modal-close" value="cancel" type="button">×</button>
