@@ -273,6 +273,65 @@ function adminDirectPayload(title: string | undefined, message: string | undefin
   };
 }
 
+async function createInboxRows(
+  adminClient: any,
+  recipientIds: string[],
+  sender: MemberRow,
+  payloadBody: Record<string, any>,
+  subscriptionsByMember: Map<string, number>
+) {
+  if (!recipientIds.length) return new Map<string, string>();
+
+  const rows = recipientIds.map(memberId => ({
+    recipient_member_id: memberId,
+    actor_member_id: sender?.id || null,
+    type: String(payloadBody?.data?.type || "notification"),
+    title: String(payloadBody?.title || "ABA"),
+    body: payloadBody?.body ? String(payloadBody.body) : null,
+    url: payloadBody?.url ? String(payloadBody.url) : null,
+    data: payloadBody?.data || {},
+    delivery_status: subscriptionsByMember.get(memberId) ? "queued" : "no_subscription"
+  }));
+
+  try {
+    const { data, error } = await adminClient
+      .from("member_notifications")
+      .insert(rows)
+      .select("id,recipient_member_id");
+
+    if (error) {
+      console.warn("Notification inbox insert failed:", error.message);
+      return new Map<string, string>();
+    }
+
+    return new Map((data || []).map((row: any) => [row.recipient_member_id, row.id]));
+  } catch (error) {
+    console.warn("Notification inbox unavailable:", error);
+    return new Map<string, string>();
+  }
+}
+
+async function updateInboxDeliveryStatus(
+  adminClient: any,
+  notificationIds: string[],
+  deliveryStatus: "sent" | "failed",
+  deliveryError: string | null = null
+) {
+  if (!notificationIds.length) return;
+
+  try {
+    await adminClient
+      .from("member_notifications")
+      .update({
+        delivery_status: deliveryStatus,
+        delivery_error: deliveryError
+      })
+      .in("id", notificationIds);
+  } catch (error) {
+    console.warn("Notification inbox delivery update failed:", error);
+  }
+}
+
 function roleChangedPayload(role: string | undefined, sports: string[] | undefined) {
   const cleanRole = String(role || "member").toLowerCase();
   const roleLabel = cleanRole === "owner"
@@ -684,20 +743,43 @@ Deno.serve(async req => {
     return jsonResponse({ error: subscriptionError.message }, 500);
   }
 
+  const subscriptionsByMember = new Map<string, number>();
+  (subscriptions || []).forEach(subscription => {
+    const memberId = String(subscription.member_id || "");
+    if (!memberId) return;
+    subscriptionsByMember.set(memberId, (subscriptionsByMember.get(memberId) || 0) + 1);
+  });
+
+  const inboxIdsByMember = await createInboxRows(
+    adminClient,
+    allowedRecipientIds,
+    sender as MemberRow,
+    payloadBody as Record<string, any>,
+    subscriptionsByMember
+  );
+
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
   const payload = JSON.stringify(payloadBody);
   let sent = 0;
   let failed = 0;
+  const sentNotificationIds = new Set<string>();
+  const failedNotificationIds = new Map<string, string>();
 
   await Promise.all((subscriptions || []).map(async subscription => {
     try {
       await webpush.sendNotification(subscription.subscription, payload);
       sent += 1;
+      const inboxId = inboxIdsByMember.get(subscription.member_id);
+      if (inboxId) sentNotificationIds.add(inboxId);
     } catch (error) {
       failed += 1;
 
       const statusCode = Number((error as { statusCode?: number }).statusCode || 0);
+      const inboxId = inboxIdsByMember.get(subscription.member_id);
+      if (inboxId && !sentNotificationIds.has(inboxId)) {
+        failedNotificationIds.set(inboxId, error instanceof Error ? error.message : "Push send failed.");
+      }
 
       if (statusCode === 404 || statusCode === 410) {
         await adminClient
@@ -709,6 +791,18 @@ Deno.serve(async req => {
       }
     }
   }));
+
+  for (const inboxId of sentNotificationIds) {
+    failedNotificationIds.delete(inboxId);
+  }
+
+  await updateInboxDeliveryStatus(adminClient, Array.from(sentNotificationIds), "sent");
+  await updateInboxDeliveryStatus(
+    adminClient,
+    Array.from(failedNotificationIds.keys()),
+    "failed",
+    Array.from(failedNotificationIds.values())[0] || "Push send failed."
+  );
 
   return jsonResponse({ sent, failed });
 });

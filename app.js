@@ -352,7 +352,10 @@ function canManageAnySport() {
 }
 
 async function loadPendingMembers() {
-  if (!isCurrentUserAdmin()) return;
+  if (!isCurrentUserAdmin()) {
+    allPendingMembers = [];
+    return;
+  }
 
   const { data, error } = await supabaseClient
     .from("members")
@@ -365,15 +368,18 @@ async function loadPendingMembers() {
     return;
   }
 
+  allPendingMembers = data || [];
+  renderAdminDashboard();
+
   const box = $("pendingMembersList");
   if (!box) return;
 
-  if (!data || data.length === 0) {
+  if (!allPendingMembers.length) {
     box.innerHTML = `<article class="card">No pending profiles.</article>`;
     return;
   }
 
-  box.innerHTML = data.map(member => `
+  box.innerHTML = allPendingMembers.map(member => `
     <article class="card">
       <div class="row">
         <div>
@@ -894,6 +900,7 @@ function resetAppTabsForLoggedOut() {
 
 function adminPanelNameForHeading(heading) {
   const text = String(heading || "").toLowerCase();
+  if (text.includes("dashboard")) return "Overview";
   if (text.includes("review") || text.includes("member roles")) return "Members";
   if (text.includes("notifications")) return "Notifications";
   if (text.includes("sport ratings")) return "Sports";
@@ -972,6 +979,53 @@ function organizeAdminSections() {
   activateAdminPanel(panels.has(saved) ? saved : firstPanel, { savePosition: false });
 }
 
+function adminDashboardMetricCard(label, value, detail, targetPanel = "") {
+  return `
+    <article class="card admin-dashboard-card">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(String(value))}</strong>
+      <em>${escapeHtml(detail || "")}</em>
+      ${targetPanel ? `<button class="tiny-btn" type="button" onclick="activateAdminPanel('${escapeHtml(targetPanel)}')">Open</button>` : ""}
+    </article>
+  `;
+}
+
+function renderAdminDashboard() {
+  const box = $("adminDashboardCards");
+  if (!box || !isCurrentUserAdmin()) return;
+
+  const pendingMembers = allPendingMembers?.length || 0;
+  const pendingActivities = (allMemberActivities || []).filter(activity =>
+    String(activity.status || "pending").toLowerCase() === "pending"
+  ).length;
+  const finalizedMatches = (allMatches || []).filter(match => hasSubmittedScore(match) && !isCancelledMatch(match));
+  const resultNeeded = (allMatches || []).filter(match =>
+    !isCancelledMatch(match) &&
+    canSubmitScore(match) &&
+    !hasSubmittedScore(match)
+  ).length;
+  const soccerAssessmentsMissing = finalizedMatches.filter(match =>
+    isSoccerMatch(match) &&
+    !(match.match_soccer_performance_assessments || []).length
+  ).length;
+  const maybeDeadlineMatches = (allMatches || []).filter(match =>
+    !isCancelledMatch(match) &&
+    !hasSubmittedScore(match) &&
+    matchVotingDeadline(match) &&
+    matchVotingDeadline(match) > new Date()
+  ).length;
+  const unreadNotifications = (allNotifications || []).filter(row => !row.read_at).length;
+
+  box.innerHTML = [
+    adminDashboardMetricCard("Pending approvals", pendingMembers, "Member profiles waiting for review.", "Members"),
+    adminDashboardMetricCard("Proof queue", pendingActivities, "Activity logs waiting for admin review.", "Activities"),
+    adminDashboardMetricCard("Results needed", resultNeeded, "Completed-time matches without a final result.", "Maintenance"),
+    adminDashboardMetricCard("Soccer assessments", soccerAssessmentsMissing, "Finalized soccer matches without assessments.", "Sports"),
+    adminDashboardMetricCard("Lifecycle watch", maybeDeadlineMatches, "Open matches with future voting deadlines.", "Maintenance"),
+    adminDashboardMetricCard("Unread inbox", unreadNotifications, "Notifications visible in Account inbox.", "Notifications")
+  ].join("");
+}
+
 function loadData() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (!saved) return structuredClone(demoData);
@@ -1013,9 +1067,10 @@ let allRankingPointRows = [];
 let allRankingActivityRows = [];
 let allMemberSportPermissions = [];
 let allMemberRoleManagerMembers = [];
+let allNotifications = [];
+let allPendingMembers = [];
 let currentMemberSportPermissionIds = new Set();
 let currentMemberRoleManagerId = "";
-let currentSoccerAssessmentMatchId = "";
 let currentSportRatingMemberId = "";
 let activitySportSettingsCache = {};
 let activitySportSettingsLoadPromise = null;
@@ -4898,6 +4953,7 @@ function teamPlayerChips(team, match = null) {
           ${currentRating ? `<small class="rating-pill">R ${currentRating.toFixed(1)}</small>` : ""}
           ${player.isCaptain ? `<b>C</b>` : ""}
           ${player.isExternal ? `<em>External</em>` : ""}
+          ${soccerAssessmentSelectHtml(match, player)}
           ${ratingChangeInlineHtml(ratingChange)}
         </span>
       </span>
@@ -4917,6 +4973,70 @@ function currentMatchPlayerRating(memberId, sportId, formationPosition = "") {
     : memberSportRating(cleanMemberId, cleanSportId);
 
   return Number.isFinite(rating) ? rating : null;
+}
+
+const SOCCER_ASSESSMENT_OPTIONS = [
+  { value: "poor", label: "Poor", score: 2 },
+  { value: "average", label: "Average", score: 5 },
+  { value: "good", label: "Good", score: 6.5 },
+  { value: "very_good", label: "Very Good", score: 8 },
+  { value: "excellent", label: "Excellent", score: 10 }
+];
+
+function soccerAssessmentOptionForScore(score) {
+  const value = Number(score);
+  if (!Number.isFinite(value)) return "";
+  let best = SOCCER_ASSESSMENT_OPTIONS[0];
+  let bestDistance = Math.abs(value - best.score);
+
+  SOCCER_ASSESSMENT_OPTIONS.forEach(option => {
+    const distance = Math.abs(value - option.score);
+    if (distance < bestDistance) {
+      best = option;
+      bestDistance = distance;
+    }
+  });
+
+  return best.value;
+}
+
+function soccerAssessmentScoreForValue(value) {
+  return SOCCER_ASSESSMENT_OPTIONS.find(option => option.value === value)?.score || null;
+}
+
+function currentUserSoccerAssessment(match, memberId) {
+  return currentUserAssessmentForPlayer(match, memberId);
+}
+
+function soccerAssessmentSelectHtml(match, player) {
+  if (!match || !isSoccerMatch(match) || !canAssessMatchPerformance(match)) {
+    return "";
+  }
+
+  if (!cleanUuidValue(player.memberId) || !normalizeSoccerPosition(player.formationPosition)) {
+    return "";
+  }
+
+  const assessment = currentUserSoccerAssessment(match, player.memberId);
+  const selected = soccerAssessmentOptionForScore(assessment?.performance_score);
+
+  return `
+    <select
+      class="soccer-inline-assessment"
+      data-match-id="${match.id}"
+      data-member-id="${player.memberId}"
+      data-position="${escapeHtml(player.formationPosition || "")}"
+      data-saved-value="${escapeHtml(selected)}"
+      aria-label="Assess ${escapeHtml(player.name || "player")} performance"
+    >
+      <option value="">Assess</option>
+      ${SOCCER_ASSESSMENT_OPTIONS.map(option => `
+        <option value="${option.value}" ${selected === option.value ? "selected" : ""}>
+          ${escapeHtml(option.label)}
+        </option>
+      `).join("")}
+    </select>
+  `;
 }
 
 function renderTeamsSummary(match) {
@@ -5325,6 +5445,8 @@ function updatePadelScorePreview() {
 function setScoreMode(match) {
   const simpleSection = $("simple-score-section");
   const padelSection = $("padel-score-section");
+  const saveGameBtn = $("save-game-btn");
+  const deleteGameBtn = $("delete-game-btn");
 
   if (!simpleSection || !padelSection) return;
 
@@ -5335,11 +5457,44 @@ function setScoreMode(match) {
     simpleSection.style.display = "";
     padelSection.style.display = "none";
   }
+
+  if (saveGameBtn) saveGameBtn.style.display = isPadelMatch(match) ? "" : "none";
+  if (deleteGameBtn) deleteGameBtn.style.display = isPadelMatch(match) ? "" : "none";
 }
 
 
 function matchSessionGames(match) {
   return ABAScoring.matchSessionGames(match);
+}
+
+function normalizeGameTeamName(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function matchTeamNamePair(match) {
+  const { teamA, teamB } = getTwoMatchTeams(match);
+  if (!teamA || !teamB) return null;
+
+  const teamAName = normalizeGameTeamName(teamDisplayName(match, teamA, "Team A"));
+  const teamBName = normalizeGameTeamName(teamDisplayName(match, teamB, "Team B"));
+
+  return teamAName && teamBName ? [teamAName, teamBName].sort() : null;
+}
+
+function gameMatchesTeamPair(game, teamPair) {
+  if (!game || !teamPair?.length) return false;
+
+  const gamePair = [
+    normalizeGameTeamName(game.team_a_name),
+    normalizeGameTeamName(game.team_b_name)
+  ].filter(Boolean).sort();
+
+  return gamePair.length === 2 &&
+    gamePair[0] === teamPair[0] &&
+    gamePair[1] === teamPair[1];
 }
 
 function scoreEntriesForGame(match, gameId) {
@@ -5348,6 +5503,7 @@ function scoreEntriesForGame(match, gameId) {
 
 async function loadPendingPadelGames(match) {
   const linkedGames = matchSessionGames(match);
+  const teamPair = matchTeamNamePair(match);
 
   const { data, error } = await supabaseClient
     .from("match_games")
@@ -5365,11 +5521,11 @@ async function loadPendingPadelGames(match) {
   const byId = new Map();
 
   linkedGames.forEach(game => {
-    if (game?.id) byId.set(game.id, game);
+    if (game?.id && gameMatchesTeamPair(game, teamPair)) byId.set(game.id, game);
   });
 
   (data || []).forEach(game => {
-    if (game?.id && !byId.has(game.id)) byId.set(game.id, game);
+    if (game?.id && !byId.has(game.id) && gameMatchesTeamPair(game, teamPair)) byId.set(game.id, game);
   });
 
   allPendingGames = Array.from(byId.values());
@@ -6396,14 +6552,6 @@ function renderMatches() {
                   hasSubmittedScore(match)
                     ? `<button class="small-btn" onclick="recalculateMatchAll('${match.id}')">
                         Recalculate
-                      </button>`
-                    : ""
-                }
-
-                ${
-                  isSoccerMatch(match) && hasSubmittedScore(match) && canAssessMatchPerformance(match)
-                    ? `<button class="small-btn" onclick="openSoccerPerformanceAssessment('${match.id}')">
-                        Assess Performance
                       </button>`
                     : ""
                 }
@@ -8954,6 +9102,16 @@ async function openScoreSubmission(matchId) {
     return;
   }
 
+  if (isSoccerMatch(scoreMatch)) {
+    const assessmentsSaved = await saveInlineSoccerAssessmentsForMatch(scoreMatch);
+
+    if (!assessmentsSaved) {
+      ABAMatches.setFormationOpen(scoreMatch.id, true);
+      renderMatches();
+      return;
+    }
+  }
+
   currentScoreMatchId = matchId;
 
   if ($("score-match-label")) {
@@ -8983,13 +9141,22 @@ async function openScoreSubmission(matchId) {
     await loadPendingPadelGames(scoreMatch);
     renderPendingGameOptions();
 
-    if ($("padel-game-mode")) $("padel-game-mode").value = "new";
-    setPadelGameModeUI();
+    const pendingGame = allPendingGames[0] || null;
 
-    const nextGameNumber = matchSessionGames(scoreMatch).length + 1;
-    if ($("padel-game-title")) $("padel-game-title").value = `Game ${nextGameNumber}`;
+    if (pendingGame) {
+      if ($("padel-game-mode")) $("padel-game-mode").value = "continue";
+      if ($("padel-pending-game")) $("padel-pending-game").value = pendingGame.id;
+      setPadelGameModeUI();
+      await loadPendingGameScoreIntoForm(pendingGame.id);
+    } else {
+      if ($("padel-game-mode")) $("padel-game-mode").value = "new";
+      setPadelGameModeUI();
 
-    clearPadelSetInputs();
+      const nextGameNumber = matchSessionGames(scoreMatch).length + 1;
+      if ($("padel-game-title")) $("padel-game-title").value = `Game ${nextGameNumber}`;
+
+      clearPadelSetInputs();
+    }
   } else {
     if ($("score-team-a")) $("score-team-a").value = Number(teamA.score || 0);
     if ($("score-team-b")) $("score-team-b").value = Number(teamB.score || 0);
@@ -10146,8 +10313,6 @@ function renderPointsSummary(match) {
   return "";
 }
 
-
-
 function renderRatingChanges(match) {
   const adjustments = (match.match_position_rating_adjustments || [])
     .filter(row =>
@@ -10760,132 +10925,140 @@ function currentUserAssessmentForPlayer(match, memberId) {
   ) || null;
 }
 
-function renderSoccerAssessmentModal(match) {
-  const list = $("soccerAssessmentList");
-  if (!list) return;
-
-  if (!match) {
-    list.innerHTML = `<article class="card">Match not found.</article>`;
-    return;
-  }
-
-  const players = soccerAssessmentPlayers(match);
-  if (!players.length) {
-    list.innerHTML = `<article class="card">Assign soccer teams and formation positions before assessing performance.</article>`;
-    return;
-  }
-
-  list.innerHTML = players.map(player => {
-    const existing = currentUserAssessmentForPlayer(match, player.memberId);
-    const summary = soccerAssessmentSummaryForMember(match, player.memberId);
-    const score = Number(existing?.performance_score || 5);
-
-    return `
-      <article class="soccer-assessment-row" data-member-id="${player.memberId}" data-position="${player.position}">
-        <div>
-          <strong>${memberMiniIdentityHtml(player.member, player.memberId, memberDisplayName(player.member))}</strong>
-          <div class="meta">${escapeHtml(player.teamName)} - ${escapeHtml(player.position)}</div>
-          <div class="meta">
-            Average: ${summary.average === null ? "No assessments yet" : `${summary.average.toFixed(1)} from ${summary.count}`}
-          </div>
-        </div>
-
-        <label>
-          Score
-          <input
-            class="soccer-performance-score"
-            type="number"
-            min="1"
-            max="10"
-            step="0.5"
-            value="${escapeHtml(String(score))}"
-          >
-        </label>
-
-        <label>
-          Note
-          <input
-            class="soccer-performance-note"
-            type="text"
-            maxlength="240"
-            value="${escapeHtml(existing?.notes || "")}"
-            placeholder="Optional"
-          >
-        </label>
-      </article>
-    `;
-  }).join("");
+function soccerPlayersMissingAssessments(match) {
+  return soccerAssessmentPlayers(match).filter(player =>
+    soccerPerformanceAssessmentRows(match, player.memberId).length === 0
+  );
 }
 
-function openSoccerPerformanceAssessment(matchId) {
-  const cleanMatchId = cleanUuidValue(matchId);
-  const match = allMatches.find(row => cleanUuidValue(row.id) === cleanMatchId);
+function soccerInlineAssessmentInputs(match) {
+  const matchId = cleanUuidValue(match?.id);
+  if (!matchId) return [];
 
-  if (!match || !isSoccerMatch(match)) {
-    alert("Performance assessment is available for soccer matches only.");
-    return;
-  }
-
-  if (!hasSubmittedScore(match)) {
-    alert("Submit the match result before assessing performance.");
-    return;
-  }
-
-  if (!canAssessMatchPerformance(match)) {
-    alert("Only admins, or soccer committee members who played this game, can assess player performance.");
-    return;
-  }
-
-  currentSoccerAssessmentMatchId = cleanMatchId;
-  if ($("soccer-assessment-title")) $("soccer-assessment-title").textContent = match.title || "Soccer Performance";
-  if ($("soccer-assessment-subtitle")) {
-    $("soccer-assessment-subtitle").textContent =
-      `${sportName(match)} - ${fmtDate(match.start_time)} - score ${scoreTextForMatch(match)}`;
-  }
-
-  renderSoccerAssessmentModal(match);
-  $("soccerAssessmentModal")?.showModal();
+  return Array.from(document.querySelectorAll(`.soccer-inline-assessment[data-match-id="${matchId}"]`));
 }
 
-async function saveSoccerPerformanceAssessments() {
-  const matchId = cleanUuidValue(currentSoccerAssessmentMatchId);
+function missingSoccerInlineAssessments(match) {
+  return soccerInlineAssessmentInputs(match).filter(input => !input.value);
+}
+
+function soccerAssessmentRowFromInput(input, match) {
+  const value = input?.value || "";
+  const score = soccerAssessmentScoreForValue(value);
+
+  if (!value || !Number.isFinite(score)) return null;
+
+  return {
+    match_id: match.id,
+    assessor_member_id: currentProfile.id,
+    assessed_member_id: cleanUuidValue(input.dataset.memberId),
+    sport_id: match.sport_id,
+    position_name: normalizeSoccerPosition(input.dataset.position),
+    performance_score: Number(score),
+    notes: SOCCER_ASSESSMENT_OPTIONS.find(option => option.value === value)?.label || null,
+    updated_at: new Date().toISOString()
+  };
+}
+
+function updateLocalSoccerAssessment(match, row) {
+  if (!match || !row) return;
+
+  match.match_soccer_performance_assessments = [
+    ...(match.match_soccer_performance_assessments || []).filter(existing =>
+      !(
+        cleanUuidValue(existing.assessor_member_id) === cleanUuidValue(row.assessor_member_id) &&
+        cleanUuidValue(existing.assessed_member_id) === cleanUuidValue(row.assessed_member_id)
+      )
+    ),
+    {
+      ...row,
+      assessor_member_id: currentProfile.id
+    }
+  ];
+}
+
+async function saveSingleInlineSoccerAssessment(input) {
+  const matchId = cleanUuidValue(input?.dataset?.matchId);
   const match = allMatches.find(row => cleanUuidValue(row.id) === matchId);
 
-  if (!match || !canAssessMatchPerformance(match)) {
-    alert("You cannot assess this match.");
-    return;
+  if (!match || !isSoccerMatch(match)) return false;
+
+  if (!canAssessMatchPerformance(match)) {
+    alert("Only admins, owners, or sport committee members who played this game can assess soccer players.");
+    input.value = input.dataset.savedValue || "";
+    return false;
   }
 
-  const rows = Array.from(document.querySelectorAll(".soccer-assessment-row")).map(row => {
-    const score = Number(row.querySelector(".soccer-performance-score")?.value || 5);
-    return {
-      match_id: matchId,
-      assessor_member_id: currentProfile.id,
-      assessed_member_id: cleanUuidValue(row.dataset.memberId),
-      sport_id: match.sport_id,
-      position_name: normalizeSoccerPosition(row.dataset.position),
-      performance_score: Number(score.toFixed(1)),
-      notes: row.querySelector(".soccer-performance-note")?.value.trim() || null,
-      updated_at: new Date().toISOString()
-    };
-  });
+  const row = soccerAssessmentRowFromInput(input, match);
+
+  if (!row || !row.assessed_member_id || !row.position_name) {
+    input.dataset.savedValue = "";
+    return false;
+  }
+
+  input.disabled = true;
+
+  const { error } = await supabaseClient
+    .from("match_soccer_performance_assessments")
+    .upsert(row, {
+      onConflict: "match_id,assessor_member_id,assessed_member_id"
+    });
+
+  input.disabled = false;
+
+  if (error) {
+    alert(error.message);
+    input.value = input.dataset.savedValue || "";
+    return false;
+  }
+
+  input.dataset.savedValue = input.value;
+  updateLocalSoccerAssessment(match, row);
+
+  return true;
+}
+
+async function saveInlineSoccerAssessmentsForMatch(match) {
+  if (!isSoccerMatch(match)) return true;
+
+  if (!canAssessMatchPerformance(match)) {
+    alert("Only admins, owners, or sport committee members who played this game can assess soccer players.");
+    return false;
+  }
+
+  const inputs = soccerInlineAssessmentInputs(match);
+
+  if (!inputs.length) {
+    const players = soccerAssessmentPlayers(match);
+    const alreadyAssessed = players.length > 0 && players.every(player =>
+      currentUserAssessmentForPlayer(match, player.memberId)
+    );
+
+    if (alreadyAssessed) return true;
+
+    alert("Open the team formation and assess every soccer player before saving the result.");
+    return false;
+  }
+
+  const missing = inputs.filter(input => !input.value);
+  if (missing.length) {
+    alert("Assess every soccer player before saving the match result.");
+    missing[0].focus();
+    return false;
+  }
+
+  const rows = inputs.map(input => soccerAssessmentRowFromInput(input, match));
 
   const invalid = rows.find(row =>
+    !row ||
     !row.assessed_member_id ||
     !row.position_name ||
-    !Number.isFinite(row.performance_score) ||
-    row.performance_score < 1 ||
-    row.performance_score > 10
+    !Number.isFinite(row.performance_score)
   );
 
   if (invalid) {
-    alert("Performance scores must be between 1 and 10.");
-    return;
-  }
-
-  if (!rows.length) {
-    alert("No soccer players found to assess.");
-    return;
+    alert("Every soccer player must have a valid assessment and formation position.");
+    return false;
   }
 
   const { error } = await supabaseClient
@@ -10896,21 +11069,15 @@ async function saveSoccerPerformanceAssessments() {
 
   if (error) {
     alert(error.message);
-    return;
+    return false;
   }
 
-  await loadMatches();
-  const refreshedMatch = allMatches.find(row => cleanUuidValue(row.id) === matchId);
+  rows.forEach(row => updateLocalSoccerAssessment(match, row));
+  inputs.forEach(input => {
+    input.dataset.savedValue = input.value;
+  });
 
-  if (refreshedMatch && hasSubmittedScore(refreshedMatch)) {
-    const recalculated = await recalculateMatchSoccerRatings(refreshedMatch, false);
-    if (!recalculated) return;
-    await loadMatches();
-  }
-
-  $("soccerAssessmentModal")?.close();
-  currentSoccerAssessmentMatchId = "";
-  alert("Soccer performance assessments saved and ratings recalculated.");
+  return true;
 }
 
 function currentPositionRatingRow(memberId, sportId, positionName) {
@@ -11152,6 +11319,12 @@ async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, result
 
   if (!teamA || !teamB) return true;
 
+  const missingAssessments = soccerPlayersMissingAssessments(match);
+  if (missingAssessments.length) {
+    alert(`Assess every soccer player before calculating rating changes. Missing: ${missingAssessments.map(player => memberDisplayName(player.member)).join(", ")}`);
+    return false;
+  }
+
   await loadPositionRatings();
 
   const rolledBack = await rollbackPreviousSoccerRatingAdjustments(match.id);
@@ -11309,6 +11482,11 @@ async function finalizeCurrentMatchResult() {
   let scoreB = Number(teamB.score || 0);
   const teamAName = teamDisplayName(match, teamA, "Team A");
   const teamBName = teamDisplayName(match, teamB, "Team B");
+
+  if (isSoccerMatch(match)) {
+    const assessmentsSaved = await saveInlineSoccerAssessmentsForMatch(match);
+    if (!assessmentsSaved) return;
+  }
 
   if (isPadelMatch(match)) {
     const savedGame = await savePadelGameOnly();
@@ -13344,6 +13522,7 @@ function bindPushDebugMessages() {
 
     console.info("ABA push received by service worker:", event.data);
     showPushToast(event.data.title || "ABA notification", event.data.body || "");
+    loadNotificationInbox();
 
     if (event.data.notificationType === "match_invite") {
       setNotificationStatus(`Match invite push received: ${event.data.title}`);
@@ -13366,6 +13545,146 @@ function showPushToast(title, body = "") {
   showPushToast.hideTimer = setTimeout(() => {
     toast.hidden = true;
   }, 7000);
+}
+
+function notificationTargetFromRow(notification) {
+  return notification?.url || notification?.data?.url || "./index.html#dashboard";
+}
+
+function notificationTypeLabel(type) {
+  const clean = String(type || "notification");
+  return clean
+    .split("_")
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function renderNotificationInbox() {
+  const list = $("notificationInboxList");
+  const status = $("notification-inbox-status");
+  const markReadBtn = $("mark-notifications-read-btn");
+  if (!list) return;
+
+  const unreadCount = (allNotifications || []).filter(row => !row.read_at).length;
+
+  if (status) {
+    status.textContent = unreadCount
+      ? `${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}.`
+      : "All caught up.";
+  }
+
+  if (markReadBtn) markReadBtn.disabled = unreadCount === 0;
+
+  if (!allNotifications.length) {
+    list.innerHTML = `<div class="hint">No notifications yet.</div>`;
+    return;
+  }
+
+  list.innerHTML = allNotifications.map(row => {
+    const unread = !row.read_at;
+    const type = notificationTypeLabel(row.type);
+    const targetUrl = notificationTargetFromRow(row);
+
+    return `
+      <article class="notification-inbox-item ${unread ? "unread" : ""}">
+        <button class="notification-inbox-open" type="button" onclick="openInboxNotification('${row.id}')">
+          <span>
+            <strong>${escapeHtml(row.title || "ABA")}</strong>
+            <small>${escapeHtml(type)} - ${escapeHtml(fmtDate(row.created_at))}</small>
+            ${row.body ? `<em>${escapeHtml(row.body)}</em>` : ""}
+          </span>
+          <b>${unread ? "New" : ""}</b>
+        </button>
+        <div class="notification-inbox-meta">
+          <span>${escapeHtml(row.delivery_status || "queued")}</span>
+          ${targetUrl ? `<span>${escapeHtml(String(targetUrl).replace("./index.html", ""))}</span>` : ""}
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+async function loadNotificationInbox() {
+  const list = $("notificationInboxList");
+  if (!currentProfile?.id) {
+    allNotifications = [];
+    renderNotificationInbox();
+    return;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("member_notifications")
+    .select("id,type,title,body,url,data,delivery_status,delivery_error,read_at,created_at")
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  if (error) {
+    if (list) {
+      list.innerHTML = `<div class="hint">Notification inbox is not installed in Supabase yet.</div>`;
+    }
+    return;
+  }
+
+  allNotifications = data || [];
+  renderNotificationInbox();
+}
+
+function routeNotificationUrl(url) {
+  const raw = String(url || "./index.html#dashboard");
+  const parsed = new URL(raw, window.location.href);
+
+  window.location.hash = parsed.hash || "#dashboard";
+  openHashRoute();
+}
+
+async function markNotificationRead(notificationId) {
+  const cleanId = cleanUuidValue(notificationId);
+  if (!cleanId) return;
+
+  const { error } = await supabaseClient
+    .from("member_notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("id", cleanId)
+    .is("read_at", null);
+
+  if (error) {
+    console.warn("Could not mark notification read:", error.message);
+    return;
+  }
+
+  allNotifications = (allNotifications || []).map(row =>
+    row.id === cleanId ? { ...row, read_at: row.read_at || new Date().toISOString() } : row
+  );
+  renderNotificationInbox();
+}
+
+async function openInboxNotification(notificationId) {
+  const notification = (allNotifications || []).find(row => row.id === notificationId);
+  if (!notification) return;
+
+  await markNotificationRead(notification.id);
+  routeNotificationUrl(notificationTargetFromRow(notification));
+}
+
+async function markAllNotificationsRead() {
+  const unreadIds = (allNotifications || [])
+    .filter(row => !row.read_at)
+    .map(row => row.id)
+    .filter(Boolean);
+
+  if (!unreadIds.length) return;
+
+  const { error } = await supabaseClient
+    .from("member_notifications")
+    .update({ read_at: new Date().toISOString() })
+    .in("id", unreadIds);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  await loadNotificationInbox();
 }
 
 async function currentPushSubscription() {
@@ -13862,6 +14181,8 @@ function clearProfileFields() {
 
   setNotificationStatus("Login to manage phone notifications.");
   setNotificationButtons(false, false);
+  allNotifications = [];
+  renderNotificationInbox();
   currentGarminConnection = null;
   allMemberSportPermissions = [];
   currentMemberSportPermissionIds = new Set();
@@ -14358,6 +14679,7 @@ if (currentProfile?.approval_status === "approved") {
   await loadActivitySportSettings();
   await loadMatches();
   await loadMemberActivities();
+  await loadNotificationInbox();
   restoreActiveTab();
 }
     if (isCurrentUserAdmin()) {
@@ -14504,6 +14826,7 @@ function setActiveTab(viewId, persist = true) {
 
   if (viewId === "account") {
     loadMyProfile();
+    loadNotificationInbox();
   }
 
   if (viewId === "leagues") {
@@ -14593,6 +14916,12 @@ function bindEvents() {
 
   $("rank-league-filter")?.addEventListener("change", renderRankings);
   $("rank-player-type-filter")?.addEventListener("change", renderRankings);
+
+  document.addEventListener("change", e => {
+    if (e.target?.classList?.contains("soccer-inline-assessment")) {
+      saveSingleInlineSoccerAssessment(e.target);
+    }
+  });
 
   $("match-filter-search")?.addEventListener("input", renderMatches);
   $("match-filter-sport")?.addEventListener("change", () => {
@@ -14917,6 +15246,7 @@ if ($("matchForm")) {
   $("enable-notifications-btn")?.addEventListener("click", enablePhoneNotifications);
   $("disable-notifications-btn")?.addEventListener("click", disablePhoneNotifications);
   $("test-notifications-btn")?.addEventListener("click", sendTestNotification);
+  $("mark-notifications-read-btn")?.addEventListener("click", markAllNotificationsRead);
   $("send-admin-notification-btn")?.addEventListener("click", sendAdminPushNotification);
   $("send-admin-notification-all-btn")?.addEventListener("click", sendAdminPushNotificationToAll);
 
@@ -14958,7 +15288,6 @@ if ($("matchForm")) {
   $("delete-game-btn")?.addEventListener("click", deleteSelectedGameFromResults);
 
   $("save-score-btn")?.addEventListener("click", saveScore);
-  $("save-soccer-assessments-btn")?.addEventListener("click", saveSoccerPerformanceAssessments);
 
   document.querySelectorAll("#padel-score-section input").forEach(input => {
     input.addEventListener("input", () => {

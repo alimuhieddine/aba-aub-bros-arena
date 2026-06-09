@@ -935,6 +935,74 @@ h3 {
   margin-top: 0;
 }
 
+.notification-inbox-card {
+  display: grid;
+  gap: 12px;
+}
+
+.notification-inbox-list {
+  display: grid;
+  gap: 8px;
+}
+
+.notification-inbox-item {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255,255,255,.035);
+  overflow: hidden;
+}
+
+.notification-inbox-item.unread {
+  border-color: rgba(47,210,139,.42);
+  background: rgba(47,210,139,.08);
+}
+
+.notification-inbox-open {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notification-inbox-open span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.notification-inbox-open strong,
+.notification-inbox-open em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-inbox-open small,
+.notification-inbox-open em,
+.notification-inbox-meta {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.notification-inbox-open b {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.notification-inbox-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 12px 10px;
+}
+
 .push-toast {
   position: fixed;
   right: 16px;
@@ -4377,6 +4445,27 @@ main,
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.soccer-inline-assessment {
+  min-height: 26px;
+  max-width: 118px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #07111f;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.soccer-inline-assessment option {
+  background: #ffffff;
+  color: #111827;
+}
+
+.soccer-inline-assessment:focus {
+  outline: 2px solid rgba(110,168,254,.45);
+  outline-offset: 1px;
 }
 
 .stacked-player-chip .inline-rating-change {

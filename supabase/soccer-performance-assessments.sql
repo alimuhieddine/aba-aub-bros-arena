@@ -41,7 +41,6 @@ as $$
     where m.approval_status = 'approved'
       and coalesce(p_sport_id, mt.sport_id) = mt.sport_id
       and mt.status <> 'cancelled'
-      and mt.score_status = 'submitted'
       and (s.name ilike '%soccer%' or s.name ilike '%football%')
       and (
         a.role in ('owner', 'admin')
