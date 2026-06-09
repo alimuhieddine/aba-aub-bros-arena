@@ -1106,7 +1106,7 @@ const MEMBER_ACTIVITY_SELECT = `
   reviewed_by,
   reviewed_at,
   created_at,
-  members (
+  members!member_activities_member_id_fkey (
     id,
     first_name,
     last_name,
@@ -2954,6 +2954,41 @@ function homeLeagueStandingsLeader(leagueId) {
   return homeLeagueStandingsRows(leagueId, 1)[0] || null;
 }
 
+function leagueSportIdForActivities(leagueId) {
+  return cleanUuidValue(leagueById(leagueId)?.sport_id);
+}
+
+function applyApprovedActivityPointsToStandings(table, sportId) {
+  const cleanSportId = cleanUuidValue(sportId);
+  if (!cleanSportId) return;
+
+  approvedLoggedActivities()
+    .filter(activity => cleanUuidValue(activity.sport_id) === cleanSportId)
+    .forEach(activity => {
+      const memberId = cleanUuidValue(activity.member_id);
+      if (!memberId) return;
+
+      const member = rankingMemberForId(memberId, activity.members);
+      if (!member) return;
+
+      const current = table.get(memberId) || {
+        memberId,
+        member,
+        name: memberDisplayName(member),
+        points: 0,
+        matches: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        ratingDelta: 0
+      };
+
+      current.points += Number(activity.activity_points || 0);
+      current.activityPoints = Number(current.activityPoints || 0) + Number(activity.activity_points || 0);
+      table.set(memberId, current);
+    });
+}
+
 function homeLeagueStandingsRows(leagueId, limit = 3) {
   const table = new Map();
 
@@ -2980,6 +3015,8 @@ function homeLeagueStandingsRows(leagueId, limit = 3) {
         table.set(memberId, row);
       });
     });
+
+  applyApprovedActivityPointsToStandings(table, leagueSportIdForActivities(leagueId));
 
   return Array.from(table.values())
     .sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name))
@@ -3557,6 +3594,8 @@ function leaguePlayerStandings(leagueId) {
       table.set(memberId, current);
     });
   });
+
+  applyApprovedActivityPointsToStandings(table, leagueSportIdForActivities(leagueId));
 
   return Array.from(table.values()).sort((a, b) =>
     b.points - a.points ||
@@ -4340,6 +4379,26 @@ async function loadMatches() {
         photo_file_name,
         created_at,
         updated_at
+      ),
+      match_position_rating_adjustments (
+        id,
+        game_id,
+        member_id,
+        sport_id,
+        position_name,
+        adjustment,
+        rating_before,
+        rating_after,
+        created_at,
+        member:members!match_position_rating_adjustments_member_id_fkey (
+          id,
+          first_name,
+          last_name,
+          display_name,
+          email,
+          avatar_url,
+          is_external
+        )
       )
     `;
 
@@ -4365,7 +4424,9 @@ async function loadMatches() {
   }
 
   allMatches = data || [];
+  await attachMatchPositionRatingAdjustments();
   await attachSoccerPerformanceAssessments();
+  await repairMissingSoccerRatingAdjustments();
 
   await loadRankingData();
   updateMatchFilterOptions();
@@ -4506,6 +4567,57 @@ function canAssessMatchPerformance(match) {
     memberPlayedInMatch(match, currentProfile?.id);
 }
 
+async function attachMatchPositionRatingAdjustments() {
+  const matchIds = (allMatches || [])
+    .map(match => cleanUuidValue(match.id))
+    .filter(Boolean);
+
+  if (!matchIds.length) return;
+
+  const { data, error } = await supabaseClient
+    .from("match_position_rating_adjustments")
+    .select("id,match_id,game_id,member_id,sport_id,position_name,adjustment,rating_before,rating_after,created_at")
+    .in("match_id", matchIds);
+
+  if (error) {
+    console.warn("Could not load persisted rating change rows:", error.message);
+    return;
+  }
+
+  const byMatchId = new Map();
+
+  (data || []).forEach(row => {
+    const matchId = cleanUuidValue(row.match_id);
+    if (!matchId) return;
+    const rows = byMatchId.get(matchId) || [];
+    rows.push(row);
+    byMatchId.set(matchId, rows);
+  });
+
+  allMatches = (allMatches || []).map(match => {
+    const matchId = cleanUuidValue(match.id);
+    const persistedRows = byMatchId.get(matchId);
+
+    if (!persistedRows) return match;
+
+    const existingRows = match.match_position_rating_adjustments || [];
+    const rowsById = new Map();
+
+    existingRows.forEach(row => {
+      if (row?.id) rowsById.set(row.id, row);
+    });
+
+    persistedRows.forEach(row => {
+      if (row?.id) rowsById.set(row.id, row);
+    });
+
+    return {
+      ...match,
+      match_position_rating_adjustments: Array.from(rowsById.values())
+    };
+  });
+}
+
 async function attachSoccerPerformanceAssessments() {
   const matchIds = (allMatches || [])
     .filter(match => isSoccerMatch(match))
@@ -4565,6 +4677,53 @@ async function attachSoccerPerformanceAssessments() {
     ...match,
     match_soccer_performance_assessments: byMatch.get(cleanUuidValue(match.id)) || []
   }));
+}
+
+async function repairMissingSoccerRatingAdjustments() {
+  const repairableMatches = (allMatches || []).filter(match =>
+    isSoccerMatch(match) &&
+    hasSubmittedScore(match) &&
+    !isCancelledMatch(match) &&
+    canManageMatch(match) &&
+    (
+      !(match.match_position_rating_adjustments || []).length ||
+      soccerRatingAdjustmentRowsExceedCurrentCap(match)
+    ) &&
+    (match.match_soccer_performance_assessments || []).length &&
+    scoreContextForMatch(match)
+  );
+
+  for (const match of repairableMatches) {
+    const context = scoreContextForMatch(match);
+    const saved = await saveSoccerPositionRatingAdjustments(
+      match,
+      context.scoreA,
+      context.scoreB,
+      context.resultA,
+      context.resultB
+    );
+
+    if (!saved) {
+      console.warn("Could not repair missing soccer rating tags for match:", match.id);
+      return;
+    }
+  }
+}
+
+function soccerRatingAdjustmentRowsExceedCurrentCap(match) {
+  const maxChange = soccerRatingMaxChange(soccerRatingSettings());
+  const tolerance = 0.001;
+
+  return (match.match_position_rating_adjustments || []).some(row => {
+    const directAdjustment = Number(row.adjustment);
+    const before = Number(row.rating_before);
+    const after = Number(row.rating_after);
+    const delta = Number.isFinite(directAdjustment)
+      ? directAdjustment
+      : after - before;
+
+    return Number.isFinite(delta) && Math.abs(delta) > maxChange + tolerance;
+  });
 }
 
 
@@ -5004,12 +5163,16 @@ function soccerAssessmentScoreForValue(value) {
   return SOCCER_ASSESSMENT_OPTIONS.find(option => option.value === value)?.score || null;
 }
 
+function soccerAssessmentLabelForValue(value) {
+  return SOCCER_ASSESSMENT_OPTIONS.find(option => option.value === value)?.label || "";
+}
+
 function currentUserSoccerAssessment(match, memberId) {
   return currentUserAssessmentForPlayer(match, memberId);
 }
 
 function soccerAssessmentSelectHtml(match, player) {
-  if (!match || !isSoccerMatch(match) || !canAssessMatchPerformance(match)) {
+  if (!match || !isSoccerMatch(match)) {
     return "";
   }
 
@@ -5018,7 +5181,17 @@ function soccerAssessmentSelectHtml(match, player) {
   }
 
   const assessment = currentUserSoccerAssessment(match, player.memberId);
-  const selected = soccerAssessmentOptionForScore(assessment?.performance_score);
+  const summary = soccerAssessmentSummaryForMember(match, player.memberId);
+  const selected = soccerAssessmentOptionForScore(assessment?.performance_score) || "average";
+  const visibleValue = soccerAssessmentOptionForScore(summary.average);
+  const visibleLabel = soccerAssessmentLabelForValue(visibleValue);
+  const canEditAssessment = canAssessMatchPerformance(match) && hasSubmittedScore(match);
+
+  if (!canAssessMatchPerformance(match)) {
+    return visibleLabel
+      ? `<small class="soccer-performance-tag">${escapeHtml(visibleLabel)}</small>`
+      : "";
+  }
 
   return `
     <select
@@ -5027,9 +5200,9 @@ function soccerAssessmentSelectHtml(match, player) {
       data-member-id="${player.memberId}"
       data-position="${escapeHtml(player.formationPosition || "")}"
       data-saved-value="${escapeHtml(selected)}"
+      ${canEditAssessment ? "" : "disabled"}
       aria-label="Assess ${escapeHtml(player.name || "player")} performance"
     >
-      <option value="">Assess</option>
       ${SOCCER_ASSESSMENT_OPTIONS.map(option => `
         <option value="${option.value}" ${selected === option.value ? "selected" : ""}>
           ${escapeHtml(option.label)}
@@ -6549,14 +6722,6 @@ function renderMatches() {
                 }
 
                 ${
-                  hasSubmittedScore(match)
-                    ? `<button class="small-btn" onclick="recalculateMatchAll('${match.id}')">
-                        Recalculate
-                      </button>`
-                    : ""
-                }
-
-                ${
                   !isSinglesMatch(match) && isTeamEditable(match) && counts.inCount >= 2
                     ? `<button class="small-btn" onclick="openTeamAssignment('${match.id}', 'full')">
                         Assign Teams
@@ -6992,6 +7157,8 @@ async function deleteOrCancelMatch(matchId) {
   }
 
   await loadMatches();
+  renderMatches();
+  renderRankings();
 }
 
 async function voteMatch(matchId, newStatus) {
@@ -7301,6 +7468,7 @@ async function addSelectedExternalPlayers() {
   if (!ok) return;
 
   alert(`${selectedIds.length} external player(s) added.`);
+  $("externalPlayerModal")?.close();
 }
 
 function nextExternalDisplayNumber() {
@@ -7341,6 +7509,7 @@ async function createExternalPlayerProfile() {
       if ($("new-external-name")) $("new-external-name").value = "";
       if ($("new-external-phone")) $("new-external-phone").value = "";
       if ($("new-external-email")) $("new-external-email").value = "";
+      $("externalPlayerModal")?.close();
     }
     return;
   }
@@ -7383,6 +7552,7 @@ async function createExternalPlayerProfile() {
   if ($("new-external-email")) $("new-external-email").value = "";
 
   alert(`${memberDisplayName(data)} created and added.`);
+  $("externalPlayerModal")?.close();
 }
 
 async function renameExternalMember(memberId, matchId, currentName) {
@@ -9102,16 +9272,6 @@ async function openScoreSubmission(matchId) {
     return;
   }
 
-  if (isSoccerMatch(scoreMatch)) {
-    const assessmentsSaved = await saveInlineSoccerAssessmentsForMatch(scoreMatch);
-
-    if (!assessmentsSaved) {
-      ABAMatches.setFormationOpen(scoreMatch.id, true);
-      renderMatches();
-      return;
-    }
-  }
-
   currentScoreMatchId = matchId;
 
   if ($("score-match-label")) {
@@ -10367,18 +10527,20 @@ const DEFAULT_SOCCER_RATING_SETTINGS = {
   rollingAverageWindow: 20,
   minimumMatchesRequired: 10,
   defaultAverageTotalGoals: 15,
-  attackConstant: 1.0,
-  defenseConstant: 1.0,
-  attAttackShare: 0.70,
-  midAttackShare: 0.30,
-  midDefenseShare: 0.15,
-  defDefenseShare: 0.50,
-  gkDefenseShare: 0.35,
-  committeeAssessmentWeight: 0.25,
-  winModifier: 0.10,
-  lossModifier: -0.10,
-  maxGain: 0.35,
-  maxLoss: 0.35
+  midAttackShare: 0.50,
+  midDefenseShare: 0.50,
+  performanceWeight: 0.50,
+  maxChange: 0.50
+};
+
+const SOCCER_RATING_MAX_CHANGE_LIMIT = 0.5;
+
+const SOCCER_ASSESSMENT_RATING_FACTORS = {
+  poor: -0.6,
+  average: -0.1,
+  good: 0.3,
+  very_good: 0.6,
+  excellent: 0.9
 };
 
 let soccerRatingSettingsCache = null;
@@ -10411,19 +10573,55 @@ function normalizeSoccerRatingSettings(raw = {}, version = null) {
 
   if (settings.committeeAssessmentWeight !== undefined) {
     const rawWeight = Number(settings.committeeAssessmentWeight);
-    settings.committeeAssessmentWeight = Number.isFinite(rawWeight) && rawWeight > 1
+    settings.performanceWeight = Number.isFinite(rawWeight) && rawWeight > 1
       ? rawWeight / 100
       : rawWeight;
   }
 
-  settings.committeeAssessmentWeight = clampNumber(
-    Number(settings.committeeAssessmentWeight ?? DEFAULT_SOCCER_RATING_SETTINGS.committeeAssessmentWeight),
+  if (settings.maxChange === undefined) {
+    const legacyGain = Math.abs(Number(settings.maxGain || 0));
+    const legacyLoss = Math.abs(Number(settings.maxLoss || 0));
+    settings.maxChange = legacyGain || legacyLoss || DEFAULT_SOCCER_RATING_SETTINGS.maxChange;
+  }
+
+  settings.performanceWeight = clampNumber(
+    Number(settings.performanceWeight ?? DEFAULT_SOCCER_RATING_SETTINGS.performanceWeight),
+    0,
+    1
+  );
+  settings.midAttackShare = clampNumber(
+    Number(settings.midAttackShare ?? DEFAULT_SOCCER_RATING_SETTINGS.midAttackShare),
+    0,
+    1
+  );
+  settings.midDefenseShare = clampNumber(
+    Number(settings.midDefenseShare ?? DEFAULT_SOCCER_RATING_SETTINGS.midDefenseShare),
     0,
     1
   );
 
+  settings.maxChange = sanitizeSoccerMaxChange(settings.maxChange);
+
   settings.formulaVersion = Number(version || settings.formulaVersion || 1);
   return settings;
+}
+
+function sanitizeSoccerMaxChange(value) {
+  const maxChange = Math.abs(Number(value || DEFAULT_SOCCER_RATING_SETTINGS.maxChange));
+
+  if (
+    !Number.isFinite(maxChange) ||
+    maxChange <= 0 ||
+    maxChange > SOCCER_RATING_MAX_CHANGE_LIMIT
+  ) {
+    return DEFAULT_SOCCER_RATING_SETTINGS.maxChange;
+  }
+
+  return maxChange;
+}
+
+function soccerRatingMaxChange(settings = soccerRatingSettings()) {
+  return sanitizeSoccerMaxChange(settings?.maxChange);
 }
 
 function cacheSoccerRatingSettings(settings, version = null) {
@@ -10470,47 +10668,20 @@ function soccerRatingSettingsFromForm() {
     rollingAverageWindow: Math.max(1, Math.round(readSoccerSettingInput("soccer-setting-rolling-window", defaults.rollingAverageWindow))),
     minimumMatchesRequired: Math.max(0, Math.round(readSoccerSettingInput("soccer-setting-min-matches", defaults.minimumMatchesRequired))),
     defaultAverageTotalGoals: Math.max(0, readSoccerSettingInput("soccer-setting-default-total-goals", defaults.defaultAverageTotalGoals)),
-    attackConstant: readSoccerSettingInput("soccer-setting-attack-constant", defaults.attackConstant),
-    defenseConstant: readSoccerSettingInput("soccer-setting-defense-constant", defaults.defenseConstant),
-    attAttackShare: readSoccerSettingInput("soccer-setting-att-attack-share", defaults.attAttackShare),
-    midAttackShare: readSoccerSettingInput("soccer-setting-mid-attack-share", defaults.midAttackShare),
-    midDefenseShare: readSoccerSettingInput("soccer-setting-mid-defense-share", defaults.midDefenseShare),
-    defDefenseShare: readSoccerSettingInput("soccer-setting-def-defense-share", defaults.defDefenseShare),
-    gkDefenseShare: readSoccerSettingInput("soccer-setting-gk-defense-share", defaults.gkDefenseShare),
-    committeeAssessmentWeight: Math.max(
+    midAttackShare: clampNumber(readSoccerSettingInput("soccer-setting-mid-attack-share", defaults.midAttackShare), 0, 1),
+    midDefenseShare: clampNumber(readSoccerSettingInput("soccer-setting-mid-defense-share", defaults.midDefenseShare), 0, 1),
+    performanceWeight: Math.max(
       0,
       Math.min(
         1,
-        readSoccerSettingInput("soccer-setting-committee-assessment-weight", defaults.committeeAssessmentWeight * 100) / 100
+        readSoccerSettingInput("soccer-setting-performance-weight", defaults.performanceWeight * 100) / 100
       )
     ),
-    winModifier: readSoccerSettingInput("soccer-setting-win", defaults.winModifier),
-    lossModifier: readSoccerSettingInput("soccer-setting-loss", defaults.lossModifier),
-    maxGain: Math.abs(readSoccerSettingInput("soccer-setting-max-gain", defaults.maxGain)),
-    maxLoss: Math.abs(readSoccerSettingInput("soccer-setting-max-loss", defaults.maxLoss))
+    maxChange: sanitizeSoccerMaxChange(readSoccerSettingInput("soccer-setting-max-change", defaults.maxChange))
   };
-
-  const attackShareTotal = settings.attAttackShare + settings.midAttackShare;
-  const defenseShareTotal = settings.midDefenseShare + settings.defDefenseShare + settings.gkDefenseShare;
 
   if (Object.values(settings).some(value => !Number.isFinite(Number(value)))) {
     throw new Error("All soccer formula values must be valid numbers.");
-  }
-
-  if (settings.attAttackShare < 0 || settings.midAttackShare < 0) {
-    throw new Error("Attack shares cannot be negative.");
-  }
-
-  if (settings.midDefenseShare < 0 || settings.defDefenseShare < 0 || settings.gkDefenseShare < 0) {
-    throw new Error("Defense shares cannot be negative.");
-  }
-
-  if (Math.abs(attackShareTotal - 1) > 0.01) {
-    throw new Error("ATT attack share + MID attack share should equal 1.00.");
-  }
-
-  if (Math.abs(defenseShareTotal - 1) > 0.01) {
-    throw new Error("MID defense share + DEF defense share + GK defense share should equal 1.00.");
   }
 
   return settings;
@@ -10540,18 +10711,10 @@ function renderSoccerRatingSettingsForm() {
   setSoccerSettingInput("soccer-setting-rolling-window", settings.rollingAverageWindow);
   setSoccerSettingInput("soccer-setting-min-matches", settings.minimumMatchesRequired);
   setSoccerSettingInput("soccer-setting-default-total-goals", settings.defaultAverageTotalGoals);
-  setSoccerSettingInput("soccer-setting-attack-constant", settings.attackConstant);
-  setSoccerSettingInput("soccer-setting-defense-constant", settings.defenseConstant);
-  setSoccerSettingInput("soccer-setting-att-attack-share", settings.attAttackShare);
   setSoccerSettingInput("soccer-setting-mid-attack-share", settings.midAttackShare);
   setSoccerSettingInput("soccer-setting-mid-defense-share", settings.midDefenseShare);
-  setSoccerSettingInput("soccer-setting-def-defense-share", settings.defDefenseShare);
-  setSoccerSettingInput("soccer-setting-gk-defense-share", settings.gkDefenseShare);
-  setSoccerSettingInput("soccer-setting-committee-assessment-weight", (settings.committeeAssessmentWeight || 0) * 100);
-  setSoccerSettingInput("soccer-setting-win", settings.winModifier);
-  setSoccerSettingInput("soccer-setting-loss", settings.lossModifier);
-  setSoccerSettingInput("soccer-setting-max-gain", settings.maxGain);
-  setSoccerSettingInput("soccer-setting-max-loss", settings.maxLoss);
+  setSoccerSettingInput("soccer-setting-performance-weight", (settings.performanceWeight || 0) * 100);
+  setSoccerSettingInput("soccer-setting-max-change", settings.maxChange);
 
   if ($("soccer-settings-status")) {
     $("soccer-settings-status").textContent =
@@ -10645,22 +10808,14 @@ async function resetSoccerRatingSettings() {
 
   renderMatches();
 }
-function soccerResultModifier(result) {
-  const settings = soccerRatingSettings();
-
-  if (result === "win") return settings.winModifier;
-  if (result === "loss") return settings.lossModifier;
-  return 0;
-}
-
-function soccerTeamUnitStrength(team, sportId, positions) {
+function soccerTeamWeightedUnitStrength(team, sportId, weightsByPosition) {
   const playersByMemberPosition = new Map();
 
   (team?.match_team_players || []).forEach(player => {
     const position = normalizeSoccerPosition(player.formation_position);
     const memberId = cleanUuidValue(player.member_id);
 
-    if (memberId && positions.includes(position)) {
+    if (memberId && Number(weightsByPosition[position] || 0) > 0) {
       playersByMemberPosition.set(`${memberId}|${position}`, {
         ...player,
         member_id: memberId,
@@ -10673,17 +10828,42 @@ function soccerTeamUnitStrength(team, sportId, positions) {
 
   if (!matching.length) return 5;
 
-  const total = matching.reduce((sum, player) => {
+  const weighted = matching.reduce((state, player) => {
     const position = normalizeSoccerPosition(player.formation_position);
-    return sum + positionRatingForMember(player.member_id, sportId, position);
-  }, 0);
+    const weight = Number(weightsByPosition[position] || 0);
 
-  return Math.max(0.1, total / matching.length);
+    state.total += positionRatingForMember(player.member_id, sportId, position) * weight;
+    state.weight += weight;
+    return state;
+  }, {
+    total: 0,
+    weight: 0
+  });
+
+  if (weighted.weight <= 0) return 5;
+
+  return Math.max(0.1, weighted.total / weighted.weight);
+}
+
+function soccerTeamAttackAverage(team, sportId, settings = soccerRatingSettings()) {
+  return soccerTeamWeightedUnitStrength(team, sportId, {
+    ATT: 1,
+    MID: clampNumber(Number(settings.midAttackShare || 0), 0, 1)
+  });
+}
+
+function soccerTeamDefenseAverage(team, sportId, settings = soccerRatingSettings()) {
+  return soccerTeamWeightedUnitStrength(team, sportId, {
+    GK: 1,
+    DEF: 1,
+    MID: clampNumber(Number(settings.midDefenseShare || 0), 0, 1)
+  });
 }
 
 function soccerTeamAttackStrength(team, opponentTeam, sportId) {
-  const teamAttack = soccerTeamUnitStrength(team, sportId, ["MID", "ATT"]);
-  const opponentDefense = soccerTeamUnitStrength(opponentTeam, sportId, ["GK", "DEF"]);
+  const settings = soccerRatingSettings();
+  const teamAttack = soccerTeamAttackAverage(team, sportId, settings);
+  const opponentDefense = soccerTeamDefenseAverage(opponentTeam, sportId, settings);
 
   return Math.max(0.0001, teamAttack / Math.max(0.1, opponentDefense));
 }
@@ -10738,15 +10918,24 @@ function soccerRollingAverageTotalGoals(match) {
 
 function soccerExpectedGoalsForTeam(match, team, opponentTeam, sportId) {
   const avgTotalGoals = soccerRollingAverageTotalGoals(match);
+  const settings = soccerRatingSettings();
 
-  const teamAttackStrength = soccerTeamAttackStrength(team, opponentTeam, sportId);
-  const opponentAttackStrength = soccerTeamAttackStrength(opponentTeam, team, sportId);
+  const teamAttackAverage = soccerTeamAttackAverage(team, sportId, settings);
+  const teamDefenseAverage = soccerTeamDefenseAverage(team, sportId, settings);
+  const opponentAttackAverage = soccerTeamAttackAverage(opponentTeam, sportId, settings);
+  const opponentDefenseAverage = soccerTeamDefenseAverage(opponentTeam, sportId, settings);
+  const teamAttackStrength = Math.max(0.0001, teamAttackAverage / Math.max(0.1, opponentDefenseAverage));
+  const opponentAttackStrength = Math.max(0.0001, opponentAttackAverage / Math.max(0.1, teamDefenseAverage));
   const totalStrength = Math.max(0.0001, teamAttackStrength + opponentAttackStrength);
 
   return {
     expectedGoals: avgTotalGoals * teamAttackStrength / totalStrength,
     expectedGoalsAgainst: avgTotalGoals * opponentAttackStrength / totalStrength,
     avgTotalGoals,
+    teamAttackAverage,
+    teamDefenseAverage,
+    opponentAttackAverage,
+    opponentDefenseAverage,
     teamAttackStrength,
     opponentAttackStrength
   };
@@ -10771,12 +10960,6 @@ function uniqueSoccerTeamPlayers(team) {
   return Array.from(uniquePlayers.values());
 }
 
-function soccerPositionGroupCount(players, position) {
-  return players.filter(player =>
-    normalizeSoccerPosition(player.formation_position) === position
-  ).length;
-}
-
 function soccerPerformanceAssessmentRows(match, memberId) {
   const cleanMemberId = cleanUuidValue(memberId);
   if (!match || !cleanMemberId) return [];
@@ -10790,81 +10973,76 @@ function soccerAssessmentSummaryForMember(match, memberId, settings = soccerRati
   const rows = soccerPerformanceAssessmentRows(match, memberId)
     .map(row => Number(row.performance_score))
     .filter(score => Number.isFinite(score) && score >= 1 && score <= 10);
+  const maxChange = soccerRatingMaxChange(settings);
 
   if (!rows.length) {
+    const factor = Number(SOCCER_ASSESSMENT_RATING_FACTORS.average || 0);
+
     return {
       count: 0,
-      average: null,
-      adjustment: 0
+      average: soccerAssessmentScoreForValue("average"),
+      factor,
+      component: factor * maxChange
     };
   }
 
   const average = rows.reduce((sum, score) => sum + score, 0) / rows.length;
-  const maxImpact = Math.abs(Number(settings.maxGain || DEFAULT_SOCCER_RATING_SETTINGS.maxGain));
-  const rawAdjustment = ((average - 5) / 5) * maxImpact;
-  const weightedAdjustment = rawAdjustment * clampNumber(Number(settings.committeeAssessmentWeight || 0), 0, 1);
+  const optionValue = soccerAssessmentOptionForScore(average);
+  const factor = Number(SOCCER_ASSESSMENT_RATING_FACTORS[optionValue] || 0);
 
   return {
     count: rows.length,
     average,
-    adjustment: weightedAdjustment
+    factor,
+    component: factor * maxChange
   };
 }
 
 function soccerRatingRowsForTeam(team, opponentTeam, sportId, goalsFor, goalsAgainst, result, match = null) {
   const settings = soccerRatingSettings();
   const expected = soccerExpectedGoalsForTeam(match, team, opponentTeam, sportId);
+  const maxChange = soccerRatingMaxChange(settings);
+  const performanceWeight = clampNumber(Number(settings.performanceWeight || 0), 0, 1);
+  const teamWeight = 1 - performanceWeight;
+  const expectedGoals = Math.max(0.5, Number(expected.expectedGoals || 0));
+  const expectedGoalsAgainst = Math.max(0.5, Number(expected.expectedGoalsAgainst || 0));
 
-  const attackPerformance = Number(goalsFor || 0) - expected.expectedGoals;
-  const defensePerformance = expected.expectedGoalsAgainst - Number(goalsAgainst || 0);
-  const resultModifier = soccerResultModifier(result);
+  const attackPerformance = (Number(goalsFor || 0) - Number(expected.expectedGoals || 0)) / expectedGoals;
+  const defensePerformance = (Number(expected.expectedGoalsAgainst || 0) - Number(goalsAgainst || 0)) / expectedGoalsAgainst;
 
   const players = uniqueSoccerTeamPlayers(team);
-
-  const attackCount = soccerPositionGroupCount(players, "ATT");
-  const midfieldCount = soccerPositionGroupCount(players, "MID");
-  const defenseCount = soccerPositionGroupCount(players, "DEF");
-  const goalkeeperCount = soccerPositionGroupCount(players, "GK");
 
   return players
     .map(player => {
       const position = normalizeSoccerPosition(player.formation_position);
-      let adjustment = resultModifier;
+      let teamComponent = 0;
 
       if (position === "ATT") {
-        adjustment += attackCount
-          ? (attackPerformance * settings.attackConstant * settings.attAttackShare) / attackCount
-          : 0;
+        teamComponent = attackPerformance * maxChange;
       }
 
       if (position === "MID") {
-        adjustment += midfieldCount
-          ? (
-              attackPerformance * settings.attackConstant * settings.midAttackShare +
-              defensePerformance * settings.defenseConstant * settings.midDefenseShare
-            ) / midfieldCount
-          : 0;
+        teamComponent =
+          attackPerformance * maxChange * clampNumber(Number(settings.midAttackShare || 0), 0, 1) +
+          defensePerformance * maxChange * clampNumber(Number(settings.midDefenseShare || 0), 0, 1);
       }
 
       if (position === "DEF") {
-        adjustment += defenseCount
-          ? (defensePerformance * settings.defenseConstant * settings.defDefenseShare) / defenseCount
-          : 0;
+        teamComponent = defensePerformance * maxChange;
       }
 
       if (position === "GK") {
-        adjustment += goalkeeperCount
-          ? (defensePerformance * settings.defenseConstant * settings.gkDefenseShare) / goalkeeperCount
-          : 0;
+        teamComponent = defensePerformance * maxChange;
       }
 
       const assessment = soccerAssessmentSummaryForMember(match, player.member_id, settings);
-      adjustment += assessment.adjustment;
 
-      adjustment = clampNumber(
-        adjustment,
-        -Math.abs(settings.maxLoss),
-        Math.abs(settings.maxGain)
+      teamComponent = clampNumber(teamComponent, -maxChange, maxChange);
+      const performanceComponent = clampNumber(assessment.component, -maxChange, maxChange);
+      const adjustment = clampNumber(
+        (teamComponent * teamWeight) + (performanceComponent * performanceWeight),
+        -maxChange,
+        maxChange
       );
 
       return {
@@ -10877,9 +11055,17 @@ function soccerRatingRowsForTeam(team, opponentTeam, sportId, goalsFor, goalsAga
           expected_goals_against: Number(expected.expectedGoalsAgainst.toFixed(3)),
           attack_performance: Number(attackPerformance.toFixed(3)),
           defense_performance: Number(defensePerformance.toFixed(3)),
+          team_attack_average: Number(expected.teamAttackAverage.toFixed(3)),
+          team_defense_average: Number(expected.teamDefenseAverage.toFixed(3)),
+          opponent_attack_average: Number(expected.opponentAttackAverage.toFixed(3)),
+          opponent_defense_average: Number(expected.opponentDefenseAverage.toFixed(3)),
+          team_component: Number(teamComponent.toFixed(3)),
+          team_weight: Number(teamWeight.toFixed(3)),
           assessment_count: assessment.count,
           assessment_average: assessment.average === null ? null : Number(assessment.average.toFixed(2)),
-          assessment_adjustment: Number(assessment.adjustment.toFixed(3)),
+          assessment_factor: Number(assessment.factor.toFixed(3)),
+          performance_component: Number(performanceComponent.toFixed(3)),
+          performance_weight: Number(performanceWeight.toFixed(3)),
           avg_total_goals: Number(expected.avgTotalGoals.toFixed(3))
         }
       };
@@ -10989,6 +11175,12 @@ async function saveSingleInlineSoccerAssessment(input) {
     return false;
   }
 
+  if (!hasSubmittedScore(match)) {
+    input.value = input.dataset.savedValue || "average";
+    input.disabled = true;
+    return false;
+  }
+
   const row = soccerAssessmentRowFromInput(input, match);
 
   if (!row || !row.assessed_member_id || !row.position_name) {
@@ -11014,6 +11206,16 @@ async function saveSingleInlineSoccerAssessment(input) {
 
   input.dataset.savedValue = input.value;
   updateLocalSoccerAssessment(match, row);
+
+  if (hasSubmittedScore(match)) {
+    const recalculated = await recalculateMatchSoccerRatings(match, false);
+    if (!recalculated) return false;
+
+    renderMatches();
+    await loadMatches();
+    renderMatches();
+    renderRankings();
+  }
 
   return true;
 }
@@ -11090,7 +11292,7 @@ function currentPositionRatingRow(memberId, sportId, positionName) {
   ) || null;
 }
 
-async function applyPositionRatingDelta(memberId, sportId, positionName, delta, gamesDelta) {
+async function applyPositionRatingDelta(memberId, sportId, positionName, delta, gamesDelta, baselineRating = null) {
   const cleanMemberId = cleanUuidValue(memberId);
   const cleanSportId = cleanUuidValue(sportId);
   const cleanPosition = normalizeSoccerPosition(positionName);
@@ -11104,7 +11306,12 @@ async function applyPositionRatingDelta(memberId, sportId, positionName, delta, 
   }
 
   const existing = currentPositionRatingRow(cleanMemberId, cleanSportId, cleanPosition);
-  const ratingBefore = Number(existing?.rating || positionRatingForMember(cleanMemberId, cleanSportId, cleanPosition) || 5);
+  const explicitBaseline = baselineRating === null || baselineRating === undefined
+    ? NaN
+    : Number(baselineRating);
+  const ratingBefore = Number.isFinite(explicitBaseline) && explicitBaseline > 0
+    ? explicitBaseline
+    : Number(existing?.rating || positionRatingForMember(cleanMemberId, cleanSportId, cleanPosition) || 5);
   const currentGames = Number(existing?.games_played || 0);
 
   const ratingAfter = clampNumber(ratingBefore + Number(delta || 0), 1, 10);
@@ -11185,18 +11392,32 @@ async function rollbackPreviousSoccerRatingAdjustments(matchId) {
 
   if (error) {
     alert(error.message);
-    return false;
+    return { ok: false, baselines: new Map() };
   }
+
+  const baselines = new Map();
 
   for (const row of data || []) {
     let ok = false;
+    const memberId = cleanUuidValue(row.member_id);
+    const sportId = cleanUuidValue(row.sport_id);
+    const position = normalizeSoccerPosition(row.position_name);
+
+    const savedRatingBefore = Number(row.rating_before);
+    const rollbackRating = Number.isFinite(savedRatingBefore) && savedRatingBefore > 0
+      ? savedRatingBefore
+      : 5;
 
     if (row.rating_before !== null && row.rating_before !== undefined) {
+      if (memberId && sportId && position) {
+        baselines.set(`${memberId}|${sportId}|${position}`, rollbackRating);
+      }
+
       ok = await setPositionRatingValue(
         row.member_id,
         row.sport_id,
         row.position_name,
-        Number(row.rating_before),
+        rollbackRating,
         -1
       );
     } else {
@@ -11211,7 +11432,7 @@ async function rollbackPreviousSoccerRatingAdjustments(matchId) {
       ok = Boolean(result?.ok);
     }
 
-    if (!ok) return false;
+    if (!ok) return { ok: false, baselines };
   }
 
   if ((data || []).length) {
@@ -11222,11 +11443,11 @@ async function rollbackPreviousSoccerRatingAdjustments(matchId) {
 
     if (deleteError) {
       alert(deleteError.message);
-      return false;
+      return { ok: false, baselines };
     }
   }
 
-  return true;
+  return { ok: true, baselines };
 }
 
 
@@ -11274,14 +11495,25 @@ async function saveMatchPositionRatingAdjustmentRow(row) {
 
   if (!cleanRow.match_id || !cleanRow.member_id || !cleanRow.sport_id || !cleanRow.position_name) {
     console.warn("Skipping invalid rating adjustment row:", row);
-    return true;
+    return {
+      ok: true,
+      skipped: true
+    };
   }
 
-  const { error: insertError } = await supabaseClient
+  const selectFields = "id,match_id,game_id,member_id,sport_id,position_name,adjustment,rating_before,rating_after,created_at";
+  const { data: insertedRow, error: insertError } = await supabaseClient
     .from("match_position_rating_adjustments")
-    .insert(cleanRow);
+    .insert(cleanRow)
+    .select(selectFields)
+    .single();
 
-  if (!insertError) return true;
+  if (!insertError) {
+    return {
+      ok: true,
+      row: insertedRow
+    };
+  }
 
   const duplicate =
     String(insertError.code || "") === "23505" ||
@@ -11289,10 +11521,12 @@ async function saveMatchPositionRatingAdjustmentRow(row) {
 
   if (!duplicate) {
     alert(insertError.message);
-    return false;
+    return {
+      ok: false
+    };
   }
 
-  const { error: updateError } = await supabaseClient
+  const { data: updatedRows, error: updateError } = await supabaseClient
     .from("match_position_rating_adjustments")
     .update({
       position_name: cleanRow.position_name,
@@ -11302,14 +11536,24 @@ async function saveMatchPositionRatingAdjustmentRow(row) {
     })
     .eq("match_id", cleanRow.match_id)
     .eq("member_id", cleanRow.member_id)
-    .eq("sport_id", cleanRow.sport_id);
+    .eq("sport_id", cleanRow.sport_id)
+    .select(selectFields);
 
   if (updateError) {
     alert(updateError.message);
-    return false;
+    return {
+      ok: false
+    };
   }
 
-  return true;
+  if (!updatedRows?.length) {
+    alert("Rating change was calculated but Supabase did not return a saved adjustment row. The tag may not persist after refresh.");
+  }
+
+  return {
+    ok: true,
+    row: updatedRows?.[0] || cleanRow
+  };
 }
 
 async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, resultA, resultB) {
@@ -11319,16 +11563,10 @@ async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, result
 
   if (!teamA || !teamB) return true;
 
-  const missingAssessments = soccerPlayersMissingAssessments(match);
-  if (missingAssessments.length) {
-    alert(`Assess every soccer player before calculating rating changes. Missing: ${missingAssessments.map(player => memberDisplayName(player.member)).join(", ")}`);
-    return false;
-  }
-
   await loadPositionRatings();
 
-  const rolledBack = await rollbackPreviousSoccerRatingAdjustments(match.id);
-  if (!rolledBack) return false;
+  const rollbackResult = await rollbackPreviousSoccerRatingAdjustments(match.id);
+  if (!rollbackResult?.ok) return false;
 
   const rows = dedupeSoccerRatingRows([
     ...soccerRatingRowsForTeam(teamA, teamB, match.sport_id, scoreA, scoreB, resultA, match),
@@ -11340,12 +11578,15 @@ async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, result
   const adjustmentRows = [];
 
   for (const row of rows) {
+    const baselineKey = `${cleanUuidValue(row.member_id)}|${cleanUuidValue(row.sport_id)}|${normalizeSoccerPosition(row.position_name)}`;
+    const baselineRating = rollbackResult.baselines.get(baselineKey);
     const result = await applyPositionRatingDelta(
       row.member_id,
       row.sport_id,
       row.position_name,
       Number(row.adjustment || 0),
-      1
+      1,
+      baselineRating
     );
 
     if (!result?.ok) return false;
@@ -11379,6 +11620,7 @@ async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, result
 
   if (finalAdjustmentRows.length) {
     const cleanMatchId = cleanUuidValue(match.id);
+    const persistedAdjustmentRows = [];
 
     if (cleanMatchId) {
       const { error: deleteError } = await supabaseClient
@@ -11394,8 +11636,21 @@ async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, result
     for (const adjustmentRow of finalAdjustmentRows) {
       const saved = await saveMatchPositionRatingAdjustmentRow(adjustmentRow);
 
-      if (!saved) return false;
+      if (!saved?.ok) return false;
+      if (saved.row) {
+        persistedAdjustmentRows.push({
+          ...adjustmentRow,
+          ...saved.row
+        });
+      }
     }
+
+    match.match_position_rating_adjustments = persistedAdjustmentRows.map(row => ({
+      ...row,
+      member: memberById(row.member_id)
+    }));
+  } else {
+    match.match_position_rating_adjustments = [];
   }
 
   await loadPositionRatings();
@@ -11482,11 +11737,6 @@ async function finalizeCurrentMatchResult() {
   let scoreB = Number(teamB.score || 0);
   const teamAName = teamDisplayName(match, teamA, "Team A");
   const teamBName = teamDisplayName(match, teamB, "Team B");
-
-  if (isSoccerMatch(match)) {
-    const assessmentsSaved = await saveInlineSoccerAssessmentsForMatch(match);
-    if (!assessmentsSaved) return;
-  }
 
   if (isPadelMatch(match)) {
     const savedGame = await savePadelGameOnly();
@@ -11675,6 +11925,8 @@ async function finalizeCurrentMatchResult() {
   updateScorePhotoPreview(null);
 
   await loadMatches();
+  renderMatches();
+  renderRankings();
 }
 
 async function saveScore() {
@@ -11847,7 +12099,7 @@ async function loadRankingData() {
       status,
       activity_date,
       created_at,
-      members (
+      members!member_activities_member_id_fkey (
         id,
         first_name,
         last_name,
@@ -15184,7 +15436,7 @@ if ($("matchForm")) {
 
     alert(activeEditingMatchId ? "Match updated." : "Match created.");
 
-    resetMatchFormForCreate();
+    closeMatchModal();
 
     await loadMatches();
 
