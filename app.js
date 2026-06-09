@@ -4567,6 +4567,14 @@ function canAssessMatchPerformance(match) {
     memberPlayedInMatch(match, currentProfile?.id);
 }
 
+function soccerPerformanceAssessmentUnlocked(match) {
+  const displayStatus = getMatchDisplayStatus(match);
+
+  return hasSubmittedScore(match) ||
+    displayStatus === "finished" ||
+    displayStatus === "completed";
+}
+
 async function attachMatchPositionRatingAdjustments() {
   const matchIds = (allMatches || [])
     .map(match => cleanUuidValue(match.id))
@@ -5185,7 +5193,7 @@ function soccerAssessmentSelectHtml(match, player) {
   const selected = soccerAssessmentOptionForScore(assessment?.performance_score) || "average";
   const visibleValue = soccerAssessmentOptionForScore(summary.average);
   const visibleLabel = soccerAssessmentLabelForValue(visibleValue);
-  const canEditAssessment = canAssessMatchPerformance(match) && hasSubmittedScore(match);
+  const canEditAssessment = canAssessMatchPerformance(match) && soccerPerformanceAssessmentUnlocked(match);
 
   if (!canAssessMatchPerformance(match)) {
     return visibleLabel
@@ -11175,7 +11183,7 @@ async function saveSingleInlineSoccerAssessment(input) {
     return false;
   }
 
-  if (!hasSubmittedScore(match)) {
+  if (!soccerPerformanceAssessmentUnlocked(match)) {
     input.value = input.dataset.savedValue || "average";
     input.disabled = true;
     return false;
