@@ -176,6 +176,8 @@ h1 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: max-content;
+  max-width: 120px;
   overflow: visible;
   text-overflow: clip;
   white-space: normal;
@@ -902,7 +904,7 @@ h3 {
 
 .logged-player-identity {
   justify-content: center;
-  width: auto;
+  width: max-content;
   max-width: 100%;
   margin: 0 auto;
   flex-direction: column;
