@@ -777,7 +777,7 @@ function useStravaAdminNotification() {
   }
 
   if ($("admin-notify-url")) {
-    $("admin-notify-url").value = "./#account?focus=strava";
+    $("admin-notify-url").value = "./#account?section=strava";
   }
 }
 
@@ -6672,7 +6672,8 @@ function hashRouteParams() {
 }
 
 function focusAccountRouteTarget() {
-  const focus = hashRouteParams().get("focus");
+  const params = hashRouteParams();
+  const focus = params.get("section") || params.get("focus");
   const targets = {
     strava: "strava-connection-panel",
     notifications: "notification-inbox-card"
@@ -6680,10 +6681,16 @@ function focusAccountRouteTarget() {
   const targetId = targets[String(focus || "").toLowerCase()];
   if (!targetId) return;
 
-  setTimeout(() => {
+  const scrollTarget = () => {
     const el = $(targetId);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, 350);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("route-focus-target");
+      setTimeout(() => el.classList.remove("route-focus-target"), 1800);
+    }
+  };
+
+  [150, 500, 1000].forEach(delay => setTimeout(scrollTarget, delay));
 }
 
 function openHashRoute({ restoreScroll = false } = {}) {

@@ -595,6 +595,11 @@ h3 {
   display: none !important;
 }
 
+.route-focus-target {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
 .garmin-panel-copy {
   min-width: 0;
 }
