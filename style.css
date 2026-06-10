@@ -4250,6 +4250,14 @@ main,
   font-size: 22px;
 }
 
+.profile-stat-box em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
 .player-profile-grid {
   display: grid;
   grid-template-columns: .9fr 1.1fr;

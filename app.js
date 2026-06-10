@@ -14146,6 +14146,11 @@ function playerProfileStats(memberId) {
     activities: [],
     activityMinutes: 0,
     loggedActivityPoints: 0,
+    approvedActivities: 0,
+    pendingActivities: 0,
+    stravaActivities: 0,
+    stravaLinkedMatches: 0,
+    stravaActivityPoints: 0,
     recentMatches: []
   };
 
@@ -14168,6 +14173,7 @@ function playerProfileStats(memberId) {
       stats.basePoints += activity;
       stats.bonusPoints += score;
       stats.matches += 1;
+      if (matchMemberUsesStravaActivityPoints(match, cleanId)) stats.stravaLinkedMatches += 1;
 
       if (result === "win") stats.wins += 1;
       else if (result === "draw") stats.draws += 1;
@@ -14258,7 +14264,13 @@ function playerProfileStats(memberId) {
 
       stats.activities.push(activity);
 
+      if (activity.source === STRAVA_ACTIVITY_SOURCE) {
+        stats.stravaActivities += 1;
+        if (approved) stats.stravaActivityPoints += Number(activity.activity_points || 0);
+      }
+
       if (approved) {
+        stats.approvedActivities += 1;
         stats.totalPoints += points;
         stats.basePoints += points;
         stats.activityMinutes += minutes;
@@ -14269,6 +14281,7 @@ function playerProfileStats(memberId) {
         sportDetail.activityMinutes += minutes;
         sportDetail.approvedActivities += 1;
       } else if (activity.status === "pending") {
+        stats.pendingActivities += 1;
         sportDetail.pendingActivities += 1;
       }
 
@@ -14475,22 +14488,54 @@ function formatRaceTime(seconds) {
   return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${remaining}` : `${minutes}:${remaining}`;
 }
 
+function profileStatBoxHtml(label, value, detail = "") {
+  return `
+    <div class="profile-stat-box">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(String(value))}</strong>
+      ${detail ? `<em>${escapeHtml(detail)}</em>` : ""}
+    </div>
+  `;
+}
+
+function profileRatingMovementForSport(changes = [], sportName = "") {
+  const cleanSport = String(sportName || "").toLowerCase();
+  const related = (changes || []).filter(row =>
+    String(row.match?.sports?.name || "").toLowerCase() === cleanSport
+  );
+  const net = related.reduce((sum, row) => sum + Number(row.delta || 0), 0);
+
+  return {
+    count: related.length,
+    net
+  };
+}
+
+function activitySourceLabel(activity) {
+  if (activity?.source === STRAVA_ACTIVITY_SOURCE) return "Strava";
+  if (activity?.source === GARMIN_ACTIVITY_SOURCE) return "Garmin";
+  return "Manual";
+}
+
 function runningStatsHtml(running) {
   if (!running?.runs) return "";
 
   return `
     <article class="card profile-section-card">
-      <h4>Running</h4>
+      <div class="profile-sport-head">
+        <h4>Running Records</h4>
+        <span>${running.runs} Strava run${running.runs === 1 ? "" : "s"}</span>
+      </div>
       <div class="profile-sport-stat-grid">
         <div class="profile-line"><span>Total</span><b>${running.totalKm.toFixed(1)} km</b></div>
         <div class="profile-line"><span>This month</span><b>${running.monthKm.toFixed(1)} km</b></div>
         <div class="profile-line"><span>This week</span><b>${running.weekKm.toFixed(1)} km</b></div>
-        <div class="profile-line"><span>Runs</span><b>${running.runs}</b></div>
         <div class="profile-line"><span>Longest</span><b>${running.longestKm.toFixed(1)} km</b></div>
         <div class="profile-line"><span>Best pace</span><b>${escapeHtml(formatPace(running.bestPaceSecondsPerKm))}</b></div>
         <div class="profile-line"><span>Best 5K</span><b>${escapeHtml(formatRaceTime(running.best5kSeconds))}</b></div>
         <div class="profile-line"><span>Best 10K</span><b>${escapeHtml(formatRaceTime(running.best10kSeconds))}</b></div>
       </div>
+      <div class="hint">Race records are estimated from synced Strava distance and moving time.</div>
     </article>
   `;
 }
@@ -14579,6 +14624,7 @@ function renderPlayerProfile(memberId) {
   const ratings = playerProfileRatings(cleanId);
   const sportSummaries = playerProfileSportSummaries(stats, ratings);
   const changes = playerProfileRatingChanges(cleanId).slice(0, 10);
+  const allChanges = playerProfileRatingChanges(cleanId);
   const running = runningStatsFromActivities(stats.activities);
   const bodyProfile = [
     member.gender ? member.gender.charAt(0).toUpperCase() + member.gender.slice(1) : "",
@@ -14609,25 +14655,10 @@ function renderPlayerProfile(memberId) {
     </div>
 
     <div class="player-profile-stats">
-      <div class="profile-stat-box">
-        <span>Total points</span>
-        <strong>${formatPointValue(stats.totalPoints)}</strong>
-      </div>
-
-      <div class="profile-stat-box">
-        <span>Activity points</span>
-        <strong>${formatPointValue(stats.basePoints)}</strong>
-      </div>
-
-      <div class="profile-stat-box">
-        <span>Score points</span>
-        <strong>${formatPointValue(stats.bonusPoints)}</strong>
-      </div>
-
-      <div class="profile-stat-box">
-        <span>Played</span>
-        <strong>${stats.matches}</strong>
-      </div>
+      ${profileStatBoxHtml("Total points", formatPointValue(stats.totalPoints), `${formatPointValue(stats.basePoints)} activity / ${formatPointValue(stats.bonusPoints)} score`)}
+      ${profileStatBoxHtml("Matches", stats.matches, `${stats.wins}W ${stats.draws}D ${stats.losses}L`)}
+      ${profileStatBoxHtml("Activities", stats.approvedActivities, `${stats.pendingActivities} pending / ${formatProfileDurationMinutes(stats.activityMinutes)}`)}
+      ${profileStatBoxHtml("Strava", stats.stravaActivities, `${stats.stravaLinkedMatches} linked match${stats.stravaLinkedMatches === 1 ? "" : "es"}`)}
     </div>
 
     <div class="player-profile-grid profile-sport-grid">
@@ -14637,6 +14668,10 @@ function renderPlayerProfile(memberId) {
               const leagueText = Array.from((summary.leagues || new Map()).entries())
                 .map(([name, count]) => `${name} (${count})`)
                 .join(", ") || "-";
+              const movement = profileRatingMovementForSport(allChanges, summary.sport);
+              const movementText = movement.count
+                ? `${movement.net >= 0 ? "+" : ""}${movement.net.toFixed(2)} across ${movement.count}`
+                : "-";
 
               return `
                 <article class="card profile-section-card profile-sport-card">
@@ -14650,6 +14685,7 @@ function renderPlayerProfile(memberId) {
                   </div>
 
                   <div class="profile-line"><span>Leagues</span><b>${escapeHtml(leagueText)}</b></div>
+                  <div class="profile-line"><span>Rating movement</span><b>${escapeHtml(movementText)}</b></div>
 
                   ${
                     summary.ratings.length
@@ -14698,8 +14734,10 @@ function renderPlayerProfile(memberId) {
       <div class="profile-sport-stat-grid">
         <div class="profile-line"><span>Approved</span><b>${stats.activities.filter(activity => activity.status === "approved").length}</b></div>
         <div class="profile-line"><span>Pending</span><b>${stats.activities.filter(activity => (activity.status || "pending") === "pending").length}</b></div>
-        <div class="profile-line"><span>Hours</span><b>${(Number(stats.activityMinutes || 0) / 60).toFixed(1)}</b></div>
-        <div class="profile-line"><span>Activity points</span><b>${formatPointValue(stats.loggedActivityPoints)}</b></div>
+        <div class="profile-line"><span>Active time</span><b>${formatProfileDurationMinutes(stats.activityMinutes)}</b></div>
+        <div class="profile-line"><span>Standalone points</span><b>${formatPointValue(stats.loggedActivityPoints)}</b></div>
+        <div class="profile-line"><span>Strava logs</span><b>${stats.stravaActivities}</b></div>
+        <div class="profile-line"><span>Strava points</span><b>${formatPointValue(stats.stravaActivityPoints)}</b></div>
       </div>
 
       ${
@@ -14707,16 +14745,21 @@ function renderPlayerProfile(memberId) {
           ? stats.activities
               .sort((a, b) => new Date(b.activity_date || b.created_at) - new Date(a.activity_date || a.created_at))
               .slice(0, 8)
-              .map(activity => `
-                <div class="profile-match-row">
-                  <div>
-                    <strong>${escapeHtml(activity.title || "Activity")}</strong>
-                    <span>${escapeHtml(fmtDate(activity.activity_date || activity.created_at))} - ${escapeHtml(activity.sports?.name || sportNameById(activity.sport_id) || "-")}</span>
-                    <em>${Number(activity.duration_minutes || 0)} min - ${formatPointValue(activity.activity_points)} pts</em>
+              .map(activity => {
+                const linkedMatch = linkedMatchForActivity(activity);
+                const displayedPoints = standaloneActivityPoints(activity);
+
+                return `
+                  <div class="profile-match-row">
+                    <div>
+                      <strong>${escapeHtml(activity.title || "Activity")}</strong>
+                      <span>${escapeHtml(fmtDate(activity.activity_date || activity.created_at))} - ${escapeHtml(activity.sports?.name || sportNameById(activity.sport_id) || "-")} - ${escapeHtml(activitySourceLabel(activity))}</span>
+                      <em>${Number(activity.duration_minutes || 0)} min - ${formatPointValue(displayedPoints)} standalone pts${linkedMatch ? ` - linked to ${escapeHtml(linkedMatch.title || "match")}` : ""}</em>
+                    </div>
+                    <b class="${activity.status === "approved" ? "win" : activity.status === "rejected" ? "loss" : "draw"}">${escapeHtml(activity.status || "pending")}</b>
                   </div>
-                  <b class="${activity.status === "approved" ? "win" : activity.status === "rejected" ? "loss" : "draw"}">${escapeHtml(activity.status || "pending")}</b>
-                </div>
-              `).join("")
+                `;
+              }).join("")
           : `<div class="hint">No logged activities yet.</div>`
       }
     </article>
