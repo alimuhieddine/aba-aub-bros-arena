@@ -1923,10 +1923,17 @@ function updateMatchVenueOptions() {
 }
 
 function memberDisplayName(member) {
-  return member?.display_name ||
+  const display = member?.display_name ||
     `${member?.first_name || ""} ${member?.last_name || ""}`.trim() ||
     member?.email ||
     "Unnamed";
+
+  if (member?.is_external) {
+    const externalMatch = String(display).match(/^External\s+\d+\s+\((.+)\)$/i);
+    if (externalMatch?.[1]) return externalMatch[1].trim();
+  }
+
+  return display;
 }
 
 function memberInitials(member) {
@@ -8020,7 +8027,7 @@ async function createExternalPlayerProfile() {
     return;
   }
 
-  const displayName = `External ${nextExternalDisplayNumber()} (${name})`;
+  const displayName = name;
 
   const { data, error } = await supabaseClient
     .from("members")
@@ -12928,11 +12935,13 @@ function stravaActivityDetailsHtml(activity) {
 
 function rankingMemberForId(memberId, embeddedMember = null) {
   const cleanId = cleanUuidValue(memberId);
+  const fullMember = memberById(cleanId);
 
-  return embeddedMember ||
-    memberById(cleanId) ||
-    (allMembers || []).find(member => cleanUuidValue(member.id) === cleanId) ||
-    null;
+  if (embeddedMember && fullMember) {
+    return { ...embeddedMember, ...fullMember };
+  }
+
+  return fullMember || embeddedMember || null;
 }
 
 function rankingMemberName(memberId, embeddedMember = null) {
