@@ -1187,16 +1187,19 @@ textarea:disabled {
   inset: 0;
   width: 100vw;
   height: 100vh;
-  z-index: 10000;
-  display: block;
-  background: rgba(0,0,0,.18);
-  backdrop-filter: blur(5px);
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
   overflow: hidden;
   cursor: zoom-out;
 }
 
-.avatar-viewer-modal[hidden] {
-  display: none;
+.avatar-viewer-modal::backdrop {
+  background: rgba(0,0,0,.18);
+  backdrop-filter: blur(5px);
 }
 
 .avatar-viewer-frame {

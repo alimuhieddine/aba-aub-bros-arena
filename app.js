@@ -2029,8 +2029,11 @@ function renderProfileAvatarPreview(member = currentProfile) {
 
 let avatarViewerScrollY = 0;
 let avatarViewerSuppressOpenUntil = 0;
+let avatarViewerLocked = false;
 
 function lockAvatarViewerScroll() {
+  if (avatarViewerLocked) return;
+  avatarViewerLocked = true;
   avatarViewerScrollY = window.scrollY || document.documentElement.scrollTop || 0;
   document.documentElement.classList.add("avatar-viewer-open");
   document.body.classList.add("avatar-viewer-open");
@@ -2038,6 +2041,8 @@ function lockAvatarViewerScroll() {
 }
 
 function unlockAvatarViewerScroll() {
+  if (!avatarViewerLocked) return;
+  avatarViewerLocked = false;
   document.documentElement.classList.remove("avatar-viewer-open");
   document.body.classList.remove("avatar-viewer-open");
   document.body.style.top = "";
@@ -2055,14 +2060,14 @@ function openAvatarViewer(url, name = "") {
   img.src = cleanUrl;
   img.alt = name ? `${name} profile photo` : "Profile photo";
   lockAvatarViewerScroll();
-  modal.hidden = false;
+  if (!modal.open) modal.showModal();
 }
 
 function closeAvatarViewer() {
   const modal = $("avatarViewerModal");
   const img = $("avatar-viewer-img");
   avatarViewerSuppressOpenUntil = Date.now() + 700;
-  if (modal) modal.hidden = true;
+  if (modal?.open) modal.close();
   unlockAvatarViewerScroll();
   if (img) {
     img.removeAttribute("src");
@@ -13715,6 +13720,12 @@ function memberById(memberId) {
   if (!cleanId) return null;
 
   const fromMembers = (allMembers || []).find(member => cleanUuidValue(member.id) === cleanId);
+  const fromCurrent = cleanUuidValue(currentProfile?.id) === cleanId ? currentProfile : null;
+
+  if (fromCurrent) {
+    return fromMembers ? { ...fromMembers, ...fromCurrent } : fromCurrent;
+  }
+
   if (fromMembers) return fromMembers;
 
   const fromRatings = (allPositionRatings || []).find(row => cleanUuidValue(row.member_id) === cleanId)?.members;
@@ -16277,7 +16288,7 @@ function bindEvents() {
   });
 
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape" && !$("avatarViewerModal")?.hidden) {
+    if (e.key === "Escape" && $("avatarViewerModal")?.open) {
       e.preventDefault();
       closeAvatarViewer();
       return;
@@ -16296,6 +16307,11 @@ function bindEvents() {
       e.stopPropagation();
       closeAvatarViewer();
     }, { capture: true, passive: false });
+  });
+  $("avatarViewerModal")?.addEventListener("close", unlockAvatarViewerScroll);
+  $("avatarViewerModal")?.addEventListener("cancel", e => {
+    e.preventDefault();
+    closeAvatarViewer();
   });
 
   $("match-filter-search")?.addEventListener("input", renderMatches);
