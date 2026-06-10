@@ -9638,24 +9638,12 @@ async function recalculatePointsAfterTeamEdit(matchId) {
   if (!pointsSaved) return false;
 
   if (isSoccerMatch(refreshedMatch)) {
-    const { teamA, teamB } = getTwoMatchTeams(refreshedMatch);
+    const ratingsSaved = await recalculateSoccerRatingsCascadeFromMatch(refreshedMatch, {
+      showAlert: false,
+      refresh: false
+    });
 
-    if (teamA && teamB) {
-      const scoreA = Number(teamA.score || 0);
-      const scoreB = Number(teamB.score || 0);
-      const resultA = teamA.result || (scoreA > scoreB ? "win" : scoreA < scoreB ? "loss" : "draw");
-      const resultB = teamB.result || (scoreB > scoreA ? "win" : scoreB < scoreA ? "loss" : "draw");
-
-      const ratingsSaved = await saveSoccerPositionRatingAdjustments(
-        refreshedMatch,
-        scoreA,
-        scoreB,
-        resultA,
-        resultB
-      );
-
-      if (!ratingsSaved) return false;
-    }
+    if (!ratingsSaved) return false;
   }
 
   return true;
@@ -9671,16 +9659,10 @@ async function recalculateSoccerRatingsAfterFormationEdit(matchId) {
     return true;
   }
 
-  const { teamA, teamB } = getTwoMatchTeams(refreshedMatch);
-
-  if (!teamA || !teamB) return true;
-
-  const scoreA = Number(teamA.score || 0);
-  const scoreB = Number(teamB.score || 0);
-  const resultA = teamA.result || (scoreA > scoreB ? "win" : scoreA < scoreB ? "loss" : "draw");
-  const resultB = teamB.result || (scoreB > scoreA ? "win" : scoreB < scoreA ? "loss" : "draw");
-
-  return await saveSoccerPositionRatingAdjustments(refreshedMatch, scoreA, scoreB, resultA, resultB);
+  return await recalculateSoccerRatingsCascadeFromMatch(refreshedMatch, {
+    showAlert: false,
+    refresh: false
+  });
 }
 
 async function saveFormationOnly(match, assignments) {
@@ -10046,26 +10028,92 @@ async function recalculateMatchSoccerRatings(match, showAlert = true) {
     return true;
   }
 
-  const context = scoreContextForMatch(match);
+  return await recalculateSoccerRatingsCascadeFromMatch(match, {
+    showAlert,
+    refresh: showAlert
+  });
+}
 
-  if (!context) {
-    if (showAlert) alert("Assign teams and submit a result before recalculating soccer ratings.");
+function soccerCascadeMatchesFrom(match) {
+  const cleanMatchId = cleanUuidValue(match?.id);
+  const startMs = new Date(match?.start_time || 0).getTime();
+
+  if (!cleanMatchId || !Number.isFinite(startMs)) return [];
+
+  const byId = new Map();
+  [match, ...finalizedRecalculableMatches()].forEach(row => {
+    const id = cleanUuidValue(row?.id);
+    if (id) byId.set(id, cleanUuidValue(row.id) === cleanMatchId ? { ...(byId.get(id) || {}), ...row, ...match } : row);
+  });
+
+  return Array.from(byId.values())
+    .filter(row => isSoccerMatch(row) && canManageMatch(row))
+    .filter(row => {
+      const rowStart = new Date(row.start_time || 0).getTime();
+      if (!Number.isFinite(rowStart)) return false;
+      return rowStart > startMs || cleanUuidValue(row.id) === cleanMatchId;
+    })
+    .sort((a, b) =>
+      new Date(a.start_time || 0) - new Date(b.start_time || 0) ||
+      new Date(a.created_at || 0) - new Date(b.created_at || 0)
+    );
+}
+
+async function recalculateSoccerRatingsCascadeFromMatch(match, options = {}) {
+  const { showAlert = true, refresh = true } = options || {};
+
+  if (!match || !isSoccerMatch(match) || isCancelledMatch(match) || !hasSubmittedScore(match)) {
+    if (showAlert) alert("Only finalized soccer matches can trigger a rating cascade.");
     return false;
   }
 
-  const saved = await saveSoccerPositionRatingAdjustments(
-    match,
-    context.scoreA,
-    context.scoreB,
-    context.resultA,
-    context.resultB
-  );
+  if (!canManageMatch(match)) {
+    if (showAlert) alert("You can only recalculate soccer matches for sports you manage.");
+    return false;
+  }
 
-  if (!saved) return false;
+  const cascadeMatches = soccerCascadeMatchesFrom(match);
+
+  if (!cascadeMatches.length) {
+    if (showAlert) alert("No finalized soccer matches found for cascade recalculation.");
+    return false;
+  }
+
+  await loadPositionRatings();
+
+  for (const cascadeMatch of [...cascadeMatches].reverse()) {
+    const rollback = await rollbackPreviousSoccerRatingAdjustments(cascadeMatch.id);
+    if (!rollback?.ok) return false;
+  }
+
+  for (const cascadeMatch of cascadeMatches) {
+    const context = scoreContextForMatch(cascadeMatch);
+
+    if (!context) {
+      if (showAlert) alert(`Could not recalculate "${cascadeMatch.title || "match"}": teams or score are missing.`);
+      return false;
+    }
+
+    const saved = await saveSoccerPositionRatingAdjustments(
+      cascadeMatch,
+      context.scoreA,
+      context.scoreB,
+      context.resultA,
+      context.resultB,
+      { skipRollback: true, skipRatingLoad: true }
+    );
+
+    if (!saved) return false;
+  }
+
+  if (refresh) {
+    await loadMatches();
+    renderRankings();
+    renderLeagues();
+  }
 
   if (showAlert) {
-    alert("Soccer ratings recalculated.");
-    await loadMatches();
+    alert(`Soccer rating cascade recalculated ${cascadeMatches.length} finalized match${cascadeMatches.length === 1 ? "" : "es"}.`);
   }
 
   return true;
@@ -10154,8 +10202,13 @@ async function recalculateMatchAll(matchId) {
   const pointsOk = await recalculateMatchPoints(match, false);
   if (!pointsOk) return;
 
-  const ratingsOk = await recalculateMatchSoccerRatings(match, false);
-  if (!ratingsOk) return;
+  if (isSoccerMatch(match)) {
+    const ratingsOk = await recalculateSoccerRatingsCascadeFromMatch(match, {
+      showAlert: false,
+      refresh: false
+    });
+    if (!ratingsOk) return;
+  }
 
   const padelRatingsOk = await recalculateMatchPadelRatings(match, false);
   if (!padelRatingsOk) return;
@@ -10207,10 +10260,17 @@ async function recalculateAllSoccerRatings() {
   const ok = confirm(`Recalculate soccer ratings for ${matches.length} finalized soccer match(es)?`);
   if (!ok) return;
 
-  for (const match of matches) {
-    const saved = await recalculateMatchSoccerRatings(match, false);
-    if (!saved) return;
-  }
+  const earliestMatch = [...matches].sort((a, b) =>
+    new Date(a.start_time || 0) - new Date(b.start_time || 0) ||
+    new Date(a.created_at || 0) - new Date(b.created_at || 0)
+  )[0];
+
+  const saved = await recalculateSoccerRatingsCascadeFromMatch(earliestMatch, {
+    showAlert: false,
+    refresh: false
+  });
+
+  if (!saved) return;
 
   alert("All finalized soccer ratings recalculated.");
   await loadPositionRatings();
@@ -10239,15 +10299,25 @@ async function recalculateAllFinalizedMatches() {
     const pointsOk = await saveMatchMemberPoints(match);
     if (!pointsOk) return;
 
-    if (isSoccerMatch(match)) {
-      const ratingsOk = await recalculateMatchSoccerRatings(match, false);
-      if (!ratingsOk) return;
-    }
-
     if (isPadelMatch(match)) {
       const ratingsOk = await recalculateMatchPadelRatings(match, false);
       if (!ratingsOk) return;
     }
+  }
+
+  const earliestSoccerMatch = matches
+    .filter(match => isSoccerMatch(match))
+    .sort((a, b) =>
+      new Date(a.start_time || 0) - new Date(b.start_time || 0) ||
+      new Date(a.created_at || 0) - new Date(b.created_at || 0)
+    )[0];
+
+  if (earliestSoccerMatch) {
+    const soccerRatingsOk = await recalculateSoccerRatingsCascadeFromMatch(earliestSoccerMatch, {
+      showAlert: false,
+      refresh: false
+    });
+    if (!soccerRatingsOk) return;
   }
 
   alert("All finalized matches recalculated.");
@@ -12461,7 +12531,10 @@ async function saveSingleInlineSoccerAssessment(input) {
   updateLocalSoccerAssessment(match, row);
 
   if (hasSubmittedScore(match)) {
-    const recalculated = await recalculateMatchSoccerRatings(match, false);
+    const recalculated = await recalculateSoccerRatingsCascadeFromMatch(match, {
+      showAlert: false,
+      refresh: false
+    });
     if (!recalculated) return false;
 
     scheduleMatchUiRefresh({ rankings: true });
@@ -12876,16 +12949,20 @@ async function saveMatchPositionRatingAdjustmentRow(row) {
   };
 }
 
-async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, resultA, resultB) {
+async function saveSoccerPositionRatingAdjustments(match, scoreA, scoreB, resultA, resultB, options = {}) {
   if (!isSoccerMatch(match)) return true;
 
+  const { skipRollback = false, skipRatingLoad = false } = options || {};
   const { teamA, teamB } = getTwoMatchTeams(match);
 
   if (!teamA || !teamB) return true;
 
-  await loadPositionRatings();
+  if (!skipRatingLoad) await loadPositionRatings();
 
-  const rollbackResult = await rollbackPreviousSoccerRatingAdjustments(match.id);
+  const rollbackResult = skipRollback
+    ? { ok: true, baselines: new Map() }
+    : await rollbackPreviousSoccerRatingAdjustments(match.id);
+
   if (!rollbackResult?.ok) return false;
 
   const rows = dedupeSoccerRatingRows([
@@ -13216,13 +13293,18 @@ async function finalizeCurrentMatchResult() {
 
   if (!pointsSaved) return;
 
-  const ratingsSaved = await saveSoccerPositionRatingAdjustments(
-    refreshedMatchForPoints,
-    scoreA,
-    scoreB,
-    resultA,
-    resultB
-  );
+  const ratingsSaved = isSoccerMatch(refreshedMatchForPoints)
+    ? await recalculateSoccerRatingsCascadeFromMatch(refreshedMatchForPoints, {
+        showAlert: false,
+        refresh: false
+      })
+    : await saveSoccerPositionRatingAdjustments(
+        refreshedMatchForPoints,
+        scoreA,
+        scoreB,
+        resultA,
+        resultB
+      );
 
   if (!ratingsSaved) return;
 
