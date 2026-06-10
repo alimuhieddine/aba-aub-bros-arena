@@ -180,13 +180,27 @@ h1 {
 
 .logged-display-name {
   display: inline-flex;
-  flex-direction: column;
   align-items: flex-end;
-  gap: 2px;
+  justify-content: flex-end;
   overflow: visible;
   text-overflow: clip;
   white-space: normal;
   overflow-wrap: anywhere;
+  font-size: 16px;
+  font-weight: 900;
+  text-align: right;
+}
+
+.logged-display-name.strava-connected-name {
+  width: fit-content;
+  margin-left: auto;
+  padding: 2px 6px 1px;
+  border-radius: 4px;
+  background: #fff;
+  color: #fc4c02;
+  font-family: Arial Black, Impact, system-ui, sans-serif;
+  letter-spacing: 0;
+  line-height: 1.05;
 }
 
 .account-logout-btn {
@@ -2791,12 +2805,6 @@ main,
   letter-spacing: 0;
   line-height: 1;
   vertical-align: middle;
-}
-
-.logged-strava-tag {
-  margin-left: 0;
-  padding: 1px 3px 0;
-  font-size: 8px;
 }
 
 .linked-match-tag {

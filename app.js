@@ -1977,16 +1977,15 @@ function currentUserIdentityHtml(sessionUser = null) {
     ? memberDisplayName(member)
     : sessionUser?.email || "Member";
   const cleanId = cleanUuidValue(member?.id);
-  const stravaTag = cleanId && stravaConnectedMemberIds.has(cleanId)
-    ? `<span class="member-strava-tag logged-strava-tag" title="Strava connected" aria-label="Strava connected">STRAVA</span>`
+  const stravaNameClass = cleanId && stravaConnectedMemberIds.has(cleanId)
+    ? " strava-connected-name"
     : "";
 
   return `
     <span class="logged-player-identity">
       ${avatarHtml(member || { display_name: displayName }, "mini-avatar")}
-      <span class="logged-display-name">
-        <span>${escapeHtml(displayName)}</span>
-        ${stravaTag}
+      <span class="logged-display-name${stravaNameClass}" title="${stravaNameClass ? "Strava connected" : ""}">
+        ${escapeHtml(displayName)}
       </span>
     </span>
   `;
