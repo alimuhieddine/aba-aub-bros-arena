@@ -106,7 +106,19 @@
 
     (match.match_member_points || []).forEach(point => {
       if (point.member_id) {
-        pointsByMember.set(point.member_id, Number(point.total_points || 0));
+        const activity = Number(point.activity_points || 0);
+        const score = Number(point.score_points || 0);
+        const splitTotal = activity + score;
+        const hasSplitPoints =
+          point.activity_points !== null &&
+          point.activity_points !== undefined &&
+          point.score_points !== null &&
+          point.score_points !== undefined;
+        const total = hasSplitPoints
+          ? splitTotal
+          : Number(point.total_points ?? point.base_points ?? splitTotal);
+
+        pointsByMember.set(point.member_id, Number.isFinite(total) ? total : splitTotal);
       }
     });
 
@@ -118,9 +130,11 @@
 
     if (!uniquePointValues.length) return "";
 
+    const formatPoint = value => Number.isInteger(value) ? String(value) : value.toFixed(2);
+
     return uniquePointValues.length === 1
-      ? `+${uniquePointValues[0]} pts each`
-      : uniquePointValues.map(value => `+${value}`).join(" / ");
+      ? `+${formatPoint(uniquePointValues[0])} pts each`
+      : `+${formatPoint(Math.min(...uniquePointValues))}-${formatPoint(Math.max(...uniquePointValues))} pts`;
   }
 
   function hasAssignedPlayers(match) {

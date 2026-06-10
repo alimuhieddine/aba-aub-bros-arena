@@ -28,9 +28,9 @@ begin
     from pg_policies
     where schemaname = 'public'
       and tablename = 'notification_log'
-      and policyname = 'approved admins can read notification log'
+      and policyname = 'approved owners and admins can read notification log'
   ) then
-    create policy "approved admins can read notification log"
+    create policy "approved owners and admins can read notification log"
       on public.notification_log
       for select
       using (
@@ -38,7 +38,7 @@ begin
           select 1
           from public.members m
           where m.auth_user_id = auth.uid()
-            and m.role = 'admin'
+            and m.role in ('owner', 'admin')
             and m.approval_status = 'approved'
         )
       );

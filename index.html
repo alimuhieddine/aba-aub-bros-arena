@@ -13,7 +13,7 @@
   <title>ABA | AUB Bros Arena test 2t</title>
   <link rel="manifest" href="manifest.json?v=2" />
   <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
-  <link rel="stylesheet" href="style.css?v=164" />
+  <link rel="stylesheet" href="style.css?v=169" />
 </head>
 
 <body>
@@ -160,7 +160,7 @@
               <option value="upcoming">Upcoming</option>
               <option value="full">Full</option>
               <option value="playing">Playing now</option>
-              <option value="result_pending">Result pending</option>
+              <option value="result_pending">Awaiting result</option>
               <option value="completed">Completed / submitted</option>
               <option value="cancelled">Cancelled</option>
             </select>
@@ -274,6 +274,25 @@
           </label>
 
           <label>
+            Gender
+            <select id="profile-gender" disabled>
+              <option value="">Prefer not to say</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </label>
+
+          <label>
+            Height (cm)
+            <input id="profile-height-cm" type="number" min="100" max="230" step="1" disabled>
+          </label>
+
+          <label>
+            Weight (kg)
+            <input id="profile-weight-kg" type="number" min="30" max="250" step="0.1" disabled>
+          </label>
+
+          <label>
             Phone
             <input id="profile-phone" type="tel" disabled>
           </label>
@@ -289,6 +308,14 @@
           <div>
             <strong>Garmin Connect</strong>
             <p class="hint">Login to connect a Garmin smartwatch.</p>
+          </div>
+          <span class="pill">Offline</span>
+        </div>
+
+        <div id="strava-connection-panel" class="card garmin-connection-card">
+          <div>
+            <strong>Strava</strong>
+            <p class="hint">Login to connect Strava activities.</p>
           </div>
           <span class="pill">Offline</span>
         </div>
@@ -872,12 +899,12 @@
       <div class="grid two">
         <label>
           Team A name
-          <input id="team-a-name" type="text" value="Team A">
+          <input id="team-a-name" type="text" value="Black">
         </label>
 
         <label>
           Team B name
-          <input id="team-b-name" type="text" value="Team B">
+          <input id="team-b-name" type="text" value="White">
         </label>
       </div>
 
@@ -917,6 +944,10 @@
 
       <button id="suggest-teams-btn" class="secondary-btn full" type="button">
         Suggest Balanced Teams / Formation
+      </button>
+
+      <button id="reset-team-assignment-btn" class="secondary-btn full" type="button">
+        Reset Team Assignments
       </button>
 
       <button id="save-teams-btn" class="primary-btn full" type="button">
@@ -1112,10 +1143,10 @@
   <script src="js/venues.js?v=1"></script>
   <script src="js/leagues.js?v=1"></script>
   <script src="js/matches.js?v=2"></script>
-  <script src="js/teams.js?v=1"></script>
+  <script src="js/teams.js?v=2"></script>
   <script src="js/scoring.js?v=1"></script>
   <script src="js/utils.js?v=1"></script>
-  <script src="app.js?v=174"></script>
+  <script src="app.js?v=178"></script>
   <script src="js/utils-runtime-bridge.js?v=1"></script>
   <script src="js/auth-runtime-bridge.js?v=1"></script>
 

@@ -4,6 +4,8 @@ import webpush from "npm:web-push@3.6.7";
 const appTimeZone = "Asia/Beirut";
 const sameDayReminderHour = 7;
 const maybeReminderWindowHours = 3;
+const awaitingResultLookbackHours = 72;
+const awaitingResultGraceMinutes = 30;
 
 type MatchInvitation = {
   member_id: string;
@@ -23,8 +25,11 @@ type MatchTeam = {
 
 type MatchRow = {
   id: string;
+  sport_id: string | null;
   title: string | null;
   start_time: string | null;
+  end_time: string | null;
+  created_by: string | null;
   voting_deadline_at: string | null;
   status: string | null;
   score_status: string | null;
@@ -33,6 +38,21 @@ type MatchRow = {
   venues?: { name?: string | null } | null;
   match_invitations?: MatchInvitation[] | null;
   match_teams?: MatchTeam[] | null;
+};
+
+type MemberRow = {
+  id: string;
+  role?: string | null;
+  approval_status?: string | null;
+};
+
+type SportPermissionRow = {
+  member_id: string | null;
+  sport_id: string | null;
+  member?: {
+    role?: string | null;
+    approval_status?: string | null;
+  } | null;
 };
 
 type PushSubscriptionRow = {
@@ -128,6 +148,19 @@ function isActiveMatch(match: MatchRow) {
     status !== "completed" &&
     scoreStatus !== "cancelled" &&
     scoreStatus !== "finalized";
+}
+
+function needsResult(match: MatchRow, now: Date) {
+  if (!isActiveMatch(match)) return false;
+
+  const scoreStatus = String(match.score_status || "").toLowerCase();
+  if (["submitted", "approved", "finalized", "completed"].includes(scoreStatus)) return false;
+
+  const endValue = match.end_time || match.start_time;
+  if (!endValue) return false;
+
+  const reminderStart = new Date(new Date(endValue).getTime() + awaitingResultGraceMinutes * 60 * 1000);
+  return reminderStart <= now;
 }
 
 function inMemberIds(match: MatchRow) {
@@ -229,6 +262,26 @@ function maybeDeadlinePayload(match: MatchRow) {
   };
 }
 
+function awaitingResultPayload(match: MatchRow) {
+  const sport = match.sports?.name || "match";
+  const emoji = sportBallEmoji(sport);
+  const title = match.title || `${sport} match`;
+
+  return {
+    title: "ABA Result Needed",
+    body: `${emoji} ${title} is awaiting a result. Add the score so points and ratings can update.`,
+    tag: `awaiting-result-${match.id}`,
+    renotify: true,
+    requireInteraction: true,
+    timestamp: Date.now(),
+    url: `./index.html#matches?match=${match.id}`,
+    data: {
+      type: "match_result_pending_reminder",
+      match_id: match.id
+    }
+  };
+}
+
 async function alreadyLogged(adminClient: ReturnType<typeof createClient>, eventType: string, matchId: string, memberId: string) {
   const { data, error } = await adminClient
     .from("notification_log")
@@ -255,6 +308,61 @@ async function logSent(adminClient: ReturnType<typeof createClient>, eventType: 
   if (error && String(error.code || "") !== "23505") throw error;
 }
 
+async function createInboxRow(
+  adminClient: ReturnType<typeof createClient>,
+  memberId: string,
+  payload: Record<string, unknown>,
+  hasSubscription: boolean
+) {
+  try {
+    const { data, error } = await adminClient
+      .from("member_notifications")
+      .insert({
+        recipient_member_id: memberId,
+        actor_member_id: null,
+        type: String((payload.data as { type?: unknown } | undefined)?.type || "notification"),
+        title: String(payload.title || "ABA"),
+        body: payload.body ? String(payload.body) : null,
+        url: payload.url ? String(payload.url) : null,
+        data: payload.data || {},
+        delivery_status: hasSubscription ? "queued" : "no_subscription"
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      console.warn("Reminder inbox insert failed:", error.message);
+      return null;
+    }
+
+    return data?.id || null;
+  } catch (error) {
+    console.warn("Reminder inbox unavailable:", error);
+    return null;
+  }
+}
+
+async function updateInboxRow(
+  adminClient: ReturnType<typeof createClient>,
+  notificationId: string | null,
+  deliveryStatus: "sent" | "failed",
+  deliveryError: string | null = null
+) {
+  if (!notificationId) return;
+
+  try {
+    await adminClient
+      .from("member_notifications")
+      .update({
+        delivery_status: deliveryStatus,
+        delivery_error: deliveryError
+      })
+      .eq("id", notificationId);
+  } catch (error) {
+    console.warn("Reminder inbox delivery update failed:", error);
+  }
+}
+
 async function sendToMember(
   adminClient: ReturnType<typeof createClient>,
   subscriptionsByMember: Map<string, PushSubscriptionRow[]>,
@@ -268,7 +376,12 @@ async function sendToMember(
   }
 
   const subscriptions = subscriptionsByMember.get(memberId) || [];
-  if (!subscriptions.length) return { sent: 0, failed: 0, skipped: true };
+  const inboxId = await createInboxRow(adminClient, memberId, payload, subscriptions.length > 0);
+
+  if (!subscriptions.length) {
+    await logSent(adminClient, eventType, match.id, memberId, { inbox: Boolean(inboxId), no_subscription: true });
+    return { sent: 0, failed: 0, skipped: true };
+  }
 
   let sent = 0;
   let failed = 0;
@@ -294,7 +407,11 @@ async function sendToMember(
   }));
 
   if (sent > 0) {
-    await logSent(adminClient, eventType, match.id, memberId, { sent });
+    await updateInboxRow(adminClient, inboxId, "sent");
+    await logSent(adminClient, eventType, match.id, memberId, { sent, inbox: Boolean(inboxId) });
+  } else if (failed > 0) {
+    await updateInboxRow(adminClient, inboxId, "failed", "All push subscriptions failed.");
+    await logSent(adminClient, eventType, match.id, memberId, { failed, inbox: Boolean(inboxId) });
   }
 
   return { sent, failed, skipped: false };
@@ -337,13 +454,17 @@ Deno.serve(async req => {
   const nowParts = zonedParts(now);
   const todayKey = zonedDateKey(now);
   const lookahead = new Date(now.getTime() + 36 * 60 * 60 * 1000);
+  const lookback = new Date(now.getTime() - awaitingResultLookbackHours * 60 * 60 * 1000);
 
   const { data: matches, error: matchesError } = await adminClient
     .from("matches")
     .select(`
       id,
+      sport_id,
       title,
       start_time,
+      end_time,
+      created_by,
       voting_deadline_at,
       status,
       score_status,
@@ -358,7 +479,7 @@ Deno.serve(async req => {
         match_team_players(member_id)
       )
     `)
-    .gte("start_time", now.toISOString())
+    .gte("start_time", lookback.toISOString())
     .lte("start_time", lookahead.toISOString());
 
   if (matchesError) {
@@ -366,6 +487,49 @@ Deno.serve(async req => {
   }
 
   const activeMatches = ((matches || []) as MatchRow[]).filter(isActiveMatch);
+  const { data: adminMembers, error: adminMembersError } = await adminClient
+    .from("members")
+    .select("id,role,approval_status")
+    .in("role", ["owner", "admin"])
+    .eq("approval_status", "approved");
+
+  if (adminMembersError) {
+    return jsonResponse({ error: adminMembersError.message }, 500);
+  }
+
+  const adminMemberIds = uniqueIds(((adminMembers || []) as MemberRow[]).map(member => member.id));
+  const sportIds = uniqueIds(activeMatches.map(match => match.sport_id));
+  let committeeMemberIdsBySport = new Map<string, string[]>();
+
+  if (sportIds.length) {
+    const { data: sportPermissions, error: sportPermissionsError } = await adminClient
+      .from("member_sport_permissions")
+      .select(`
+        member_id,
+        sport_id,
+        member:members!member_sport_permissions_member_id_fkey(role,approval_status)
+      `)
+      .in("sport_id", sportIds)
+      .eq("permission", "manage");
+
+    if (sportPermissionsError) {
+      return jsonResponse({ error: sportPermissionsError.message }, 500);
+    }
+
+    ((sportPermissions || []) as SportPermissionRow[]).forEach(row => {
+      if (!row.sport_id || !row.member_id) return;
+      if (row.member?.approval_status !== "approved" || row.member?.role !== "committee") return;
+
+      const current = committeeMemberIdsBySport.get(row.sport_id) || [];
+      current.push(row.member_id);
+      committeeMemberIdsBySport.set(row.sport_id, current);
+    });
+
+    committeeMemberIdsBySport = new Map(Array.from(committeeMemberIdsBySport.entries()).map(([sportId, memberIds]) => [
+      sportId,
+      uniqueIds(memberIds)
+    ]));
+  }
   const sameDayItems = nowParts.hour >= sameDayReminderHour
     ? activeMatches
       .filter(match => match.start_time && zonedDateKey(new Date(match.start_time)) === todayKey)
@@ -389,7 +553,23 @@ Deno.serve(async req => {
       memberId,
       payload: maybeDeadlinePayload(match)
     })));
-  const items = [...sameDayItems, ...maybeItems];
+  const awaitingResultItems = activeMatches
+    .filter(match => needsResult(match, now))
+    .flatMap(match => {
+      const recipientIds = uniqueIds([
+        ...adminMemberIds,
+        ...(committeeMemberIdsBySport.get(match.sport_id || "") || []),
+        match.created_by
+      ]);
+
+      return recipientIds.map(memberId => ({
+        eventType: "match_result_pending_reminder",
+        match,
+        memberId,
+        payload: awaitingResultPayload(match)
+      }));
+    });
+  const items = [...sameDayItems, ...maybeItems, ...awaitingResultItems];
   const memberIds = uniqueIds(items.map(item => item.memberId));
 
   if (!items.length || !memberIds.length) {
@@ -398,7 +578,8 @@ Deno.serve(async req => {
       failed: 0,
       skipped: true,
       same_day_candidates: sameDayItems.length,
-      maybe_candidates: maybeItems.length
+      maybe_candidates: maybeItems.length,
+      awaiting_result_candidates: awaitingResultItems.length
     });
   }
 
@@ -445,6 +626,7 @@ Deno.serve(async req => {
     failed,
     skipped,
     same_day_candidates: sameDayItems.length,
-    maybe_candidates: maybeItems.length
+    maybe_candidates: maybeItems.length,
+    awaiting_result_candidates: awaitingResultItems.length
   });
 });
