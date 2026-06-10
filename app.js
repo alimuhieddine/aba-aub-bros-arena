@@ -2021,6 +2021,7 @@ function renderProfileAvatarPreview(member = currentProfile) {
 }
 
 let avatarViewerScrollY = 0;
+let avatarViewerSuppressOpenUntil = 0;
 
 function lockAvatarViewerScroll() {
   avatarViewerScrollY = window.scrollY || document.documentElement.scrollTop || 0;
@@ -2037,6 +2038,8 @@ function unlockAvatarViewerScroll() {
 }
 
 function openAvatarViewer(url, name = "") {
+  if (Date.now() < avatarViewerSuppressOpenUntil) return;
+
   const cleanUrl = String(url || "").trim();
   const modal = $("avatarViewerModal");
   const img = $("avatar-viewer-img");
@@ -2051,6 +2054,7 @@ function openAvatarViewer(url, name = "") {
 function closeAvatarViewer() {
   const modal = $("avatarViewerModal");
   const img = $("avatar-viewer-img");
+  avatarViewerSuppressOpenUntil = Date.now() + 700;
   if (modal?.open) modal.close();
   unlockAvatarViewerScroll();
   if (img) {
@@ -16255,6 +16259,7 @@ function bindEvents() {
   });
 
   document.addEventListener("click", e => {
+    if (Date.now() < avatarViewerSuppressOpenUntil) return;
     const avatar = e.target?.closest?.(".avatar-view-trigger");
     if (!avatar) return;
     openAvatarViewer(avatar.dataset.avatarUrl, avatar.dataset.avatarName);
@@ -16267,11 +16272,12 @@ function bindEvents() {
     openAvatarViewer(avatar.dataset.avatarUrl, avatar.dataset.avatarName);
   });
 
-  ["click", "pointerdown", "touchstart"].forEach(eventName => {
+  ["click", "pointerdown", "pointerup", "touchstart", "touchend"].forEach(eventName => {
     $("avatarViewerModal")?.addEventListener(eventName, e => {
       e.preventDefault();
+      e.stopPropagation();
       closeAvatarViewer();
-    }, { passive: false });
+    }, { capture: true, passive: false });
   });
   $("avatarViewerModal")?.addEventListener("close", () => {
     unlockAvatarViewerScroll();
