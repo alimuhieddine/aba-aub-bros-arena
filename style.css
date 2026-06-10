@@ -169,13 +169,21 @@ h1 {
   align-items: center;
   justify-content: flex-end;
   align-self: flex-end;
-  width: 100%;
+  width: auto;
   min-width: 0;
   font-size: 12px;
   font-weight: 600;
   color: white;
   line-height: 1.25;
-  white-space: nowrap;
+  white-space: normal;
+}
+
+.logged-display-name {
+  display: inline;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 #logout-btn {
@@ -612,6 +620,7 @@ h3 {
 .member-role-picker-card {
   display: grid;
   gap: 12px;
+  overflow: visible;
 }
 
 .member-role-picker-card .field-label {
@@ -653,11 +662,9 @@ h3 {
 }
 
 .member-role-option-list {
-  position: absolute;
+  position: static;
   z-index: 20;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
+  margin-top: 6px;
   max-height: 300px;
   overflow-y: auto;
   padding: 6px;
@@ -665,6 +672,10 @@ h3 {
   border-radius: 10px;
   background: rgba(7,17,31,.98);
   box-shadow: 0 18px 40px rgba(0,0,0,.28);
+}
+
+.member-role-option-list-inline {
+  max-height: min(420px, 52vh);
 }
 
 .member-role-option {
@@ -887,10 +898,19 @@ h3 {
 
 .logged-player-identity {
   justify-content: flex-end;
-  width: max-content;
+  width: auto;
   max-width: 100%;
   margin-left: auto;
   flex-direction: row-reverse;
+  white-space: normal;
+}
+
+.logged-player-identity .player-link {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  max-width: none;
+  text-align: right;
 }
 
 .mini-player-row {
@@ -1221,8 +1241,8 @@ textarea:disabled {
     font-size: 10px;
     display: inline-flex;
     align-self: flex-end;
-    width: 100%;
-    white-space: nowrap;
+    width: auto;
+    white-space: normal;
     overflow: visible;
     text-overflow: unset;
     max-width: none;
@@ -1486,6 +1506,10 @@ main,
     width: 100%;
     max-width: 100%;
     overflow: hidden;
+  }
+
+  #admin .member-role-picker-card {
+    overflow: visible;
   }
 
   #admin input,

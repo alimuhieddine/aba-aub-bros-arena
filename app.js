@@ -574,26 +574,24 @@ function renderMemberRoleManager(members = []) {
   box.innerHTML = `
     <article class="card member-role-picker-card">
       <span class="field-label">Member</span>
-      <details id="member-role-dropdown" class="member-role-dropdown">
-        <summary>
-          ${selectedMember
-            ? memberRoleDropdownIdentityHtml(selectedMember)
-            : `<span class="hint">Select a member</span>`}
-        </summary>
-        <div class="member-role-option-list" role="listbox" aria-label="Members">
-          ${members.map(member => `
-            <button
-              class="member-role-option ${selectedMember?.id === member.id ? "selected" : ""}"
-              type="button"
-              role="option"
-              aria-selected="${selectedMember?.id === member.id ? "true" : "false"}"
-              onclick="selectMemberRoleEditor('${member.id}')"
-            >
-              ${memberRoleDropdownIdentityHtml(member)}
-            </button>
-          `).join("")}
-        </div>
-      </details>
+      <div class="member-role-selected-preview">
+        ${selectedMember
+          ? memberRoleDropdownIdentityHtml(selectedMember)
+          : `<span class="hint">Select a member</span>`}
+      </div>
+      <div class="member-role-option-list member-role-option-list-inline" role="listbox" aria-label="Members">
+        ${members.map(member => `
+          <button
+            class="member-role-option ${selectedMember?.id === member.id ? "selected" : ""}"
+            type="button"
+            role="option"
+            aria-selected="${selectedMember?.id === member.id ? "true" : "false"}"
+            onclick="selectMemberRoleEditor('${member.id}')"
+          >
+            ${memberRoleDropdownIdentityHtml(member)}
+          </button>
+        `).join("")}
+      </div>
     </article>
 
     <div id="member-role-editor-slot">
@@ -1966,8 +1964,17 @@ function currentUserIdentityHtml(sessionUser = null) {
   const displayName = member
     ? memberDisplayName(member)
     : sessionUser?.email || "Member";
+  const cleanId = cleanUuidValue(member?.id);
+  const stravaTag = cleanId && stravaConnectedMemberIds.has(cleanId)
+    ? ` <span class="member-strava-tag" title="Strava connected" aria-label="Strava connected">STRAVA</span>`
+    : "";
 
-  return memberMiniIdentityHtml(member, member?.id || "", displayName, "logged-player-identity");
+  return `
+    <span class="logged-player-identity">
+      ${avatarHtml(member || { display_name: displayName }, "mini-avatar")}
+      <span class="logged-display-name">${escapeHtml(displayName)}${stravaTag}</span>
+    </span>
+  `;
 }
 
 function renderLoggedInIdentity(sessionUser = null) {
