@@ -762,14 +762,29 @@ async function loadAdminNotificationMembers() {
 function getAdminNotificationPayload() {
   return {
     title: $("admin-notify-title")?.value?.trim() || "ABA Notification Test",
-    message: $("admin-notify-message")?.value?.trim() || ""
+    message: $("admin-notify-message")?.value?.trim() || "",
+    url: $("admin-notify-url")?.value?.trim() || "./#dashboard"
   };
+}
+
+function useStravaAdminNotification() {
+  if ($("admin-notify-title")) {
+    $("admin-notify-title").value = "Connect Strava";
+  }
+
+  if ($("admin-notify-message")) {
+    $("admin-notify-message").value = "Strava is now available. Connect it in Account to import workouts and get activity points from real data.";
+  }
+
+  if ($("admin-notify-url")) {
+    $("admin-notify-url").value = "./#account?focus=strava";
+  }
 }
 
 async function sendAdminPushNotification() {
   const status = $("admin-notify-status");
   const selected = $("admin-notify-member")?.value || "";
-  const { title, message } = getAdminNotificationPayload();
+  const { title, message, url } = getAdminNotificationPayload();
 
   if (status) status.textContent = "";
 
@@ -800,7 +815,7 @@ async function sendAdminPushNotification() {
       recipient_member_ids: recipientIds,
       title,
       body: message,
-      url: "./#dashboard"
+      url
     }
   });
 
@@ -6646,6 +6661,27 @@ function hashRouteViewId() {
   return view?.classList?.contains("view") ? viewId : "";
 }
 
+function hashRouteParams() {
+  const hash = window.location.hash || "";
+  const queryStart = hash.indexOf("?");
+  return queryStart >= 0 ? new URLSearchParams(hash.slice(queryStart + 1)) : new URLSearchParams();
+}
+
+function focusAccountRouteTarget() {
+  const focus = hashRouteParams().get("focus");
+  const targets = {
+    strava: "strava-connection-panel",
+    notifications: "notification-inbox-card"
+  };
+  const targetId = targets[String(focus || "").toLowerCase()];
+  if (!targetId) return;
+
+  setTimeout(() => {
+    const el = $(targetId);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 350);
+}
+
 function openHashRoute({ restoreScroll = false } = {}) {
   if (openDeepLinkedMatch()) return true;
 
@@ -6653,6 +6689,7 @@ function openHashRoute({ restoreScroll = false } = {}) {
   if (!viewId) return false;
 
   setActiveTab(viewId, false);
+  if (viewId === "account") focusAccountRouteTarget();
   if (restoreScroll) restoreScrollPosition();
   return true;
 }
@@ -16487,6 +16524,7 @@ if ($("matchForm")) {
   $("disable-notifications-btn")?.addEventListener("click", disablePhoneNotifications);
   $("test-notifications-btn")?.addEventListener("click", sendTestNotification);
   $("mark-notifications-read-btn")?.addEventListener("click", markAllNotificationsRead);
+  $("use-strava-notification-btn")?.addEventListener("click", useStravaAdminNotification);
   $("send-admin-notification-btn")?.addEventListener("click", sendAdminPushNotification);
   $("send-admin-notification-all-btn")?.addEventListener("click", sendAdminPushNotificationToAll);
 

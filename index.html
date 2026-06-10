@@ -13,7 +13,7 @@
   <title>ABA | AUB Bros Arena test 2t</title>
   <link rel="manifest" href="manifest.json?v=2" />
   <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
-  <link rel="stylesheet" href="style.css?v=171" />
+  <link rel="stylesheet" href="style.css?v=172" />
 </head>
 
 <body>
@@ -304,7 +304,7 @@
           </div>
         </div>
 
-        <div id="garmin-connection-panel" class="card garmin-connection-card">
+        <div id="garmin-connection-panel" class="card garmin-connection-card" hidden>
           <div>
             <strong>Garmin Connect</strong>
             <p class="hint">Login to connect a Garmin smartwatch.</p>
@@ -339,7 +339,7 @@
           </div>
         </div>
 
-        <div class="card notification-inbox-card">
+        <div id="notification-inbox-card" class="card notification-inbox-card">
           <div class="row">
             <div>
               <h3>Notification inbox</h3>
@@ -405,15 +405,24 @@
 
           <label>
             Title
-            <input id="admin-notify-title" type="text" value="ABA Notification Test" />
+            <input id="admin-notify-title" type="text" value="Connect Strava" />
           </label>
 
           <label>
             Message
-            <textarea id="admin-notify-message" rows="3" placeholder="Type your test message"></textarea>
+            <textarea id="admin-notify-message" rows="3" placeholder="Type your message">Strava is now available. Connect it in Account to import workouts and get activity points from real data.</textarea>
+          </label>
+
+          <label>
+            Opens
+            <input id="admin-notify-url" type="text" value="./#account?focus=strava" />
           </label>
 
           <div class="actions">
+            <button id="use-strava-notification-btn" class="secondary-btn" type="button">
+              Use Strava Notice
+            </button>
+
             <button id="send-admin-notification-btn" class="primary-btn" type="button">
               Send to Selected
             </button>
@@ -1146,7 +1155,7 @@
   <script src="js/teams.js?v=2"></script>
   <script src="js/scoring.js?v=1"></script>
   <script src="js/utils.js?v=1"></script>
-  <script src="app.js?v=179"></script>
+  <script src="app.js?v=180"></script>
   <script src="js/utils-runtime-bridge.js?v=1"></script>
   <script src="js/auth-runtime-bridge.js?v=1"></script>
 
