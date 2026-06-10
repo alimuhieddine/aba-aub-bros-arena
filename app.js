@@ -4870,10 +4870,14 @@ const MATCH_FALLBACK_SELECT = `
       )
     `;
 
-async function fetchMatchesQuery(matchId = "") {
+const MATCH_SUMMARY_SELECT = MATCH_FALLBACK_SELECT;
+
+async function fetchMatchesQuery(matchId = "", options = {}) {
+  const { full = Boolean(matchId) } = options || {};
+  let loadedFullDetails = full;
   let query = supabaseClient
     .from("matches")
-    .select(MATCH_FULL_SELECT);
+    .select(full ? MATCH_FULL_SELECT : MATCH_SUMMARY_SELECT);
 
   if (matchId) {
     query = query.eq("id", matchId).maybeSingle();
@@ -4883,8 +4887,9 @@ async function fetchMatchesQuery(matchId = "") {
 
   let result = await query;
 
-  if (result.error) {
+  if (full && result.error) {
     console.warn("Full match load failed. Retrying without game/session scoring tables:", result.error.message);
+    loadedFullDetails = false;
 
     let fallbackQuery = supabaseClient
       .from("matches")
@@ -4897,13 +4902,14 @@ async function fetchMatchesQuery(matchId = "") {
     result = await fallbackQuery;
   }
 
+  result.loadedFullDetails = Boolean(loadedFullDetails && !result.error);
   return result;
 }
 
 async function loadMatches() {
   if (!currentProfile || currentProfile.approval_status !== "approved") return;
 
-  const result = await fetchMatchesQuery();
+  const result = await fetchMatchesQuery("", { full: false });
 
   const { data, error } = result;
 
@@ -4912,7 +4918,10 @@ async function loadMatches() {
     return;
   }
 
-  allMatches = data || [];
+  allMatches = (data || []).map(match => ({
+    ...match,
+    __detailsLoaded: false
+  }));
   await attachMatchPositionRatingAdjustments();
   await attachSoccerPerformanceAssessments();
   await repairMissingSoccerRatingAdjustments();
@@ -4936,7 +4945,8 @@ async function refreshMatch(matchId, options = {}) {
 
   if (!cleanMatchId || !currentProfile || currentProfile.approval_status !== "approved") return null;
 
-  const { data, error } = await fetchMatchesQuery(cleanMatchId);
+  const result = await fetchMatchesQuery(cleanMatchId, { full: true });
+  const { data, error, loadedFullDetails } = result;
 
   if (error) {
     console.warn("Could not refresh match:", error.message);
@@ -4948,6 +4958,7 @@ async function refreshMatch(matchId, options = {}) {
   const previous = (allMatches || []).find(match => cleanUuidValue(match.id) === cleanMatchId);
   let refreshed = {
     ...data,
+    __detailsLoaded: Boolean(loadedFullDetails),
     match_position_rating_adjustments: previous?.match_position_rating_adjustments || [],
     match_soccer_performance_assessments: previous?.match_soccer_performance_assessments || []
   };
@@ -4965,6 +4976,17 @@ async function refreshMatch(matchId, options = {}) {
   if (render) scheduleMatchUiRefresh({ rankings });
 
   return refreshed;
+}
+
+async function ensureMatchDetails(matchId, options = {}) {
+  const { render = false } = options || {};
+  const cleanMatchId = cleanUuidValue(matchId);
+  if (!cleanMatchId) return null;
+
+  const current = (allMatches || []).find(match => cleanUuidValue(match.id) === cleanMatchId);
+  if (current?.__detailsLoaded) return current;
+
+  return await refreshMatch(cleanMatchId, { render });
 }
 
 function invitationCounts(match) {
@@ -10233,7 +10255,8 @@ async function recalculateMatchPadelRatings(match, showAlert = true) {
     return true;
   }
 
-  const games = completedPadelGamesForMatch(match);
+  const detailedMatch = await ensureMatchDetails(match.id, { render: false }) || match;
+  const games = completedPadelGamesForMatch(detailedMatch);
 
   if (!games.length) {
     if (showAlert) alert("No completed padel games found for this match.");
@@ -10242,9 +10265,9 @@ async function recalculateMatchPadelRatings(match, showAlert = true) {
 
   for (const game of games) {
     const saved = await savePadelGameRatingAdjustments(
-      match,
+      detailedMatch,
       game.id,
-      padelSetEntriesForGame(match, game.id),
+      padelSetEntriesForGame(detailedMatch, game.id),
       game.winner_team
     );
 
@@ -10406,7 +10429,7 @@ async function recalculateAllFinalizedMatches() {
 }
 
 async function openScoreSubmission(matchId) {
-  const match = allMatches.find(m => m.id === matchId);
+  let match = allMatches.find(m => m.id === matchId);
 
   if (!match) {
     alert("Match not found.");
@@ -10428,10 +10451,12 @@ async function openScoreSubmission(matchId) {
 
   if (!scoreMatch) return;
 
-  const { teamA, teamB } = getTwoMatchTeams(scoreMatch);
+  match = await ensureMatchDetails(scoreMatch.id, { render: false }) || scoreMatch;
+
+  const { teamA, teamB } = getTwoMatchTeams(match);
 
   if (!teamA || !teamB) {
-    alert(isSinglesMatch(scoreMatch)
+    alert(isSinglesMatch(match)
       ? "Two IN players are needed before adding or editing the result."
       : "Assign teams before adding or editing the result.");
     return;
@@ -10440,13 +10465,13 @@ async function openScoreSubmission(matchId) {
   currentScoreMatchId = matchId;
 
   if ($("score-match-label")) {
-    const leagueName = leagueNameForId(scoreMatch.league_id);
+    const leagueName = leagueNameForId(match.league_id);
     $("score-match-label").textContent =
-      `${scoreMatch.title || "Match result"} — ${scoreMatch.sports?.name || ""}${leagueName ? " — League: " + leagueName : ""}`;
+      `${match.title || "Match result"} — ${match.sports?.name || ""}${leagueName ? " — League: " + leagueName : ""}`;
   }
 
-  const teamAName = teamDisplayName(scoreMatch, teamA, "Team A");
-  const teamBName = teamDisplayName(scoreMatch, teamB, "Team B");
+  const teamAName = teamDisplayName(match, teamA, "Team A");
+  const teamBName = teamDisplayName(match, teamB, "Team B");
 
   if ($("score-team-a-label")) $("score-team-a-label").textContent = `${teamAName} score`;
   if ($("score-team-b-label")) $("score-team-b-label").textContent = `${teamBName} score`;
@@ -10456,14 +10481,14 @@ async function openScoreSubmission(matchId) {
 
   if ($("score-team-a")) $("score-team-a").value = Number(teamA.score || 0);
   if ($("score-team-b")) $("score-team-b").value = Number(teamB.score || 0);
-  if ($("score-summary")) $("score-summary").value = scoreMatch.notes || "";
+  if ($("score-summary")) $("score-summary").value = match.notes || "";
   if ($("score-result-photo")) $("score-result-photo").value = "";
-  updateScorePhotoPreview(scoreMatch);
+  updateScorePhotoPreview(match);
 
-  setScoreMode(scoreMatch);
+  setScoreMode(match);
 
-  if (isPadelMatch(scoreMatch)) {
-    await loadPendingPadelGames(scoreMatch);
+  if (isPadelMatch(match)) {
+    await loadPendingPadelGames(match);
     renderPendingGameOptions();
 
     const pendingGame = allPendingGames[0] || null;
@@ -10477,7 +10502,7 @@ async function openScoreSubmission(matchId) {
       if ($("padel-game-mode")) $("padel-game-mode").value = "new";
       setPadelGameModeUI();
 
-      const nextGameNumber = matchSessionGames(scoreMatch).length + 1;
+      const nextGameNumber = matchSessionGames(match).length + 1;
       if ($("padel-game-title")) $("padel-game-title").value = `Game ${nextGameNumber}`;
 
       clearPadelSetInputs();
@@ -13182,12 +13207,14 @@ async function finalizeCurrentMatchResult() {
     return;
   }
 
-  const match = allMatches.find(m => m.id === scoreMatchId);
+  let match = allMatches.find(m => m.id === scoreMatchId);
 
   if (!match) {
     alert("Match not found.");
     return;
   }
+
+  match = await ensureMatchDetails(scoreMatchId, { render: false }) || match;
 
   if (!canSubmitScore(match)) {
     alert("Result can only be finalized after the match is finished.");
