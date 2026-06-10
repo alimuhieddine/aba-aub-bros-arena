@@ -16266,6 +16266,12 @@ function bindEvents() {
   });
 
   document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && !$("avatarViewerModal")?.hidden) {
+      e.preventDefault();
+      closeAvatarViewer();
+      return;
+    }
+
     const avatar = e.target?.closest?.(".avatar-view-trigger");
     if (!avatar || (e.key !== "Enter" && e.key !== " ")) return;
     e.preventDefault();
@@ -16273,7 +16279,8 @@ function bindEvents() {
   });
 
   ["click", "pointerdown", "pointerup", "touchstart", "touchend"].forEach(eventName => {
-    $("avatarViewerModal")?.addEventListener(eventName, e => {
+    document.addEventListener(eventName, e => {
+      if (!e.target?.closest?.("#avatarViewerModal")) return;
       e.preventDefault();
       e.stopPropagation();
       closeAvatarViewer();
