@@ -1858,7 +1858,7 @@ async function loadMatchFormOptions() {
 
   const { data: membersData, error: membersError } = await supabaseClient
     .from("members")
-    .select("id,first_name,last_name,display_name,email,phone,avatar_url,is_external,gender,height_cm,weight_kg,created_at")
+    .select("id,first_name,last_name,display_name,email,phone,avatar_url,is_external,role,gender,height_cm,weight_kg,created_at")
     .eq("approval_status", "approved")
     .eq("is_active", true)
     .order("display_name", { ascending: true });
@@ -14196,10 +14196,12 @@ function renderPlayerProfile(memberId) {
     $("player-profile-title").textContent = memberDisplayName(member);
   }
 
+  const profileRoleLabel = member.is_external ? "External player" : memberRoleLabel(member.role);
+
   if ($("player-profile-subtitle")) {
     $("player-profile-subtitle").textContent = member.is_external
       ? "External player profile."
-      : "Member profile.";
+      : `${profileRoleLabel} profile.`;
   }
 
   box.innerHTML = `
@@ -14207,7 +14209,7 @@ function renderPlayerProfile(memberId) {
       ${avatarHtml(member)}
       <div>
         <strong>${escapeHtml(memberDisplayName(member))}</strong>
-        <div class="hint">${member.is_external ? "External player" : "Member"}</div>
+        <div class="hint">${escapeHtml(profileRoleLabel)}</div>
         ${bodyProfile ? `<div class="hint">${escapeHtml(bodyProfile)}</div>` : ""}
       </div>
     </div>
