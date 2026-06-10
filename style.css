@@ -196,7 +196,7 @@ h1 {
   margin: 0 auto;
   padding: 2px 6px 1px;
   border-radius: 4px;
-  background: #fff;
+  background: rgba(255,255,255,.5);
   color: #fc4c02;
   font-family: Arial Black, Impact, system-ui, sans-serif;
   font-size: 16px;
@@ -926,7 +926,7 @@ h3 {
   margin: 0 auto;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 20px;
   white-space: normal;
 }
 
@@ -1250,7 +1250,11 @@ textarea:disabled {
 
   .logged-in-box {
     align-items: center !important;
-    gap: 6px;
+    justify-self: center;
+    width: max-content;
+    max-width: 100%;
+    margin-inline: auto;
+    gap: 8px;
   }
 
   .logged-user {
