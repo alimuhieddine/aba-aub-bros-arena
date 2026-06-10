@@ -2020,6 +2020,22 @@ function renderProfileAvatarPreview(member = currentProfile) {
     : escapeHtml(memberInitials(member));
 }
 
+let avatarViewerScrollY = 0;
+
+function lockAvatarViewerScroll() {
+  avatarViewerScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+  document.documentElement.classList.add("avatar-viewer-open");
+  document.body.classList.add("avatar-viewer-open");
+  document.body.style.top = `-${avatarViewerScrollY}px`;
+}
+
+function unlockAvatarViewerScroll() {
+  document.documentElement.classList.remove("avatar-viewer-open");
+  document.body.classList.remove("avatar-viewer-open");
+  document.body.style.top = "";
+  window.scrollTo(0, avatarViewerScrollY || 0);
+}
+
 function openAvatarViewer(url, name = "") {
   const cleanUrl = String(url || "").trim();
   const modal = $("avatarViewerModal");
@@ -2028,7 +2044,7 @@ function openAvatarViewer(url, name = "") {
 
   img.src = cleanUrl;
   img.alt = name ? `${name} profile photo` : "Profile photo";
-  document.body.classList.add("avatar-viewer-open");
+  lockAvatarViewerScroll();
   if (!modal.open) modal.showModal();
 }
 
@@ -2036,7 +2052,7 @@ function closeAvatarViewer() {
   const modal = $("avatarViewerModal");
   const img = $("avatar-viewer-img");
   if (modal?.open) modal.close();
-  document.body.classList.remove("avatar-viewer-open");
+  unlockAvatarViewerScroll();
   if (img) {
     img.removeAttribute("src");
     img.alt = "";
@@ -16251,11 +16267,14 @@ function bindEvents() {
     openAvatarViewer(avatar.dataset.avatarUrl, avatar.dataset.avatarName);
   });
 
-  $("avatarViewerModal")?.addEventListener("click", e => {
-    closeAvatarViewer();
+  ["click", "pointerdown", "touchstart"].forEach(eventName => {
+    $("avatarViewerModal")?.addEventListener(eventName, e => {
+      e.preventDefault();
+      closeAvatarViewer();
+    }, { passive: false });
   });
   $("avatarViewerModal")?.addEventListener("close", () => {
-    document.body.classList.remove("avatar-viewer-open");
+    unlockAvatarViewerScroll();
   });
 
   $("match-filter-search")?.addEventListener("input", renderMatches);

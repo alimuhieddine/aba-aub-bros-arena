@@ -885,8 +885,18 @@ h3 {
   outline-offset: 3px;
 }
 
+html.avatar-viewer-open,
 body.avatar-viewer-open {
   overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+body.avatar-viewer-open {
+  position: fixed;
+  left: 0;
+  right: 0;
+  width: 100%;
 }
 
 body.avatar-viewer-open .app-shell {
@@ -1173,6 +1183,8 @@ textarea:disabled {
 }
 
 .avatar-viewer-modal {
+  position: fixed;
+  inset: 0;
   width: 100vw;
   height: 100vh;
   max-width: none;
