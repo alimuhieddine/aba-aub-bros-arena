@@ -1148,6 +1148,11 @@ textarea:disabled {
   -webkit-text-fill-color: var(--muted);
 }
 
+.soccer-inline-assessment[data-saving="true"] {
+  opacity: .9;
+  border-color: rgba(255,209,102,.5);
+}
+
 .hero-auth input {
   width: 150px;
   height: 34px;

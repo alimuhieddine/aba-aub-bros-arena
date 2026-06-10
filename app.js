@@ -1214,6 +1214,7 @@ let currentGarminConnection = null;
 let currentStravaConnection = null;
 let stravaConnectedMemberIds = new Set();
 let voteDeadlineManuallyEdited = false;
+let matchRenderQueued = false;
 
 const ACTIVITY_SPORT_SETTINGS_KEY = "aba_activity_sport_settings";
 const ACTIVITY_SPORT_APP_SETTING_KEY = "activity_sport_settings";
@@ -7674,6 +7675,19 @@ function renderMatches() {
   }).join("");
 }
 
+function scheduleMatchUiRefresh({ rankings = false } = {}) {
+  if (matchRenderQueued) return;
+  matchRenderQueued = true;
+
+  requestAnimationFrame(() => {
+    matchRenderQueued = false;
+    renderMatches();
+    renderStats();
+    renderAdminDashboard();
+    if (rankings) renderRankings();
+  });
+}
+
 
 function toDateTimeLocal(iso) {
   if (!iso) return "";
@@ -12425,6 +12439,7 @@ async function saveSingleInlineSoccerAssessment(input) {
     return false;
   }
 
+  input.dataset.saving = "true";
   input.disabled = true;
 
   const { error } = await supabaseClient
@@ -12434,6 +12449,7 @@ async function saveSingleInlineSoccerAssessment(input) {
     });
 
   input.disabled = false;
+  delete input.dataset.saving;
 
   if (error) {
     alert(error.message);
@@ -12448,10 +12464,7 @@ async function saveSingleInlineSoccerAssessment(input) {
     const recalculated = await recalculateMatchSoccerRatings(match, false);
     if (!recalculated) return false;
 
-    renderMatches();
-    await loadMatches();
-    renderMatches();
-    renderRankings();
+    scheduleMatchUiRefresh({ rankings: true });
   }
 
   return true;
@@ -12531,6 +12544,32 @@ function currentPositionRatingRow(memberId, sportId, positionName) {
   ) || null;
 }
 
+function updateLocalPositionRating(memberId, sportId, positionName, rating, gamesPlayed) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  const cleanSportId = cleanUuidValue(sportId);
+  const cleanPosition = normalizeSoccerPosition(positionName);
+
+  if (!cleanMemberId || !cleanSportId || !cleanPosition) return;
+
+  const existing = currentPositionRatingRow(cleanMemberId, cleanSportId, cleanPosition);
+  const nextRow = {
+    ...(existing || {}),
+    member_id: cleanMemberId,
+    sport_id: cleanSportId,
+    position_name: cleanPosition,
+    rating: Number(Number(rating || 0).toFixed(2)),
+    games_played: Number(gamesPlayed || 0),
+    sports: existing?.sports || (allSports || []).find(sport => cleanUuidValue(sport.id) === cleanSportId) || null,
+    members: existing?.members || memberById(cleanMemberId)
+  };
+
+  if (existing) {
+    Object.assign(existing, nextRow);
+  } else {
+    allPositionRatings = [...(allPositionRatings || []), nextRow];
+  }
+}
+
 async function applyPositionRatingDelta(memberId, sportId, positionName, delta, gamesDelta, baselineRating = null) {
   const cleanMemberId = cleanUuidValue(memberId);
   const cleanSportId = cleanUuidValue(sportId);
@@ -12576,7 +12615,7 @@ async function applyPositionRatingDelta(memberId, sportId, positionName, delta, 
     };
   }
 
-  await loadPositionRatings();
+  updateLocalPositionRating(cleanMemberId, cleanSportId, cleanPosition, ratingAfter, nextGamesPlayed);
 
   return {
     ok: true,
@@ -12619,7 +12658,7 @@ async function setPositionRatingValue(memberId, sportId, positionName, ratingVal
     return false;
   }
 
-  await loadPositionRatings();
+  updateLocalPositionRating(cleanMemberId, cleanSportId, cleanPosition, nextRating, nextGamesPlayed);
   return true;
 }
 
