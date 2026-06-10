@@ -591,6 +591,10 @@ h3 {
   margin-top: 12px;
 }
 
+#garmin-connection-panel {
+  display: none !important;
+}
+
 .garmin-panel-copy {
   min-width: 0;
 }

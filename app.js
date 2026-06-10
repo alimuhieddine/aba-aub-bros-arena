@@ -2038,6 +2038,10 @@ function renderGarminConnectionPanel(message = "") {
   const box = $("garmin-connection-panel");
   if (!box) return;
 
+  box.hidden = true;
+  box.innerHTML = "";
+  return;
+
   const isApproved = currentProfile?.approval_status === "approved";
   const connected = currentGarminConnection?.status === "connected";
   const lastSync = currentGarminConnection?.last_sync_at
