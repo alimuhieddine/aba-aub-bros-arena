@@ -2048,14 +2048,14 @@ function openAvatarViewer(url, name = "") {
   img.src = cleanUrl;
   img.alt = name ? `${name} profile photo` : "Profile photo";
   lockAvatarViewerScroll();
-  if (!modal.open) modal.showModal();
+  modal.hidden = false;
 }
 
 function closeAvatarViewer() {
   const modal = $("avatarViewerModal");
   const img = $("avatar-viewer-img");
   avatarViewerSuppressOpenUntil = Date.now() + 700;
-  if (modal?.open) modal.close();
+  if (modal) modal.hidden = true;
   unlockAvatarViewerScroll();
   if (img) {
     img.removeAttribute("src");
@@ -16278,9 +16278,6 @@ function bindEvents() {
       e.stopPropagation();
       closeAvatarViewer();
     }, { capture: true, passive: false });
-  });
-  $("avatarViewerModal")?.addEventListener("close", () => {
-    unlockAvatarViewerScroll();
   });
 
   $("match-filter-search")?.addEventListener("input", renderMatches);
