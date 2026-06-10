@@ -4601,10 +4601,7 @@ function matchCard(m, compact = false) {
 }
 
 
-async function loadMatches() {
-  if (!currentProfile || currentProfile.approval_status !== "approved") return;
-
-  const fullSelect = `
+const MATCH_FULL_SELECT = `
       id,
       sport_id,
       venue_id,
@@ -4754,7 +4751,7 @@ async function loadMatches() {
       )
     `;
 
-  const fallbackSelect = `
+const MATCH_FALLBACK_SELECT = `
       id,
       sport_id,
       venue_id,
@@ -4873,19 +4870,40 @@ async function loadMatches() {
       )
     `;
 
-  let result = await supabaseClient
+async function fetchMatchesQuery(matchId = "") {
+  let query = supabaseClient
     .from("matches")
-    .select(fullSelect)
-    .order("created_at", { ascending: false });
+    .select(MATCH_FULL_SELECT);
+
+  if (matchId) {
+    query = query.eq("id", matchId).maybeSingle();
+  } else {
+    query = query.order("created_at", { ascending: false });
+  }
+
+  let result = await query;
 
   if (result.error) {
     console.warn("Full match load failed. Retrying without game/session scoring tables:", result.error.message);
 
-    result = await supabaseClient
+    let fallbackQuery = supabaseClient
       .from("matches")
-      .select(fallbackSelect)
-      .order("created_at", { ascending: false });
+      .select(MATCH_FALLBACK_SELECT);
+
+    fallbackQuery = matchId
+      ? fallbackQuery.eq("id", matchId).maybeSingle()
+      : fallbackQuery.order("created_at", { ascending: false });
+
+    result = await fallbackQuery;
   }
+
+  return result;
+}
+
+async function loadMatches() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") return;
+
+  const result = await fetchMatchesQuery();
 
   const { data, error } = result;
 
@@ -4910,6 +4928,43 @@ async function loadMatches() {
   renderRankings();
   renderStats();
   renderAdminDashboard();
+}
+
+async function refreshMatch(matchId, options = {}) {
+  const { render = true, rankings = false } = options || {};
+  const cleanMatchId = cleanUuidValue(matchId);
+
+  if (!cleanMatchId || !currentProfile || currentProfile.approval_status !== "approved") return null;
+
+  const { data, error } = await fetchMatchesQuery(cleanMatchId);
+
+  if (error) {
+    console.warn("Could not refresh match:", error.message);
+    return null;
+  }
+
+  if (!data) return null;
+
+  const previous = (allMatches || []).find(match => cleanUuidValue(match.id) === cleanMatchId);
+  let refreshed = {
+    ...data,
+    match_position_rating_adjustments: previous?.match_position_rating_adjustments || [],
+    match_soccer_performance_assessments: previous?.match_soccer_performance_assessments || []
+  };
+
+  const previousIndex = (allMatches || []).findIndex(match => cleanUuidValue(match.id) === cleanMatchId);
+  allMatches = previousIndex >= 0
+    ? allMatches.map((match, index) => index === previousIndex ? refreshed : match)
+    : [refreshed, ...(allMatches || [])];
+
+  await attachMatchPositionRatingAdjustments([cleanMatchId]);
+  await attachSoccerPerformanceAssessments([cleanMatchId]);
+
+  refreshed = (allMatches || []).find(match => cleanUuidValue(match.id) === cleanMatchId) || refreshed;
+
+  if (render) scheduleMatchUiRefresh({ rankings });
+
+  return refreshed;
 }
 
 function invitationCounts(match) {
@@ -5286,9 +5341,13 @@ function reminderBadgeType(reminder) {
   return "blue";
 }
 
-async function attachMatchPositionRatingAdjustments() {
+async function attachMatchPositionRatingAdjustments(matchIdsOverride = null) {
+  const allowedMatchIds = Array.isArray(matchIdsOverride)
+    ? new Set(matchIdsOverride.map(cleanUuidValue).filter(Boolean))
+    : null;
   const matchIds = (allMatches || [])
     .map(match => cleanUuidValue(match.id))
+    .filter(matchId => !allowedMatchIds || allowedMatchIds.has(matchId))
     .filter(Boolean);
 
   if (!matchIds.length) return;
@@ -5327,6 +5386,14 @@ async function attachMatchPositionRatingAdjustments() {
     const matchId = cleanUuidValue(match.id);
     const persistedRows = byMatchId.get(matchId);
 
+    if (allowedMatchIds && !allowedMatchIds.has(matchId)) return match;
+    if (allowedMatchIds) {
+      return {
+        ...match,
+        match_position_rating_adjustments: persistedRows || []
+      };
+    }
+
     if (!persistedRows) return match;
 
     const existingRows = match.match_position_rating_adjustments || [];
@@ -5347,10 +5414,14 @@ async function attachMatchPositionRatingAdjustments() {
   });
 }
 
-async function attachSoccerPerformanceAssessments() {
+async function attachSoccerPerformanceAssessments(matchIdsOverride = null) {
+  const allowedMatchIds = Array.isArray(matchIdsOverride)
+    ? new Set(matchIdsOverride.map(cleanUuidValue).filter(Boolean))
+    : null;
   const matchIds = (allMatches || [])
     .filter(match => isSoccerMatch(match))
     .map(match => cleanUuidValue(match.id))
+    .filter(matchId => !allowedMatchIds || allowedMatchIds.has(matchId))
     .filter(Boolean);
 
   if (!matchIds.length) return;
@@ -5402,10 +5473,16 @@ async function attachSoccerPerformanceAssessments() {
     byMatch.get(matchId).push(row);
   });
 
-  allMatches = (allMatches || []).map(match => ({
-    ...match,
-    match_soccer_performance_assessments: byMatch.get(cleanUuidValue(match.id)) || []
-  }));
+  allMatches = (allMatches || []).map(match => {
+    const matchId = cleanUuidValue(match.id);
+
+    if (allowedMatchIds && !allowedMatchIds.has(matchId)) return match;
+
+    return {
+      ...match,
+      match_soccer_performance_assessments: byMatch.get(matchId) || []
+    };
+  });
 }
 
 async function repairMissingSoccerRatingAdjustments() {
@@ -5729,9 +5806,7 @@ async function ensureSinglesMatchup(matchId, { showAlert = false } = {}) {
     return null;
   }
 
-  await loadMatches();
-
-  return allMatches.find(row => row.id === safeMatchId) || null;
+  return await refreshMatch(safeMatchId);
 }
 
 function assignmentGroupHeader(match, side, playersCount) {
@@ -8083,9 +8158,13 @@ async function deleteOrCancelMatch(matchId) {
     alert("Match marked as cancelled.");
   }
 
-  await loadMatches();
-  renderMatches();
-  renderRankings();
+  if (isFuture) {
+    allMatches = (allMatches || []).filter(row => cleanUuidValue(row.id) !== cleanUuidValue(matchId));
+    updateMatchFilterOptions();
+    scheduleMatchUiRefresh();
+  } else {
+    await refreshMatch(matchId);
+  }
 }
 
 async function voteMatch(matchId, newStatus) {
@@ -8215,8 +8294,7 @@ async function voteMatch(matchId, newStatus) {
     await ensureSinglesMatchup(match.id);
   }
 
-  renderMatches();
-  await loadMatches();
+  await refreshMatch(match.id);
 }
 
 async function loadExternalMembersForPicker(matchId) {
@@ -8377,7 +8455,7 @@ async function addExternalMemberIdsToMatch(matchId, memberIds) {
     return false;
   }
 
-  await loadMatches();
+  await refreshMatch(matchId);
   await loadExternalMembersForPicker(matchId);
 
   return true;
@@ -8529,7 +8607,7 @@ async function renameExternalMember(memberId, matchId, currentName) {
     return;
   }
 
-  await loadMatches();
+  await refreshMatch(matchId);
 }
 
 async function removeExternalMemberFromMatch(invitationId, matchId) {
@@ -8566,7 +8644,7 @@ async function removeExternalMemberFromMatch(invitationId, matchId) {
     return;
   }
 
-  await loadMatches();
+  await refreshMatch(matchId);
 }
 
 
@@ -9626,10 +9704,7 @@ async function recalculatePointsAfterTeamEdit(matchId) {
 
   if (!match || match.score_status !== "submitted") return true;
 
-  // Reload the match after team save so team/result assignments are current.
-  await loadMatches();
-
-  const refreshedMatch = allMatches.find(m => m.id === matchId);
+  const refreshedMatch = await refreshMatch(matchId, { render: false });
 
   if (!refreshedMatch || refreshedMatch.score_status !== "submitted") return true;
 
@@ -9651,9 +9726,7 @@ async function recalculatePointsAfterTeamEdit(matchId) {
 
 
 async function recalculateSoccerRatingsAfterFormationEdit(matchId) {
-  await loadMatches();
-
-  const refreshedMatch = allMatches.find(m => m.id === matchId);
+  const refreshedMatch = await refreshMatch(matchId, { render: false });
 
   if (!refreshedMatch || !isSoccerMatch(refreshedMatch) || !hasSubmittedScore(refreshedMatch)) {
     return true;
@@ -9722,7 +9795,7 @@ async function saveFormationOnly(match, assignments) {
   currentTeamMatchId = null;
   currentTeamEditScope = "full";
 
-  await loadMatches();
+  await refreshMatch(match.id, { rankings: hasSubmittedScore(match) });
 
   return true;
 }
@@ -9951,7 +10024,7 @@ async function saveTeams() {
   currentTeamMatchId = null;
   currentTeamEditScope = "full";
 
-  await loadMatches();
+  await refreshMatch(teamMatchId, { rankings: match.score_status === "submitted" });
 }
 
 
@@ -10006,7 +10079,7 @@ async function recalculateMatchPoints(match, showAlert = true) {
 
   if (showAlert) {
     alert("Match points recalculated.");
-    await loadMatches();
+    await refreshMatch(match.id, { rankings: true });
   }
 
   return true;
@@ -10107,9 +10180,13 @@ async function recalculateSoccerRatingsCascadeFromMatch(match, options = {}) {
   }
 
   if (refresh) {
-    await loadMatches();
-    renderRankings();
+    await Promise.all(
+      cascadeMatches.map(cascadeMatch =>
+        refreshMatch(cascadeMatch.id, { render: false })
+      )
+    );
     renderLeagues();
+    scheduleMatchUiRefresh({ rankings: true });
   }
 
   if (showAlert) {
@@ -10177,7 +10254,7 @@ async function recalculateMatchPadelRatings(match, showAlert = true) {
   if (showAlert) {
     alert("Padel ratings recalculated.");
     await loadSportProfiles();
-    await loadMatches();
+    await refreshMatch(match.id, { rankings: true });
   }
 
   return true;
@@ -10214,7 +10291,7 @@ async function recalculateMatchAll(matchId) {
   if (!padelRatingsOk) return;
 
   alert("Match recalculated.");
-  await loadMatches();
+  await refreshMatch(matchId, { rankings: true });
 }
 
 async function recalculateAllFinalizedPoints() {
@@ -10915,9 +10992,7 @@ async function deleteSelectedGameFromResults() {
 
   alert("Game deleted.");
 
-  await loadMatches();
-
-  const refreshedMatch = allMatches.find(m => m.id === currentScoreMatchId);
+  const refreshedMatch = await refreshMatch(currentScoreMatchId, { render: false });
   if (!refreshedMatch) {
     $("scoreModal")?.close();
     currentScoreMatchId = null;
@@ -10926,6 +11001,7 @@ async function deleteSelectedGameFromResults() {
 
   await loadPendingPadelGames(refreshedMatch);
   renderPendingGameOptions();
+  scheduleMatchUiRefresh();
 
   if ($("padel-game-mode")) $("padel-game-mode").value = "new";
   setPadelGameModeUI();
@@ -11154,13 +11230,12 @@ async function saveCurrentGameAndStayOpen() {
 
   alert(saved.gameStatus === "completed" ? "Game saved as completed and padel ratings updated." : "Game saved as pending.");
 
-  await loadMatches();
-
-  const match = allMatches.find(m => m.id === currentScoreMatchId);
+  const match = await refreshMatch(currentScoreMatchId, { render: false });
   if (!match) return;
 
   await loadPendingPadelGames(match);
   renderPendingGameOptions();
+  scheduleMatchUiRefresh({ rankings: saved.gameStatus === "completed" });
 
   if ($("padel-game-mode")) $("padel-game-mode").value = "new";
   setPadelGameModeUI();
@@ -13331,9 +13406,8 @@ async function finalizeCurrentMatchResult() {
   currentScoreMatchId = null;
   updateScorePhotoPreview(null);
 
-  await loadMatches();
-  renderMatches();
-  renderRankings();
+  await refreshMatch(scoreMatchId, { render: false, rankings: true });
+  scheduleMatchUiRefresh({ rankings: true });
 }
 
 async function saveScore() {
