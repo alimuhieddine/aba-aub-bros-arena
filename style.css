@@ -189,13 +189,8 @@ h1 {
   overflow-wrap: anywhere;
 }
 
-#logout-btn {
-  width: 70px;
-  min-width: 70px;
-  height: 26px;
-  align-self: flex-end !important;
-  font-size: 11px;
-  padding: 0;
+.account-logout-btn {
+  align-self: flex-start;
 }
 
 .ghost-btn {
@@ -902,10 +897,10 @@ h3 {
 }
 
 .logged-player-identity .mini-avatar {
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
-  font-size: 11px;
+  width: 68px;
+  height: 68px;
+  flex: 0 0 68px;
+  font-size: 20px;
 }
 
 .logged-player-identity {
@@ -1261,14 +1256,6 @@ textarea:disabled {
     text-overflow: unset;
     max-width: none;
     justify-content: flex-end;
-  }
-
-  #logout-btn {
-    width: 60px;
-    min-width: 60px;
-    height: 24px;
-    align-self: flex-end !important;
-    font-size: 10px;
   }
 
   .tabs {
