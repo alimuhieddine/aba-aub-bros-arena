@@ -1925,6 +1925,12 @@ async function saveMemberSportProfile(memberId) {
 async function loadMatchFormOptions() {
   if (!currentProfile || currentProfile.approval_status !== "approved") return;
 
+  const previousSportId = $("match-sport")?.value || "";
+  const previousVenueId = $("match-venue")?.value || "";
+  const previousType = $("match-type")?.value || "";
+  const previousLeagueId = $("match-league")?.value || "";
+  const previousInvites = getSelectedInviteMemberIds();
+
   const { data: sportsData, error: sportsError } = await supabaseClient
     .from("sports")
     .select("id,name")
@@ -2008,24 +2014,34 @@ async function loadMatchFormOptions() {
         <option value="${s.id}">${escapeHtml(s.name)}</option>
       `).join("")}
     `;
+
+    if (previousSportId && Array.from(sportSelect.options).some(option => option.value === previousSportId)) {
+      sportSelect.value = previousSportId;
+    }
   }
+
+  if (previousType && $("match-type")) $("match-type").value = previousType;
 
   updateLeagueSportOptions();
   updateRatingSportOptions();
   updateRankingFilters();
   updateMatchLeagueOptions();
+  if (previousLeagueId && $("match-league") && Array.from($("match-league").options).some(option => option.value === previousLeagueId)) {
+    $("match-league").value = previousLeagueId;
+  }
   updateActivitySportOptions();
 
-  renderMatchInviteOptions();
-  updateMatchVenueOptions();
+  renderMatchInviteOptions(previousInvites);
+  updateMatchVenueOptions(previousVenueId);
 }
 
-function updateMatchVenueOptions() {
+function updateMatchVenueOptions(preferredVenueId = "") {
   const sportId = $("match-sport")?.value || "";
   const venueSelect = $("match-venue");
 
   if (!venueSelect) return;
 
+  const previousVenueId = preferredVenueId || venueSelect.value || "";
   const filteredVenues = sportId
     ? allVenues.filter(v =>
         (v.venue_sports || []).some(vs => vs.sport_id === sportId)
@@ -2040,6 +2056,10 @@ function updateMatchVenueOptions() {
       </option>
     `).join("")}
   `;
+
+  if (previousVenueId && Array.from(venueSelect.options).some(option => option.value === previousVenueId)) {
+    venueSelect.value = previousVenueId;
+  }
 
   updateMatchLeagueOptions();
 }
