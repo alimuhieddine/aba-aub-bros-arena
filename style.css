@@ -1061,6 +1061,16 @@ body.avatar-viewer-open .app-shell {
   padding: 0 12px 10px;
 }
 
+.match-reminder-actions,
+.match-reminder-card {
+  gap: 14px;
+}
+
+.match-reminder-card p {
+  margin: 8px 0;
+  color: var(--text);
+}
+
 .push-toast {
   position: fixed;
   right: 16px;

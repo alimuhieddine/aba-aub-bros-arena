@@ -735,7 +735,7 @@ async function loadAdminNotificationMembers() {
 
   const { data, error } = await supabaseClient
     .from("members")
-    .select("id,first_name,last_name,display_name,email,is_external,gender,height_cm,weight_kg")
+    .select("id,first_name,last_name,display_name,email,is_external,role,gender,height_cm,weight_kg")
     .eq("approval_status", "approved")
     .eq("is_active", true)
     .order("display_name", { ascending: true });
@@ -849,6 +849,125 @@ async function sendAdminPushNotificationToAll() {
   await sendAdminPushNotification();
 }
 
+function renderAdminMatchReminders() {
+  const box = $("adminMatchReminderList");
+  if (!box || !isCurrentUserAdmin()) return;
+
+  const reminders = matchReminders({ adminOnly: true });
+
+  if (!reminders.length) {
+    box.innerHTML = `<article class="card">No active match reminders right now.</article>`;
+    return;
+  }
+
+  box.innerHTML = `
+    <article class="card match-reminder-actions">
+      <div>
+        <strong>${reminders.length} active reminder${reminders.length === 1 ? "" : "s"}</strong>
+        <div id="admin-reminder-status" class="hint">Send reminders only when you want to notify members.</div>
+      </div>
+      <button class="secondary-btn" type="button" onclick="sendAllMatchReminders()">Send All</button>
+    </article>
+    ${reminders.map(reminder => {
+      const match = matchById(reminder.matchId);
+      const recipients = matchReminderRecipients(match, reminder.audience);
+      return `
+        <article class="card match-reminder-card">
+          <div class="row">
+            <div>
+              <h3>${escapeHtml(reminder.title)}</h3>
+              <p>${escapeHtml(reminder.detail)}</p>
+              <div class="meta">${escapeHtml(match?.sports?.name || "Match")} • ${escapeHtml(fmtDate(match?.start_time))}</div>
+              <div class="meta">${recipients.length} recipient${recipients.length === 1 ? "" : "s"}</div>
+            </div>
+            <span class="pill ${escapeHtml(reminderBadgeType(reminder))}">${escapeHtml(reminder.type)}</span>
+          </div>
+          <div class="actions">
+            <button class="small-btn" type="button" onclick="openLinkedActivityMatch('${escapeHtml(reminder.matchId)}')">Open Match</button>
+            <button class="small-btn" type="button" onclick="sendMatchReminder('${escapeHtml(reminder.key)}')" ${recipients.length ? "" : "disabled"}>Send Reminder</button>
+          </div>
+        </article>
+      `;
+    }).join("")}
+  `;
+}
+
+async function sendMatchReminder(reminderKey, { quiet = false } = {}) {
+  const reminder = matchReminders({ adminOnly: true }).find(item => item.key === reminderKey);
+  const status = $("admin-reminder-status");
+
+  if (!reminder) {
+    if (!quiet) alert("Reminder is no longer active.");
+    return { sent: 0, failed: 0, skipped: true };
+  }
+
+  const match = matchById(reminder.matchId);
+  const recipients = matchReminderRecipients(match, reminder.audience);
+
+  if (!recipients.length) {
+    if (!quiet) alert("No notification recipients found for this reminder.");
+    return { sent: 0, failed: 0, skipped: true };
+  }
+
+  if (status && !quiet) status.textContent = "Sending reminder...";
+
+  try {
+    const { data, error } = await supabaseClient.functions.invoke("send-push", {
+      body: {
+        type: "admin_direct",
+        recipient_member_ids: recipients,
+        title: reminder.title,
+        body: reminder.body,
+        url: reminder.url
+      }
+    });
+
+    if (error) throw error;
+
+    if (status && !quiet) {
+      status.textContent = `Reminder sent. Sent: ${Number(data?.sent || 0)}.`;
+    }
+
+    await loadNotifications();
+    return data || { sent: recipients.length, failed: 0 };
+  } catch (error) {
+    console.warn("Match reminder notification failed:", error);
+    if (status && !quiet) status.textContent = "Reminder failed.";
+    if (!quiet) alert(error.message || "Could not send reminder.");
+    return { sent: 0, failed: recipients.length, error: error.message || "Could not send reminder." };
+  }
+}
+
+async function sendAllMatchReminders() {
+  const reminders = matchReminders({ adminOnly: true });
+  const status = $("admin-reminder-status");
+
+  if (!reminders.length) {
+    alert("No active reminders to send.");
+    return;
+  }
+
+  if (!confirm(`Send ${reminders.length} match reminder${reminders.length === 1 ? "" : "s"} now?`)) return;
+  if (status) status.textContent = "Sending reminders...";
+
+  let sent = 0;
+  let failed = 0;
+  let skipped = 0;
+
+  for (const reminder of reminders) {
+    const result = await sendMatchReminder(reminder.key, { quiet: true });
+    sent += Number(result?.sent || 0);
+    failed += Number(result?.failed || 0);
+    if (result?.skipped) skipped += 1;
+  }
+
+  if (status) {
+    status.textContent = `Reminder batch finished. Sent: ${sent}. Failed: ${failed}. Skipped: ${skipped}.`;
+  }
+
+  await loadNotifications();
+}
+
 let adminNotificationMembers = [];
 
 function applyAccessUI() {
@@ -914,6 +1033,7 @@ function resetAppTabsForLoggedOut() {
 function adminPanelNameForHeading(heading) {
   const text = String(heading || "").toLowerCase();
   if (text.includes("dashboard")) return "Overview";
+  if (text.includes("match reminders")) return "Maintenance";
   if (text.includes("review") || text.includes("member roles")) return "Members";
   if (text.includes("notifications")) return "Notifications";
   if (text.includes("sport ratings")) return "Sports";
@@ -1037,6 +1157,8 @@ function renderAdminDashboard() {
     adminDashboardMetricCard("Lifecycle watch", maybeDeadlineMatches, "Open matches with future voting deadlines.", "Maintenance"),
     adminDashboardMetricCard("Unread inbox", unreadNotifications, "Notifications visible in Account inbox.", "Notifications")
   ].join("");
+
+  renderAdminMatchReminders();
 }
 
 function loadData() {
@@ -3145,10 +3267,15 @@ function renderHomeActions() {
         !(match.match_member_points || []).length
       )
     : [];
+  const reminders = matchReminders().slice(0, 3);
 
   if (pendingVoteMatches.length) {
     actions.push(homeActionCard("Vote on matches", `${pendingVoteMatches.length} match${pendingVoteMatches.length === 1 ? "" : "es"} waiting for your answer.`, "Open Matches", "matches"));
   }
+
+  reminders.forEach(reminder => {
+    actions.push(homeActionCard(reminder.title, reminder.detail, "Open Match", "matches"));
+  });
 
   if (scoreMatches.length) {
     actions.push(homeActionCard("Add results", `${scoreMatches.length} match${scoreMatches.length === 1 ? "" : "es"} can receive a result.`, "Open Matches", "matches"));
@@ -4760,6 +4887,8 @@ async function loadMatches() {
   renderMatches();
   renderLeagues();
   renderRankings();
+  renderStats();
+  renderAdminDashboard();
 }
 
 function invitationCounts(match) {
@@ -4900,6 +5029,240 @@ function soccerPerformanceAssessmentUnlocked(match) {
   return hasSubmittedScore(match) ||
     displayStatus === "finished" ||
     displayStatus === "completed";
+}
+
+function matchReminderUrl(match) {
+  const matchId = cleanUuidValue(match?.id);
+  return matchId ? `./#matches?match=${matchId}` : "./#matches";
+}
+
+function matchReminderTitle(match) {
+  return match?.title || `${match?.sports?.name || "Match"} reminder`;
+}
+
+function matchParticipantMemberIds(match) {
+  const ids = new Set();
+
+  if (cleanUuidValue(match?.created_by)) ids.add(cleanUuidValue(match.created_by));
+
+  (match?.match_invitations || []).forEach(invitation => {
+    if (String(invitation.status || "").toLowerCase() === "in") {
+      const id = cleanUuidValue(invitation.member_id);
+      if (id && !isExternalInvitation(invitation)) ids.add(id);
+    }
+  });
+
+  (match?.match_teams || []).forEach(team => {
+    (team.match_team_players || []).forEach(player => {
+      const id = cleanUuidValue(player.member_id);
+      if (id && !player.is_external) ids.add(id);
+    });
+  });
+
+  return Array.from(ids);
+}
+
+function matchCaptainMemberIds(match) {
+  const ids = new Set();
+
+  (match?.match_teams || []).forEach(team => {
+    (team.match_team_players || []).forEach(player => {
+      const id = cleanUuidValue(player.member_id);
+      if (player.is_captain && id && !player.is_external) ids.add(id);
+    });
+  });
+
+  return Array.from(ids);
+}
+
+function memberCanManageMatchSport(member, match) {
+  const role = String(member?.role || "member").toLowerCase();
+  const sportId = cleanUuidValue(match?.sport_id || match?.sports?.id);
+
+  if (!member?.id || !sportId) return false;
+  if (role === "owner" || role === "admin") return true;
+  if (role !== "committee") return false;
+
+  return (allMemberSportPermissions || []).some(row =>
+    cleanUuidValue(row.member_id) === cleanUuidValue(member.id) &&
+    cleanUuidValue(row.sport_id) === sportId &&
+    String(row.permission || "").toLowerCase() === "manage"
+  );
+}
+
+function approvedMemberPool() {
+  const byId = new Map();
+
+  [currentProfile, ...(allMembers || []), ...(adminNotificationMembers || [])].forEach(member => {
+    const id = cleanUuidValue(member?.id);
+    if (id && !member?.is_external) byId.set(id, { ...(byId.get(id) || {}), ...member, id });
+  });
+
+  return Array.from(byId.values());
+}
+
+function matchManagerMemberIds(match) {
+  const ids = new Set();
+
+  approvedMemberPool().forEach(member => {
+    if (memberCanManageMatchSport(member, match)) ids.add(cleanUuidValue(member.id));
+  });
+
+  return Array.from(ids).filter(Boolean);
+}
+
+function matchReminderRecipients(match, audience = "managers") {
+  const ids = new Set();
+
+  if (audience === "players") {
+    matchParticipantMemberIds(match).forEach(id => ids.add(id));
+  } else if (audience === "captains") {
+    matchCaptainMemberIds(match).forEach(id => ids.add(id));
+  } else if (audience === "managers_captains") {
+    matchManagerMemberIds(match).forEach(id => ids.add(id));
+    matchCaptainMemberIds(match).forEach(id => ids.add(id));
+  } else {
+    matchManagerMemberIds(match).forEach(id => ids.add(id));
+  }
+
+  return Array.from(ids)
+    .map(id => cleanUuidValue(id))
+    .filter(Boolean)
+    .filter(id => id !== cleanUuidValue(currentProfile?.id));
+}
+
+function soccerAssessmentMissingCount(match) {
+  if (!isSoccerMatch(match) || !hasSubmittedScore(match)) return 0;
+
+  const playerIds = new Set();
+
+  (match.match_teams || []).forEach(team => {
+    (team.match_team_players || []).forEach(player => {
+      const id = cleanUuidValue(player.member_id);
+      if (id) playerIds.add(id);
+    });
+  });
+
+  if (!playerIds.size) return 0;
+
+  const assessedIds = new Set();
+
+  (match.match_soccer_performance_assessments || []).forEach(row => {
+    const id = cleanUuidValue(row.assessed_member_id);
+    if (id && playerIds.has(id) && Number(row.performance_score || 0) > 0) {
+      assessedIds.add(id);
+    }
+  });
+
+  return Math.max(0, playerIds.size - assessedIds.size);
+}
+
+function buildMatchReminder(match) {
+  if (!match || isCancelledMatch(match)) return null;
+
+  const now = Date.now();
+  const startMs = new Date(match.start_time || 0).getTime();
+  const endMs = new Date(match.end_time || match.start_time || 0).getTime();
+  const minutesToStart = Number.isFinite(startMs) ? Math.round((startMs - now) / 60000) : null;
+  const title = matchReminderTitle(match);
+  const hasTeams = matchHasTeamsAssigned(match);
+  const counts = invitationCounts(match);
+  const formationIssues = soccerFormationIssues(match);
+  const missingAssessments = soccerAssessmentMissingCount(match);
+
+  if (missingAssessments > 0) {
+    return {
+      key: `${cleanUuidValue(match.id)}:assessments`,
+      matchId: cleanUuidValue(match.id),
+      type: "assessments",
+      severity: "danger",
+      audience: "managers",
+      title: "Soccer assessments needed",
+      detail: `${title}: ${missingAssessments} player assessment${missingAssessments === 1 ? "" : "s"} still missing.`,
+      body: `${title} still needs soccer performance assessments before ratings are fully settled.`,
+      url: matchReminderUrl(match)
+    };
+  }
+
+  if (endMs && endMs <= now && !hasSubmittedScore(match)) {
+    return {
+      key: `${cleanUuidValue(match.id)}:result`,
+      matchId: cleanUuidValue(match.id),
+      type: "result",
+      severity: "danger",
+      audience: "managers_captains",
+      title: "Result needed",
+      detail: `${title}: match is finished and waiting for a result.`,
+      body: `${title} is finished. Please add the result so points and ratings can update.`,
+      url: matchReminderUrl(match)
+    };
+  }
+
+  if (formationIssues.length && !hasSubmittedScore(match)) {
+    return {
+      key: `${cleanUuidValue(match.id)}:formation`,
+      matchId: cleanUuidValue(match.id),
+      type: "formation",
+      severity: "gold",
+      audience: "managers_captains",
+      title: "Formation needs attention",
+      detail: `${title}: ${formationIssues[0]}`,
+      body: `${title} has an incomplete formation. Please review the assigned teams before the match.`,
+      url: matchReminderUrl(match)
+    };
+  }
+
+  if (minutesToStart !== null && minutesToStart > 0 && minutesToStart <= 180 && !hasTeams && counts.inCount >= 2) {
+    return {
+      key: `${cleanUuidValue(match.id)}:teams`,
+      matchId: cleanUuidValue(match.id),
+      type: "teams",
+      severity: minutesToStart <= 60 ? "danger" : "gold",
+      audience: "managers",
+      title: isSinglesMatch(match) ? "Matchup needed" : "Teams needed",
+      detail: `${title}: starts in ${minutesToStart} min and teams are not assigned.`,
+      body: `${title} starts in ${minutesToStart} min. Please assign the teams before kickoff.`,
+      url: matchReminderUrl(match)
+    };
+  }
+
+  if (minutesToStart !== null && minutesToStart > 0 && minutesToStart <= 90 && userIsInMatch(match)) {
+    return {
+      key: `${cleanUuidValue(match.id)}:start`,
+      matchId: cleanUuidValue(match.id),
+      type: "start",
+      severity: minutesToStart <= 30 ? "danger" : "blue",
+      audience: "players",
+      title: "Match starts soon",
+      detail: `${title}: starts in ${minutesToStart} min.`,
+      body: `${title} starts in ${minutesToStart} min. Be ready.`,
+      url: matchReminderUrl(match)
+    };
+  }
+
+  return null;
+}
+
+function matchReminders({ adminOnly = false } = {}) {
+  return (allMatches || [])
+    .map(buildMatchReminder)
+    .filter(Boolean)
+    .filter(reminder => adminOnly || reminder.type === "start" || canManageMatch(matchById(reminder.matchId)) || matchCaptainMemberIds(matchById(reminder.matchId)).includes(cleanUuidValue(currentProfile?.id)))
+    .sort((a, b) => {
+      const order = { danger: 0, gold: 1, blue: 2 };
+      return (order[a.severity] ?? 3) - (order[b.severity] ?? 3);
+    });
+}
+
+function matchById(matchId) {
+  const cleanId = cleanUuidValue(matchId);
+  return (allMatches || []).find(match => cleanUuidValue(match.id) === cleanId) || null;
+}
+
+function reminderBadgeType(reminder) {
+  if (reminder?.severity === "danger") return "danger";
+  if (reminder?.severity === "gold") return "gold";
+  return "blue";
 }
 
 async function attachMatchPositionRatingAdjustments() {
@@ -6273,6 +6636,17 @@ function matchSmartBadges(match) {
 
   if (isCaptain && isSoccerMatch(match) && hasTeams && displayStatus !== "cancelled") {
     badges.push({ text: "Captain action available", type: "blue" });
+  }
+
+  const reminder = buildMatchReminder(match);
+  if (reminder) {
+    const relevantReminder = reminder.type === "start" ||
+      canManageMatch(match) ||
+      matchCaptainMemberIds(match).includes(cleanUuidValue(currentProfile?.id));
+
+    if (relevantReminder) {
+      badges.push({ text: reminder.title, type: reminderBadgeType(reminder) });
+    }
   }
 
   if (voteInTimeConflict(match) && !userIsInMatch(match) && isVotingOpenForMatch(match)) {
