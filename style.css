@@ -144,7 +144,7 @@ h1 {
 
 .logged-in-box {
   flex-direction: column;
-  align-items: flex-end !important;
+  align-items: center !important;
   justify-content: flex-start;
   gap: 8px;
 }
@@ -152,8 +152,8 @@ h1 {
 .logged-user {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  text-align: right;
+  align-items: center;
+  text-align: center;
   gap: 4px;
   width: 100%;
 }
@@ -167,8 +167,8 @@ h1 {
 #current-user {
   display: inline-flex;
   align-items: center;
-  justify-content: flex-end;
-  align-self: flex-end;
+  justify-content: center;
+  align-self: center;
   width: auto;
   min-width: 0;
   font-size: 12px;
@@ -180,27 +180,29 @@ h1 {
 
 .logged-display-name {
   display: inline-flex;
-  align-items: flex-end;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
   overflow: visible;
   text-overflow: clip;
   white-space: normal;
   overflow-wrap: anywhere;
   font-size: 16px;
   font-weight: 900;
-  text-align: right;
+  text-align: center;
 }
 
 .logged-display-name.strava-connected-name {
   width: fit-content;
-  margin-left: auto;
-  padding: 2px 6px 1px;
-  border-radius: 4px;
-  background: #fff;
-  color: #fc4c02;
-  font-family: Arial Black, Impact, system-ui, sans-serif;
+  margin: 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(49,168,255,.12);
+  color: var(--accent2);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 900;
   letter-spacing: 0;
-  line-height: 1.05;
+  line-height: 1;
 }
 
 .account-logout-btn {
@@ -918,13 +920,13 @@ h3 {
 }
 
 .logged-player-identity {
-  justify-content: flex-end;
+  justify-content: center;
   width: auto;
   max-width: 100%;
-  margin-left: auto;
-  flex-direction: row-reverse;
+  margin: 0 auto;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   white-space: normal;
 }
 
@@ -1247,13 +1249,13 @@ textarea:disabled {
   }
 
   .logged-in-box {
-    align-items: flex-end !important;
+    align-items: center !important;
     gap: 6px;
   }
 
   .logged-user {
-    align-items: flex-end;
-    text-align: right;
+    align-items: center;
+    text-align: center;
   }
 
   .logged-label {
@@ -1263,13 +1265,13 @@ textarea:disabled {
   #current-user {
     font-size: 10px;
     display: inline-flex;
-    align-self: flex-end;
+    align-self: center;
     width: auto;
     white-space: normal;
     overflow: visible;
     text-overflow: unset;
     max-width: none;
-    justify-content: flex-end;
+    justify-content: center;
   }
 
   .tabs {
