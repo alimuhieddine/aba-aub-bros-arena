@@ -1250,10 +1250,11 @@ textarea:disabled {
 
   .logged-in-box {
     align-items: center !important;
-    justify-self: center;
+    justify-self: end;
     width: max-content;
     max-width: 100%;
-    margin-inline: auto;
+    margin-left: auto;
+    margin-right: 0;
     gap: 8px;
   }
 
