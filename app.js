@@ -1139,7 +1139,7 @@ function renderAdminDashboard() {
   ).length;
   const soccerAssessmentsMissing = finalizedMatches.filter(match =>
     isSoccerMatch(match) &&
-    !(match.match_soccer_performance_assessments || []).length
+    soccerAssessmentMissingCount(match) > 0
   ).length;
   const maybeDeadlineMatches = (allMatches || []).filter(match =>
     !isCancelledMatch(match) &&
@@ -5890,7 +5890,7 @@ function soccerAssessmentSelectHtml(match, player) {
 
   const assessment = currentUserSoccerAssessment(match, player.memberId);
   const summary = soccerAssessmentSummaryForMember(match, player.memberId);
-  const selected = soccerAssessmentOptionForScore(assessment?.performance_score) || "average";
+  const selected = soccerAssessmentOptionForScore(assessment?.performance_score) || "";
   const visibleValue = soccerAssessmentOptionForScore(summary.average);
   const visibleLabel = soccerAssessmentLabelForValue(visibleValue);
   const canEditAssessment = canAssessMatchPerformance(match) && soccerPerformanceAssessmentUnlocked(match);
@@ -5911,6 +5911,7 @@ function soccerAssessmentSelectHtml(match, player) {
       ${canEditAssessment ? "" : "disabled"}
       aria-label="Assess ${escapeHtml(player.name || "player")} performance"
     >
+      <option value="" ${selected ? "" : "selected"}>Unassessed</option>
       ${SOCCER_ASSESSMENT_OPTIONS.map(option => `
         <option value="${option.value}" ${selected === option.value ? "selected" : ""}>
           ${escapeHtml(option.label)}
@@ -12187,13 +12188,11 @@ function soccerAssessmentSummaryForMember(match, memberId, settings = soccerRati
   const maxChange = soccerRatingMaxChange(settings);
 
   if (!rows.length) {
-    const factor = Number(SOCCER_ASSESSMENT_RATING_FACTORS.average || 0);
-
     return {
       count: 0,
-      average: soccerAssessmentScoreForValue("average"),
-      factor,
-      component: factor * maxChange
+      average: null,
+      factor: 0,
+      component: 0
     };
   }
 
@@ -12328,6 +12327,13 @@ function soccerPlayersMissingAssessments(match) {
   );
 }
 
+function soccerAllPlayersAssessed(match) {
+  const players = soccerAssessmentPlayers(match);
+  return players.length > 0 && players.every(player =>
+    soccerPerformanceAssessmentRows(match, player.memberId).length > 0
+  );
+}
+
 function soccerInlineAssessmentInputs(match) {
   const matchId = cleanUuidValue(match?.id);
   if (!matchId) return [];
@@ -12387,7 +12393,7 @@ async function saveSingleInlineSoccerAssessment(input) {
   }
 
   if (!soccerPerformanceAssessmentUnlocked(match)) {
-    input.value = input.dataset.savedValue || "average";
+    input.value = input.dataset.savedValue || "";
     input.disabled = true;
     return false;
   }
@@ -12395,7 +12401,7 @@ async function saveSingleInlineSoccerAssessment(input) {
   const row = soccerAssessmentRowFromInput(input, match);
 
   if (!row || !row.assessed_member_id || !row.position_name) {
-    input.dataset.savedValue = "";
+    input.value = input.dataset.savedValue || "";
     return false;
   }
 
@@ -12442,25 +12448,27 @@ async function saveInlineSoccerAssessmentsForMatch(match) {
   const inputs = soccerInlineAssessmentInputs(match);
 
   if (!inputs.length) {
-    const players = soccerAssessmentPlayers(match);
-    const alreadyAssessed = players.length > 0 && players.every(player =>
-      currentUserAssessmentForPlayer(match, player.memberId)
-    );
-
-    if (alreadyAssessed) return true;
+    if (soccerAllPlayersAssessed(match)) return true;
 
     alert("Open the team formation and assess every soccer player before saving the result.");
     return false;
   }
 
-  const missing = inputs.filter(input => !input.value);
+  const missing = inputs.filter(input =>
+    !input.value &&
+    !soccerPerformanceAssessmentRows(match, input.dataset.memberId).length
+  );
   if (missing.length) {
     alert("Assess every soccer player before saving the match result.");
     missing[0].focus();
     return false;
   }
 
-  const rows = inputs.map(input => soccerAssessmentRowFromInput(input, match));
+  const rows = inputs
+    .filter(input => input.value)
+    .map(input => soccerAssessmentRowFromInput(input, match));
+
+  if (!rows.length && soccerAllPlayersAssessed(match)) return true;
 
   const invalid = rows.find(row =>
     !row ||
@@ -13005,6 +13013,11 @@ async function finalizeCurrentMatchResult() {
     if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB) || scoreA < 0 || scoreB < 0) {
       alert("Scores must be whole numbers equal to or greater than 0.");
       return;
+    }
+
+    if (isSoccerMatch(match)) {
+      const assessmentsSaved = await saveInlineSoccerAssessmentsForMatch(match);
+      if (!assessmentsSaved) return;
     }
 
     const winnerTeam = scoreA > scoreB ? "A" : scoreB > scoreA ? "B" : "draw";
