@@ -158,12 +158,6 @@ h1 {
   width: 100%;
 }
 
-.logged-label {
-  font-size: 10px;
-  color: var(--muted);
-  line-height: 1;
-}
-
 #current-user {
   display: inline-flex;
   align-items: center;
@@ -1248,10 +1242,6 @@ textarea:disabled {
   .logged-user {
     align-items: center;
     text-align: center;
-  }
-
-  .logged-label {
-    font-size: 8px;
   }
 
   #current-user {
