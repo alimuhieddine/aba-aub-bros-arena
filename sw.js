@@ -41,12 +41,12 @@ self.addEventListener("push", event => {
     payload = event.data ? event.data.json() : {};
   } catch (error) {
     payload = {
-      title: "ABA",
-      body: event.data ? event.data.text() : "New ABA notification"
+      title: "Notification",
+      body: event.data ? event.data.text() : "New notification"
     };
   }
 
-  const title = payload.title || "ABA";
+  const title = payload.title || "Notification";
   const resolveTargetUrl = rawUrl => {
     const fallback = "./index.html";
     const scope = self.registration?.scope || self.location?.href || fallback;
@@ -63,7 +63,7 @@ self.addEventListener("push", event => {
   };
 
   const options = {
-    body: payload.body || "New ABA notification",
+    body: payload.body || "New notification",
     tag: payload.tag || undefined,
     renotify: Boolean(payload.renotify),
     requireInteraction: Boolean(payload.requireInteraction),

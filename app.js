@@ -761,7 +761,7 @@ async function loadAdminNotificationMembers() {
 
 function getAdminNotificationPayload() {
   return {
-    title: $("admin-notify-title")?.value?.trim() || "ABA Notification Test",
+    title: $("admin-notify-title")?.value?.trim() || "Notification",
     message: $("admin-notify-message")?.value?.trim() || "",
     url: $("admin-notify-url")?.value?.trim() || "./#dashboard"
   };
@@ -14812,7 +14812,7 @@ function bindPushDebugMessages() {
     if (event.data?.type !== "aba_push_received") return;
 
     console.info("ABA push received by service worker:", event.data);
-    showPushToast(event.data.title || "ABA notification", event.data.body || "");
+    showPushToast(event.data.title || "Notification", event.data.body || "");
     loadNotificationInbox();
 
     if (event.data.notificationType === "match_invite") {
@@ -14897,7 +14897,7 @@ function renderNotificationInbox() {
       <article class="notification-inbox-item ${unread ? "unread" : ""}">
         <button class="notification-inbox-open" type="button" onclick="openInboxNotification('${row.id}')">
           <span>
-            <strong>${escapeHtml(row.title || "ABA")}</strong>
+            <strong>${escapeHtml(row.title || "Notification")}</strong>
             <small>${escapeHtml(type)} - ${escapeHtml(fmtDate(row.created_at))}</small>
             ${row.body ? `<em>${escapeHtml(row.body)}</em>` : ""}
           </span>

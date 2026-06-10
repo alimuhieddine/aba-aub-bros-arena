@@ -218,7 +218,7 @@ function sameDayPayload(match: MatchRow, memberId: string) {
     : `Matchday today${venue}. Bring your game face.`;
 
   return {
-    title: "ABA Matchday",
+    title: "Matchday",
     body: `${emoji} ${body}`,
     tag: `same-day-${match.id}-${memberId}`,
     renotify: true,
@@ -248,7 +248,7 @@ function maybeDeadlinePayload(match: MatchRow) {
   const index = Math.abs([...match.id].reduce((total, char) => total + char.charCodeAt(0), 0)) % templates.length;
 
   return {
-    title: "ABA Vote Reminder",
+    title: "Vote Reminder",
     body: `${emoji} ${templates[index]}`,
     tag: `maybe-deadline-${match.id}`,
     renotify: true,
@@ -268,7 +268,7 @@ function awaitingResultPayload(match: MatchRow) {
   const title = match.title || `${sport} match`;
 
   return {
-    title: "ABA Result Needed",
+    title: "Result Needed",
     body: `${emoji} ${title} is awaiting a result. Add the score so points and ratings can update.`,
     tag: `awaiting-result-${match.id}`,
     renotify: true,
@@ -321,7 +321,7 @@ async function createInboxRow(
         recipient_member_id: memberId,
         actor_member_id: null,
         type: String((payload.data as { type?: unknown } | undefined)?.type || "notification"),
-        title: String(payload.title || "ABA"),
+        title: String(payload.title || "Notification"),
         body: payload.body ? String(payload.body) : null,
         url: payload.url ? String(payload.url) : null,
         data: payload.data || {},

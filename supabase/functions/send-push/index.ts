@@ -185,7 +185,7 @@ function matchInvitePayload(match: MatchRow, senderName: string) {
   const dateClause = dateText ? ` ${dateText}` : "";
 
   return {
-    title: "ABA Match Invite",
+    title: "Match Invite",
     body: `${emoji} ${senderName} invites you to a ${sportText} game${dateClause}${venueText}.`,
     tag: `match-invite-${Date.now()}`,
     renotify: true,
@@ -209,7 +209,7 @@ function matchInviteCancelledPayload(match: MatchRow, senderName: string) {
   const dateClause = dateText ? ` ${dateText}` : "";
 
   return {
-    title: "ABA Match Invite Cancelled",
+    title: "Match Invite Cancelled",
     body: `${emoji} ${senderName} removed your invitation to a ${sportText} game${dateClause}${venueText}.`,
     tag: `match-invite-cancelled-${match.id}-${Date.now()}`,
     renotify: true,
@@ -226,7 +226,7 @@ function matchInviteCancelledPayload(match: MatchRow, senderName: string) {
 
 function testPayload() {
   return {
-    title: "ABA Test Notification",
+    title: "Test Notification",
     body: "Phone notifications are working on this device.",
     tag: `test-push-${Date.now()}`,
     renotify: true,
@@ -244,7 +244,7 @@ function memberApprovalRequestedPayload(member: MemberRow) {
   const emailText = member.email ? ` (${member.email})` : "";
 
   return {
-    title: "ABA Profile Approval",
+    title: "Profile Approval",
     body: `${name}${emailText} is waiting for profile approval.`,
     tag: `member-approval-${member.id}`,
     renotify: true,
@@ -260,7 +260,7 @@ function memberApprovalRequestedPayload(member: MemberRow) {
 
 function adminDirectPayload(title: string | undefined, message: string | undefined, url: string | undefined) {
   return {
-    title: title?.trim() || "ABA Notification",
+    title: title?.trim() || "Notification",
     body: message?.trim() || "",
     tag: `admin-direct-${Date.now()}`,
     renotify: true,
@@ -286,7 +286,7 @@ async function createInboxRows(
     recipient_member_id: memberId,
     actor_member_id: sender?.id || null,
     type: String(payloadBody?.data?.type || "notification"),
-    title: String(payloadBody?.title || "ABA"),
+    title: String(payloadBody?.title || "Notification"),
     body: payloadBody?.body ? String(payloadBody.body) : null,
     url: payloadBody?.url ? String(payloadBody.url) : null,
     data: payloadBody?.data || {},
@@ -347,7 +347,7 @@ function roleChangedPayload(role: string | undefined, sports: string[] | undefin
     : "";
 
   return {
-    title: "ABA Role Updated",
+    title: "Role Updated",
     body: `You have been assigned as ${roleLabel}${sportText}.`,
     tag: `role-updated-${Date.now()}`,
     renotify: true,
@@ -370,11 +370,11 @@ function voteStatusLabel(status: string | undefined) {
 }
 
 function creatorVoteChangedPayload(match: MatchRow, senderName: string, status: string | undefined) {
-  const title = match.title || "ABA match";
+  const title = match.title || "Match";
   const emoji = sportBallEmoji(match.sports?.name || "");
 
   return {
-    title: "ABA Vote Updated",
+    title: "Vote Updated",
     body: `${emoji} ${senderName} changed vote to ${voteStatusLabel(status)} for ${title}.`,
     tag: `vote-${match.id}-${Date.now()}`,
     renotify: true,
@@ -389,11 +389,11 @@ function creatorVoteChangedPayload(match: MatchRow, senderName: string, status: 
 }
 
 function creatorGameFullPayload(match: MatchRow) {
-  const title = match.title || "ABA match";
+  const title = match.title || "Match";
   const emoji = sportBallEmoji(match.sports?.name || "");
 
   return {
-    title: "ABA Match Full",
+    title: "Match Full",
     body: `${emoji} ${title} is now full.`,
     tag: `full-${match.id}-${Date.now()}`,
     renotify: true,
@@ -408,12 +408,12 @@ function creatorGameFullPayload(match: MatchRow) {
 }
 
 function matchLifecyclePayload(match: MatchRow, type: "match_cancelled" | "match_deleted", senderName: string) {
-  const title = match.title || "ABA match";
+  const title = match.title || "Match";
   const isDeleted = type === "match_deleted";
   const emoji = sportBallEmoji(match.sports?.name || "");
 
   return {
-    title: isDeleted ? "ABA Match Deleted" : "ABA Match Cancelled",
+    title: isDeleted ? "Match Deleted" : "Match Cancelled",
     body: `${emoji} ${senderName} ${isDeleted ? "deleted" : "cancelled"} ${title}.`,
     tag: `${isDeleted ? "deleted" : "cancelled"}-${match.id}-${Date.now()}`,
     renotify: true,
@@ -428,12 +428,12 @@ function matchLifecyclePayload(match: MatchRow, type: "match_cancelled" | "match
 }
 
 function matchUpdatedPayload(match: MatchRow, senderName: string, updateSummary: string | undefined) {
-  const title = match.title || "ABA match";
+  const title = match.title || "Match";
   const emoji = sportBallEmoji(match.sports?.name || "");
   const summary = String(updateSummary || "details changed").trim().slice(0, 160);
 
   return {
-    title: "ABA Match Updated",
+    title: "Match Updated",
     body: `${emoji} ${senderName} updated ${title}: ${summary}.`,
     tag: `updated-${match.id}-${Date.now()}`,
     renotify: true,
@@ -448,7 +448,7 @@ function matchUpdatedPayload(match: MatchRow, senderName: string, updateSummary:
 }
 
 function teamAssignedPayload(match: MatchRow, teamName: string | undefined, shirtColor: string | undefined) {
-  const title = match.title || "ABA match";
+  const title = match.title || "Match";
   const emoji = sportBallEmoji(match.sports?.name || "");
   const name = String(teamName || "your team").trim();
   const color = String(shirtColor || "").trim();
@@ -474,7 +474,7 @@ function teamAssignedPayload(match: MatchRow, teamName: string | undefined, shir
   const index = Math.abs([...match.id, ...name].reduce((total, char) => total + char.charCodeAt(0), 0)) % templates.length;
 
   return {
-    title: "ABA Team Assigned",
+    title: "Team Assigned",
     body: `${emoji} ${templates[index]}`,
     tag: `team-assigned-${match.id}-${name}-${Date.now()}`,
     renotify: true,
