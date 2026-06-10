@@ -2028,6 +2028,7 @@ function openAvatarViewer(url, name = "") {
 
   img.src = cleanUrl;
   img.alt = name ? `${name} profile photo` : "Profile photo";
+  document.body.classList.add("avatar-viewer-open");
   if (!modal.open) modal.showModal();
 }
 
@@ -2035,6 +2036,7 @@ function closeAvatarViewer() {
   const modal = $("avatarViewerModal");
   const img = $("avatar-viewer-img");
   if (modal?.open) modal.close();
+  document.body.classList.remove("avatar-viewer-open");
   if (img) {
     img.removeAttribute("src");
     img.alt = "";
@@ -16249,9 +16251,11 @@ function bindEvents() {
     openAvatarViewer(avatar.dataset.avatarUrl, avatar.dataset.avatarName);
   });
 
-  $("avatar-viewer-close")?.addEventListener("click", closeAvatarViewer);
   $("avatarViewerModal")?.addEventListener("click", e => {
-    if (e.target?.id === "avatarViewerModal") closeAvatarViewer();
+    closeAvatarViewer();
+  });
+  $("avatarViewerModal")?.addEventListener("close", () => {
+    document.body.classList.remove("avatar-viewer-open");
   });
 
   $("match-filter-search")?.addEventListener("input", renderMatches);

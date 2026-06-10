@@ -885,6 +885,16 @@ h3 {
   outline-offset: 3px;
 }
 
+body.avatar-viewer-open {
+  overflow: hidden;
+}
+
+body.avatar-viewer-open .app-shell {
+  filter: blur(5px);
+  pointer-events: none;
+  user-select: none;
+}
+
 .mini-player-identity {
   display: inline-flex;
   align-items: center;
@@ -1172,10 +1182,12 @@ textarea:disabled {
   border: 0;
   background: transparent;
   overflow: hidden;
+  cursor: zoom-out;
 }
 
 .avatar-viewer-modal::backdrop {
-  background: rgba(0,0,0,.10);
+  background: rgba(0,0,0,.18);
+  backdrop-filter: blur(5px);
 }
 
 .avatar-viewer-frame {
@@ -1198,21 +1210,6 @@ textarea:disabled {
   height: 100%;
   object-fit: cover;
   display: block;
-}
-
-.avatar-viewer-close {
-  position: fixed;
-  right: 18px;
-  top: 16px;
-  z-index: 2;
-  width: 38px;
-  height: 38px;
-  border: 1px solid rgba(255,255,255,.28);
-  border-radius: 50%;
-  background: rgba(7,17,31,.72);
-  color: white;
-  font-size: 26px;
-  line-height: 1;
 }
 
 @keyframes avatarViewerPop {
