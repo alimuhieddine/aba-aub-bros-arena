@@ -1945,10 +1945,14 @@ function memberInitials(member) {
 function avatarHtml(member, className = "player-profile-avatar") {
   const initials = escapeHtml(memberInitials(member));
   const url = String(member?.avatar_url || "").trim();
+  const displayName = memberDisplayName(member);
+  const viewerAttrs = url
+    ? ` role="button" tabindex="0" data-avatar-url="${escapeHtml(url)}" data-avatar-name="${escapeHtml(displayName)}"`
+    : "";
 
   return `
-    <div class="${escapeHtml(className)} ${url ? "" : "avatar-fallback"}">
-      ${url ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(memberDisplayName(member))} profile photo">` : initials}
+    <div class="${escapeHtml(className)} ${url ? "avatar-view-trigger" : "avatar-fallback"}"${viewerAttrs}>
+      ${url ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(displayName)} profile photo">` : initials}
     </div>
   `;
 }
@@ -2006,9 +2010,35 @@ function renderProfileAvatarPreview(member = currentProfile) {
 
   const url = String(member?.avatar_url || "").trim();
   box.classList.toggle("avatar-fallback", !url);
+  box.classList.toggle("avatar-view-trigger", Boolean(url));
+  box.tabIndex = url ? 0 : -1;
+  box.setAttribute("role", url ? "button" : "img");
+  box.dataset.avatarUrl = url || "";
+  box.dataset.avatarName = url ? memberDisplayName(member) : "";
   box.innerHTML = url
     ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(memberDisplayName(member))} profile photo">`
     : escapeHtml(memberInitials(member));
+}
+
+function openAvatarViewer(url, name = "") {
+  const cleanUrl = String(url || "").trim();
+  const modal = $("avatarViewerModal");
+  const img = $("avatar-viewer-img");
+  if (!cleanUrl || !modal || !img) return;
+
+  img.src = cleanUrl;
+  img.alt = name ? `${name} profile photo` : "Profile photo";
+  if (!modal.open) modal.showModal();
+}
+
+function closeAvatarViewer() {
+  const modal = $("avatarViewerModal");
+  const img = $("avatar-viewer-img");
+  if (modal?.open) modal.close();
+  if (img) {
+    img.removeAttribute("src");
+    img.alt = "";
+  }
 }
 
 function garminReturnStatusText(value) {
@@ -16204,6 +16234,24 @@ function bindEvents() {
     if (e.target?.classList?.contains("soccer-inline-assessment")) {
       saveSingleInlineSoccerAssessment(e.target);
     }
+  });
+
+  document.addEventListener("click", e => {
+    const avatar = e.target?.closest?.(".avatar-view-trigger");
+    if (!avatar) return;
+    openAvatarViewer(avatar.dataset.avatarUrl, avatar.dataset.avatarName);
+  });
+
+  document.addEventListener("keydown", e => {
+    const avatar = e.target?.closest?.(".avatar-view-trigger");
+    if (!avatar || (e.key !== "Enter" && e.key !== " ")) return;
+    e.preventDefault();
+    openAvatarViewer(avatar.dataset.avatarUrl, avatar.dataset.avatarName);
+  });
+
+  $("avatar-viewer-close")?.addEventListener("click", closeAvatarViewer);
+  $("avatarViewerModal")?.addEventListener("click", e => {
+    if (e.target?.id === "avatarViewerModal") closeAvatarViewer();
   });
 
   $("match-filter-search")?.addEventListener("input", renderMatches);
