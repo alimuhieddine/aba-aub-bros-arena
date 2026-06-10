@@ -179,7 +179,10 @@ h1 {
 }
 
 .logged-display-name {
-  display: inline;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
   overflow: visible;
   text-overflow: clip;
   white-space: normal;
@@ -899,10 +902,10 @@ h3 {
 }
 
 .logged-player-identity .mini-avatar {
-  width: 28px;
-  height: 28px;
-  flex-basis: 28px;
-  font-size: 10px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  font-size: 11px;
 }
 
 .logged-player-identity {
@@ -911,6 +914,8 @@ h3 {
   max-width: 100%;
   margin-left: auto;
   flex-direction: row-reverse;
+  align-items: center;
+  gap: 8px;
   white-space: normal;
 }
 
@@ -2779,7 +2784,7 @@ main,
   border-radius: 999px;
   background: rgba(252,76,2,.14);
   color: #fc4c02;
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 900;
   letter-spacing: 0;
   line-height: 1;
@@ -2799,6 +2804,12 @@ main,
   letter-spacing: 0;
   line-height: 1;
   vertical-align: middle;
+}
+
+.logged-strava-tag {
+  margin-left: 0;
+  padding: 1px 3px 0;
+  font-size: 8px;
 }
 
 .linked-match-tag {

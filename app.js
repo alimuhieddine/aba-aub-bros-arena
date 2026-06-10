@@ -1958,10 +1958,7 @@ function memberMiniIdentityHtml(member, memberId = "", name = "", extraClass = "
   const resolvedMember = member || memberById(cleanId) || null;
   const displayName = name || (resolvedMember ? memberDisplayName(resolvedMember) : "Player");
   const avatar = avatarHtml(resolvedMember || { display_name: displayName }, "mini-avatar");
-  const stravaTag = cleanId && stravaConnectedMemberIds.has(cleanId)
-    ? ` <span class="member-strava-tag" title="Strava connected" aria-label="Strava connected">STRAVA</span>`
-    : "";
-  const labelHtml = `${escapeHtml(displayName)}${stravaTag}`;
+  const labelHtml = escapeHtml(displayName);
   const label = cleanId
     ? playerLinkHtml(cleanId, displayName, "mini-player-link", labelHtml)
     : `<span class="mini-player-name">${escapeHtml(displayName)}</span>`;
@@ -1981,13 +1978,16 @@ function currentUserIdentityHtml(sessionUser = null) {
     : sessionUser?.email || "Member";
   const cleanId = cleanUuidValue(member?.id);
   const stravaTag = cleanId && stravaConnectedMemberIds.has(cleanId)
-    ? ` <span class="member-strava-tag" title="Strava connected" aria-label="Strava connected">STRAVA</span>`
+    ? `<span class="member-strava-tag logged-strava-tag" title="Strava connected" aria-label="Strava connected">STRAVA</span>`
     : "";
 
   return `
     <span class="logged-player-identity">
       ${avatarHtml(member || { display_name: displayName }, "mini-avatar")}
-      <span class="logged-display-name">${escapeHtml(displayName)}${stravaTag}</span>
+      <span class="logged-display-name">
+        <span>${escapeHtml(displayName)}</span>
+        ${stravaTag}
+      </span>
     </span>
   `;
 }
@@ -11080,7 +11080,7 @@ function matchPointTotalForMember(match, memberId) {
 function stravaMatchBadgeHtml(match, memberId) {
   if (!matchMemberUsesStravaActivityPoints(match, memberId)) return "";
 
-  return `<span class="strava-match-badge" title="Activity points from synced Strava data" aria-label="Activity points from synced Strava data">Synched</span>`;
+  return `<span class="strava-match-badge" title="Activity points from synced Strava data" aria-label="Activity points from synced Strava data">Via STRAVA</span>`;
 }
 
 function matchPointBadgeHtml(match, memberId) {
