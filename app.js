@@ -12924,6 +12924,55 @@ function updateLocalSoccerAssessment(match, row) {
   ];
 }
 
+function applyOptimisticSoccerRatingTags(match) {
+  if (!isSoccerMatch(match) || !hasSubmittedScore(match)) return false;
+
+  const context = scoreContextForMatch(match);
+  if (!context) return false;
+
+  const { teamA, teamB } = getTwoMatchTeams(match);
+  if (!teamA || !teamB) return false;
+
+  const previousRows = match.match_position_rating_adjustments || [];
+  const previousByMemberSport = new Map(previousRows.map(row => [
+    `${cleanUuidValue(row.member_id)}|${cleanUuidValue(row.sport_id)}`,
+    row
+  ]));
+
+  const rows = dedupeSoccerRatingRows([
+    ...soccerRatingRowsForTeam(teamA, teamB, match.sport_id, context.scoreA, context.scoreB, context.resultA, match),
+    ...soccerRatingRowsForTeam(teamB, teamA, match.sport_id, context.scoreB, context.scoreA, context.resultB, match)
+  ]);
+
+  if (!rows.length) return false;
+
+  match.match_position_rating_adjustments = rows.map(row => {
+    const memberId = cleanUuidValue(row.member_id);
+    const sportId = cleanUuidValue(row.sport_id);
+    const previous = previousByMemberSport.get(`${memberId}|${sportId}`);
+    const ratingBefore = Number.isFinite(Number(previous?.rating_before))
+      ? Number(previous.rating_before)
+      : positionRatingForMember(memberId, sportId, row.position_name);
+    const adjustment = Number(row.adjustment || 0);
+    const ratingAfter = clampNumber(ratingBefore + adjustment, 1, 10);
+
+    return {
+      ...previous,
+      match_id: cleanUuidValue(match.id),
+      member_id: memberId,
+      sport_id: sportId,
+      position_name: normalizeSoccerPosition(row.position_name),
+      adjustment: Number(adjustment.toFixed(3)),
+      rating_before: Number(ratingBefore.toFixed(2)),
+      rating_after: Number(ratingAfter.toFixed(2)),
+      formula_meta: row.formula_meta || previous?.formula_meta || null,
+      member: memberById(memberId)
+    };
+  });
+
+  return true;
+}
+
 async function saveSingleInlineSoccerAssessment(input) {
   const matchId = cleanUuidValue(input?.dataset?.matchId);
   const match = allMatches.find(row => cleanUuidValue(row.id) === matchId);
@@ -12971,6 +13020,10 @@ async function saveSingleInlineSoccerAssessment(input) {
   updateLocalSoccerAssessment(match, row);
 
   if (hasSubmittedScore(match)) {
+    if (applyOptimisticSoccerRatingTags(match)) {
+      scheduleMatchUiRefresh();
+    }
+
     const recalculated = await recalculateSoccerRatingsCascadeFromMatch(match, {
       showAlert: false,
       refresh: false
@@ -12981,11 +13034,15 @@ async function saveSingleInlineSoccerAssessment(input) {
       ? recalculated.matchIds
       : [matchId];
 
-    await Promise.all(
-      affectedMatchIds.map(id => refreshMatch(id, { render: false }))
-    );
-
     scheduleMatchUiRefresh({ rankings: true });
+
+    Promise.all(
+      affectedMatchIds.map(id => refreshMatch(id, { render: false }))
+    ).then(() => {
+      scheduleMatchUiRefresh({ rankings: true });
+    }).catch(error => {
+      console.warn("Could not refresh recalculated soccer rating tags:", error?.message || error);
+    });
   }
 
   return true;
