@@ -11,6 +11,7 @@ if ("scrollRestoration" in history) {
 const STORAGE_KEY = "aba_phase1_data";
 const PUSH_NOTIFICATIONS_APP_SETTING_KEY = "push_notifications";
 const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
+const MATCH_SUMMARY_CACHE_KEY = "aba_match_summary_cache";
 
 function futureDate(days, hour) {
   const d = new Date();
@@ -5109,6 +5110,18 @@ async function loadMatches(options = {}) {
 
   if (!force && appLoadState.matches.promise) return appLoadState.matches.promise;
 
+  if (!force && !(allMatches || []).length) {
+    const cachedMatches = readCachedMatchSummaries();
+    if (cachedMatches.length) {
+      allMatches = hydrateMatchSummaries(cachedMatches);
+      appLoadState.matches.loaded = true;
+      updateMatchFilterOptions();
+      renderMatches();
+      renderLeagues();
+      queueMatchEnrichment();
+    }
+  }
+
   appLoadState.matches.promise = (async () => {
     const result = await fetchMatchesQuery("", { full: false });
 
@@ -5119,10 +5132,8 @@ async function loadMatches(options = {}) {
       return allMatches;
     }
 
-    allMatches = (data || []).map(match => ({
-      ...match,
-      __detailsLoaded: false
-    }));
+    cacheMatchSummaries(data || []);
+    allMatches = hydrateMatchSummaries(data || []);
     appLoadState.matches.loaded = true;
     updateMatchFilterOptions();
     renderMatches();
@@ -5135,6 +5146,40 @@ async function loadMatches(options = {}) {
     return await appLoadState.matches.promise;
   } finally {
     appLoadState.matches.promise = null;
+  }
+}
+
+function hydrateMatchSummaries(rows = []) {
+  return (rows || []).map(match => ({
+    ...match,
+    __detailsLoaded: false
+  }));
+}
+
+function readCachedMatchSummaries() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(MATCH_SUMMARY_CACHE_KEY) || "null");
+    if (!cached || typeof cached !== "object") return [];
+    if (cached.profileId && cached.profileId !== cleanUuidValue(currentProfile?.id)) return [];
+    if (!Array.isArray(cached.matches)) return [];
+    return cached.matches;
+  } catch {
+    localStorage.removeItem(MATCH_SUMMARY_CACHE_KEY);
+    return [];
+  }
+}
+
+function cacheMatchSummaries(matches = []) {
+  if (!currentProfile?.id) return;
+
+  try {
+    localStorage.setItem(MATCH_SUMMARY_CACHE_KEY, JSON.stringify({
+      profileId: cleanUuidValue(currentProfile.id),
+      savedAt: Date.now(),
+      matches: matches.slice(0, 80)
+    }));
+  } catch {
+    // Ignore storage limits; live Supabase loading still works.
   }
 }
 
@@ -15689,6 +15734,7 @@ async function logout() {
   await supabaseClient.auth.signOut();
   localStorage.removeItem("aba_user_access");
   localStorage.removeItem(PROFILE_IDENTITY_CACHE_KEY);
+  localStorage.removeItem(MATCH_SUMMARY_CACHE_KEY);
   currentProfile = null;
   clearProfileFields();
   await refreshAuthUI();
@@ -17068,6 +17114,7 @@ if (currentProfile?.approval_status === "approved") {
   localStorage.removeItem(ACTIVE_TAB_KEY);
   localStorage.removeItem(SCROLL_STATE_KEY);
   localStorage.removeItem(PROFILE_IDENTITY_CACHE_KEY);
+  localStorage.removeItem(MATCH_SUMMARY_CACHE_KEY);
   resetAppLoadState();
   currentProfile = null;
   clearProfileFields();
