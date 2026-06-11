@@ -33,21 +33,42 @@ const demoData = {
   ]
 };
 
-async function loadSportsOptions() {
+async function loadSportsOptions(options = {}) {
+  const { force = false } = options || {};
   if (!isCurrentUserAdmin()) return;
 
-  const { data, error } = await supabaseClient
-    .from("sports")
-    .select("id,name")
-    .order("name", { ascending: true });
-
-  if (error) {
-    alert(error.message);
-    return;
+  if (!force && appLoadState.sports.loaded) {
+    renderSportsOptions();
+    return allSports;
   }
 
-  allSports = data || [];
+  if (!force && appLoadState.sports.promise) return appLoadState.sports.promise;
 
+  appLoadState.sports.promise = (async () => {
+    const { data, error } = await supabaseClient
+      .from("sports")
+      .select("id,name")
+      .order("name", { ascending: true });
+
+    if (error) {
+      alert(error.message);
+      return allSports;
+    }
+
+    allSports = data || [];
+    appLoadState.sports.loaded = true;
+    renderSportsOptions();
+    return allSports;
+  })();
+
+  try {
+    return await appLoadState.sports.promise;
+  } finally {
+    appLoadState.sports.promise = null;
+  }
+}
+
+function renderSportsOptions() {
   const box = $("venue-sports-options");
   if (!box) return;
 
@@ -111,29 +132,51 @@ async function saveVenueSports(venueId, sportIds) {
   return true;
 }
 
-async function loadVenues() {
+async function loadVenues(options = {}) {
+  const { force = false } = options || {};
   if (!isCurrentUserAdmin()) return;
 
-  const { data, error } = await supabaseClient
-    .from("venues")
-    .select(ABAVenues.venueSelect())
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    alert(error.message);
-    return;
+  if (!force && appLoadState.venues.loaded) {
+    renderVenuesList();
+    return allVenues;
   }
 
-  allVenues = data || [];
+  if (!force && appLoadState.venues.promise) return appLoadState.venues.promise;
+
+  appLoadState.venues.promise = (async () => {
+    const { data, error } = await supabaseClient
+      .from("venues")
+      .select(ABAVenues.venueSelect())
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      alert(error.message);
+      return allVenues;
+    }
+
+    allVenues = data || [];
+    appLoadState.venues.loaded = true;
+    renderVenuesList();
+    return allVenues;
+  })();
+
+  try {
+    return await appLoadState.venues.promise;
+  } finally {
+    appLoadState.venues.promise = null;
+  }
+}
+
+function renderVenuesList() {
   const box = $("venuesList");
   if (!box) return;
 
-  if (!data || data.length === 0) {
+  if (!allVenues.length) {
     box.innerHTML = `<article class="card">No venues added yet.</article>`;
     return;
   }
 
-  box.innerHTML = data.map(venue => {
+  box.innerHTML = allVenues.map(venue => {
     const sportNames = ABAVenues.sportNamesForVenue(venue);
 
     return `
@@ -247,7 +290,7 @@ async function toggleVenueActive(id, currentStatus) {
     return;
   }
 
-  await loadVenues();
+  await loadVenues({ force: true });
 }
 
 async function saveVenue() {
@@ -310,7 +353,7 @@ async function saveVenue() {
   clearVenueForm();
 
   alert(wasEditing ? "Venue updated." : "Venue added.");
-  await loadVenues();
+  await loadVenues({ force: true });
 }
 
 
@@ -351,26 +394,47 @@ function canManageAnySport() {
   return isCurrentUserAdmin() || (isCurrentUserCommittee() && currentMemberSportPermissionIds.size > 0);
 }
 
-async function loadPendingMembers() {
+async function loadPendingMembers(options = {}) {
+  const { force = false } = options || {};
   if (!isCurrentUserAdmin()) {
     allPendingMembers = [];
     return;
   }
 
-  const { data, error } = await supabaseClient
-    .from("members")
-    .select(ABAAdmin.pendingMemberSelect())
-    .eq("approval_status", "pending")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    alert(error.message);
-    return;
+  if (!force && appLoadState.pendingMembers.loaded) {
+    renderPendingMembersList();
+    return allPendingMembers;
   }
 
-  allPendingMembers = data || [];
-  renderAdminDashboard();
+  if (!force && appLoadState.pendingMembers.promise) return appLoadState.pendingMembers.promise;
 
+  appLoadState.pendingMembers.promise = (async () => {
+    const { data, error } = await supabaseClient
+      .from("members")
+      .select(ABAAdmin.pendingMemberSelect())
+      .eq("approval_status", "pending")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      alert(error.message);
+      return allPendingMembers;
+    }
+
+    allPendingMembers = data || [];
+    appLoadState.pendingMembers.loaded = true;
+    renderPendingMembersList();
+    return allPendingMembers;
+  })();
+
+  try {
+    return await appLoadState.pendingMembers.promise;
+  } finally {
+    appLoadState.pendingMembers.promise = null;
+  }
+}
+
+function renderPendingMembersList() {
+  renderAdminDashboard();
   const box = $("pendingMembersList");
   if (!box) return;
 
@@ -427,7 +491,7 @@ async function reviewMember(memberId, decision) {
   }
 
   alert(`Member ${decision}.`);
-  await loadPendingMembers();
+  await loadPendingMembers({ force: true });
 }
 
 async function ensureSportsLoaded() {
@@ -605,7 +669,8 @@ function selectMemberRoleEditor(memberId) {
   renderMemberRoleManager(allMemberRoleManagerMembers || []);
 }
 
-async function loadMemberRoleManager() {
+async function loadMemberRoleManager(options = {}) {
+  const { force = false } = options || {};
   const box = $("memberRoleList");
   if (!box) return;
 
@@ -614,32 +679,50 @@ async function loadMemberRoleManager() {
     return;
   }
 
-  await ensureSportsLoaded();
-
-  const { data: members, error: membersError } = await supabaseClient
-    .from("members")
-    .select("id,first_name,last_name,display_name,email,avatar_url,role,approval_status,is_external,gender,height_cm,weight_kg")
-    .eq("approval_status", "approved")
-    .eq("is_active", true)
-    .eq("is_external", false)
-    .order("display_name", { ascending: true });
-
-  if (membersError) {
-    box.innerHTML = `<article class="card">Could not load members: ${escapeHtml(membersError.message)}</article>`;
-    return;
+  if (!force && appLoadState.memberRoles.loaded) {
+    renderMemberRoleManager(allMemberRoleManagerMembers || []);
+    return allMemberRoleManagerMembers;
   }
 
-  const { data: permissions, error: permissionsError } = await supabaseClient
-    .from("member_sport_permissions")
-    .select("id,member_id,sport_id,permission");
+  if (!force && appLoadState.memberRoles.promise) return appLoadState.memberRoles.promise;
 
-  if (permissionsError) {
-    box.innerHTML = `<article class="card">Could not load sport permissions: ${escapeHtml(permissionsError.message)}</article>`;
-    return;
+  appLoadState.memberRoles.promise = (async () => {
+    await ensureSportsLoaded();
+
+    const { data: members, error: membersError } = await supabaseClient
+      .from("members")
+      .select("id,first_name,last_name,display_name,email,avatar_url,role,approval_status,is_external,gender,height_cm,weight_kg")
+      .eq("approval_status", "approved")
+      .eq("is_active", true)
+      .eq("is_external", false)
+      .order("display_name", { ascending: true });
+
+    if (membersError) {
+      box.innerHTML = `<article class="card">Could not load members: ${escapeHtml(membersError.message)}</article>`;
+      return allMemberRoleManagerMembers;
+    }
+
+    const { data: permissions, error: permissionsError } = await supabaseClient
+      .from("member_sport_permissions")
+      .select("id,member_id,sport_id,permission");
+
+    if (permissionsError) {
+      box.innerHTML = `<article class="card">Could not load sport permissions: ${escapeHtml(permissionsError.message)}</article>`;
+      return allMemberRoleManagerMembers;
+    }
+
+    allMemberSportPermissions = permissions || [];
+    allMemberRoleManagerMembers = members || [];
+    appLoadState.memberRoles.loaded = true;
+    renderMemberRoleManager(allMemberRoleManagerMembers);
+    return allMemberRoleManagerMembers;
+  })();
+
+  try {
+    return await appLoadState.memberRoles.promise;
+  } finally {
+    appLoadState.memberRoles.promise = null;
   }
-
-  allMemberSportPermissions = permissions || [];
-  renderMemberRoleManager(members || []);
 }
 
 async function saveMemberRolePermissions(memberId) {
@@ -703,6 +786,7 @@ async function saveMemberRolePermissions(memberId) {
   if (cleanMemberId === cleanUuidValue(currentProfile.id)) {
     currentProfile.role = nextRole;
     await loadCurrentMemberSportPermissions();
+    resetAppLoadState();
     applyAccessUI();
   }
 
@@ -714,7 +798,7 @@ async function saveMemberRolePermissions(memberId) {
     alert("Member role permissions saved.");
   }
 
-  await loadMemberRoleManager();
+  await loadMemberRoleManager({ force: true });
 }
 
 
@@ -730,22 +814,44 @@ async function saveMemberRolePermissions(memberId) {
 
 
 
-async function loadAdminNotificationMembers() {
+async function loadAdminNotificationMembers(options = {}) {
+  const { force = false } = options || {};
   if (!isCurrentUserAdmin()) return;
 
-  const { data, error } = await supabaseClient
-    .from("members")
-    .select("id,first_name,last_name,display_name,email,is_external,role,gender,height_cm,weight_kg")
-    .eq("approval_status", "approved")
-    .eq("is_active", true)
-    .order("display_name", { ascending: true });
-
-  if (error) {
-    alert(error.message);
-    return;
+  if (!force && appLoadState.notificationMembers.loaded) {
+    renderAdminNotificationMemberOptions();
+    return adminNotificationMembers;
   }
 
-  adminNotificationMembers = (data || []).filter(member => member?.id);
+  if (!force && appLoadState.notificationMembers.promise) return appLoadState.notificationMembers.promise;
+
+  appLoadState.notificationMembers.promise = (async () => {
+    const { data, error } = await supabaseClient
+      .from("members")
+      .select("id,first_name,last_name,display_name,email,is_external,role,gender,height_cm,weight_kg")
+      .eq("approval_status", "approved")
+      .eq("is_active", true)
+      .order("display_name", { ascending: true });
+
+    if (error) {
+      alert(error.message);
+      return adminNotificationMembers;
+    }
+
+    adminNotificationMembers = (data || []).filter(member => member?.id);
+    appLoadState.notificationMembers.loaded = true;
+    renderAdminNotificationMemberOptions();
+    return adminNotificationMembers;
+  })();
+
+  try {
+    return await appLoadState.notificationMembers.promise;
+  } finally {
+    appLoadState.notificationMembers.promise = null;
+  }
+}
+
+function renderAdminNotificationMemberOptions() {
   const select = $("admin-notify-member");
 
   if (!select) return;
@@ -1215,6 +1321,22 @@ let currentStravaConnection = null;
 let stravaConnectedMemberIds = new Set();
 let voteDeadlineManuallyEdited = false;
 let matchRenderQueued = false;
+const appLoadState = {
+  sports: { loaded: false, promise: null },
+  venues: { loaded: false, promise: null },
+  matches: { loaded: false, promise: null },
+  activities: { loaded: false, promise: null },
+  pendingMembers: { loaded: false, promise: null },
+  memberRoles: { loaded: false, promise: null },
+  notificationMembers: { loaded: false, promise: null }
+};
+
+function resetAppLoadState() {
+  Object.values(appLoadState).forEach(state => {
+    state.loaded = false;
+    state.promise = null;
+  });
+}
 
 const ACTIVITY_SPORT_SETTINGS_KEY = "aba_activity_sport_settings";
 const ACTIVITY_SPORT_APP_SETTING_KEY = "activity_sport_settings";
@@ -2591,10 +2713,10 @@ async function importStravaActivities() {
   const imported = Number(data?.imported || 0);
   const skipped = Number(data?.skipped || 0);
   await loadStravaConnection(`Imported ${imported} activit${imported === 1 ? "y" : "ies"}${skipped ? `, skipped ${skipped}` : ""}.`);
-  await loadMemberActivities();
+  await loadMemberActivities({ force: true });
   const refreshedMatches = await refreshStravaMatchedFinishedMatchPoints(currentProfile?.id);
   if (refreshedMatches > 0) {
-    await loadMatches();
+    await loadMatches({ force: true });
     renderStravaConnectionPanel(`Imported ${imported} activit${imported === 1 ? "y" : "ies"} and refreshed ${refreshedMatches} match${refreshedMatches === 1 ? "" : "es"} with Strava activity points.`);
   }
   renderActivities();
@@ -4906,37 +5028,60 @@ async function fetchMatchesQuery(matchId = "", options = {}) {
   return result;
 }
 
-async function loadMatches() {
+async function loadMatches(options = {}) {
+  const { force = false } = options || {};
   if (!currentProfile || currentProfile.approval_status !== "approved") return;
 
-  const result = await fetchMatchesQuery("", { full: false });
-
-  const { data, error } = result;
-
-  if (error) {
-    alert(error.message);
-    return;
+  if (!force && appLoadState.matches.loaded) {
+    updateMatchFilterOptions();
+    renderMatches();
+    renderLeagues();
+    renderRankings();
+    renderStats();
+    renderAdminDashboard();
+    return allMatches;
   }
 
-  allMatches = (data || []).map(match => ({
-    ...match,
-    __detailsLoaded: false
-  }));
-  await attachMatchPositionRatingAdjustments();
-  await attachSoccerPerformanceAssessments();
-  await repairMissingSoccerRatingAdjustments();
+  if (!force && appLoadState.matches.promise) return appLoadState.matches.promise;
 
-  if (!(allMemberActivities || []).length) {
-    await loadMemberActivities({ skipMatchRender: true });
+  appLoadState.matches.promise = (async () => {
+    const result = await fetchMatchesQuery("", { full: false });
+
+    const { data, error } = result;
+
+    if (error) {
+      alert(error.message);
+      return allMatches;
+    }
+
+    allMatches = (data || []).map(match => ({
+      ...match,
+      __detailsLoaded: false
+    }));
+    appLoadState.matches.loaded = true;
+    await attachMatchPositionRatingAdjustments();
+    await attachSoccerPerformanceAssessments();
+    await repairMissingSoccerRatingAdjustments();
+
+    if (!(allMemberActivities || []).length) {
+      await loadMemberActivities({ skipMatchRender: true });
+    }
+
+    await loadRankingData();
+    updateMatchFilterOptions();
+    renderMatches();
+    renderLeagues();
+    renderRankings();
+    renderStats();
+    renderAdminDashboard();
+    return allMatches;
+  })();
+
+  try {
+    return await appLoadState.matches.promise;
+  } finally {
+    appLoadState.matches.promise = null;
   }
-
-  await loadRankingData();
-  updateMatchFilterOptions();
-  renderMatches();
-  renderLeagues();
-  renderRankings();
-  renderStats();
-  renderAdminDashboard();
 }
 
 async function refreshMatch(matchId, options = {}) {
@@ -10339,7 +10484,7 @@ async function recalculateAllFinalizedPoints() {
   }
 
   alert("All finalized match points recalculated.");
-  await loadMatches();
+  await loadMatches({ force: true });
   renderRankings();
   renderLeagues();
 }
@@ -10374,7 +10519,7 @@ async function recalculateAllSoccerRatings() {
 
   alert("All finalized soccer ratings recalculated.");
   await loadPositionRatings();
-  await loadMatches();
+  await loadMatches({ force: true });
   renderRankings();
   renderLeagues();
 }
@@ -10423,7 +10568,7 @@ async function recalculateAllFinalizedMatches() {
   alert("All finalized matches recalculated.");
   await loadPositionRatings();
   await loadSportProfiles();
-  await loadMatches();
+  await loadMatches({ force: true });
   renderRankings();
   renderLeagues();
 }
@@ -13907,7 +14052,7 @@ async function openEditActivity(activityId) {
   $("activityModal")?.showModal();
 }
 
-async function loadMemberActivities({ skipMatchRender = false } = {}) {
+async function loadMemberActivities({ skipMatchRender = false, force = false } = {}) {
   if (!currentProfile || currentProfile.approval_status !== "approved") {
     allMemberActivities = [];
     renderActivities();
@@ -13915,86 +14060,107 @@ async function loadMemberActivities({ skipMatchRender = false } = {}) {
     return [];
   }
 
-  let query = supabaseClient
-    .from("member_activities")
-    .select(MEMBER_ACTIVITY_SELECT)
-    .order("created_at", { ascending: false });
-
-  if (!isCurrentUserAdmin()) {
-    query = query.or(`member_id.eq.${currentProfile.id},status.eq.approved`);
+  if (!force && appLoadState.activities.loaded) {
+    renderStats();
+    renderFeed();
+    renderActivities();
+    renderPendingActivities();
+    renderRankings();
+    if (!skipMatchRender) renderMatches();
+    return allMemberActivities;
   }
 
-  let { data, error } = await query;
+  if (!force && appLoadState.activities.promise) return appLoadState.activities.promise;
 
-  if (error) {
-    console.warn("Full activity load failed. Retrying without embedded member/sport rows:", error.message);
-
-    let fallbackQuery = supabaseClient
+  appLoadState.activities.promise = (async () => {
+    let query = supabaseClient
       .from("member_activities")
-      .select(`
-        id,
-        member_id,
-        sport_id,
-        title,
-        activity_date,
-        start_time,
-        end_time,
-        duration_minutes,
-        activity_points,
-        proof_path,
-        proof_file_name,
-        source,
-        external_source_id,
-        external_url,
-        notes,
-        status,
-        review_notes,
-        reviewed_by,
-        reviewed_at,
-        created_at
-      `)
+      .select(MEMBER_ACTIVITY_SELECT)
       .order("created_at", { ascending: false });
 
     if (!isCurrentUserAdmin()) {
-      fallbackQuery = fallbackQuery.or(`member_id.eq.${currentProfile.id},status.eq.approved`);
+      query = query.or(`member_id.eq.${currentProfile.id},status.eq.approved`);
     }
 
-    const fallback = await fallbackQuery;
-    data = fallback.data;
-    error = fallback.error;
+    let { data, error } = await query;
 
-    if (!error) {
-      data = (data || []).map(activity => ({
-        ...activity,
-        members: memberById(activity.member_id),
-        sports: (allSports || []).find(sport => sport.id === activity.sport_id) || null
-      }));
+    if (error) {
+      console.warn("Full activity load failed. Retrying without embedded member/sport rows:", error.message);
+
+      let fallbackQuery = supabaseClient
+        .from("member_activities")
+        .select(`
+          id,
+          member_id,
+          sport_id,
+          title,
+          activity_date,
+          start_time,
+          end_time,
+          duration_minutes,
+          activity_points,
+          proof_path,
+          proof_file_name,
+          source,
+          external_source_id,
+          external_url,
+          notes,
+          status,
+          review_notes,
+          reviewed_by,
+          reviewed_at,
+          created_at
+        `)
+        .order("created_at", { ascending: false });
+
+      if (!isCurrentUserAdmin()) {
+        fallbackQuery = fallbackQuery.or(`member_id.eq.${currentProfile.id},status.eq.approved`);
+      }
+
+      const fallback = await fallbackQuery;
+      data = fallback.data;
+      error = fallback.error;
+
+      if (!error) {
+        data = (data || []).map(activity => ({
+          ...activity,
+          members: memberById(activity.member_id),
+          sports: (allSports || []).find(sport => sport.id === activity.sport_id) || null
+        }));
+      }
     }
-  }
 
-  if (error) {
-    console.warn("Could not load activities:", error.message);
+    if (error) {
+      console.warn("Could not load activities:", error.message);
+      renderActivities();
+      renderPendingActivities();
+      if ($("activityList") && !(allMemberActivities || []).length) {
+        $("activityList").innerHTML = `<article class="card"><div class="hint">Could not load activities: ${escapeHtml(error.message)}</div></article>`;
+      }
+      if ($("pendingActivitiesList") && !(allMemberActivities || []).length) {
+        $("pendingActivitiesList").innerHTML = `<article class="card"><div class="hint">Could not load pending activities: ${escapeHtml(error.message)}</div></article>`;
+      }
+      return allMemberActivities || [];
+    }
+
+    allMemberActivities = data || [];
+    appLoadState.activities.loaded = true;
+    await loadStravaConnectedMembers();
+    await loadRankingData();
+    renderStats();
+    renderFeed();
     renderActivities();
     renderPendingActivities();
-    if ($("activityList") && !(allMemberActivities || []).length) {
-      $("activityList").innerHTML = `<article class="card"><div class="hint">Could not load activities: ${escapeHtml(error.message)}</div></article>`;
-    }
-    if ($("pendingActivitiesList") && !(allMemberActivities || []).length) {
-      $("pendingActivitiesList").innerHTML = `<article class="card"><div class="hint">Could not load pending activities: ${escapeHtml(error.message)}</div></article>`;
-    }
-    return allMemberActivities || [];
-  }
+    renderRankings();
+    if (!skipMatchRender) renderMatches();
+    return allMemberActivities;
+  })();
 
-  allMemberActivities = data || [];
-  await loadStravaConnectedMembers();
-  await loadRankingData();
-  renderStats();
-  renderFeed();
-  renderActivities();
-  renderPendingActivities();
-  renderRankings();
-  if (!skipMatchRender) renderMatches();
-  return allMemberActivities;
+  try {
+    return await appLoadState.activities.promise;
+  } finally {
+    appLoadState.activities.promise = null;
+  }
 }
 
 async function submitActivityLog(form) {
@@ -14120,7 +14286,7 @@ async function submitActivityLog(form) {
 
   if (isEditing) {
     alert("Activity updated.");
-    await loadMemberActivities();
+    await loadMemberActivities({ force: true });
     return;
   }
 
@@ -14146,7 +14312,7 @@ async function submitActivityLog(form) {
     renderRankings();
   }
   alert("Activity submitted for admin approval.");
-  await loadMemberActivities();
+  await loadMemberActivities({ force: true });
 }
 
 async function reviewActivity(activityId, decision) {
@@ -14177,7 +14343,7 @@ async function reviewActivity(activityId, decision) {
     return;
   }
 
-  await loadMemberActivities();
+  await loadMemberActivities({ force: true });
   alert(`Activity ${status}.`);
 }
 
@@ -14219,7 +14385,7 @@ async function deleteActivity(activityId) {
   renderPendingActivities();
   renderRankings();
   alert("Activity deleted.");
-  await loadMemberActivities();
+  await loadMemberActivities({ force: true });
 }
 
 
@@ -16717,11 +16883,9 @@ if (currentProfile?.approval_status === "approved") {
       await loadAdminNotificationMembers();
       await loadPendingMembers();
       await loadMemberRoleManager();
-      await loadMemberActivities();
-      await loadActivitySportSettings(true);
+      await loadActivitySportSettings();
       renderActivitySettingsForm();
       await loadVenues();
-      await loadMatches();
       if (activeViewId() === "admin") restoreScrollPosition();
     }
 
@@ -16745,6 +16909,7 @@ if (currentProfile?.approval_status === "approved") {
   localStorage.removeItem("aba_user_access");
   localStorage.removeItem(ACTIVE_TAB_KEY);
   localStorage.removeItem(SCROLL_STATE_KEY);
+  resetAppLoadState();
   currentProfile = null;
   clearProfileFields();
 
@@ -16884,7 +17049,7 @@ function setActiveTab(viewId, persist = true) {
     loadMemberActivities();
     loadVenues();
     loadMatches();
-    loadActivitySportSettings(true).then(() => {
+    loadActivitySportSettings().then(() => {
       renderActivitySettingsForm();
     });
     loadSoccerRatingSettings(true).then(renderSoccerRatingSettingsForm);
@@ -17249,7 +17414,7 @@ if ($("matchForm")) {
 
     closeMatchModal();
 
-    await loadMatches();
+    await loadMatches({ force: true });
 
     document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
     document.querySelectorAll(".view").forEach(v => v.classList.remove("active-view"));
