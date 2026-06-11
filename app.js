@@ -13775,6 +13775,7 @@ async function finalizeCurrentMatchResult() {
     ...match,
     status: "completed",
     score_status: "submitted",
+    notes: summary,
     match_teams: (match.match_teams || []).map(team => {
       if (team.id === teamA.id) {
         return {
@@ -13795,6 +13796,20 @@ async function finalizeCurrentMatchResult() {
       return team;
     })
   };
+
+  const localMatchIndex = allMatches.findIndex(row => cleanUuidValue(row.id) === scoreMatchId);
+  if (localMatchIndex >= 0) {
+    allMatches[localMatchIndex] = refreshedMatchForPoints;
+  }
+
+  if (isSoccerMatch(refreshedMatchForPoints)) {
+    applyOptimisticSoccerRatingTags(refreshedMatchForPoints);
+  }
+
+  $("scoreModal")?.close();
+  currentScoreMatchId = null;
+  updateScorePhotoPreview(null);
+  scheduleMatchUiRefresh({ rankings: isSoccerMatch(refreshedMatchForPoints) });
 
   const pointsSaved = await saveMatchMemberPoints(refreshedMatchForPoints);
 
@@ -13834,12 +13849,11 @@ async function finalizeCurrentMatchResult() {
 
   alert(`${finalMessage}${photoSaveNote}`);
 
-  $("scoreModal")?.close();
-  currentScoreMatchId = null;
-  updateScorePhotoPreview(null);
-
-  await refreshMatch(scoreMatchId, { render: false, rankings: true });
-  scheduleMatchUiRefresh({ rankings: true });
+  refreshMatch(scoreMatchId, { render: false, rankings: true })
+    .then(() => scheduleMatchUiRefresh({ rankings: true }))
+    .catch(error => {
+      console.warn("Could not refresh finalized match:", error?.message || error);
+    });
 }
 
 async function saveScore() {
