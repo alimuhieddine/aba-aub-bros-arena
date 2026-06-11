@@ -10548,7 +10548,10 @@ async function recalculateSoccerRatingsCascadeFromMatch(match, options = {}) {
     alert(`Soccer rating cascade recalculated ${cascadeMatches.length} finalized match${cascadeMatches.length === 1 ? "" : "es"}.`);
   }
 
-  return true;
+  return {
+    ok: true,
+    matchIds: cascadeMatches.map(cascadeMatch => cleanUuidValue(cascadeMatch.id)).filter(Boolean)
+  };
 }
 
 function padelSetEntriesForGame(match, gameId) {
@@ -12973,6 +12976,14 @@ async function saveSingleInlineSoccerAssessment(input) {
       refresh: false
     });
     if (!recalculated) return false;
+
+    const affectedMatchIds = Array.isArray(recalculated?.matchIds) && recalculated.matchIds.length
+      ? recalculated.matchIds
+      : [matchId];
+
+    await Promise.all(
+      affectedMatchIds.map(id => refreshMatch(id, { render: false }))
+    );
 
     scheduleMatchUiRefresh({ rankings: true });
   }
