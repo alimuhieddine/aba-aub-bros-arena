@@ -8068,6 +8068,19 @@ function renderMatchEditHistory(match) {
   `;
 }
 
+function hasResettableMatchEffects(match) {
+  if (!canManageMatch(match)) return false;
+
+  return Boolean(
+    hasSubmittedScore(match) ||
+    (match.match_member_points || []).length ||
+    (match.match_position_rating_adjustments || []).length ||
+    (match.match_score_entries || []).length ||
+    matchSessionGames(match).length ||
+    matchResultPhotoPath(match)
+  );
+}
+
 function renderMatches() {
   if (!shouldRenderView("matches")) return;
 
@@ -8277,6 +8290,14 @@ function renderMatchCardHtml(match) {
                   canEditFormation(match) && (match.match_teams || []).length
                     ? `<button class="small-btn" onclick="openTeamAssignment('${match.id}', 'formation')">
                         Edit Formation
+                      </button>`
+                    : ""
+                }
+
+                ${
+                  hasResettableMatchEffects(match)
+                    ? `<button class="small-btn danger-text-btn" onclick="resetMatchEffectsForMatch('${match.id}')">
+                        Reset Effects
                       </button>`
                     : ""
                 }
@@ -8716,7 +8737,10 @@ async function deleteOrCancelMatch(matchId) {
     if (!ok) return;
 
     const notificationResult = await sendMatchLifecycleNotification(matchId, "match_deleted");
-    const childDeleteResult = await deleteMatchChildRows(match);
+    const childDeleteResult = await resetMatchEffects(match, {
+      clearChildRows: true,
+      clearResultState: false
+    });
 
     if (!childDeleteResult.ok) {
       alert(`Could not delete match details first. ${childDeleteResult.error}`);
@@ -8739,8 +8763,14 @@ async function deleteOrCancelMatch(matchId) {
 
     alert("Match deleted.");
   } else {
-    const ok = confirm("This match time has passed. Mark it as cancelled instead?");
+    const ok = confirm("This match time has passed. Reset its points/ratings/results and mark it as cancelled?");
     if (!ok) return;
+
+    const resetResult = await resetMatchEffects(match);
+    if (!resetResult.ok) {
+      alert(`Could not reset match effects. ${resetResult.error}`);
+      return;
+    }
 
     const { error } = await supabaseClient
       .from("matches")
@@ -8760,6 +8790,10 @@ async function deleteOrCancelMatch(matchId) {
       alert(`Match marked as cancelled, but phone notifications failed: ${notificationResult.error}`);
     }
 
+    await logMatchEditEvent(matchId, "match_cancelled_reset", "Match cancelled and effects reset.", {
+      replayed_match_ids: resetResult.replayedMatchIds || []
+    });
+
     alert("Match marked as cancelled.");
   }
 
@@ -8770,6 +8804,45 @@ async function deleteOrCancelMatch(matchId) {
   } else {
     await refreshMatch(matchId);
   }
+}
+
+async function resetMatchEffectsForMatch(matchId) {
+  const cleanMatchId = cleanUuidValue(matchId);
+  let match = allMatches.find(m => cleanUuidValue(m.id) === cleanMatchId);
+
+  if (!match) {
+    alert("Match not found.");
+    return;
+  }
+
+  if (!canManageMatch(match)) {
+    alert("You can only reset matches for sports you manage.");
+    return;
+  }
+
+  match = await ensureMatchDetails(cleanMatchId, { render: false }) || match;
+
+  const ok = confirm("Reset this match effects? This removes match points, result rows, result photo, and rating changes, then recalculates future soccer matches.");
+  if (!ok) return;
+
+  const resetResult = await resetMatchEffects(match);
+  if (!resetResult.ok) {
+    alert(`Could not reset match effects. ${resetResult.error}`);
+    return;
+  }
+
+  await logMatchEditEvent(cleanMatchId, "effects_reset", "Match effects reset: points, result, photos, and rating changes removed.", {
+    replayed_match_ids: resetResult.replayedMatchIds || []
+  });
+
+  await Promise.all([
+    refreshMatch(cleanMatchId, { render: false, rankings: true }),
+    ...(resetResult.replayedMatchIds || []).map(id => refreshMatch(id, { render: false }))
+  ]);
+
+  scheduleMatchUiRefresh({ rankings: true });
+  renderRankings();
+  showPushToast("Match effects reset", `${resetResult.replayedMatchIds?.length || 0} future soccer match${resetResult.replayedMatchIds?.length === 1 ? "" : "es"} recalculated.`);
 }
 
 async function voteMatch(matchId, newStatus) {
@@ -10062,6 +10135,294 @@ async function deleteMatchChildRows(match) {
   return {
     ok: true,
     error: ""
+  };
+}
+
+async function rollbackPadelMatchRatingAdjustments(match) {
+  if (!isPadelMatch(match)) return true;
+
+  const gameIds = matchSessionGames(match)
+    .map(game => cleanUuidValue(game.id))
+    .filter(Boolean);
+
+  for (const gameId of gameIds) {
+    const rolledBack = await rollbackPreviousPadelGameRatingAdjustments(gameId);
+    if (!rolledBack) return false;
+  }
+
+  return true;
+}
+
+function futureSoccerCascadeMatchesAfter(match) {
+  if (!isSoccerMatch(match)) return [];
+
+  const cleanMatchId = cleanUuidValue(match?.id);
+  const startMs = new Date(match?.start_time || 0).getTime();
+  if (!cleanMatchId || !Number.isFinite(startMs)) return [];
+
+  const byId = new Map();
+  (allMatches || []).forEach(row => {
+    const id = cleanUuidValue(row?.id);
+    if (id) byId.set(id, id === cleanMatchId ? { ...row, ...match } : row);
+  });
+
+  return Array.from(byId.values())
+    .filter(row => cleanUuidValue(row.id) !== cleanMatchId)
+    .filter(row => isSoccerMatch(row) && !isCancelledMatch(row) && hasSubmittedScore(row))
+    .filter(row => {
+      const rowStart = new Date(row.start_time || 0).getTime();
+      return Number.isFinite(rowStart) && rowStart > startMs;
+    })
+    .filter(row => canManageMatch(row))
+    .sort((a, b) =>
+      new Date(a.start_time || 0) - new Date(b.start_time || 0) ||
+      new Date(a.created_at || 0) - new Date(b.created_at || 0)
+    );
+}
+
+async function rollbackSoccerMatchAndFuture(match) {
+  if (!isSoccerMatch(match)) {
+    return {
+      ok: true,
+      futureMatches: []
+    };
+  }
+
+  const futureMatches = futureSoccerCascadeMatchesAfter(match);
+  const rollbackMatches = [...futureMatches, match];
+
+  for (const rollbackMatch of [...rollbackMatches].reverse()) {
+    const rolledBack = await rollbackPreviousSoccerRatingAdjustments(rollbackMatch.id);
+    if (!rolledBack?.ok) {
+      return {
+        ok: false,
+        futureMatches
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    futureMatches
+  };
+}
+
+async function replayFutureSoccerMatches(futureMatches = []) {
+  if (!futureMatches.length) {
+    return {
+      ok: true,
+      matchIds: []
+    };
+  }
+
+  await loadPositionRatings();
+
+  for (const futureMatch of futureMatches) {
+    const context = scoreContextForMatch(futureMatch);
+    if (!context) {
+      return {
+        ok: false,
+        error: `Could not recalculate "${futureMatch.title || "match"}": teams or score are missing.`
+      };
+    }
+
+    const saved = await saveSoccerPositionRatingAdjustments(
+      futureMatch,
+      context.scoreA,
+      context.scoreB,
+      context.resultA,
+      context.resultB,
+      { skipRollback: true, skipRatingLoad: true }
+    );
+
+    if (!saved) {
+      return {
+        ok: false,
+        error: `Could not recalculate "${futureMatch.title || "match"}".`
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    matchIds: futureMatches.map(match => cleanUuidValue(match.id)).filter(Boolean)
+  };
+}
+
+async function removeMatchResultPhoto(match) {
+  const matchId = cleanUuidValue(match?.id);
+  if (!matchId) return true;
+
+  const photoPath = matchResultPhotoPath(match);
+
+  const { error: rowError } = await supabaseClient
+    .from("match_result_photos")
+    .delete()
+    .eq("match_id", matchId);
+
+  if (rowError) {
+    console.warn("Could not delete match result photo row:", rowError.message);
+  }
+
+  if (photoPath) {
+    const { error: storageError } = await supabaseClient
+      .storage
+      .from(MATCH_RESULT_PHOTO_BUCKET)
+      .remove([photoPath]);
+
+    if (storageError) {
+      console.warn("Could not delete match result photo object:", storageError.message);
+    }
+  }
+
+  return !rowError;
+}
+
+async function resetMatchEffects(match, options = {}) {
+  const { clearChildRows = false, clearResultState = true } = options || {};
+  const matchId = cleanUuidValue(match?.id);
+
+  if (!matchId) {
+    return {
+      ok: false,
+      error: "Match id is missing."
+    };
+  }
+
+  let futureSoccerMatches = [];
+
+  if (isSoccerMatch(match)) {
+    const rollback = await rollbackSoccerMatchAndFuture(match);
+    if (!rollback.ok) {
+      return {
+        ok: false,
+        error: "Could not roll back soccer rating changes."
+      };
+    }
+    futureSoccerMatches = rollback.futureMatches || [];
+  } else if (isPadelMatch(match)) {
+    const rolledBack = await rollbackPadelMatchRatingAdjustments(match);
+    if (!rolledBack) {
+      return {
+        ok: false,
+        error: "Could not roll back padel rating changes."
+      };
+    }
+  } else {
+    const { error: ratingDeleteError } = await supabaseClient
+      .from("match_position_rating_adjustments")
+      .delete()
+      .eq("match_id", matchId);
+
+    if (ratingDeleteError) {
+      return {
+        ok: false,
+        error: `match_position_rating_adjustments: ${ratingDeleteError.message}`
+      };
+    }
+  }
+
+  const deleteSteps = [
+    {
+      table: "match_member_points",
+      query: () => supabaseClient.from("match_member_points").delete().eq("match_id", matchId)
+    },
+    {
+      table: "match_score_entries",
+      query: () => supabaseClient.from("match_score_entries").delete().eq("match_id", matchId)
+    },
+    {
+      table: "match_game_sessions",
+      query: () => supabaseClient.from("match_game_sessions").delete().eq("match_id", matchId)
+    }
+  ];
+
+  for (const step of deleteSteps) {
+    const { error } = await step.query();
+    if (error) {
+      return {
+        ok: false,
+        error: `${step.table}: ${error.message}`
+      };
+    }
+  }
+
+  const gameIds = matchSessionGames(match)
+    .map(game => cleanUuidValue(game.id))
+    .filter(Boolean);
+
+  if (gameIds.length) {
+    const { error: gamesError } = await supabaseClient
+      .from("match_games")
+      .delete()
+      .in("id", gameIds);
+
+    if (gamesError) {
+      return {
+        ok: false,
+        error: `match_games: ${gamesError.message}`
+      };
+    }
+  }
+
+  const photoRemoved = await removeMatchResultPhoto(match);
+  if (!photoRemoved) {
+    return {
+      ok: false,
+      error: "Could not delete match result photo metadata."
+    };
+  }
+
+  const replay = await replayFutureSoccerMatches(futureSoccerMatches);
+  if (!replay.ok) return replay;
+
+  if (clearResultState) {
+    const teamIds = (match.match_teams || [])
+      .map(team => cleanUuidValue(team.id))
+      .filter(Boolean);
+
+    if (teamIds.length) {
+      const { error: teamResetError } = await supabaseClient
+        .from("match_teams")
+        .update({
+          score: 0,
+          result: null
+        })
+        .in("id", teamIds);
+
+      if (teamResetError) {
+        return {
+          ok: false,
+          error: `match_teams: ${teamResetError.message}`
+        };
+      }
+    }
+
+    const { error: matchResetError } = await supabaseClient
+      .from("matches")
+      .update({
+        score_status: null
+      })
+      .eq("id", matchId);
+
+    if (matchResetError) {
+      return {
+        ok: false,
+        error: `matches: ${matchResetError.message}`
+      };
+    }
+  }
+
+  if (clearChildRows) {
+    const childDelete = await deleteMatchChildRows(match);
+    if (!childDelete.ok) return childDelete;
+  }
+
+  await loadPositionRatings();
+
+  return {
+    ok: true,
+    replayedMatchIds: replay.matchIds || []
   };
 }
 
