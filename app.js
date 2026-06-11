@@ -12651,7 +12651,14 @@ async function saveActivitySportSettings() {
 }
 
 function activityPointsForMatch(match) {
-  return activityPointsForDurationHours(matchDurationHours(match));
+  const hours = matchDurationHours(match);
+  const setting = activitySettingForSport(match?.sport_id);
+  const rate = Number(setting.rate ?? DEFAULT_ACTIVITY_RATE);
+
+  if (!Number.isFinite(hours) || hours <= 0) return 0;
+  if (!Number.isFinite(rate) || rate <= 0) return 0;
+
+  return Math.round((hours / 0.5) * rate * 100) / 100;
 }
 
 function parseLocalDateTimeMs(value) {
@@ -12924,16 +12931,108 @@ async function refreshStravaMatchedFinishedMatchPoints(memberId) {
   return refreshed;
 }
 
-function scorePointsForResult(result) {
-  if (result === "win") return 7;
-  if (result === "draw") return 2;
+function resultScoreValue(result) {
+  if (result === "win") return 3;
+  if (result === "draw") return 1;
   return 0;
+}
+
+function scorePointsForResult(result, match = null) {
+  const hours = matchDurationHours(match);
+  const setting = activitySettingForSport(match?.sport_id);
+  const rate = Number(setting.rate ?? DEFAULT_ACTIVITY_RATE);
+  const resultScore = resultScoreValue(result);
+
+  if (!Number.isFinite(hours) || hours <= 0) return 0;
+  if (!Number.isFinite(rate) || rate <= 0) return 0;
+
+  return Math.round(resultScore * rate * (hours / 1.5) * 100) / 100;
+}
+
+function padelGameScoreValue(result) {
+  if (result === "win") return 1.5;
+  if (result === "draw") return 0.75;
+  return 0;
+}
+
+function matchTeamSideForMember(match, memberId) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  const { teamA, teamB } = getTwoMatchTeams(match);
+
+  if (!cleanMemberId) return "";
+
+  if ((teamA?.match_team_players || []).some(player => cleanUuidValue(player.member_id) === cleanMemberId)) {
+    return "A";
+  }
+
+  if ((teamB?.match_team_players || []).some(player => cleanUuidValue(player.member_id) === cleanMemberId)) {
+    return "B";
+  }
+
+  return "";
+}
+
+function padelCompletedGameResultsForMatch(match) {
+  if (!isPadelMatch(match)) return [];
+
+  const gamesById = new Map();
+  matchSessionGames(match).forEach(game => {
+    const id = cleanUuidValue(game?.id);
+    if (id) gamesById.set(id, game);
+  });
+
+  const setsByGame = new Map();
+  scoreEntries(match, "padel_set").forEach(entry => {
+    const gameId = cleanUuidValue(entry.game_id);
+    if (!gameId) return;
+    if (!setsByGame.has(gameId)) setsByGame.set(gameId, []);
+    setsByGame.get(gameId).push(entry);
+  });
+
+  return Array.from(setsByGame.entries())
+    .map(([gameId, sets]) => {
+      const game = gamesById.get(gameId) || {};
+      const summary = padelSetSummary(sets, game.winner_team);
+      const winnerTeam = game.winner_team || summary.winnerTeam || null;
+
+      if (
+        String(game.status || "").toLowerCase() !== "completed" &&
+        summary.teamASetWins < 2 &&
+        summary.teamBSetWins < 2
+      ) {
+        return null;
+      }
+
+      return {
+        gameId,
+        winnerTeam,
+        summary
+      };
+    })
+    .filter(Boolean);
+}
+
+function padelScorePointsForMember(match, memberId) {
+  const side = matchTeamSideForMember(match, memberId);
+  if (!side) return 0;
+
+  const total = padelCompletedGameResultsForMatch(match).reduce((sum, game) => {
+    let result = "loss";
+    if (!game.winnerTeam) result = "draw";
+    else if (game.winnerTeam === side) result = "win";
+
+    return sum + padelGameScoreValue(result);
+  }, 0);
+
+  return Math.round(total * 100) / 100;
 }
 
 function pointBreakdownForResult(result, match = null, memberId = null) {
   const stravaMatchActivity = memberId ? stravaActivityPointsForMatchMember(match, memberId) : null;
   const activityPoints = stravaMatchActivity?.points ?? activityPointsForMatch(match);
-  const scorePoints = scorePointsForResult(result);
+  const scorePoints = isPadelMatch(match) && memberId
+    ? padelScorePointsForMember(match, memberId)
+    : scorePointsForResult(result, match);
   const totalPoints = activityPoints + scorePoints;
 
   return {
@@ -12988,6 +13087,10 @@ async function saveMatchMemberPoints(match) {
   if (!match?.id) return false;
 
   const matchId = cleanUuidValue(match.id);
+  if (isPadelMatch(match)) {
+    match = await ensureMatchDetails(matchId, { render: false }) || match;
+  }
+
   const sportId = cleanUuidValue(match.sport_id);
 
   if (!matchId || !sportId) {
