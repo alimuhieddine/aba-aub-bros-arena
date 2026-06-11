@@ -3488,15 +3488,22 @@ function renderHomeSnapshot() {
   const box = $("homeSnapshot");
   if (!box) return;
 
+  $("dashboard")?.classList.add("home-screen-redesign");
+
   if (!currentProfile || currentProfile.approval_status !== "approved") {
     box.innerHTML = `
-      <section class="home-hero-panel">
-        <div>
-          <span class="home-kicker">ABA Arena</span>
-          <h2>Welcome</h2>
+      <section class="aba-home-screen">
+        <header class="aba-home-topbar">
+          <div>
+            <div class="aba-home-logo">ABA</div>
+            <div class="aba-home-sublogo">AUB Bros Arena</div>
+          </div>
+        </header>
+        <h2 class="aba-home-welcome">Welcome back</h2>
+        <article class="aba-home-empty">
+          <h3>Login required</h3>
           <p>Login with an approved member account to see matches, activity, rankings, and pending actions.</p>
-        </div>
-        ${homeGaugeHtml(new Date().toLocaleDateString([], { day: "numeric" }), "Today", new Date().toLocaleDateString([], { month: "short", weekday: "long" }), { pct: 66, tone: "green" })}
+        </article>
       </section>
     `;
     return;
@@ -3505,80 +3512,207 @@ function renderHomeSnapshot() {
   const stats = playerProfileStats(currentProfile.id);
   const rows = homeRankingRows();
   const rankIndex = rows.findIndex(row => cleanUuidValue(row.memberId) === cleanUuidValue(currentProfile.id));
-  const nextMatch = homeNextMatch();
   const activeMinutes = homeWeekActivityMinutes();
-  const monthPoints = homeMonthPoints(currentProfile.id);
-  const passText = homePointsToPassText(rows, currentProfile.id);
-  const recentChanges = homeRecentRatingChanges(currentProfile.id);
-  const latestChange = recentChanges[0];
-  const profileCompletion = homeProfileCompletion();
-  const goalMinutes = 180;
-  const activePct = Math.min(100, Math.round((activeMinutes / goalMinutes) * 100));
-  const rankPct = rankIndex >= 0 && rows.length > 1
+  const { startMs: weekStart, endMs: weekEnd } = homeThisWeekBounds();
+  const weekMatches = homeMatchesBetween(weekStart, weekEnd);
+  const verifiedActivities = homeActivitiesBetween(weekStart, weekEnd)
+    .filter(activity => activity.status === "approved").length;
+  const upcomingMatches = (allMatches || [])
+    .filter(match => !isCancelledMatch(match))
+    .filter(match => new Date(match.start_time || 0).getTime() >= Date.now())
+    .sort((a, b) => new Date(a.start_time || 0) - new Date(b.start_time || 0))
+    .slice(0, 2);
+  const standingsRows = rows.slice(0, 3);
+  const rankPct = rankIndex >= 0 && rows.length
     ? Math.max(8, Math.round(((rows.length - rankIndex) / rows.length) * 100))
-    : rankIndex === 0
-      ? 100
-      : 12;
-  const nextTitle = nextMatch ? (nextMatch.title || nextMatch.sports?.name || "Upcoming match") : "No joined match";
-  const nextMeta = nextMatch ? fmtDate(nextMatch.start_time) : "Vote in a match to light this up";
-  const stravaLinkedCount = playerProfileStats(currentProfile.id).stravaLinkedMatches || 0;
-  const bestSport = Array.from((stats.sportDetails || new Map()).values())
-    .sort((a, b) => Number(b.totalPoints || 0) - Number(a.totalPoints || 0))[0] || null;
-  const pointsPct = Math.min(100, Math.max(6, Math.round((Number(stats.totalPoints || 0) % 50) * 2)));
-  const scorePct = Math.min(100, Math.max(6, Math.round((Number(stats.bonusPoints || 0) % 30) * 3.33)));
-  const activityPct = Math.min(100, Math.max(6, activePct));
-  const activityBars = [
-    16,
-    Math.max(18, activityPct * .42),
-    Math.max(20, profileCompletion.pct * .55),
-    Math.max(12, pointsPct * .76),
-    Math.max(18, rankPct * .62),
-    Math.max(14, scorePct * .9),
-    Math.max(20, activityPct)
-  ];
+    : 12;
+  const weekActivityGoal = 3;
+  const challengeProgress = Math.min(weekActivityGoal, verifiedActivities);
+  const challengePct = Math.round((challengeProgress / weekActivityGoal) * 100);
+  const last7Start = Date.now() - (7 * 24 * 60 * 60 * 1000);
+  const last7Matches = homeMatchesBetween(last7Start, Date.now()).filter(match => hasSubmittedScore(match));
+  const last7Activities = homeActivitiesBetween(last7Start, Date.now());
+  const padelSessions = last7Matches.filter(match => String(match.sports?.name || sportNameById(match.sport_id) || "").toLowerCase().includes("padel")).length;
+  const soccerGames = last7Matches.filter(match => isSoccerMatch(match)).length;
+  const verifiedProofs = last7Activities.filter(activity => activity.status === "approved").length;
+  const totalPoints = Number(stats.totalPoints || 0);
+  const monthPoints = homeMonthPoints(currentProfile.id);
+  const firstName = String(memberDisplayName(currentProfile)).split(/\s+/)[0] || memberDisplayName(currentProfile);
+  const rankLabel = rankIndex >= 0 ? rankIndex + 1 : "-";
+
+  function homeStatCard(title, value, meta, delta, tone, icon, ring = false) {
+    return `
+      <article class="aba-glance-card aba-card-${escapeHtml(tone)}">
+        <div class="aba-card-icon">${icon}</div>
+        <h3>${escapeHtml(title)}</h3>
+        ${
+          ring
+            ? `<div class="aba-rank-ring" style="--rank-p:${rankPct}"><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(meta)}</span></div>`
+            : `<strong>${escapeHtml(String(value))}</strong><p>${escapeHtml(meta)}</p>`
+        }
+        ${delta ? `<em>${delta}</em>` : ""}
+      </article>
+    `;
+  }
+
+  function homeSportIcon(match) {
+    const name = String(match?.sports?.name || sportNameById(match?.sport_id) || "").toLowerCase();
+    if (name.includes("padel") || name.includes("tennis")) return "⌾";
+    if (name.includes("soccer") || name.includes("football")) return "●";
+    return "◆";
+  }
+
+  function homeMatchCard(match, index) {
+    if (!match) {
+      return `
+        <article class="aba-upcoming-card">
+          <div class="aba-match-orb aba-match-orb-${index}">◆</div>
+          <div>
+            <h3>No upcoming match</h3>
+            <p>Open matches to create or join one.</p>
+            <span>No venue selected</span>
+          </div>
+          <div class="aba-match-time"><b>-</b><small>Scheduled</small></div>
+        </article>
+      `;
+    }
+
+    const d = new Date(match.start_time);
+    const dateLabel = d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }).toUpperCase();
+    const timeLabel = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    const sport = match.sports?.name || sportNameById(match.sport_id) || "Sport";
+    const type = match.match_type || (match.required_players || match.max_players ? `${match.required_players || match.max_players} players` : "Match");
+
+    return `
+      <article class="aba-upcoming-card" onclick="openMatchDeepLink('${match.id}')">
+        <div class="aba-match-orb aba-match-orb-${index}">${homeSportIcon(match)}</div>
+        <div>
+          <h3>${escapeHtml(match.title || sport)}</h3>
+          <p><span>${escapeHtml(sport)}</span> · ${escapeHtml(type)}</p>
+          <span>${escapeHtml(match.venues?.name || "Venue pending")}</span>
+        </div>
+        <div class="aba-match-time">
+          <small>${escapeHtml(dateLabel)}</small>
+          <b>${escapeHtml(timeLabel)}</b>
+          <em>Scheduled</em>
+        </div>
+      </article>
+    `;
+  }
+
+  function standingRow(row, index) {
+    return `
+      <div class="aba-standing-row">
+        <span>${index + 1}</span>
+        ${avatarHtml(row.member, "aba-standing-avatar")}
+        <b>${escapeHtml(row.name)}</b>
+        <strong>${formatPointValue(row.totalPoints)}</strong>
+      </div>
+    `;
+  }
+
+  function last7Row(icon, label, value, tone, up = true) {
+    return `
+      <div class="aba-last-row aba-last-${escapeHtml(tone)}">
+        <span>${icon}</span>
+        <b>${escapeHtml(label)}</b>
+        <strong>${escapeHtml(String(value))}</strong>
+        <em>${up ? "↑" : "↓"}</em>
+        <i aria-hidden="true"><span></span><span></span><span></span><span></span></i>
+      </div>
+    `;
+  }
 
   box.innerHTML = `
-    <section class="home-hero-panel">
-      <div class="home-hero-copy">
-        <span class="home-kicker">My Day</span>
-        <h2>${escapeHtml(memberDisplayName(currentProfile))}</h2>
-        <p>${escapeHtml(passText)}</p>
-        <div class="home-hero-tags">
-          <span>${formatPointValue(monthPoints)} pts this month</span>
-          <span>${bestSport ? escapeHtml(bestSport.sport) : "Build your sport story"}</span>
-          <span>${profileCompletion.completed}/${profileCompletion.total} profile</span>
-        </div>
-      </div>
-      <div class="home-hero-visual">
-        <div class="home-metric-grid">
-          ${homeMetricCard("Total points", formatPointValue(stats.totalPoints), `${formatPointValue(stats.basePoints)} activity / ${formatPointValue(stats.bonusPoints)} score`, { pct: pointsPct, tone: "green" })}
-          ${homeMetricCard("Rank", rankIndex >= 0 ? `#${rankIndex + 1}` : "-", `${rows.length} ranked`, { pct: rankPct, tone: "blue" })}
-          ${homeMetricCard("Active time", formatProfileDurationMinutes(activeMinutes), `${activePct}% weekly target`, { pct: activityPct, tone: "orange" })}
-        </div>
-        <div class="home-trend-panel">
-          <div>
-            <b>Momentum</b>
-            <em>${latestChange ? `${latestChange.position} ${latestChange.delta >= 0 ? "+" : ""}${latestChange.delta.toFixed(2)} latest` : "Rating movement pending"}</em>
-          </div>
-          ${homeSparkBars(activityBars, "green")}
-        </div>
-      </div>
-    </section>
-
-    <section class="home-glance-grid">
-      <article class="card home-next-card">
+    <section class="aba-home-screen">
+      <header class="aba-home-topbar">
         <div>
-          <span class="home-card-icon">●</span>
-          <h3>${escapeHtml(nextTitle)}</h3>
-          <p>${escapeHtml(nextMeta)}</p>
+          <div class="aba-home-logo">ABA</div>
+          <div class="aba-home-sublogo">AUB Bros Arena</div>
         </div>
-        <button class="small-btn" type="button" onclick="setActiveTab('matches')">Matches</button>
+        <div class="aba-home-actions">
+          <button type="button" class="aba-bell" onclick="setActiveTab('account')" aria-label="Notifications"></button>
+          <div class="aba-home-avatar-wrap">
+            ${avatarHtml(currentProfile, "aba-home-avatar")}
+            <span></span>
+          </div>
+        </div>
+      </header>
+
+      <h2 class="aba-home-welcome">Welcome back, <span>${escapeHtml(firstName)}</span></h2>
+
+      <div class="aba-home-section-head">
+        <h3>At A Glance</h3>
+        <button type="button" onclick="setActiveTab('rankings')">See all</button>
+      </div>
+      <div class="aba-glance-grid">
+        ${homeStatCard("Matches This Week", weekMatches.length, "vs last week", "↑ 33%", "blue", "▦")}
+        ${homeStatCard("Verified Activities", verifiedActivities, "This week", "", "green", "◇")}
+        ${homeStatCard("Current Rank", rankLabel, `of ${rows.length || 0}`, "Pro Division", "purple", "♕", true)}
+        ${homeStatCard("Total Points", formatPointValue(totalPoints), "This week", `+${formatPointValue(monthPoints)} pts`, "gold", "☆")}
+      </div>
+
+      <div class="aba-home-section-head">
+        <h3>Upcoming Matches</h3>
+        <button type="button" onclick="setActiveTab('matches')">View calendar</button>
+      </div>
+      <div class="aba-upcoming-list">
+        ${homeMatchCard(upcomingMatches[0], 1)}
+        ${homeMatchCard(upcomingMatches[1], 2)}
+      </div>
+
+      <div class="aba-home-duo">
+        <article class="aba-challenge-card">
+          <div class="aba-card-heading">
+            <h3>Challenges</h3>
+            <button type="button" onclick="setActiveTab('activities')">View all</button>
+          </div>
+          <div class="aba-challenge-body">
+            <div class="aba-challenge-badge"><span>${weekActivityGoal}</span></div>
+            <div>
+              <h4>Weekly Warrior</h4>
+              <p>Play 3 activities this week</p>
+              <div class="aba-challenge-progress"><span style="width:${challengePct}%"></span></div>
+              <strong>${challengeProgress} / ${weekActivityGoal}</strong>
+            </div>
+          </div>
+          <footer>Reward: 250 pts</footer>
+        </article>
+
+        <article class="aba-standings-card">
+          <div class="aba-card-heading">
+            <h3>League / Rankings</h3>
+            <button type="button" onclick="setActiveTab('rankings')">See standings</button>
+          </div>
+          <div class="aba-standing-list">
+            ${standingsRows.length ? standingsRows.map(standingRow).join("") : `<p>No ranking rows yet.</p>`}
+          </div>
+          <footer>
+            <span>Your Rank</span>
+            <b>${escapeHtml(String(rankLabel))}</b>
+            <em>${escapeHtml(firstName)}</em>
+            <strong>${formatPointValue(totalPoints)}</strong>
+          </footer>
+        </article>
+      </div>
+
+      <div class="aba-home-section-head">
+        <h3>Last 7 Days</h3>
+        <button type="button" onclick="setActiveTab('activities')">View insights</button>
+      </div>
+      <article class="aba-last-card">
+        ${last7Row("⌾", "Padel Sessions", padelSessions, "green")}
+        ${last7Row("●", "Soccer Games", soccerGames, "blue")}
+        ${last7Row("◇", "Verified Proofs", verifiedProofs, "gold")}
+        ${last7Row("◌", "Training Minutes", `${Math.round(activeMinutes)} min`, "purple", false)}
       </article>
-      ${homeSnapshotCard("Active time", formatProfileDurationMinutes(activeMinutes), `${activePct}% of weekly 180 min target`, "green")}
-      ${homeSnapshotCard("Strava linked", stravaLinkedCount, stravaLinkedCount ? "match point replacements" : "Connect/import to use real data", "orange")}
-      ${homeSnapshotCard("Profile", `${profileCompletion.pct}%`, profileCompletion.missing.length ? `Missing ${profileCompletion.missing.slice(0, 2).map(row => row.label).join(", ")}` : "Ready for fair activity formulas", "blue")}
     </section>
   `;
+
+  ["homeTodayList", "homeActionList", "homeChallenge", "homeLeagueHq", "homePerformance", "feedList"].forEach(id => {
+    const el = $(id);
+    if (el) el.innerHTML = "";
+  });
 }
 
 function homeActionCard(title, detail, buttonText, viewId) {
