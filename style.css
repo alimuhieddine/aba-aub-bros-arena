@@ -248,6 +248,41 @@ button {
   display: block;
 }
 
+.pull-refresh-indicator {
+  position: sticky;
+  top: 8px;
+  z-index: 40;
+  width: fit-content;
+  max-width: calc(100vw - 32px);
+  margin: -4px auto 12px;
+  padding: 7px 12px;
+  border: 1px solid rgba(42, 217, 168, .28);
+  border-radius: 999px;
+  background: rgba(7, 18, 32, .92);
+  color: var(--text);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .28);
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.pull-refresh-indicator[data-state="ready"],
+.pull-refresh-indicator[data-state="refreshing"],
+.pull-refresh-indicator[data-state="done"] {
+  border-color: rgba(42, 217, 168, .46);
+  color: #55e6bf;
+}
+
+.pull-refresh-indicator[data-state="tab"] {
+  border-color: rgba(53, 168, 255, .42);
+  color: #77c8ff;
+}
+
+.pull-refresh-indicator[data-state="error"] {
+  border-color: rgba(255, 85, 118, .42);
+  color: #ff8aa0;
+}
+
 .section-head {
   display: flex;
   align-items: center;

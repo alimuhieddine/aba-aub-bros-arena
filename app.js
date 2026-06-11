@@ -18016,13 +18016,116 @@ if (currentProfile?.approval_status === "approved") {
 
 const ACTIVE_TAB_KEY = "aba_active_tab";
 const SCROLL_STATE_KEY = "aba_scroll_state";
+const SWIPE_TABS = ["dashboard", "leagues", "matches", "activities", "rankings", "account", "admin"];
 let scrollSaveFrame = null;
 let pageStateRestored = false;
+let mobileGestureState = null;
+let pullRefreshActive = false;
 
 function activeViewId() {
   return document.querySelector(".view.active-view")?.id ||
     localStorage.getItem(ACTIVE_TAB_KEY) ||
     "dashboard";
+}
+
+function visibleSwipeTabs() {
+  return SWIPE_TABS.filter(viewId => {
+    const tab = document.querySelector(`.tab[data-view="${viewId}"]`);
+    const view = $(viewId);
+    if (!tab || !view) return false;
+    return tab.offsetParent !== null && getComputedStyle(tab).display !== "none";
+  });
+}
+
+function tabBySwipeOffset(offset) {
+  const tabs = visibleSwipeTabs();
+  const current = activeViewId();
+  const index = tabs.indexOf(current);
+  if (index < 0) return "";
+  return tabs[index + offset] || "";
+}
+
+function targetLabelForView(viewId) {
+  const tab = document.querySelector(`.tab[data-view="${viewId}"]`);
+  return tab?.textContent?.trim() || "Tab";
+}
+
+function shouldIgnoreAppGesture(target) {
+  return Boolean(target?.closest?.(
+    "dialog, input, textarea, select, button, a, summary, .tabs, .avatar-view-trigger, .match-formation-toggle, .inline-rating-wrap, .rating-breakdown-details, .home-gauge"
+  ));
+}
+
+function setPullRefreshIndicator(text, state = "") {
+  const indicator = $("pullRefreshIndicator");
+  if (!indicator) return;
+
+  indicator.hidden = false;
+  indicator.textContent = text;
+  indicator.dataset.state = state;
+}
+
+function hidePullRefreshIndicator(delay = 450) {
+  const indicator = $("pullRefreshIndicator");
+  if (!indicator) return;
+
+  setTimeout(() => {
+    indicator.hidden = true;
+    indicator.dataset.state = "";
+  }, delay);
+}
+
+async function refreshCurrentView() {
+  if (pullRefreshActive) return;
+
+  pullRefreshActive = true;
+  setPullRefreshIndicator("Refreshing...", "refreshing");
+
+  try {
+    const viewId = activeViewId();
+
+    if (viewId === "dashboard") {
+      await Promise.all([
+        loadMatches({ force: true }),
+        loadMemberActivities({ force: true }),
+        loadRankingData(),
+        currentProfile ? loadMyProfile() : Promise.resolve()
+      ]);
+      renderStats();
+      renderFeed();
+    } else if (viewId === "matches") {
+      await loadMatches({ force: true });
+    } else if (viewId === "activities") {
+      await loadMemberActivities({ force: true });
+    } else if (viewId === "rankings") {
+      await loadRankingData();
+      renderRankings();
+    } else if (viewId === "leagues") {
+      await Promise.all([loadLeagues(), loadMatches({ force: true })]);
+    } else if (viewId === "account") {
+      await Promise.all([
+        loadMyProfile(),
+        loadStravaConnection(),
+        loadNotificationInbox()
+      ]);
+    } else if (viewId === "admin") {
+      await Promise.all([
+        loadPendingMembers({ force: true }),
+        loadMemberActivities({ force: true }),
+        loadMatches({ force: true }),
+        loadVenues({ force: true }).catch(() => loadVenues())
+      ]);
+      renderAdminDashboard();
+    }
+
+    setPullRefreshIndicator("Updated", "done");
+  } catch (error) {
+    console.warn("Pull refresh failed:", error?.message || error);
+    setPullRefreshIndicator("Refresh failed", "error");
+  } finally {
+    pullRefreshActive = false;
+    hidePullRefreshIndicator();
+  }
 }
 
 function isViewActive(viewId) {
@@ -18203,6 +18306,98 @@ function finishPageStateRestore() {
   setTimeout(saveScrollState, 1000);
 }
 
+function bindMobileGestures() {
+  if (bindMobileGestures.bound) return;
+  bindMobileGestures.bound = true;
+
+  document.addEventListener("touchstart", e => {
+    if (e.touches.length !== 1 || shouldIgnoreAppGesture(e.target)) {
+      mobileGestureState = null;
+      return;
+    }
+
+    const touch = e.touches[0];
+    mobileGestureState = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      lastX: touch.clientX,
+      lastY: touch.clientY,
+      startedAtTop: (window.scrollY || document.documentElement.scrollTop || 0) <= 2,
+      mode: "",
+      cancelled: false,
+      startedAt: Date.now()
+    };
+  }, { passive: true });
+
+  document.addEventListener("touchmove", e => {
+    if (!mobileGestureState || e.touches.length !== 1 || mobileGestureState.cancelled) return;
+
+    const touch = e.touches[0];
+    const dx = touch.clientX - mobileGestureState.startX;
+    const dy = touch.clientY - mobileGestureState.startY;
+    mobileGestureState.lastX = touch.clientX;
+    mobileGestureState.lastY = touch.clientY;
+
+    if (!mobileGestureState.mode) {
+      if (Math.abs(dx) > 18 || Math.abs(dy) > 18) {
+        mobileGestureState.mode = Math.abs(dx) > Math.abs(dy) * 1.35 ? "swipe" : "pull";
+      }
+    }
+
+    if (
+      mobileGestureState.mode === "pull" &&
+      mobileGestureState.startedAtTop &&
+      dy > 18 &&
+      Math.abs(dx) < 55 &&
+      !pullRefreshActive
+    ) {
+      const ready = dy > 82;
+      setPullRefreshIndicator(ready ? "Release to refresh" : "Pull to refresh", ready ? "ready" : "pulling");
+    }
+  }, { passive: true });
+
+  document.addEventListener("touchend", () => {
+    if (!mobileGestureState || mobileGestureState.cancelled) {
+      mobileGestureState = null;
+      return;
+    }
+
+    const dx = mobileGestureState.lastX - mobileGestureState.startX;
+    const dy = mobileGestureState.lastY - mobileGestureState.startY;
+    const elapsed = Date.now() - mobileGestureState.startedAt;
+
+    if (
+      mobileGestureState.mode === "pull" &&
+      mobileGestureState.startedAtTop &&
+      dy > 82 &&
+      Math.abs(dx) < 70
+    ) {
+      refreshCurrentView();
+    } else if (
+      mobileGestureState.mode === "swipe" &&
+      Math.abs(dx) > 72 &&
+      Math.abs(dx) > Math.abs(dy) * 1.6 &&
+      elapsed < 900
+    ) {
+      const target = tabBySwipeOffset(dx < 0 ? 1 : -1);
+      if (target) {
+        setActiveTab(target);
+        setPullRefreshIndicator(targetLabelForView(target), "tab");
+        hidePullRefreshIndicator(350);
+      }
+    } else {
+      hidePullRefreshIndicator(120);
+    }
+
+    mobileGestureState = null;
+  }, { passive: true });
+
+  document.addEventListener("touchcancel", () => {
+    mobileGestureState = null;
+    hidePullRefreshIndicator(120);
+  }, { passive: true });
+}
+
 function setActiveTab(viewId, persist = true) {
   const targetView = $(viewId);
   const targetTab = document.querySelector(`[data-view="${viewId}"]`);
@@ -18282,6 +18477,7 @@ function restoreActiveTab() {
 }
 
 function bindEvents() {
+  bindMobileGestures();
   organizeAdminSections();
   populateMatchTimeSelects();
   setDefaultMatchDateTimes();
