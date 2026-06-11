@@ -1281,7 +1281,68 @@ function renderAdminDashboard() {
     adminDashboardMetricCard("Unread inbox", unreadNotifications, "Notifications visible in Account inbox.", "Notifications")
   ].join("");
 
+  renderAdminActionQueue({
+    pendingMembers,
+    pendingActivities,
+    resultNeeded,
+    soccerAssessmentsMissing
+  });
   renderAdminMatchReminders();
+}
+
+function adminQueueCard(label, detail, actionLabel, targetPanel = "") {
+  return `
+    <article class="card admin-queue-card">
+      <div>
+        <strong>${escapeHtml(label)}</strong>
+        <p>${escapeHtml(detail)}</p>
+      </div>
+      ${targetPanel ? `<button class="tiny-btn" type="button" onclick="activateAdminPanel('${escapeHtml(targetPanel)}')">${escapeHtml(actionLabel || "Open")}</button>` : ""}
+    </article>
+  `;
+}
+
+function renderAdminActionQueue(counts = {}) {
+  const box = $("adminActionQueue");
+  if (!box || !isCurrentUserAdmin()) return;
+
+  const pendingStravaActivities = (allMemberActivities || []).filter(activity =>
+    activity.source === STRAVA_ACTIVITY_SOURCE &&
+    String(activity.status || "pending").toLowerCase() === "pending"
+  ).length;
+  const stravaLinkedMatches = (allMatches || []).reduce((sum, match) => {
+    if (!hasSubmittedScore(match) || isCancelledMatch(match)) return sum;
+    const linkedMembers = new Set();
+    (match.match_member_points || []).forEach(point => {
+      if (matchMemberUsesStravaActivityPoints(match, point.member_id)) {
+        linkedMembers.add(cleanUuidValue(point.member_id));
+      }
+    });
+    return sum + linkedMembers.size;
+  }, 0);
+  const reminderCandidates = matchReminders({ adminOnly: true }).length;
+
+  const cards = [
+    counts.pendingMembers ? adminQueueCard("Approve new members", `${counts.pendingMembers} member profile${counts.pendingMembers === 1 ? "" : "s"} waiting.`, "Review", "Members") : "",
+    counts.pendingActivities ? adminQueueCard("Review activity proofs", `${counts.pendingActivities} manual or synced activit${counts.pendingActivities === 1 ? "y" : "ies"} pending.`, "Review", "Activities") : "",
+    counts.resultNeeded ? adminQueueCard("Finalize match results", `${counts.resultNeeded} completed match${counts.resultNeeded === 1 ? "" : "es"} need results.`, "Open", "Maintenance") : "",
+    counts.soccerAssessmentsMissing ? adminQueueCard("Complete soccer assessments", `${counts.soccerAssessmentsMissing} finalized soccer match${counts.soccerAssessmentsMissing === 1 ? "" : "es"} still need assessment.`, "Open", "Sports") : "",
+    reminderCandidates ? adminQueueCard("Send reminders", `${reminderCandidates} reminder candidate${reminderCandidates === 1 ? "" : "s"} for captains, admins, or players.`, "Open", "Overview") : "",
+    pendingStravaActivities ? adminQueueCard("Check Strava imports", `${pendingStravaActivities} Strava activit${pendingStravaActivities === 1 ? "y" : "ies"} pending fair-rule review.`, "Review", "Activities") : "",
+    stravaLinkedMatches ? adminQueueCard("Strava linked points", `${stravaLinkedMatches} player-match point replacement${stravaLinkedMatches === 1 ? "" : "s"} currently use Strava data.`, "Open", "Activities") : ""
+  ].filter(Boolean);
+
+  box.innerHTML = cards.length
+    ? `
+      <div class="section-head compact-section-head">
+        <div>
+          <h3>Action Queue</h3>
+          <p class="hint">High-priority admin follow-ups from live app data.</p>
+        </div>
+      </div>
+      <div class="admin-queue-grid">${cards.join("")}</div>
+    `
+    : `<article class="card admin-queue-card"><strong>Action Queue</strong><p>All clear right now.</p></article>`;
 }
 
 function loadData() {
@@ -1328,6 +1389,7 @@ let allMemberSportPermissions = [];
 let allMemberRoleManagerMembers = [];
 let allNotifications = [];
 let allPendingMembers = [];
+let allMatchEditEvents = [];
 let currentMemberSportPermissionIds = new Set();
 let currentMemberRoleManagerId = "";
 let currentSportRatingMemberId = "";
@@ -5115,6 +5177,7 @@ async function loadMatches(options = {}) {
     if (cachedMatches.length) {
       allMatches = hydrateMatchSummaries(cachedMatches);
       appLoadState.matches.loaded = true;
+      renderConnectionStatus("Showing saved match data while refreshing.");
       updateMatchFilterOptions();
       renderMatches();
       renderLeagues();
@@ -5128,7 +5191,7 @@ async function loadMatches(options = {}) {
     const { data, error } = result;
 
     if (error) {
-      alert(error.message);
+      renderConnectionStatus(`Could not refresh matches. Showing saved data if available. ${error.message}`);
       return allMatches;
     }
 
@@ -5169,6 +5232,41 @@ function readCachedMatchSummaries() {
   }
 }
 
+function readCachedMatchSummaryMeta() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(MATCH_SUMMARY_CACHE_KEY) || "null");
+    if (!cached || typeof cached !== "object") return null;
+    if (cached.profileId && cached.profileId !== cleanUuidValue(currentProfile?.id)) return null;
+    return {
+      savedAt: Number(cached.savedAt || 0),
+      count: Array.isArray(cached.matches) ? cached.matches.length : 0
+    };
+  } catch {
+    return null;
+  }
+}
+
+function renderConnectionStatus(message = "") {
+  const box = $("connectionStatus");
+  if (!box) return;
+
+  const meta = readCachedMatchSummaryMeta();
+  const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
+  const lastSavedText = meta?.savedAt
+    ? `Last match cache: ${new Date(meta.savedAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
+    : "No saved match cache yet";
+  const text = message || (isOffline
+    ? `Offline mode. Showing saved data when available. ${lastSavedText}.`
+    : `Online. ${lastSavedText}.`);
+
+  box.hidden = false;
+  box.classList.toggle("offline", isOffline);
+  box.innerHTML = `
+    <span>${isOffline ? "Offline" : "Online"}</span>
+    <strong>${escapeHtml(text)}</strong>
+  `;
+}
+
 function cacheMatchSummaries(matches = []) {
   if (!currentProfile?.id) return;
 
@@ -5178,6 +5276,7 @@ function cacheMatchSummaries(matches = []) {
       savedAt: Date.now(),
       matches: matches.slice(0, 80)
     }));
+    renderConnectionStatus();
   } catch {
     // Ignore storage limits; live Supabase loading still works.
   }
@@ -5200,6 +5299,7 @@ function queueMatchEnrichment() {
         await loadMemberActivities({ skipMatchRender: true });
       }
 
+      await loadMatchEditEvents((allMatches || []).slice(0, 40).map(match => match.id));
       await loadRankingData();
       renderRankings();
       renderStats();
@@ -5214,6 +5314,132 @@ function queueMatchEnrichment() {
       console.warn("Could not finish deferred match enrichment:", error.message || error);
     }
   }, 0);
+}
+
+function eventActorName(event) {
+  return event?.actor ? memberDisplayName(event.actor) : "System";
+}
+
+function matchEditEventsForMatch(matchId) {
+  const cleanMatchId = cleanUuidValue(matchId);
+  if (!cleanMatchId) return [];
+
+  return (allMatchEditEvents || [])
+    .filter(event => cleanUuidValue(event.match_id) === cleanMatchId)
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+}
+
+function appendLocalMatchEditEvent(event) {
+  if (!event?.match_id) return;
+
+  const localEvent = {
+    id: event.id || `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    match_id: cleanUuidValue(event.match_id),
+    actor_member_id: cleanUuidValue(event.actor_member_id || currentProfile?.id),
+    actor: event.actor || currentProfile || null,
+    event_type: event.event_type || "match_update",
+    summary: event.summary || "Match updated",
+    details: event.details || {},
+    created_at: event.created_at || new Date().toISOString()
+  };
+
+  allMatchEditEvents = [
+    localEvent,
+    ...(allMatchEditEvents || []).filter(row => row.id !== localEvent.id)
+  ].slice(0, 400);
+}
+
+async function loadMatchEditEvents(matchIds = []) {
+  const ids = Array.from(new Set(
+    (matchIds || []).map(cleanUuidValue).filter(Boolean)
+  ));
+
+  if (!ids.length) return [];
+
+  const selectFields = `
+    id,
+    match_id,
+    actor_member_id,
+    event_type,
+    summary,
+    details,
+    created_at,
+    actor:members!match_edit_events_actor_member_id_fkey (
+      id,
+      first_name,
+      last_name,
+      display_name,
+      email,
+      avatar_url,
+      is_external
+    )
+  `;
+
+  const { data, error } = await supabaseClient
+    .from("match_edit_events")
+    .select(selectFields)
+    .in("match_id", ids)
+    .order("created_at", { ascending: false })
+    .limit(120);
+
+  if (error) {
+    if (!String(error.message || "").toLowerCase().includes("match_edit_events")) {
+      console.warn("Could not load match edit history:", error.message);
+    }
+    return [];
+  }
+
+  const nextRows = data || [];
+  const refreshedIds = new Set(ids);
+  allMatchEditEvents = [
+    ...nextRows,
+    ...(allMatchEditEvents || []).filter(row => !refreshedIds.has(cleanUuidValue(row.match_id)))
+  ].slice(0, 400);
+
+  return nextRows;
+}
+
+async function logMatchEditEvent(matchId, eventType, summary, details = {}) {
+  const cleanMatchId = cleanUuidValue(matchId);
+  if (!cleanMatchId || !currentProfile?.id) return null;
+
+  const fallbackEvent = {
+    match_id: cleanMatchId,
+    actor_member_id: currentProfile.id,
+    actor: currentProfile,
+    event_type: eventType,
+    summary,
+    details,
+    created_at: new Date().toISOString()
+  };
+
+  appendLocalMatchEditEvent(fallbackEvent);
+
+  const { data, error } = await supabaseClient
+    .from("match_edit_events")
+    .insert({
+      match_id: cleanMatchId,
+      actor_member_id: currentProfile.id,
+      event_type: eventType,
+      summary,
+      details
+    })
+    .select("id,match_id,actor_member_id,event_type,summary,details,created_at")
+    .single();
+
+  if (error) {
+    if (!String(error.message || "").toLowerCase().includes("match_edit_events")) {
+      console.warn("Could not save match edit history:", error.message);
+    }
+    return null;
+  }
+
+  appendLocalMatchEditEvent({
+    ...data,
+    actor: currentProfile
+  });
+
+  return data;
 }
 
 async function refreshMatch(matchId, options = {}) {
@@ -5247,6 +5473,7 @@ async function refreshMatch(matchId, options = {}) {
 
   await attachMatchPositionRatingAdjustments([cleanMatchId]);
   await attachSoccerPerformanceAssessments([cleanMatchId]);
+  await loadMatchEditEvents([cleanMatchId]);
 
   refreshed = (allMatches || []).find(match => cleanUuidValue(match.id) === cleanMatchId) || refreshed;
 
@@ -7822,6 +8049,25 @@ function renderFormationSection(match) {
   `;
 }
 
+function renderMatchEditHistory(match) {
+  const events = matchEditEventsForMatch(match.id).slice(0, 8);
+  if (!events.length) return "";
+
+  return `
+    <details class="match-insight-panel match-history-panel">
+      <summary>Edit history (${events.length})</summary>
+      <div class="match-insight-list">
+        ${events.map(event => `
+          <div class="match-insight-row">
+            <span>${escapeHtml(event.summary || "Match updated")}</span>
+            <em>${escapeHtml(eventActorName(event))} • ${escapeHtml(fmtDate(event.created_at))}</em>
+          </div>
+        `).join("")}
+      </div>
+    </details>
+  `;
+}
+
 function renderMatches() {
   if (!shouldRenderView("matches")) return;
 
@@ -7934,6 +8180,10 @@ function renderMatchCardHtml(match) {
             ${renderMatchResultPhoto(match)}
 
             ${renderPointsSummary(match)}
+
+            ${renderMatchStravaLinkedPoints(match)}
+
+            ${renderMatchEditHistory(match)}
 
             ${
               externalCount && canManageMatch(match) && matchEditable
@@ -10141,8 +10391,16 @@ async function saveFormationOnly(match, assignments) {
     const recalculated = await recalculateSoccerRatingsAfterFormationEdit(match.id);
     if (!recalculated) return false;
 
+    logMatchEditEvent(match.id, "formation_saved", "Formation saved and soccer ratings recalculated.", {
+      scope: "formation",
+      recalculated: true
+    });
     alert("Formation saved and soccer ratings recalculated.");
   } else {
+    logMatchEditEvent(match.id, "formation_saved", "Formation saved.", {
+      scope: "formation",
+      recalculated: false
+    });
     alert("Formation saved.");
   }
 
@@ -10370,8 +10628,20 @@ async function saveTeams() {
 
     if (!pointsUpdated) return;
 
+    logMatchEditEvent(teamMatchId, "teams_saved", `${isSinglesMatch(match) ? "Matchup" : "Teams"} saved and points recalculated.`, {
+      scope: "full",
+      recalculated: true,
+      team_a_count: assignments.teamA.length,
+      team_b_count: assignments.teamB.length
+    });
     alert(`${isSinglesMatch(match) ? "Matchup" : "Teams"} saved and points recalculated.`);
   } else {
+    logMatchEditEvent(teamMatchId, "teams_saved", `${isSinglesMatch(match) ? "Matchup" : "Teams"} saved.`, {
+      scope: "full",
+      recalculated: false,
+      team_a_count: assignments.teamA.length,
+      team_b_count: assignments.teamB.length
+    });
     alert(`${isSinglesMatch(match) ? "Matchup" : "Teams"} saved.`);
   }
 
@@ -12059,6 +12329,50 @@ function stravaMatchBadgeHtml(match, memberId) {
   return `<span class="strava-match-badge" title="Activity points from synced Strava data" aria-label="Activity points from synced Strava data">Via STRAVA</span>`;
 }
 
+function stravaLinkedPointRowsForMatch(match) {
+  if (!hasSubmittedScore(match) || isCancelledMatch(match)) return [];
+
+  const seen = new Set();
+  return (match.match_member_points || []).map(point => {
+    const memberId = cleanUuidValue(point.member_id);
+    if (!memberId) return null;
+    const linked = stravaActivityPointsForMatchMember(match, memberId);
+    if (!linked?.activity) return null;
+
+    const key = `${memberId}|${linked.activity.id}`;
+    if (seen.has(key)) return null;
+    seen.add(key);
+
+    return {
+      memberId,
+      member: point.member || memberById(memberId),
+      activity: linked.activity,
+      points: Number(linked.points || 0),
+      overlap: Number(linked.overlap || 0),
+      estimatedPoints: activityPointsForMatch(match)
+    };
+  }).filter(Boolean);
+}
+
+function renderMatchStravaLinkedPoints(match) {
+  const rows = stravaLinkedPointRowsForMatch(match);
+  if (!rows.length) return "";
+
+  return `
+    <details class="match-insight-panel">
+      <summary>Strava-linked points (${rows.length})</summary>
+      <div class="match-insight-list">
+        ${rows.map(row => `
+          <div class="match-insight-row">
+            <span>${memberMiniIdentityHtml(row.member, row.memberId, memberDisplayName(row.member || memberById(row.memberId)) || "Player")}</span>
+            <em>${escapeHtml(row.activity.title || "Strava activity")} replaced estimated ${formatPointValue(row.estimatedPoints)} pts with ${formatPointValue(row.points)} pts${row.overlap ? ` • ${Math.round(row.overlap)} min overlap` : ""}</em>
+          </div>
+        `).join("")}
+      </div>
+    </details>
+  `;
+}
+
 function matchPointBadgeHtml(match, memberId) {
   if (!hasSubmittedScore(match)) return "";
 
@@ -13018,6 +13332,17 @@ async function saveSingleInlineSoccerAssessment(input) {
 
   input.dataset.savedValue = input.value;
   updateLocalSoccerAssessment(match, row);
+  logMatchEditEvent(
+    matchId,
+    "soccer_assessment",
+    `Assessment changed for ${memberDisplayName(memberById(row.assessed_member_id)) || "player"} to ${SOCCER_ASSESSMENT_OPTIONS.find(option => option.value === input.value)?.label || input.value}`,
+    {
+      assessed_member_id: row.assessed_member_id,
+      position_name: row.position_name,
+      performance_score: row.performance_score,
+      label: SOCCER_ASSESSMENT_OPTIONS.find(option => option.value === input.value)?.label || input.value
+    }
+  );
 
   if (hasSubmittedScore(match)) {
     if (applyOptimisticSoccerRatingTags(match)) {
@@ -13809,6 +14134,19 @@ async function finalizeCurrentMatchResult() {
   $("scoreModal")?.close();
   currentScoreMatchId = null;
   updateScorePhotoPreview(null);
+  logMatchEditEvent(
+    scoreMatchId,
+    wasAlreadyLocked ? "result_edited" : "result_finalized",
+    `${wasAlreadyLocked ? "Result edited" : "Result finalized"}: ${teamAName} ${scoreA} - ${scoreB} ${teamBName}`,
+    {
+      team_a_name: teamAName,
+      team_b_name: teamBName,
+      score_a: scoreA,
+      score_b: scoreB,
+      result_a: resultA,
+      result_b: resultB
+    }
+  );
   scheduleMatchUiRefresh({ rankings: isSoccerMatch(refreshedMatchForPoints) });
 
   const pointsSaved = await saveMatchMemberPoints(refreshedMatchForPoints);
@@ -13884,6 +14222,9 @@ function activityCard(a, compact = false) {
   const isGarminActivity = a.source === GARMIN_ACTIVITY_SOURCE;
   const isStravaActivity = a.source === STRAVA_ACTIVITY_SOURCE;
   const linkedMatch = linkedMatchForActivity(a);
+  const linkedMatchPoints = linkedMatch
+    ? stravaActivityPointsForMatchMember(linkedMatch, a.member_id)
+    : null;
   const importedSourceName = isGarminActivity ? "Garmin" : isStravaActivity ? "Strava" : "";
   const proofLabel = a.proof_file_name || (importedSourceName ? `${importedSourceName} proof` : a.proof || "proof");
   const activityActions = compact ? [] : [
@@ -13914,6 +14255,7 @@ function activityCard(a, compact = false) {
             <button class="linked-match-tag" type="button" onclick="openLinkedActivityMatch('${linkedMatch.id}')">
               Linked to ${escapeHtml(linkedMatch.title || linkedMatch.sports?.name || "match")}
             </button>
+            <div class="meta strava-linked-note">Standalone points set to 0 because ${formatPointValue(linkedMatchPoints?.points ?? points)} pts are counted inside the linked match.</div>
           ` : ""}
           <div class="meta">
             ${escapeHtml(fmtDate(a.activity_date || a.created_at))}
@@ -17580,6 +17922,8 @@ function bindEvents() {
   window.addEventListener("scroll", scheduleScrollStateSave, { passive: true });
   window.addEventListener("pagehide", saveScrollStateNow);
   window.addEventListener("beforeunload", saveScrollStateNow);
+  window.addEventListener("online", () => renderConnectionStatus("Back online. Refreshing live data."));
+  window.addEventListener("offline", () => renderConnectionStatus());
 
  document.querySelectorAll("[data-open]").forEach(btn =>
   btn.addEventListener("click", async () => {
