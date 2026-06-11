@@ -1,5 +1,5 @@
-const SHELL_CACHE = "aba-pwa-shell-v3";
-const IMAGE_CACHE = "aba-image-cache-v2";
+const SHELL_CACHE = "aba-pwa-shell-v4";
+const IMAGE_CACHE = "aba-image-cache-v3";
 const IMAGE_CACHE_LIMIT = 160;
 const SHELL_ASSETS = [
   "./index.html",
@@ -43,9 +43,10 @@ async function trimCache(cacheName, limit) {
   );
 }
 
-async function staleWhileRevalidateImage(request) {
+async function cacheFirstImage(request) {
   const cache = await caches.open(IMAGE_CACHE);
   const cached = await cache.match(request);
+  if (cached) return cached;
 
   const networkFetch = fetch(request).then(response => {
     if (isCacheableResponse(response)) {
@@ -62,7 +63,7 @@ async function staleWhileRevalidateImage(request) {
     throw error;
   });
 
-  return cached || networkFetch;
+  return networkFetch;
 }
 
 self.addEventListener("fetch", event => {
@@ -77,7 +78,7 @@ self.addEventListener("fetch", event => {
   }
 
   if (isImageRequest(request)) {
-    event.respondWith(staleWhileRevalidateImage(request));
+    event.respondWith(cacheFirstImage(request));
     return;
   }
 
