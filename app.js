@@ -1230,6 +1230,8 @@ function adminDashboardMetricCard(label, value, detail, targetPanel = "") {
 }
 
 function renderAdminDashboard() {
+  if (!shouldRenderView("admin")) return;
+
   const box = $("adminDashboardCards");
   if (!box || !isCurrentUserAdmin()) return;
 
@@ -1321,6 +1323,7 @@ let currentStravaConnection = null;
 let stravaConnectedMemberIds = new Set();
 let voteDeadlineManuallyEdited = false;
 let matchRenderQueued = false;
+let deferredViewRenders = new Set();
 const appLoadState = {
   sports: { loaded: false, promise: null },
   venues: { loaded: false, promise: null },
@@ -1336,6 +1339,7 @@ function resetAppLoadState() {
     state.loaded = false;
     state.promise = null;
   });
+  deferredViewRenders = new Set();
 }
 
 const ACTIVITY_SPORT_SETTINGS_KEY = "aba_activity_sport_settings";
@@ -2919,6 +2923,8 @@ function render() {
 }
 
 function renderStats() {
+  if (!shouldRenderView("dashboard")) return;
+
   renderHomeSnapshot();
   renderHomeToday();
   renderHomeActions();
@@ -3976,6 +3982,8 @@ function homePulseHighlightsHtml() {
 }
 
 function renderFeed() {
+  if (!shouldRenderView("dashboard")) return;
+
   if (!$("feedList")) return;
 
   const items = [
@@ -7691,6 +7699,8 @@ function renderFormationSection(match) {
 }
 
 function renderMatches() {
+  if (!shouldRenderView("matches")) return;
+
   if (!$("matchList")) return;
 
   if (!allMatches || allMatches.length === 0) {
@@ -13662,6 +13672,8 @@ function activityCard(a, compact = false) {
 }
 
 function renderActivities() {
+  if (!shouldRenderView("activities")) return;
+
   if (!$("activityList")) return;
   const loadedRows = (allMemberActivities || []).length ? allMemberActivities : state.activities;
   const rows = isCurrentUserAdmin()
@@ -13827,6 +13839,8 @@ async function loadRankingData() {
 }
 
 function renderPendingActivities() {
+  if (!shouldRenderView("admin")) return;
+
   const box = $("pendingActivitiesList");
   if (!box) return;
 
@@ -15391,6 +15405,8 @@ function rankingSummary(rows) {
 }
 
 function renderRankings() {
+  if (!shouldRenderView("rankings")) return;
+
   if (!$("rankingList")) return;
 
   updateRankingFilters();
@@ -16928,6 +16944,49 @@ function activeViewId() {
     "dashboard";
 }
 
+function isViewActive(viewId) {
+  return activeViewId() === viewId;
+}
+
+function shouldRenderView(viewId) {
+  if (!$(viewId)) return true;
+  if (isViewActive(viewId)) return true;
+  deferredViewRenders.add(viewId);
+  return false;
+}
+
+function renderDeferredView(viewId) {
+  if (!deferredViewRenders.has(viewId)) return;
+  deferredViewRenders.delete(viewId);
+
+  if (viewId === "dashboard") {
+    renderStats();
+    renderFeed();
+    return;
+  }
+
+  if (viewId === "matches") {
+    renderMatches();
+    return;
+  }
+
+  if (viewId === "activities") {
+    renderActivities();
+    return;
+  }
+
+  if (viewId === "rankings") {
+    updateRankingFilters();
+    renderRankings();
+    return;
+  }
+
+  if (viewId === "admin") {
+    renderAdminDashboard();
+    renderPendingActivities();
+  }
+}
+
 function activeAdminPanelName() {
   return document.querySelector(".admin-subtab.active")?.dataset.adminPanel ||
     localStorage.getItem("aba_admin_panel") ||
@@ -17054,6 +17113,8 @@ function setActiveTab(viewId, persist = true) {
     });
     loadSoccerRatingSettings(true).then(renderSoccerRatingSettingsForm);
   }
+
+  renderDeferredView(viewId);
 }
 
 function restoreActiveTab() {
