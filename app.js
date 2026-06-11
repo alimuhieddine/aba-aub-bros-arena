@@ -1339,6 +1339,7 @@ let stravaConnectedMemberIds = new Set();
 let voteDeadlineManuallyEdited = false;
 let matchRenderQueued = false;
 let matchListRenderToken = 0;
+let matchEnrichmentQueued = false;
 let deferredViewRenders = new Set();
 let deferredAdminPanelRenders = new Set();
 const appLoadState = {
@@ -5123,21 +5124,10 @@ async function loadMatches(options = {}) {
       __detailsLoaded: false
     }));
     appLoadState.matches.loaded = true;
-    await attachMatchPositionRatingAdjustments();
-    await attachSoccerPerformanceAssessments();
-    await repairMissingSoccerRatingAdjustments();
-
-    if (!(allMemberActivities || []).length) {
-      await loadMemberActivities({ skipMatchRender: true });
-    }
-
-    await loadRankingData();
     updateMatchFilterOptions();
     renderMatches();
     renderLeagues();
-    renderRankings();
-    renderStats();
-    renderAdminDashboard();
+    queueMatchEnrichment();
     return allMatches;
   })();
 
@@ -5146,6 +5136,39 @@ async function loadMatches(options = {}) {
   } finally {
     appLoadState.matches.promise = null;
   }
+}
+
+function queueMatchEnrichment() {
+  if (matchEnrichmentQueued) return;
+  matchEnrichmentQueued = true;
+
+  setTimeout(async () => {
+    matchEnrichmentQueued = false;
+
+    try {
+      await attachMatchPositionRatingAdjustments();
+      await attachSoccerPerformanceAssessments();
+
+      scheduleMatchUiRefresh({ rankings: false });
+
+      if (!(allMemberActivities || []).length) {
+        await loadMemberActivities({ skipMatchRender: true });
+      }
+
+      await loadRankingData();
+      renderRankings();
+      renderStats();
+      renderAdminDashboard();
+
+      setTimeout(() => {
+        repairMissingSoccerRatingAdjustments().catch(error => {
+          console.warn("Deferred soccer rating repair failed:", error.message || error);
+        });
+      }, 2500);
+    } catch (error) {
+      console.warn("Could not finish deferred match enrichment:", error.message || error);
+    }
+  }, 0);
 }
 
 async function refreshMatch(matchId, options = {}) {
