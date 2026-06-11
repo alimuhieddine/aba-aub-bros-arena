@@ -13847,7 +13847,7 @@ async function finalizeCurrentMatchResult() {
       ? "Match result finalized, points saved, and padel ratings updated."
       : "Match result finalized and points saved.";
 
-  alert(`${finalMessage}${photoSaveNote}`);
+  showPushToast(finalMessage, photoSaveNote.trim());
 
   refreshMatch(scoreMatchId, { render: false, rankings: true })
     .then(() => scheduleMatchUiRefresh({ rankings: true }))
