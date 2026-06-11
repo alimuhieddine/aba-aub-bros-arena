@@ -3444,6 +3444,36 @@ function homeGaugeHtml(value, label, detail, options = {}) {
   `;
 }
 
+function homeMetricCard(label, value, detail, options = {}) {
+  const pct = clampNumber(Number(options.pct ?? 0), 0, 100);
+  const tone = options.tone || "blue";
+
+  return `
+    <article class="home-metric-card home-metric-${escapeHtml(tone)}" style="--p:${pct}">
+      <div class="home-metric-ring">
+        <strong>${escapeHtml(String(value))}</strong>
+      </div>
+      <div>
+        <b>${escapeHtml(label)}</b>
+        ${detail ? `<em>${escapeHtml(detail)}</em>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+function homeSparkBars(values = [], tone = "green") {
+  const rows = values.length ? values : [18, 34, 22, 48, 36, 62, 54];
+
+  return `
+    <div class="home-spark-bars home-spark-${escapeHtml(tone)}" aria-hidden="true">
+      ${rows.map(value => {
+        const height = clampNumber(Number(value || 0), 8, 100);
+        return `<span style="--h:${height}%"></span>`;
+      }).join("")}
+    </div>
+  `;
+}
+
 function homeSnapshotCard(label, value, detail = "", tone = "blue") {
   return `
     <article class="card home-stat-card home-stat-${escapeHtml(tone)}">
@@ -3494,6 +3524,18 @@ function renderHomeSnapshot() {
   const stravaLinkedCount = playerProfileStats(currentProfile.id).stravaLinkedMatches || 0;
   const bestSport = Array.from((stats.sportDetails || new Map()).values())
     .sort((a, b) => Number(b.totalPoints || 0) - Number(a.totalPoints || 0))[0] || null;
+  const pointsPct = Math.min(100, Math.max(6, Math.round((Number(stats.totalPoints || 0) % 50) * 2)));
+  const scorePct = Math.min(100, Math.max(6, Math.round((Number(stats.bonusPoints || 0) % 30) * 3.33)));
+  const activityPct = Math.min(100, Math.max(6, activePct));
+  const activityBars = [
+    16,
+    Math.max(18, activityPct * .42),
+    Math.max(20, profileCompletion.pct * .55),
+    Math.max(12, pointsPct * .76),
+    Math.max(18, rankPct * .62),
+    Math.max(14, scorePct * .9),
+    Math.max(20, activityPct)
+  ];
 
   box.innerHTML = `
     <section class="home-hero-panel">
@@ -3507,9 +3549,19 @@ function renderHomeSnapshot() {
           <span>${profileCompletion.completed}/${profileCompletion.total} profile</span>
         </div>
       </div>
-      <div class="home-hero-gauges">
-        ${homeGaugeHtml(formatPointValue(stats.totalPoints), "PTS", "Total points", { pct: Math.min(100, Number(stats.totalPoints || 0) % 100 || 18), tone: "green", sub: `${formatPointValue(stats.basePoints)} activity / ${formatPointValue(stats.bonusPoints)} score` })}
-        ${homeGaugeHtml(rankIndex >= 0 ? `#${rankIndex + 1}` : "-", "Rank", `${rows.length} ranked`, { pct: rankPct, tone: "blue", sub: latestChange ? `${latestChange.position} ${latestChange.delta >= 0 ? "+" : ""}${latestChange.delta.toFixed(2)} latest` : "Rating movement pending" })}
+      <div class="home-hero-visual">
+        <div class="home-metric-grid">
+          ${homeMetricCard("Total points", formatPointValue(stats.totalPoints), `${formatPointValue(stats.basePoints)} activity / ${formatPointValue(stats.bonusPoints)} score`, { pct: pointsPct, tone: "green" })}
+          ${homeMetricCard("Rank", rankIndex >= 0 ? `#${rankIndex + 1}` : "-", `${rows.length} ranked`, { pct: rankPct, tone: "blue" })}
+          ${homeMetricCard("Active time", formatProfileDurationMinutes(activeMinutes), `${activePct}% weekly target`, { pct: activityPct, tone: "orange" })}
+        </div>
+        <div class="home-trend-panel">
+          <div>
+            <b>Momentum</b>
+            <em>${latestChange ? `${latestChange.position} ${latestChange.delta >= 0 ? "+" : ""}${latestChange.delta.toFixed(2)} latest` : "Rating movement pending"}</em>
+          </div>
+          ${homeSparkBars(activityBars, "green")}
+        </div>
       </div>
     </section>
 
@@ -18382,8 +18434,6 @@ function bindMobileGestures() {
       const target = tabBySwipeOffset(dx < 0 ? 1 : -1);
       if (target) {
         setActiveTab(target);
-        setPullRefreshIndicator(targetLabelForView(target), "tab");
-        hidePullRefreshIndicator(350);
       }
     } else {
       hidePullRefreshIndicator(120);
