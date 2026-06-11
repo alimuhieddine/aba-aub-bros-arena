@@ -13097,7 +13097,7 @@ function scorePointsForResult(result, match = null) {
 
 function padelGameScoreValue(result) {
   if (result === "win") return 1.5;
-  if (result === "draw") return 0.75;
+  if (result === "draw") return 0.5;
   return 0;
 }
 
