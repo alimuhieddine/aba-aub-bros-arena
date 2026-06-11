@@ -1303,6 +1303,7 @@ let profileIsEditing = false;
 let editingVenueId = null;
 let allSports = [];
 let allVenues = [];
+let matchFormVenues = [];
 let allMatches = [];
 let allLeagues = [];
 let editingLeagueId = null;
@@ -1353,6 +1354,7 @@ function resetAppLoadState() {
     state.loaded = false;
     state.promise = null;
   });
+  matchFormVenues = [];
   deferredViewRenders = new Set();
   deferredAdminPanelRenders = new Set();
 }
@@ -2091,6 +2093,8 @@ async function loadMatchFormOptions() {
       id,
       name,
       address,
+      google_maps_url,
+      image_url,
       is_active,
       venue_sports (
         sport_id
@@ -2141,7 +2145,7 @@ async function loadMatchFormOptions() {
   }
 
   allSports = sportsData || [];
-  allVenues = venuesData || [];
+  matchFormVenues = venuesData || [];
   allLeagues = leaguesData || allLeagues || [];
  allMembers = (membersData || []).filter(member =>
   member.id !== currentProfile?.id &&
@@ -2186,11 +2190,12 @@ function updateMatchVenueOptions(preferredVenueId = "") {
   if (!venueSelect) return;
 
   const previousVenueId = preferredVenueId || venueSelect.value || "";
+  const venues = (matchFormVenues || []).length ? matchFormVenues : allVenues;
   const filteredVenues = sportId
-    ? allVenues.filter(v =>
+    ? venues.filter(v =>
         (v.venue_sports || []).some(vs => vs.sport_id === sportId)
       )
-    : allVenues;
+    : venues;
 
   venueSelect.innerHTML = `
     <option value="">Select venue</option>
