@@ -3398,9 +3398,55 @@ async function openLogActivityFromHome() {
   $("activityModal")?.showModal();
 }
 
-function homeSnapshotCard(label, value, detail = "") {
+function homeProfileCompletion() {
+  if (!currentProfile) {
+    return {
+      missing: [],
+      completed: 0,
+      total: 5,
+      pct: 0
+    };
+  }
+
+  const checks = [
+    { key: "display_name", label: "display name", complete: Boolean(String(currentProfile.display_name || "").trim()) },
+    { key: "gender", label: "gender", complete: Boolean(String(currentProfile.gender || "").trim()) },
+    { key: "height_cm", label: "height", complete: Number(currentProfile.height_cm || 0) > 0 },
+    { key: "weight_kg", label: "weight", complete: Number(currentProfile.weight_kg || 0) > 0 },
+    { key: "avatar_url", label: "profile photo", complete: Boolean(String(currentProfile.avatar_url || "").trim()) }
+  ];
+  const completed = checks.filter(row => row.complete).length;
+
+  return {
+    missing: checks.filter(row => !row.complete),
+    completed,
+    total: checks.length,
+    pct: Math.round((completed / checks.length) * 100)
+  };
+}
+
+function homeGaugeHtml(value, label, detail, options = {}) {
+  const pct = clampNumber(Number(options.pct ?? value), 0, 100);
+  const tone = options.tone || "blue";
+  const sub = options.sub || "";
+
   return `
-    <article class="card home-stat-card">
+    <div class="home-gauge home-gauge-${escapeHtml(tone)}" style="--p:${pct}">
+      <div class="home-gauge-ring">
+        <strong>${escapeHtml(String(value))}</strong>
+        <span>${escapeHtml(label)}</span>
+      </div>
+      <div>
+        <b>${escapeHtml(detail)}</b>
+        ${sub ? `<em>${escapeHtml(sub)}</em>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function homeSnapshotCard(label, value, detail = "", tone = "blue") {
+  return `
+    <article class="card home-stat-card home-stat-${escapeHtml(tone)}">
       <span>${escapeHtml(label)}</span>
       <strong>${escapeHtml(String(value))}</strong>
       ${detail ? `<em>${escapeHtml(detail)}</em>` : ""}
@@ -3414,8 +3460,14 @@ function renderHomeSnapshot() {
 
   if (!currentProfile || currentProfile.approval_status !== "approved") {
     box.innerHTML = `
-      ${homeSnapshotCard("Status", "Welcome", "Login with an approved member account to see your arena snapshot.")}
-      ${homeSnapshotCard("Today", new Date().toLocaleDateString([], { month: "short", day: "numeric" }), "Matches, activity, and rankings live here.")}
+      <section class="home-hero-panel">
+        <div>
+          <span class="home-kicker">ABA Arena</span>
+          <h2>Welcome</h2>
+          <p>Login with an approved member account to see matches, activity, rankings, and pending actions.</p>
+        </div>
+        ${homeGaugeHtml(new Date().toLocaleDateString([], { day: "numeric" }), "Today", new Date().toLocaleDateString([], { month: "short", weekday: "long" }), { pct: 66, tone: "green" })}
+      </section>
     `;
     return;
   }
@@ -3429,14 +3481,51 @@ function renderHomeSnapshot() {
   const passText = homePointsToPassText(rows, currentProfile.id);
   const recentChanges = homeRecentRatingChanges(currentProfile.id);
   const latestChange = recentChanges[0];
+  const profileCompletion = homeProfileCompletion();
+  const goalMinutes = 180;
+  const activePct = Math.min(100, Math.round((activeMinutes / goalMinutes) * 100));
+  const rankPct = rankIndex >= 0 && rows.length > 1
+    ? Math.max(8, Math.round(((rows.length - rankIndex) / rows.length) * 100))
+    : rankIndex === 0
+      ? 100
+      : 12;
+  const nextTitle = nextMatch ? (nextMatch.title || nextMatch.sports?.name || "Upcoming match") : "No joined match";
+  const nextMeta = nextMatch ? fmtDate(nextMatch.start_time) : "Vote in a match to light this up";
+  const stravaLinkedCount = playerProfileStats(currentProfile.id).stravaLinkedMatches || 0;
+  const bestSport = Array.from((stats.sportDetails || new Map()).values())
+    .sort((a, b) => Number(b.totalPoints || 0) - Number(a.totalPoints || 0))[0] || null;
 
   box.innerHTML = `
-    ${homeSnapshotCard("My points", formatPointValue(stats.totalPoints), `${formatPointValue(stats.basePoints)} activity / ${formatPointValue(stats.bonusPoints)} score`)}
-    ${homeSnapshotCard("Rank", rankIndex >= 0 ? `#${rankIndex + 1}` : "-", `${rows.length} ranked player${rows.length === 1 ? "" : "s"}`)}
-    ${homeSnapshotCard("Active time", formatProfileDurationMinutes(activeMinutes), "last 7 days")}
-    ${homeSnapshotCard("Next match", nextMatch ? fmtDate(nextMatch.start_time) : "None", nextMatch ? (nextMatch.title || nextMatch.sports?.name || "Upcoming match") : "No joined/maybe match scheduled")}
-    ${homeSnapshotCard("This month", formatPointValue(monthPoints), "points from finalized matches and approved activities")}
-    ${homeSnapshotCard("Next target", passText, latestChange ? `Latest rating: ${latestChange.position} ${latestChange.delta >= 0 ? "+" : ""}${latestChange.delta.toFixed(2)}` : "Play rated matches to build movement")}
+    <section class="home-hero-panel">
+      <div class="home-hero-copy">
+        <span class="home-kicker">My Day</span>
+        <h2>${escapeHtml(memberDisplayName(currentProfile))}</h2>
+        <p>${escapeHtml(passText)}</p>
+        <div class="home-hero-tags">
+          <span>${formatPointValue(monthPoints)} pts this month</span>
+          <span>${bestSport ? escapeHtml(bestSport.sport) : "Build your sport story"}</span>
+          <span>${profileCompletion.completed}/${profileCompletion.total} profile</span>
+        </div>
+      </div>
+      <div class="home-hero-gauges">
+        ${homeGaugeHtml(formatPointValue(stats.totalPoints), "PTS", "Total points", { pct: Math.min(100, Number(stats.totalPoints || 0) % 100 || 18), tone: "green", sub: `${formatPointValue(stats.basePoints)} activity / ${formatPointValue(stats.bonusPoints)} score` })}
+        ${homeGaugeHtml(rankIndex >= 0 ? `#${rankIndex + 1}` : "-", "Rank", `${rows.length} ranked`, { pct: rankPct, tone: "blue", sub: latestChange ? `${latestChange.position} ${latestChange.delta >= 0 ? "+" : ""}${latestChange.delta.toFixed(2)} latest` : "Rating movement pending" })}
+      </div>
+    </section>
+
+    <section class="home-glance-grid">
+      <article class="card home-next-card">
+        <div>
+          <span class="home-card-icon">●</span>
+          <h3>${escapeHtml(nextTitle)}</h3>
+          <p>${escapeHtml(nextMeta)}</p>
+        </div>
+        <button class="small-btn" type="button" onclick="setActiveTab('matches')">Matches</button>
+      </article>
+      ${homeSnapshotCard("Active time", formatProfileDurationMinutes(activeMinutes), `${activePct}% of weekly 180 min target`, "green")}
+      ${homeSnapshotCard("Strava linked", stravaLinkedCount, stravaLinkedCount ? "match point replacements" : "Connect/import to use real data", "orange")}
+      ${homeSnapshotCard("Profile", `${profileCompletion.pct}%`, profileCompletion.missing.length ? `Missing ${profileCompletion.missing.slice(0, 2).map(row => row.label).join(", ")}` : "Ready for fair activity formulas", "blue")}
+    </section>
   `;
 }
 
@@ -3537,6 +3626,23 @@ function renderHomeActions() {
       )
     : [];
   const reminders = matchReminders().slice(0, 3);
+  const profileCompletion = homeProfileCompletion();
+
+  if (currentProfile && profileCompletion.missing.length) {
+    const missingImportant = profileCompletion.missing
+      .filter(row => ["gender", "height_cm", "weight_kg"].includes(row.key));
+    const missingText = (missingImportant.length ? missingImportant : profileCompletion.missing)
+      .slice(0, 3)
+      .map(row => row.label)
+      .join(", ");
+
+    actions.push(homeActionCard(
+      "Complete your profile",
+      `Add ${missingText} so Strava activity points and future fitness stats are fairer.`,
+      "Open Account",
+      "account"
+    ));
+  }
 
   if (pendingVoteMatches.length) {
     actions.push(homeActionCard("Vote on matches", `${pendingVoteMatches.length} match${pendingVoteMatches.length === 1 ? "" : "es"} waiting for your answer.`, "Open Matches", "matches"));
