@@ -3489,6 +3489,8 @@ function renderHomeSnapshot() {
   if (!box) return;
 
   $("dashboard")?.classList.add("home-screen-redesign");
+  document.body.classList.toggle("home-tab-active", isViewActive("dashboard"));
+  document.body.classList.toggle("home-approved", Boolean(currentProfile && currentProfile.approval_status === "approved"));
 
   if (!currentProfile || currentProfile.approval_status !== "approved") {
     box.innerHTML = `
@@ -3555,6 +3557,16 @@ function renderHomeSnapshot() {
     `;
   }
 
+  function homeAvatarHtml(member, className) {
+    const url = String(member?.avatar_url || "").trim();
+    const name = memberDisplayName(member);
+    return `
+      <div class="${escapeHtml(className)} ${url ? "" : "aba-home-avatar-fallback"}">
+        ${url ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(name)} profile photo">` : escapeHtml(memberInitials(member))}
+      </div>
+    `;
+  }
+
   function homeSportIcon(match) {
     const name = String(match?.sports?.name || sportNameById(match?.sport_id) || "").toLowerCase();
     if (name.includes("padel") || name.includes("tennis")) return "⌾";
@@ -3604,7 +3616,7 @@ function renderHomeSnapshot() {
     return `
       <div class="aba-standing-row">
         <span>${index + 1}</span>
-        ${avatarHtml(row.member, "aba-standing-avatar")}
+        ${homeAvatarHtml(row.member, "aba-standing-avatar")}
         <b>${escapeHtml(row.name)}</b>
         <strong>${formatPointValue(row.totalPoints)}</strong>
       </div>
@@ -3633,7 +3645,7 @@ function renderHomeSnapshot() {
         <div class="aba-home-actions">
           <button type="button" class="aba-bell" onclick="setActiveTab('account')" aria-label="Notifications"></button>
           <div class="aba-home-avatar-wrap">
-            ${avatarHtml(currentProfile, "aba-home-avatar")}
+            ${homeAvatarHtml(currentProfile, "aba-home-avatar")}
             <span></span>
           </div>
         </div>
@@ -18696,6 +18708,7 @@ function setActiveTab(viewId, persist = true) {
 
   targetTab.classList.add("active");
   targetView.classList.add("active-view");
+  document.body.classList.toggle("home-tab-active", viewId === "dashboard");
 
   if (persist) {
     localStorage.setItem(ACTIVE_TAB_KEY, viewId);

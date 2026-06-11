@@ -515,9 +515,23 @@ h3 {
   display: none;
 }
 
+body.home-tab-active.home-approved .hero {
+  display: none;
+}
+
+body.home-tab-active .app-shell {
+  max-width: 920px;
+}
+
+body.home-tab-active main {
+  padding-top: 0;
+}
+
 .aba-home-screen {
   display: grid;
   gap: 22px;
+  width: min(100%, 920px);
+  margin: 0 auto;
   padding-bottom: 18px;
   color: #f6f9ff;
 }
@@ -593,10 +607,28 @@ h3 {
 }
 
 .aba-home-avatar {
+  display: grid;
+  place-items: center;
   width: 82px;
   height: 82px;
+  overflow: hidden;
+  border-radius: 50%;
   border: 3px solid rgba(255,255,255,.72);
   box-shadow: 0 14px 28px rgba(0,0,0,.34);
+}
+
+.aba-home-avatar img,
+.aba-standing-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.aba-home-avatar-fallback {
+  background: rgba(50,149,255,.18);
+  color: #fff;
+  font-weight: 1000;
 }
 
 .aba-home-avatar-wrap > span {
@@ -941,8 +973,12 @@ h3 {
 }
 
 .aba-standing-avatar {
+  display: grid;
+  place-items: center;
   width: 32px;
   height: 32px;
+  overflow: hidden;
+  border-radius: 50%;
 }
 
 .aba-standing-row b {
@@ -1112,6 +1148,12 @@ h3 {
   .aba-glance-grid,
   .aba-home-duo {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 761px) {
+  body.home-tab-active .tabs {
+    margin-bottom: 22px;
   }
 }
 
