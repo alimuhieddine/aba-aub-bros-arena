@@ -180,6 +180,7 @@ function renderVenuesList() {
 
   box.innerHTML = allVenues.map(venue => {
     const sportNames = ABAVenues.sportNamesForVenue(venue);
+    const imageUrl = normalizeVenueImageUrl(venue.image_url);
 
     return `
   <article class="card venue-card">
@@ -187,8 +188,8 @@ function renderVenuesList() {
 
       <div class="venue-thumb">
         ${
-          venue.image_url
-            ? `<img src="${escapeHtml(venue.image_url)}" alt="${escapeHtml(venue.name || "Venue")}">`
+          imageUrl
+            ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(venue.name || "Venue")}" loading="lazy" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'venue-placeholder',textContent:'Image unavailable'}))">`
             : `<div class="venue-placeholder">No Image</div>`
         }
       </div>
@@ -7941,6 +7942,27 @@ function renderMatches() {
       </article>
     `;
   }).join("");
+}
+
+function normalizeVenueImageUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const driveFileMatch = raw.match(/drive\.google\.com\/file\/d\/([^/]+)/i);
+  if (driveFileMatch?.[1]) {
+    return `https://drive.google.com/thumbnail?id=${encodeURIComponent(driveFileMatch[1])}&sz=w500`;
+  }
+
+  try {
+    const url = new URL(raw);
+    const driveId = url.hostname.includes("drive.google.com") ? url.searchParams.get("id") : "";
+    if (driveId) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(driveId)}&sz=w500`;
+    return url.href;
+  } catch {
+    if (raw.startsWith("//")) return `https:${raw}`;
+    if (/^www\./i.test(raw)) return `https://${raw}`;
+    return raw;
+  }
 }
 
 function scheduleMatchUiRefresh({ rankings = false } = {}) {
