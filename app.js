@@ -10,6 +10,7 @@ if ("scrollRestoration" in history) {
 
 const STORAGE_KEY = "aba_phase1_data";
 const PUSH_NOTIFICATIONS_APP_SETTING_KEY = "push_notifications";
+const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
 
 function futureDate(days, hour) {
   const d = new Date();
@@ -1337,6 +1338,7 @@ let currentStravaConnection = null;
 let stravaConnectedMemberIds = new Set();
 let voteDeadlineManuallyEdited = false;
 let matchRenderQueued = false;
+let matchListRenderToken = 0;
 let deferredViewRenders = new Set();
 let deferredAdminPanelRenders = new Set();
 const appLoadState = {
@@ -2274,7 +2276,7 @@ function memberMiniIdentityHtml(member, memberId = "", name = "", extraClass = "
 }
 
 function currentUserIdentityHtml(sessionUser = null) {
-  const member = currentProfile || null;
+  const member = currentProfile || cachedProfileIdentity(sessionUser) || null;
   const displayName = member
     ? memberDisplayName(member)
     : sessionUser?.email || "Member";
@@ -2294,6 +2296,38 @@ function renderLoggedInIdentity(sessionUser = null) {
   if (!box) return;
 
   box.innerHTML = currentUserIdentityHtml(sessionUser);
+}
+
+function cachedProfileIdentity(sessionUser = null) {
+  try {
+    const cached = JSON.parse(localStorage.getItem(PROFILE_IDENTITY_CACHE_KEY) || "null");
+    if (!cached || typeof cached !== "object") return null;
+    if (sessionUser?.id && cached.auth_user_id && cached.auth_user_id !== sessionUser.id) return null;
+    return cached;
+  } catch {
+    localStorage.removeItem(PROFILE_IDENTITY_CACHE_KEY);
+    return null;
+  }
+}
+
+function cacheProfileIdentity(profile) {
+  if (!profile?.id) return;
+
+  try {
+    localStorage.setItem(PROFILE_IDENTITY_CACHE_KEY, JSON.stringify({
+      id: profile.id,
+      first_name: profile.first_name || "",
+      last_name: profile.last_name || "",
+      display_name: profile.display_name || "",
+      email: profile.email || "",
+      avatar_url: profile.avatar_url || "",
+      role: profile.role || "member",
+      approval_status: profile.approval_status || "",
+      auth_user_id: profile.auth_user_id || ""
+    }));
+  } catch {
+    // Ignore storage quota/privacy errors; live profile rendering still works.
+  }
 }
 
 function renderProfileAvatarPreview(member = currentProfile) {
@@ -7724,6 +7758,7 @@ function renderMatches() {
   if (!shouldRenderView("matches")) return;
 
   if (!$("matchList")) return;
+  matchListRenderToken += 1;
 
   if (!allMatches || allMatches.length === 0) {
     $("matchList").innerHTML = `<article class="card">No matches scheduled yet.</article>`;
@@ -7739,7 +7774,10 @@ function renderMatches() {
     return;
   }
 
-  $("matchList").innerHTML = visibleMatches.map(match => {
+  renderMatchesProgressively(visibleMatches);
+}
+
+function renderMatchCardHtml(match) {
     const displayStatus = getMatchDisplayStatus(match);
     const lifecycleState = matchLifecycleState(match);
     const isCancelled = displayStatus === "cancelled";
@@ -7946,7 +7984,36 @@ function renderMatches() {
         }
       </article>
     `;
-  }).join("");
+}
+
+function renderMatchesProgressively(visibleMatches) {
+  const box = $("matchList");
+  if (!box) return;
+
+  const token = ++matchListRenderToken;
+  const firstBatchSize = 8;
+  const nextBatchSize = 12;
+  let index = 0;
+
+  box.innerHTML = "";
+
+  function appendBatch(size) {
+    if (token !== matchListRenderToken) return;
+
+    const nextRows = visibleMatches
+      .slice(index, index + size)
+      .map(renderMatchCardHtml)
+      .join("");
+
+    if (nextRows) box.insertAdjacentHTML("beforeend", nextRows);
+    index += size;
+
+    if (index < visibleMatches.length) {
+      requestAnimationFrame(() => appendBatch(nextBatchSize));
+    }
+  }
+
+  appendBatch(firstBatchSize);
 }
 
 function normalizeVenueImageUrl(value) {
@@ -15598,6 +15665,7 @@ async function login(email, password) {
 async function logout() {
   await supabaseClient.auth.signOut();
   localStorage.removeItem("aba_user_access");
+  localStorage.removeItem(PROFILE_IDENTITY_CACHE_KEY);
   currentProfile = null;
   clearProfileFields();
   await refreshAuthUI();
@@ -16641,7 +16709,9 @@ async function updateCurrentProfileAvatarUrl(avatarUrl) {
   }
 
   currentProfile.avatar_url = avatarUrl || null;
+  cacheProfileIdentity(currentProfile);
   renderProfileAvatarPreview(currentProfile);
+  renderLoggedInIdentity();
   return true;
 }
 
@@ -16767,6 +16837,7 @@ async function loadMyProfile() {
 
   currentProfile = data;
   cacheProfileAccess(data);
+  cacheProfileIdentity(data);
 
   if (!data) {
     clearProfileFields();
@@ -16973,6 +17044,7 @@ if (currentProfile?.approval_status === "approved") {
   localStorage.removeItem("aba_user_access");
   localStorage.removeItem(ACTIVE_TAB_KEY);
   localStorage.removeItem(SCROLL_STATE_KEY);
+  localStorage.removeItem(PROFILE_IDENTITY_CACHE_KEY);
   resetAppLoadState();
   currentProfile = null;
   clearProfileFields();
@@ -17199,6 +17271,13 @@ function setActiveTab(viewId, persist = true) {
   if (viewId === "rankings") {
     updateRankingFilters();
     renderRankings();
+  }
+
+  if (viewId === "matches") {
+    if (!appLoadState.matches.loaded && $("matchList")) {
+      $("matchList").innerHTML = `<article class="card"><div class="hint">Loading matches...</div></article>`;
+    }
+    loadMatches();
   }
 
   if (viewId === "activities") {
