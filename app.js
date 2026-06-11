@@ -168,6 +168,8 @@ async function loadVenues(options = {}) {
 }
 
 function renderVenuesList() {
+  if (!shouldRenderAdminPanel("Venues")) return;
+
   const box = $("venuesList");
   if (!box) return;
 
@@ -434,6 +436,8 @@ async function loadPendingMembers(options = {}) {
 }
 
 function renderPendingMembersList() {
+  if (!shouldRenderAdminPanel("Members")) return;
+
   renderAdminDashboard();
   const box = $("pendingMembersList");
   if (!box) return;
@@ -617,6 +621,8 @@ function renderMemberRoleEditor(member) {
 }
 
 function renderMemberRoleManager(members = []) {
+  if (!shouldRenderAdminPanel("Members")) return;
+
   const box = $("memberRoleList");
   if (!box) return;
 
@@ -852,6 +858,8 @@ async function loadAdminNotificationMembers(options = {}) {
 }
 
 function renderAdminNotificationMemberOptions() {
+  if (!shouldRenderAdminPanel("Notifications")) return;
+
   const select = $("admin-notify-member");
 
   if (!select) return;
@@ -956,6 +964,8 @@ async function sendAdminPushNotificationToAll() {
 }
 
 function renderAdminMatchReminders() {
+  if (!shouldRenderAdminPanel("Maintenance")) return;
+
   const box = $("adminMatchReminderList");
   if (!box || !isCurrentUserAdmin()) return;
 
@@ -1164,6 +1174,7 @@ function activateAdminPanel(panelName, options = {}) {
 
   if (persist) localStorage.setItem("aba_admin_panel", cleanName);
   if (savePosition) saveScrollState();
+  renderDeferredAdminPanel(cleanName);
 }
 
 function organizeAdminSections() {
@@ -1231,6 +1242,7 @@ function adminDashboardMetricCard(label, value, detail, targetPanel = "") {
 
 function renderAdminDashboard() {
   if (!shouldRenderView("admin")) return;
+  if (!shouldRenderAdminPanel("Overview")) return;
 
   const box = $("adminDashboardCards");
   if (!box || !isCurrentUserAdmin()) return;
@@ -1324,6 +1336,7 @@ let stravaConnectedMemberIds = new Set();
 let voteDeadlineManuallyEdited = false;
 let matchRenderQueued = false;
 let deferredViewRenders = new Set();
+let deferredAdminPanelRenders = new Set();
 const appLoadState = {
   sports: { loaded: false, promise: null },
   venues: { loaded: false, promise: null },
@@ -1340,6 +1353,7 @@ function resetAppLoadState() {
     state.promise = null;
   });
   deferredViewRenders = new Set();
+  deferredAdminPanelRenders = new Set();
 }
 
 const ACTIVITY_SPORT_SETTINGS_KEY = "aba_activity_sport_settings";
@@ -1919,6 +1933,8 @@ function selectSportRatingMember(memberId) {
 }
 
 function renderSportRatingManager() {
+  if (!shouldRenderAdminPanel("Sports")) return;
+
   const box = $("sportRatingList");
   if (!box) return;
 
@@ -11590,6 +11606,8 @@ function loggedActivityPointsForDurationMinutes(durationMinutes, sportId) {
 }
 
 function renderActivitySettingsForm() {
+  if (!shouldRenderAdminPanel("Activities")) return;
+
   const box = $("activity-settings-list");
   if (!box) return;
 
@@ -12274,6 +12292,8 @@ function readSoccerSettingInput(id, fallback) {
 }
 
 function renderSoccerRatingSettingsForm() {
+  if (!shouldRenderAdminPanel("Soccer Formula")) return;
+
   const card = $("soccer-rating-settings-card");
   if (!card) return;
 
@@ -13840,6 +13860,7 @@ async function loadRankingData() {
 
 function renderPendingActivities() {
   if (!shouldRenderView("admin")) return;
+  if (!shouldRenderAdminPanel("Activities")) return;
 
   const box = $("pendingActivitiesList");
   if (!box) return;
@@ -16982,8 +17003,7 @@ function renderDeferredView(viewId) {
   }
 
   if (viewId === "admin") {
-    renderAdminDashboard();
-    renderPendingActivities();
+    renderDeferredAdminPanel(activeAdminPanelName());
   }
 }
 
@@ -16991,6 +17011,69 @@ function activeAdminPanelName() {
   return document.querySelector(".admin-subtab.active")?.dataset.adminPanel ||
     localStorage.getItem("aba_admin_panel") ||
     "";
+}
+
+function isAdminPanelActive(panelName) {
+  return isViewActive("admin") && activeAdminPanelName() === panelName;
+}
+
+function shouldRenderAdminPanel(panelName) {
+  if (!isCurrentUserAdmin()) return true;
+  if (!isViewActive("admin")) {
+    deferredViewRenders.add("admin");
+    deferredAdminPanelRenders.add(panelName);
+    return false;
+  }
+  if (isAdminPanelActive(panelName)) return true;
+  deferredAdminPanelRenders.add(panelName);
+  return false;
+}
+
+function renderDeferredAdminPanel(panelName) {
+  if (!deferredAdminPanelRenders.has(panelName)) return;
+  deferredAdminPanelRenders.delete(panelName);
+
+  if (panelName === "Overview") {
+    renderAdminDashboard();
+    return;
+  }
+
+  if (panelName === "Members") {
+    renderPendingMembersList();
+    renderMemberRoleManager(allMemberRoleManagerMembers || []);
+    return;
+  }
+
+  if (panelName === "Sports") {
+    renderSportRatingManager();
+    return;
+  }
+
+  if (panelName === "Activities") {
+    renderActivitySettingsForm();
+    renderPendingActivities();
+    return;
+  }
+
+  if (panelName === "Notifications") {
+    renderAdminNotificationMemberOptions();
+    return;
+  }
+
+  if (panelName === "Soccer Formula") {
+    renderSoccerRatingSettingsForm();
+    return;
+  }
+
+  if (panelName === "Maintenance") {
+    renderAdminMatchReminders();
+    return;
+  }
+
+  if (panelName === "Venues") {
+    renderVenuesList();
+    return;
+  }
 }
 
 function saveScrollState(options = {}) {
