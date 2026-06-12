@@ -1,259 +1,1206 @@
 <!DOCTYPE html>
 <html lang="en">
+  
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<meta charset="utf-8"/>
-<title>AUB Bros Arena Dashboard</title>
-<link rel="stylesheet" href="globals.css">
-<link rel="stylesheet" href="styleguide.css">
-<link rel="stylesheet" href="style.css">
+  
+  <meta charset="UTF-8" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#07111f" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="ABA" />
+  <title>ABA | AUB Bros Arena test 2t</title>
+  <link rel="manifest" href="manifest.json?v=2" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
+  <link rel="stylesheet" href="style.css?v=203" />
 </head>
+
 <body>
-<div class="element-default" data-model-id="602:417">
-<div class="overlay">
-<header class="header">
-<div class="container">
-<div class="strong">
-<div class="text-wrapper">ABA</div>
+  <div class="app-shell">
+    <header class="hero">
+      <div class="brand">
+        <p class="eyebrow">AUB Bros Arena</p>
+        <h1>ABA</h1>
+        <p class="tagline">Prove it. Earn it. Climb.</p>
+      </div>
+
+      <div class="hero-auth" id="auth-logged-out">
+        <input
+          id="auth-email"
+          type="text"
+          inputmode="email"
+          placeholder="Email"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="none"
+          spellcheck="false"
+          readonly
+          onfocus="this.removeAttribute('readonly');"
+        >
+
+        <input
+          id="auth-password"
+          type="password"
+          placeholder="Password"
+          autocomplete="new-password"
+          autocorrect="off"
+          autocapitalize="none"
+          spellcheck="false"
+          readonly
+          onfocus="this.removeAttribute('readonly');"
+        >
+
+        <div class="auth-actions">
+          <button id="login-btn" class="primary-btn" type="button">Login</button>
+          <button id="signup-btn" class="secondary-btn" type="button">Sign Up</button>
+        </div>
+      </div>
+
+      <div class="hero-auth logged-in-box" id="auth-logged-in" style="display:none;">
+        <div class="logged-user">
+          <span id="current-user"></span>
+        </div>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="Main navigation">
+      <button class="tab active" data-view="dashboard">Home</button>
+      <button class="tab" data-view="leagues">Leagues</button>
+      <button class="tab" data-view="matches">Matches</button>
+      <button class="tab" data-view="activities">Activity</button>
+      <button class="tab" data-view="rankings">Ranks</button>
+      <button class="tab auth-only" data-view="account" style="display:none;">Account</button>
+      <button class="tab admin-only" data-view="admin" style="display:none;">Admin</button>
+    </nav>
+
+    <main>
+      <div id="pullRefreshIndicator" class="pull-refresh-indicator" aria-live="polite" hidden>
+        Pull to refresh
+      </div>
+
+      <section id="dashboard" class="view active-view">
+        <div id="homeSnapshot" class="home-dashboard"></div>
+      </section>
+
+      <section id="leagues" class="view">
+        <div class="section-head">
+          <h2>Leagues</h2>
+          <button class="primary-btn" data-open="leagueModal" type="button">+ League</button>
+        </div>
+
+        <div id="leagueList" class="stack"></div>
+      </section>
+
+      <section id="matches" class="view">
+        <div class="section-head">
+          <h2>Friendly & League Matches</h2>
+          <button class="primary-btn" data-open="matchModal" type="button">+ Match</button>
+        </div>
+
+        <div class="filters-card match-filters-card">
+          <label>
+            Search
+            <input id="match-filter-search" type="search" placeholder="Search title or venue">
+          </label>
+
+          <label>
+            Sport
+            <select id="match-filter-sport">
+              <option value="all">All sports</option>
+            </select>
+          </label>
+
+          <label>
+            League
+            <select id="match-filter-league">
+              <option value="all">All leagues</option>
+            </select>
+          </label>
+
+          <label>
+            Status
+            <select id="match-filter-status">
+              <option value="active">Active / not cancelled</option>
+              <option value="all">All statuses</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="full">Full</option>
+              <option value="playing">Playing now</option>
+              <option value="result_pending">Awaiting result</option>
+              <option value="completed">Completed / submitted</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </label>
+
+          <label>
+            My status
+            <select id="match-filter-my-status">
+              <option value="all">All</option>
+              <option value="in">I’m IN</option>
+              <option value="maybe">Maybe</option>
+              <option value="out">Out</option>
+              <option value="invited">Invited</option>
+              <option value="not_in">Not IN</option>
+            </select>
+          </label>
+
+          <button id="match-filter-reset" class="secondary-btn" type="button">Reset filters</button>
 </div>
-<div class="div">AUB Bros Arena</div>
-</div>
-<button class="overlay-border" type="button" aria-label="Open profile">
-<span class="profile-photo" aria-hidden="true"></span>
-</button>
-</header>
-<main>
-<section class="section" aria-label="Welcome">
-<p class="welcome-back-wolf">
-<span class="span">Welcome back,</span>
-<span class="text-wrapper-2">&nbsp;</span>
-<span class="text-wrapper-3">Wolf</span>
-<span class="text-wrapper-2"></span>
-</p>
-</section>
-<section aria-labelledby="at-a-glance-heading">
-<div class="section-2">
-<a class="link-see-all" href="#" aria-label="See all at a glance stats">See all</a>
-<h2 class="heading-at-a" id="at-a-glance-heading">AT A GLANCE</h2>
-</div>
-<div class="section-3">
-<article class="article" aria-label="Matches this week">
-<div class="text-wrapper-8">Matches<br/>This Week</div>
-<div class="text-wrapper-4">44</div>
-<div class="text-wrapper-5">↑ 33%</div>
-<div class="text-wrapper-6">vs last week</div>
-<img class="group" src="https://c.animaapp.com/J3694WU7/img/group-1@2x.png" alt="" aria-hidden="true"/>
-</article>
-<article class="article-2" aria-label="Verified activities">
-<div class="text-wrapper-7">44</div>
-<div class="text-wrapper-5">↑ 33%</div>
-<div class="text-wrapper-8">Verified<br/>Activities</div>
-<img class="shield-check-svgrepo" src="https://c.animaapp.com/J3694WU7/img/shield-check-svgrepo-com-1.svg" alt="" aria-hidden="true"/>
-<div class="text-wrapper-9">vs last week</div>
-</article>
-<article class="article-3" aria-label="Current rank">
-<div class="text-wrapper-8">Current <br/>Rank</div>
-<img class="trophy-award-svgrepo" src="https://c.animaapp.com/J3694WU7/img/trophy-award-svgrepo-com-1.svg" alt="" aria-hidden="true"/>
-<div class="text-wrapper-10">#12</div>
-<div class="text-wrapper-11">↓ -3</div>
-<div class="text-wrapper-12">of 125 members</div>
-<div class="text-wrapper-13">vs last week</div>
-</article>
-<article class="article-4" aria-label="Total points">
-<div class="text-wrapper-14">to next level</div>
-<div class="text-wrapper-8">Total <br/>Points</div>
-<img class="ellipse" src="https://c.animaapp.com/J3694WU7/img/ellipse-76.svg" alt="" aria-hidden="true"/>
-<div class="text-wrapper-15">15 %</div>
-<div class="text-wrapper-16">2 450 pts</div>
-<div class="text-wrapper-17">+38 pts</div>
-<p class="p">of 3 000 pts 550 pts left</p>
-<div class="text-wrapper-9">vs last week</div>
-</article>
-</div>
-</section>
-<section aria-labelledby="upcoming-matches-heading">
-<div class="section-4">
-<h2 class="text-wrapper-18" id="upcoming-matches-heading">UPCOMING MATCHES</h2>
-<a class="link-view-calendar" href="#" aria-label="View calendar">View calendar</a>
-</div>
-<div class="section-5">
-<article class="article-5" aria-label="Upcoming match Wolf and Fox versus Green Pigs">
-<div class="overlay-border-2" aria-hidden="true"></div>
-<div class="container-2">
-<div class="heading">
-<p class="wolf-fox-vs-green"><span class="text-wrapper-19">Wolf &amp; Fox </span><span class="text-wrapper-20">vs</span><span class="text-wrapper-19"> Green Pigs</span></p>
-</div>
-<div class="div-wrapper">
-<p class="div-2"><span class="text-wrapper-21">Padel</span><span class="text-wrapper-20">  •  Doubles</span></p>
-</div>
-<div class="container-3">
-<div class="text-wrapper-22">📍 Padel Zone Beirut</div>
-</div>
-</div>
-<div class="container-4">
-<div class="tonight">TONIGHT</div>
-<div class="strong-PM">9:30 PM</div>
-<div class="overlay-border-3"><div class="text-wrapper-23">Scheduled</div></div>
-</div>
-<a class="container-5" href="#" aria-label="View details for Wolf and Fox versus Green Pigs">
-<div class="text-wrapper-24">›</div>
-</a>
-<div class="background-shadow" aria-hidden="true"></div>
-</article>
-<article class="article-6" aria-label="Upcoming match Black versus White">
-<div class="overlay-border-4" aria-hidden="true">
-<div class="text-wrapper-25">⚽</div>
-</div>
-<div class="container-6">
-<div class="div-wrapper">
-<p class="div-2"><span class="text-wrapper-3">Soccer</span><span class="text-wrapper-20">  •  6v6</span></p>
-</div>
-<div class="container-3">
-<div class="text-wrapper-22">📍 City Sports Arena</div>
-</div>
-<div class="heading">
-<p class="black-vs-white"><span class="text-wrapper-26">Black </span><span class="text-wrapper-27">vs</span><span class="text-wrapper-26"> White</span></p>
-</div>
-</div>
-<div class="container-7">
-<div class="wed-may">WED, MAY 28</div>
-<div class="strong-PM">8:00 PM</div>
-<div class="overlay-border-5"><div class="text-wrapper-28">Scheduled</div></div>
-</div>
-<a class="container-8" href="#" aria-label="View details for Black versus White">
-<div class="text-wrapper-24">›</div>
-</a>
-<div class="background-shadow-2" aria-hidden="true"></div>
-</article>
-</div>
-</section>
-<section class="section-6" aria-label="Challenges and rankings">
-<article class="article-7" aria-labelledby="challenges-heading">
-<div class="container-9">
-<div class="div-wrapper-2">
-<h2 class="challenges" id="challenges-heading">CHALLENGES</h2>
-</div>
-<div class="div-wrapper-2">
-<a class="text-wrapper-29" href="#" aria-label="View all challenges">View all</a>
-</div>
-</div>
-<div class="container-10">
-<img class="mask-group" src="https://c.animaapp.com/J3694WU7/img/mask-group.svg" alt="" aria-hidden="true"/>
-<div class="container-11">
-<div class="div-wrapper-3">
-<div class="weekly-warrior">Weekly<br/>Warrior</div>
-</div>
-<div class="div-wrapper-3">
-<div class="play-activities">Play 3<br/>activities<br/>this week</div>
-</div>
-<div class="container-12" aria-label="Challenge progress 2 out of 3">
-<div class="gradient-wrapper" role="progressbar" aria-valuemin="0" aria-valuemax="3" aria-valuenow="2" aria-label="Weekly Warrior progress">
-<div class="gradient"></div>
-</div>
-<div class="div-wrapper-4">
-<div class="text-wrapper-30">2 / 3</div>
-</div>
-</div>
-<div class="horizontal-border">
-<p class="reward-pts"><span class="text-wrapper-20">🎁 Reward:<br/></span><span class="text-wrapper-31">250 pts</span></p>
-</div>
-</div>
-</div>
-</article>
-<article class="article-8" aria-labelledby="league-rankings-heading">
-<div class="container-9">
-<div class="league-rankings-wrapper">
-<h2 class="league-rankings" id="league-rankings-heading">LEAGUE /<br/>RANKINGS</h2>
-</div>
-<div class="div-wrapper-2">
-<a class="see-standings" href="#" aria-label="See standings">See<br/>standings</a>
-</div>
-</div>
-<div class="container-13" role="list" aria-label="Top rankings">
-<div class="container-14" role="listitem">
-<div class="overlay-2"><div class="text-wrapper-32">🥇</div></div>
-<div class="div-wrapper-4"><div class="text-wrapper-33">LionHeart</div></div>
-<div class="div-wrapper-5"><div class="text-wrapper-34">3,210</div></div>
-</div>
-<div class="container-15" role="listitem">
-<div class="overlay-2"><div class="text-wrapper-32">🥈</div></div>
-<div class="div-wrapper-4"><div class="text-wrapper-35">The Padelers</div></div>
-<div class="div-wrapper-5"><div class="text-wrapper-34">2,980</div></div>
-</div>
-<div class="container-16" role="listitem">
-<div class="overlay-2"><div class="text-wrapper-32">🥉</div></div>
-<div class="div-wrapper-4"><div class="text-wrapper-33">Net Ninjas</div></div>
-<div class="div-wrapper-5"><div class="text-wrapper-34">2,760</div></div>
-</div>
-</div>
-<div class="overlay-3" aria-label="Your rank summary">
-<div class="your-rank-wrapper"><div class="your-rank">Your<br/>Rank</div></div>
-<div class="div-wrapper-4"><div class="text-wrapper-36">12</div></div>
-<div class="div-wrapper-5"><div class="text-wrapper-36">Wolf</div></div>
-<div class="container-17"><div class="text-wrapper-36">2,450</div></div>
-</div>
-</article>
-</section>
-<section aria-labelledby="last-seven-days-heading">
-<div class="section-7">
-<h2 class="text-wrapper-18" id="last-seven-days-heading">LAST 7 DAYS</h2>
-<a class="link-view-insights" href="#" aria-label="View insights">View insights</a>
-</div>
-<div class="section-8" role="list" aria-label="Last 7 days insights">
-<div class="container-18" role="listitem">
-<div class="div-wrapper-4"><div class="text-wrapper-30">Padel Sessions</div></div>
-<div class="div-wrapper-5"><div class="text-wrapper-37">3</div></div>
-<img class="img" src="https://c.animaapp.com/J3694WU7/img/container.svg" alt="" aria-hidden="true"/>
-<img class="SVG" src="https://c.animaapp.com/J3694WU7/img/svg.svg" alt="" aria-hidden="true"/>
-</div>
-<div class="horizontal-border-2" role="listitem">
-<img class="SVG-2" src="https://c.animaapp.com/J3694WU7/img/svg-1.svg" alt="" aria-hidden="true"/>
-<div class="div-wrapper-4"><div class="text-wrapper-30">Soccer Games</div></div>
-<div class="div-wrapper-5"><div class="text-wrapper-37">2</div></div>
-<img class="img" src="https://c.animaapp.com/J3694WU7/img/container-1.svg" alt="" aria-hidden="true"/>
-<img class="SVG" src="https://c.animaapp.com/J3694WU7/img/svg-2.svg" alt="" aria-hidden="true"/>
-</div>
-<div class="horizontal-border-2" role="listitem">
-<img class="SVG-2" src="https://c.animaapp.com/J3694WU7/img/svg-3.svg" alt="" aria-hidden="true"/>
-<div class="div-wrapper-4"><div class="text-wrapper-30">Verified Proofs</div></div>
-<div class="div-wrapper-5"><div class="text-wrapper-37">7</div></div>
-<img class="img" src="https://c.animaapp.com/J3694WU7/img/container-2.svg" alt="" aria-hidden="true"/>
-<img class="SVG" src="https://c.animaapp.com/J3694WU7/img/svg-4.svg" alt="" aria-hidden="true"/>
-</div>
-<div class="horizontal-border-3" role="listitem">
-<img class="SVG-2" src="https://c.animaapp.com/J3694WU7/img/svg-5.svg" alt="" aria-hidden="true"/>
-<div class="div-wrapper-4"><div class="text-wrapper-30">Training Minutes</div></div>
-<div class="div-wrapper-5"><div class="text-wrapper-38">245 min</div></div>
-<img class="img" src="https://c.animaapp.com/J3694WU7/img/container-3.svg" alt="" aria-hidden="true"/>
-<img class="SVG" src="https://c.animaapp.com/J3694WU7/img/svg-6.svg" alt="" aria-hidden="true"/>
-</div>
-</div>
-</section>
-</main>
-<nav class="nav" aria-label="Primary">
-<a class="link" href="#" aria-current="page" aria-label="Home">
-<div class="text-wrapper-39" aria-hidden="true">⌂</div>
-<div class="text-wrapper-40">Home</div>
-<div class="background" aria-hidden="true"></div>
-</a>
-<a class="link-2" href="#" aria-label="Matches">
-<div class="text-wrapper-41" aria-hidden="true">▤</div>
-<div class="text-wrapper-42">Matches</div>
-</a>
-<a class="link-3" href="#" aria-label="Leagues">
-<div class="text-wrapper-43" aria-hidden="true">♕</div>
-<div class="text-wrapper-44">Leagues</div>
-</a>
-<a class="link-4" href="#" aria-label="Feed">
-<div class="text-wrapper-43" aria-hidden="true">♟</div>
-<div class="text-wrapper-45">Feed</div>
-</a>
-<a class="link-5" href="#" aria-label="More">
-<div class="text-wrapper-46" aria-hidden="true">•••</div>
-<div class="text-wrapper-47">More</div>
-</a>
-</nav>
-</div>
-</div>
+
+        <div id="connectionStatus" class="sync-status" hidden></div>
+        <div id="matchList" class="stack"></div>
+      </section>
+
+      <section id="activities" class="view">
+        <div class="section-head">
+          <h2>Activity</h2>
+          <button class="primary-btn" data-open="activityModal" type="button">+ Log Activity</button>
+        </div>
+
+        <p class="hint">Log non-match activities. Admin approval is required before activity points count.</p>
+        <div id="activityList" class="stack"></div>
+      </section>
+
+      <section id="rankings" class="view">
+        <div class="section-head">
+          <div>
+            <h2>ABA Rankings</h2>
+            <p class="hint">Based on finalized match points.</p>
+          </div>
+          <span class="pill">Live points</span>
+        </div>
+
+        <div class="filters-card">
+          <label>
+            Sport
+            <select id="rank-sport-filter">
+              <option value="all">All sports</option>
+            </select>
+          </label>
+
+          <label>
+            League
+            <select id="rank-league-filter">
+              <option value="all">All leagues</option>
+            </select>
+          </label>
+
+          <label>
+            Player type
+            <select id="rank-player-type-filter">
+              <option value="all">All players</option>
+              <option value="members">Members only</option>
+              <option value="external">External only</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="rankingList" class="stack"></div>
+      </section>
+
+      <section id="account" class="view">
+        <div class="section-head">
+          <div>
+            <h2>My Profile</h2>
+            <p class="hint" id="profile-status">Login to load your profile.</p>
+          </div>
+          <button id="logout-btn" class="secondary-btn account-logout-btn" type="button">Log Out</button>
+        </div>
+
+        <div class="card profile-card">
+          <div class="profile-photo-panel">
+            <div id="profile-avatar-preview" class="avatar-preview avatar-fallback">--</div>
+            <div>
+              <strong>Profile photo</strong>
+              <p class="hint">JPG, PNG, or WebP up to 2 MB.</p>
+              <input id="profile-avatar-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+              <div class="actions profile-photo-actions">
+                <button id="profile-avatar-upload-btn" class="secondary-btn" type="button">Change Photo</button>
+                <button id="profile-avatar-remove-btn" class="secondary-btn danger-text-btn" type="button">Remove</button>
+              </div>
+            </div>
+          </div>
+
+          <label>
+            First Name
+            <input id="profile-first-name" type="text" disabled>
+          </label>
+
+          <label>
+            Last Name
+            <input id="profile-last-name" type="text" disabled>
+          </label>
+
+          <label>
+            Display Name
+            <input id="profile-display-name" type="text" disabled>
+          </label>
+
+          <label>
+            Birth Date
+            <input id="profile-birth-date" type="date" disabled>
+          </label>
+
+          <label>
+            Gender
+            <select id="profile-gender" disabled>
+              <option value="">Prefer not to say</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </label>
+
+          <label>
+            Height (cm)
+            <input id="profile-height-cm" type="number" min="100" max="230" step="1" disabled>
+          </label>
+
+          <label>
+            Weight (kg)
+            <input id="profile-weight-kg" type="number" min="30" max="250" step="0.1" disabled>
+          </label>
+
+          <label>
+            Phone
+            <input id="profile-phone" type="tel" disabled>
+          </label>
+
+          <div class="actions profile-actions">
+            <button id="profile-action-btn" class="primary-btn" type="button">
+              Edit Profile
+            </button>
+          </div>
+        </div>
+
+        <div id="garmin-connection-panel" class="card garmin-connection-card" hidden>
+          <div>
+            <strong>Garmin Connect</strong>
+            <p class="hint">Login to connect a Garmin smartwatch.</p>
+          </div>
+          <span class="pill">Offline</span>
+        </div>
+
+        <div id="strava-connection-panel" class="card garmin-connection-card">
+          <div>
+            <strong>Strava</strong>
+            <p class="hint">Login to connect Strava activities.</p>
+          </div>
+          <span class="pill">Offline</span>
+        </div>
+
+        <div class="card notification-card">
+          <div>
+            <h3>Phone notifications</h3>
+            <p id="notification-status" class="hint">Login to manage phone notifications.</p>
+          </div>
+
+          <div class="actions notification-actions">
+            <button id="enable-notifications-btn" class="primary-btn" type="button">
+              Enable Notifications
+            </button>
+            <button id="disable-notifications-btn" class="secondary-btn" type="button">
+              Disable This Device
+            </button>
+            <button id="test-notifications-btn" class="secondary-btn" type="button">
+              Send Test
+            </button>
+          </div>
+        </div>
+
+        <div id="notification-inbox-card" class="card notification-inbox-card">
+          <div class="row">
+            <div>
+              <h3>Notification inbox</h3>
+              <p id="notification-inbox-status" class="hint">Recent notifications will appear here.</p>
+            </div>
+            <button id="mark-notifications-read-btn" class="secondary-btn" type="button">
+              Mark All Read
+            </button>
+          </div>
+          <div id="notificationInboxList" class="notification-inbox-list">
+            <div class="hint">No notifications loaded.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="admin" class="view">
+        <div class="section-head">
+          <div>
+            <h2>Admin Dashboard</h2>
+            <p class="hint">Operational snapshot for members, matches, notifications, and review queues.</p>
+          </div>
+        </div>
+
+        <div id="adminDashboardCards" class="admin-dashboard-grid">
+          <article class="card">Loading admin dashboard...</article>
+        </div>
+
+        <div id="adminActionQueue" class="admin-action-queue"></div>
+
+        <div class="section-head">
+          <div>
+            <h2>Match Reminders</h2>
+            <p class="hint">Send targeted reminders for teams, results, and soccer assessments.</p>
+          </div>
+        </div>
+
+        <div id="adminMatchReminderList" class="stack">
+          <article class="card">No match reminders loaded.</article>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <h2>Admin Review</h2>
+            <p class="hint">Review pending member profiles.</p>
+          </div>
+        </div>
+
+        <div id="pendingMembersList" class="stack"></div>
+
+        <div class="section-head">
+          <div>
+            <h2>Member Roles</h2>
+            <p class="hint">Assign admin, committee, and sport-scoped management permissions.</p>
+          </div>
+        </div>
+
+        <div id="memberRoleList" class="stack">
+          <article class="card">Loading member roles...</article>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <h2>Admin Notifications</h2>
+            <p class="hint">Send a custom test notification to a single member or to all members.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <label>
+            Member
+            <select id="admin-notify-member">
+              <option value="">Choose member</option>
+              <option value="__all__">All approved members</option>
+            </select>
+          </label>
+
+          <label>
+            Title
+            <input id="admin-notify-title" type="text" value="Connect Strava" />
+          </label>
+
+          <label>
+            Message
+            <textarea id="admin-notify-message" rows="3" placeholder="Type your message">Strava is now available. Connect it in Account to import workouts and get activity points from real data.</textarea>
+          </label>
+
+          <label>
+            Opens
+            <input id="admin-notify-url" type="text" value="./#account?section=strava" />
+          </label>
+
+          <div class="actions">
+            <button id="use-strava-notification-btn" class="secondary-btn" type="button">
+              Use Strava Notice
+            </button>
+
+            <button id="send-admin-notification-btn" class="primary-btn" type="button">
+              Send to Selected
+            </button>
+
+            <button id="send-admin-notification-all-btn" class="secondary-btn" type="button">
+              Send to All
+            </button>
+          </div>
+
+          <p id="admin-notify-status" class="hint"></p>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <h2>Sport Ratings</h2>
+            <p class="hint">Set player ratings by sport for future team suggestions.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <label>
+            Sport
+            <select id="rating-sport-filter">
+              <option value="">Select sport</option>
+            </select>
+          </label>
+
+          <div id="sportRatingList" class="sport-rating-list">
+            Select a sport to edit ratings.
+          </div>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <h2>Activity Settings</h2>
+            <p class="hint">Configure activity intensity points for non-match activity logs.</p>
+          </div>
+        </div>
+
+        <div class="card activity-settings-card">
+          <div id="activity-settings-list" class="activity-settings-list">
+            Loading activity settings...
+          </div>
+
+          <div class="actions">
+            <button id="save-activity-settings-btn" class="primary-btn" type="button">
+              Save activity settings
+            </button>
+          </div>
+
+          <p id="activity-settings-status" class="hint">
+            Logged activities use continuous duration: points = min(cap, duration_minutes / 30 * rate).
+          </p>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <h2>Activity Review</h2>
+            <p class="hint">Approve logged activities before points count.</p>
+          </div>
+        </div>
+
+        <div id="pendingActivitiesList" class="stack"></div>
+
+        <div class="section-head">
+          <div>
+            <h2>Soccer Rating Formula</h2>
+            <p class="hint">Tune soccer position rating changes without editing code.</p>
+          </div>
+        </div>
+
+        <div id="soccer-rating-settings-card" class="card soccer-settings-card">
+          <div class="soccer-settings-grid">
+            <label>
+              <span class="rating-label-line">
+                Rolling average window
+                <small>Last N soccer matches used for expected total goals.</small>
+              </span>
+              <input id="soccer-setting-rolling-window" type="number" step="1" min="1">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                Minimum matches required
+                <small>Uses default goals until enough match history exists.</small>
+              </span>
+              <input id="soccer-setting-min-matches" type="number" step="1" min="0">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                Default average total goals
+                <small>Fallback expected match total before enough games are recorded.</small>
+              </span>
+              <input id="soccer-setting-default-total-goals" type="number" step="0.1" min="0">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                MID attack share
+                <small>How much MID ratings count in team attack average and MID attack change.</small>
+              </span>
+              <input id="soccer-setting-mid-attack-share" type="number" step="0.05" min="0" max="1">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                MID defense share
+                <small>How much MID ratings count in team defense average and MID defense change.</small>
+              </span>
+              <input id="soccer-setting-mid-defense-share" type="number" step="0.05" min="0" max="1">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                Performance weight
+                <small>Share of the final soccer adjustment reserved for player assessment. Team formula uses the rest.</small>
+              </span>
+              <input id="soccer-setting-performance-weight" type="number" step="1" min="0" max="100">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                Max rating change per match
+                <small>Uses the same value for positive and negative changes.</small>
+              </span>
+              <input id="soccer-setting-max-change" type="number" step="0.01" min="0" max="0.5">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                Minimum allowed rating
+                <small>Prevents position ratings from falling below this boundary.</small>
+              </span>
+              <input id="soccer-setting-min-rating" type="number" step="0.1" min="0" max="100">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                Maximum allowed rating
+                <small>Prevents position ratings from rising above this boundary.</small>
+              </span>
+              <input id="soccer-setting-max-rating" type="number" step="0.1" min="0" max="100">
+            </label>
+          </div>
+
+          <div class="soccer-expected-preview">
+            <strong>Formula preview</strong>
+            <div class="hint">
+              Expected goals are calculated from the rolling average total goals and the current formations:
+              <code>Team ATT ÷ Opponent DEF</code>.
+            </div>
+            <div class="hint">
+              Attackers gain or lose from <code>Actual goals - Expected goals</code>.
+              Defenders/GK gain or lose from <code>Expected goals against - Actual goals against</code>.
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="save-soccer-settings-btn" class="primary-btn" type="button">
+              Save soccer formula
+            </button>
+
+            <button id="reset-soccer-settings-btn" class="secondary-btn" type="button">
+              Reset defaults
+            </button>
+          </div>
+
+          <p id="soccer-settings-status" class="hint">
+            Changes affect future calculations. Use Maintenance Tools to recalculate old finalized matches.
+          </p>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <h2>Maintenance Tools</h2>
+            <p class="hint">Recalculate finalized matches after formula or formation changes.</p>
+          </div>
+        </div>
+
+        <div class="card maintenance-card">
+          <div class="actions">
+            <button id="recalc-all-points-btn" class="secondary-btn" type="button">
+              Recalculate all points
+            </button>
+
+            <button id="recalc-all-soccer-ratings-btn" class="secondary-btn" type="button">
+              Recalculate all soccer ratings
+            </button>
+
+            <button id="recalc-all-finalized-btn" class="primary-btn" type="button">
+              Recalculate all finalized matches
+            </button>
+          </div>
+
+          <p class="hint">
+            Uses the current app formula. Cancelled matches are ignored.
+          </p>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <h2>Venue Management</h2>
+            <p class="hint">Add venues and choose the sports supported by each venue.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <label>
+            Venue Name
+            <input id="venue-name" type="text" placeholder="The Padict Club">
+          </label>
+
+          <label>
+            Address
+            <input id="venue-address" type="text" placeholder="Beirut, Lebanon">
+          </label>
+
+          <label>
+            Google Maps Link
+            <input id="venue-google-maps-url" type="url" placeholder="https://maps.google.com/...">
+          </label>
+
+          <label>
+            Image URL
+            <input id="venue-image-url" type="url" placeholder="https://...">
+          </label>
+
+          <label>
+            Supported Sports
+            <div id="venue-sports-options" class="checkbox-list">
+              Loading sports...
+            </div>
+          </label>
+
+          <div class="actions">
+            <button id="add-venue-btn" class="primary-btn" type="button">
+              Add Venue
+            </button>
+
+            <button id="cancel-venue-edit-btn" class="secondary-btn" type="button">
+              Cancel
+            </button>
+          </div>
+        </div>
+
+        <div id="venuesList" class="stack"></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="leagueModal" class="modal">
+    <form method="dialog" id="leagueForm" class="modal-card">
+      <button class="close" value="cancel" type="button" onclick="document.getElementById('activityModal')?.close()">×</button>
+      <h3>Create League</h3>
+
+      <label>
+        League name
+        <input name="name" required placeholder="ABA Padel League" />
+      </label>
+
+      <label>
+        Sport
+        <select name="sport_id" id="league-sport" required>
+          <option value="">Select sport</option>
+        </select>
+      </label>
+
+      <label>
+        Format
+        <input name="format" placeholder="Doubles, 5v5, round robin..." />
+      </label>
+
+      <label>
+        Status
+        <select name="status" id="league-status">
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+        </select>
+      </label>
+
+      <div class="grid two">
+        <label>
+          Start date optional
+          <input name="start_date" type="date" />
+        </label>
+
+        <label>
+          End date optional
+          <input name="end_date" type="date" />
+        </label>
+      </div>
+
+      <button class="primary-btn full" type="submit">Create League</button>
+    </form>
+  </dialog>
+
+ <dialog id="matchModal" class="modal">
+  <form method="dialog" id="matchForm" class="modal-card">
+    <button class="close" id="match-modal-close" value="cancel" type="button">×</button>
+    <h3 id="match-modal-title">Create Match</h3>
+
+    <label>
+      Sport
+      <select name="sport_id" id="match-sport" required>
+        <option value="">Select sport</option>
+      </select>
+    </label>
+
+    <label>
+      Venue
+      <select name="venue_id" id="match-venue" required>
+        <option value="">Select venue</option>
+      </select>
+    </label>
+
+    <label>
+      Title
+      <input name="title" required placeholder="Wolf & Fox vs Pigs" />
+    </label>
+
+    <label>
+      Match Type
+      <select name="match_type" id="match-type">
+        <option value="friendly">Friendly</option>
+        <option value="league">League</option>
+      </select>
+    </label>
+
+    <label id="match-league-label" style="display:none;">
+      League
+      <select name="league_id" id="match-league">
+        <option value="">Select league</option>
+      </select>
+    </label>
+
+    <label>
+      Required players
+      <input name="required_players" type="number" min="2" step="2" value="4" required />
+    </label>
+
+    <div class="grid two match-date-time-grid">
+      <label>
+        Start date
+        <input id="match-start-date" type="date" required />
+      </label>
+
+      <label>
+        Start time
+        <div class="ampm-time-row">
+          <select id="match-start-hour" required></select>
+          <span>:</span>
+          <select id="match-start-minute" required></select>
+          <select id="match-start-ampm" required>
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+      </label>
+    </div>
+
+    <div class="grid two match-date-time-grid">
+      <label>
+        End date
+        <input id="match-end-date" type="date" required />
+      </label>
+
+      <label>
+        End time
+        <div class="ampm-time-row">
+          <select id="match-end-hour" required></select>
+          <span>:</span>
+          <select id="match-end-minute" required></select>
+          <select id="match-end-ampm" required>
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+      </label>
+    </div>
+
+    <div class="grid two match-date-time-grid">
+      <label>
+        Voting deadline date
+        <input id="match-vote-deadline-date" type="date" required />
+      </label>
+
+      <label>
+        Voting deadline time
+        <div class="ampm-time-row">
+          <select id="match-vote-deadline-hour" required></select>
+          <span>:</span>
+          <select id="match-vote-deadline-minute" required></select>
+          <select id="match-vote-deadline-ampm" required>
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+      </label>
+    </div>
+
+    <p class="hint">
+      Players can change votes until this deadline. Default is 24 hours before match start.
+    </p>
+
+    <label>
+      Invite Players
+      <div id="match-invite-options" class="checkbox-list">
+        Loading members...
+      </div>
+    </label>
+
+    <label>
+      Notes
+      <input name="notes" placeholder="Optional notes..." />
+    </label>
+
+    <div class="modal-actions">
+      <button class="secondary-btn full" id="match-cancel-btn" type="button">Cancel</button>
+      <button class="primary-btn full" id="match-submit-btn" type="submit">Create Match</button>
+    </div>
+  </form>
+</dialog>
+
+
+  <dialog id="externalPlayerModal" class="modal">
+    <form method="dialog" id="externalPlayerForm" class="modal-card">
+      <button class="close" value="cancel" type="submit">×</button>
+      <h3>Add External Players</h3>
+
+      <p class="hint" id="external-player-match-label">
+        Select existing external players, or create a new external profile.
+      </p>
+
+      <label>
+        Existing External Players
+        <div id="external-player-options" class="checkbox-list external-picker-list">
+          Loading external players...
+        </div>
+      </label>
+
+      <div class="actions">
+        <button id="add-selected-external-btn" class="primary-btn" type="button">
+          Add Selected
+        </button>
+      </div>
+
+      <div class="external-new-box">
+        <h3>New External Player</h3>
+
+        <label>
+          Display name
+          <input id="new-external-name" type="text" placeholder="Joe">
+        </label>
+
+        <label>
+          Phone optional
+          <input id="new-external-phone" type="tel" placeholder="+961...">
+        </label>
+
+        <label>
+          Email optional
+          <input id="new-external-email" type="email" placeholder="joe@example.com">
+        </label>
+
+        <button id="create-external-player-btn" class="secondary-btn full" type="button">
+          Create External Profile
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+
+  <dialog id="teamModal" class="modal">
+    <form method="dialog" id="teamForm" class="modal-card team-modal-card">
+      <button class="close" value="cancel" type="submit">×</button>
+      <h3 id="team-modal-title">Assign Teams</h3>
+
+      <p class="hint" id="team-match-label">
+        Assign IN players to teams.
+      </p>
+
+      <div class="grid two">
+        <label>
+          Team A name
+          <input id="team-a-name" type="text" value="Black">
+        </label>
+
+        <label>
+          Team B name
+          <input id="team-b-name" type="text" value="White">
+        </label>
+      </div>
+
+      <div id="team-assignment-list" class="team-assignment-list">
+        Loading players...
+      </div>
+
+      <div id="team-balance-status" class="team-balance-status">
+        Team A: 0 • Team B: 0
+      </div>
+
+      <div id="team-rating-status" class="team-rating-status">
+        Ratings: Team A 0 • Team B 0
+      </div>
+
+      <div id="formation-status" class="formation-status">
+        Formation: assign teams first.
+      </div>
+
+      <div id="suggested-formation-summary" class="suggested-formation-summary" style="display:none;"></div>
+
+      <div id="captain-selectors" class="captain-selectors" style="display:none;">
+        <label>
+          Team A Captain
+          <select id="team-a-captain">
+            <option value="">Select captain</option>
+          </select>
+        </label>
+
+        <label>
+          Team B Captain
+          <select id="team-b-captain">
+            <option value="">Select captain</option>
+          </select>
+        </label>
+      </div>
+
+      <button id="suggest-teams-btn" class="secondary-btn full" type="button">
+        Suggest Balanced Teams / Formation
+      </button>
+
+      <button id="reset-team-assignment-btn" class="secondary-btn full" type="button">
+        Reset Team Assignments
+      </button>
+
+      <button id="save-teams-btn" class="primary-btn full" type="button">
+        Save Teams
+      </button>
+    </form>
+  </dialog>
+
+
+  <dialog id="scoreModal" class="modal">
+    <form method="dialog" id="scoreForm" class="modal-card score-modal-card">
+      <button class="close" value="cancel" type="submit">×</button>
+      <h3>Add Result</h3>
+
+      <p class="hint" id="score-match-label">
+        Enter the final score.
+      </p>
+
+      <div id="simple-score-section">
+        <div class="grid two">
+          <label>
+            <span id="score-team-a-label">Team A score</span>
+            <input id="score-team-a" type="number" min="0" step="1" value="0">
+          </label>
+
+          <label>
+            <span id="score-team-b-label">Team B score</span>
+            <input id="score-team-b" type="number" min="0" step="1" value="0">
+          </label>
+        </div>
+      </div>
+
+      <div id="padel-score-section" style="display:none;">
+        <p class="hint">
+          A match is the booking/session. Inside it, add a new game or continue a pending game.
+        </p>
+
+        <div class="grid two">
+          <label>
+            Game action
+            <select id="padel-game-mode">
+              <option value="new">New Game</option>
+              <option value="continue">Edit / Continue Game</option>
+            </select>
+          </label>
+
+          <label id="padel-pending-game-label" style="display:none;">
+            Existing / Pending Game
+            <select id="padel-pending-game"></select>
+          </label>
+        </div>
+
+        <label>
+          Game title
+          <input id="padel-game-title" type="text" placeholder="Game 1">
+        </label>
+
+        <p class="hint">
+          Each padel game is best of 3 sets. Valid completed sets include 6-0 to 6-4, 7-5, 7-6 tie-break, or 8-6 / 9-7 advantage sets.
+        </p>
+
+        <div class="padel-set-grid padel-set-head">
+          <span>Set</span>
+          <span id="padel-team-a-head">Team A</span>
+          <span id="padel-team-b-head">Team B</span>
+          <span>Done</span>
+        </div>
+
+        <div id="padel-set-list">
+          <div class="padel-set-grid">
+            <span>1</span>
+            <input id="padel-set-1-a" type="number" min="0" step="1" value="">
+            <input id="padel-set-1-b" type="number" min="0" step="1" value="">
+            <input id="padel-set-1-completed" type="checkbox">
+          </div>
+
+          <div class="padel-set-grid">
+            <span>2</span>
+            <input id="padel-set-2-a" type="number" min="0" step="1" value="">
+            <input id="padel-set-2-b" type="number" min="0" step="1" value="">
+            <input id="padel-set-2-completed" type="checkbox">
+          </div>
+
+          <div class="padel-set-grid">
+            <span>3</span>
+            <input id="padel-set-3-a" type="number" min="0" step="1" value="">
+            <input id="padel-set-3-b" type="number" min="0" step="1" value="">
+            <input id="padel-set-3-completed" type="checkbox">
+          </div>
+        </div>
+
+        <div id="padel-score-preview" class="score-preview">
+          Sets: 0 - 0
+        </div>
+      </div>
+
+      <label>
+        Match summary / notes
+        <textarea id="score-summary" rows="4" placeholder="Optional match summary..."></textarea>
+      </label>
+
+      <label class="score-photo-field">
+        Result photo
+        <input id="score-result-photo" type="file" accept="image/jpeg,image/png,image/webp">
+      </label>
+
+      <div id="score-result-photo-preview" class="score-photo-preview">
+        <div class="hint">No result photo attached yet.</div>
+      </div>
+
+      <div class="actions score-actions">
+        <button id="save-game-btn" class="secondary-btn" type="button">
+          Save Game
+        </button>
+
+        <button id="delete-game-btn" class="secondary-btn danger-btn" type="button">
+          Delete Game
+        </button>
+
+        <button id="save-score-btn" class="primary-btn" type="button">
+          Finalize Match Result
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="activityModal" class="modal">
+    <form method="dialog" id="activityForm" class="modal-card">
+      <button class="close" id="activity-modal-close" value="cancel" type="button">×</button>
+      <h3>Log Activity</h3>
+
+      <label>Sport
+        <select id="activity-sport" name="sport_id" required>
+          <option value="">Select sport</option>
+        </select>
+      </label>
+
+      <label>Activity
+        <input id="activity-title" name="title" required placeholder="5 km run, gym session, padel practice..." />
+      </label>
+
+      <label>Date
+        <input id="activity-date" name="activity_date" type="date" required />
+      </label>
+
+      <div class="grid two">
+        <label>Start time
+          <div class="ampm-time-row">
+            <select id="activity-start-hour" required></select>
+            <span>:</span>
+            <select id="activity-start-minute" required></select>
+            <select id="activity-start-ampm" required>
+              <option>AM</option>
+              <option>PM</option>
+            </select>
+          </div>
+        </label>
+
+        <label>End time
+          <div class="ampm-time-row">
+            <select id="activity-end-hour" required></select>
+            <span>:</span>
+            <select id="activity-end-minute" required></select>
+            <select id="activity-end-ampm" required>
+              <option>AM</option>
+              <option>PM</option>
+            </select>
+          </div>
+        </label>
+      </div>
+
+      <label>Proof upload
+        <input id="activity-proof-file" name="proof_file" type="file" accept="image/*,.pdf" required />
+      </label>
+
+      <label>Notes
+        <textarea id="activity-notes" name="notes" rows="3" placeholder="Optional context: distance, calories, app used, teammates, gym check-in..."></textarea>
+      </label>
+
+      <p id="activity-points-preview" class="hint">Select sport and time to preview points.</p>
+
+      <div class="modal-actions">
+        <button class="secondary-btn full" id="activity-cancel-btn" type="button">Cancel</button>
+        <button class="primary-btn full" type="submit">Submit for Approval</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js?v=1"></script>
+  <script src="js/auth.js?v=1"></script>
+  <script src="js/admin.js?v=1"></script>
+  <script src="js/venues.js?v=1"></script>
+  <script src="js/leagues.js?v=1"></script>
+  <script src="js/matches.js?v=2"></script>
+  <script src="js/teams.js?v=2"></script>
+  <script src="js/scoring.js?v=1"></script>
+  <script src="js/utils.js?v=1"></script>
+  <script src="app.js?v=225"></script>
+  <script src="js/utils-runtime-bridge.js?v=1"></script>
+  <script src="js/auth-runtime-bridge.js?v=1"></script>
+
+  <div id="push-toast" class="push-toast" role="status" aria-live="polite" hidden></div>
+
+<dialog id="ratingHistoryModal" class="modal wide-modal">
+  <form method="dialog" class="modal-card">
+    <div class="modal-head">
+      <div>
+        <h3 id="rating-history-title">Rating History</h3>
+        <p id="rating-history-subtitle" class="hint">Position rating changes by match.</p>
+      </div>
+      <button class="icon-btn modal-close-btn" value="cancel" aria-label="Close rating history">×</button>
+    </div>
+
+    <div class="grid two">
+      <label>
+        Position
+        <select id="rating-history-position-filter">
+          <option value="all">All positions</option>
+          <option value="GK">GK</option>
+          <option value="DEF">DEF</option>
+          <option value="MID">MID</option>
+          <option value="ATT">ATT</option>
+        </select>
+      </label>
+
+      <label>
+        Sort
+        <select id="rating-history-sort">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="ratingHistoryList" class="rating-history-list">
+      Select a player to view history.
+    </div>
+  </form>
+</dialog>
+
+
+<dialog id="playerProfileModal" class="modal wide-modal">
+  <form method="dialog" class="modal-card player-profile-modal-card">
+    <div class="modal-head">
+      <div>
+        <h3 id="player-profile-title">Player Profile</h3>
+        <p id="player-profile-subtitle" class="hint">Points, ratings, and recent matches.</p>
+      </div>
+      <button class="icon-btn modal-close-btn" value="cancel" aria-label="Close player profile">×</button>
+    </div>
+
+    <div id="playerProfileContent" class="player-profile-content">
+      Select a player to view profile.
+    </div>
+  </form>
+</dialog>
+
+<dialog id="avatarViewerModal" class="avatar-viewer-modal" aria-label="Profile photo preview">
+  <div class="avatar-viewer-frame">
+    <img id="avatar-viewer-img" alt="">
+  </div>
+</dialog>
+
 </body>
 </html>

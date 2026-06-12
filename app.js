@@ -3046,11 +3046,6 @@ function renderStats() {
   if (!shouldRenderView("dashboard")) return;
 
   renderHomeSnapshot();
-  renderHomeToday();
-  renderHomeActions();
-  renderHomeChallenge();
-  renderHomeLeagueHq();
-  renderHomePerformance();
 }
 
 function homeApprovedActivities() {
@@ -18446,7 +18441,6 @@ function renderDeferredView(viewId) {
 
   if (viewId === "dashboard") {
     renderStats();
-    renderFeed();
     return;
   }
 
