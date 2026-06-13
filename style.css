@@ -244,51 +244,20 @@
 .iphone-pro-max .frame-3 {
   display: grid;
   grid-template-columns: repeat(1, minmax(0, 1fr));
-  grid-template-rows: repeat(4, fit-content(100%));
+  grid-template-rows: fit-content(100%) fit-content(100%) fit-content(100%) fit-content(
+      100%
+    );
   width: 55.80%;
-  height: 120px;
+  height: 150px;
   gap: 0px 10px;
   position: absolute;
   left: 3.33%;
-  bottom: 9px;
-}
-
-.iphone-pro-max .sports-matches-frame {
-  position: relative;
-  grid-row: 1 / 2;
-  grid-column: 1 / 2;
-  width: 84px;
-  height: 30px;
-}
-
-.iphone-pro-max .racquetball {
-  position: absolute;
-  width: 100%;
-  top: calc(50.00% - 15px);
-  left: 0;
-  height: 37px;
-  aspect-ratio: 1;
-}
-
-.iphone-pro-max .text-wrapper-7 {
-  position: absolute;
-  width: 76.19%;
-  height: 100%;
-  top: 0;
-  left: 48.19%;
-  color: #ffffff;
-  font-size: 20px;
-  display: flex;
-  align-items: center;
-  font-family: "Roboto-Medium", Helvetica;
-  font-weight: 500;
-  letter-spacing: 0;
-  line-height: normal;
+  bottom: -21px;
 }
 
 .iphone-pro-max .frame-4 {
   position: relative;
-  grid-row: 2 / 3;
+  grid-row: 1 / 2;
   grid-column: 1 / 2;
   width: 100%;
   height: 30px;
@@ -305,7 +274,7 @@
   aspect-ratio: 1;
 }
 
-.iphone-pro-max .text-wrapper-8 {
+.iphone-pro-max .text-wrapper-7 {
   position: relative;
   display: flex;
   align-items: center;
@@ -320,6 +289,17 @@
 
 .iphone-pro-max .frame-5 {
   position: relative;
+  grid-row: 2 / 3;
+  grid-column: 1 / 2;
+  width: 100%;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.iphone-pro-max .frame-6 {
+  position: relative;
   grid-row: 3 / 4;
   grid-column: 1 / 2;
   width: 100%;
@@ -329,7 +309,7 @@
   gap: 10px;
 }
 
-.iphone-pro-max .text-wrapper-9 {
+.iphone-pro-max .text-wrapper-8 {
   position: relative;
   width: 32px;
   color: #ffffff;
@@ -342,7 +322,7 @@
   line-height: normal;
 }
 
-.iphone-pro-max .frame-6 {
+.iphone-pro-max .frame-7 {
   position: relative;
   grid-row: 4 / 5;
   grid-column: 1 / 2;
@@ -353,14 +333,7 @@
   gap: 10px;
 }
 
-.iphone-pro-max .img-3 {
-  position: relative;
-  width: 34px;
-  height: 30px;
-  aspect-ratio: 1;
-}
-
-.iphone-pro-max .text-wrapper-10 {
+.iphone-pro-max .text-wrapper-9 {
   position: relative;
   width: 33px;
   color: #ffffff;
@@ -383,7 +356,7 @@
   align-items: center;
 }
 
-.iphone-pro-max .frame-7 {
+.iphone-pro-max .frame-8 {
   display: inline-flex;
   margin-top: -21px;
   height: 99px;
@@ -394,15 +367,13 @@
   gap: 6px;
 }
 
-.iphone-pro-max .text-wrapper-11 {
+.iphone-pro-max .text-wrapper-10 {
   position: relative;
   justify-content: center;
   width: 94px;
   height: 58px;
-  margin-top: -2px;
-  margin-left: -1px;
+  margin-top: -1px;
   text-shadow: 0px 4px 4px #00000040;
-  -webkit-text-stroke: 1px #000000;
   background: linear-gradient(
     180deg,
     rgba(49, 168, 255, 1) 20%,
@@ -424,7 +395,7 @@
   line-height: normal;
 }
 
-.iphone-pro-max .text-wrapper-12 {
+.iphone-pro-max .text-wrapper-11 {
   position: relative;
   display: flex;
   align-items: center;
@@ -440,7 +411,7 @@
   line-height: normal;
 }
 
-.iphone-pro-max .text-wrapper-13 {
+.iphone-pro-max .text-wrapper-12 {
   color: #2ee582;
   position: relative;
   display: flex;
@@ -470,7 +441,7 @@
   border-color: #000000;
 }
 
-.iphone-pro-max .text-wrapper-14 {
+.iphone-pro-max .text-wrapper-13 {
   position: absolute;
   top: 5px;
   left: 46px;
@@ -486,7 +457,27 @@
   line-height: normal;
 }
 
-.iphone-pro-max .text-wrapper-15 {
+.iphone-pro-max .frame-9 {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  grid-template-rows: repeat(4, fit-content(100%));
+  width: 55.80%;
+  height: 120px;
+  gap: 0px 10px;
+  position: absolute;
+  left: 3.33%;
+  bottom: 9px;
+}
+
+.iphone-pro-max .sports-matches-frame {
+  position: relative;
+  grid-row: 1 / 2;
+  grid-column: 1 / 2;
+  width: 84px;
+  height: 30px;
+}
+
+.iphone-pro-max .text-wrapper-14 {
   position: absolute;
   width: 52.38%;
   height: 100%;
@@ -511,6 +502,13 @@
   aspect-ratio: 1;
 }
 
+.iphone-pro-max .walking {
+  position: relative;
+  width: 34px;
+  height: 30px;
+  aspect-ratio: 1;
+}
+
 .iphone-pro-max .protect {
   position: absolute;
   top: 5px;
@@ -519,7 +517,7 @@
   height: 30px;
 }
 
-.iphone-pro-max .frame-8 {
+.iphone-pro-max .frame-10 {
   right: 11px;
   bottom: 9px;
   width: 94px;
@@ -529,7 +527,7 @@
   align-items: center;
 }
 
-.iphone-pro-max .frame-9 {
+.iphone-pro-max .frame-11 {
   display: inline-flex;
   margin-top: -21px;
   margin-left: 0;
@@ -541,15 +539,13 @@
   gap: 6px;
 }
 
-.iphone-pro-max .text-wrapper-16 {
+.iphone-pro-max .text-wrapper-15 {
   position: relative;
   justify-content: center;
   width: 94px;
   height: 58px;
-  margin-top: -2px;
-  margin-left: -1px;
+  margin-top: -1px;
   text-shadow: 0px 4px 4px #00000040;
-  -webkit-text-stroke: 1px #000000;
   background: linear-gradient(
     180deg,
     rgba(36, 209, 126, 1) 20%,
@@ -592,7 +588,7 @@
   color: #ff5f67;
 }
 
-.iphone-pro-max .text-wrapper-17 {
+.iphone-pro-max .text-wrapper-16 {
   color: #2ee582;
 }
 
@@ -617,7 +613,7 @@
   height: 38px;
 }
 
-.iphone-pro-max .frame-10 {
+.iphone-pro-max .frame-12 {
   top: calc(50.00% + 12px);
   right: 8px;
   width: 97px;
@@ -628,7 +624,7 @@
   align-items: center;
 }
 
-.iphone-pro-max .frame-11 {
+.iphone-pro-max .frame-13 {
   display: flex;
   margin-top: -21px;
   width: 95px;
@@ -639,15 +635,13 @@
   gap: 6px;
 }
 
-.iphone-pro-max .text-wrapper-18 {
+.iphone-pro-max .text-wrapper-17 {
   position: relative;
   justify-content: center;
   align-self: stretch;
   height: 58px;
-  margin-top: -2px;
-  margin-left: -1px;
+  margin-top: -1px;
   text-shadow: 0px 4px 4px #00000040;
-  -webkit-text-stroke: 1px #000000;
   background: linear-gradient(
     180deg,
     rgba(150, 86, 255, 1) 20%,
@@ -669,7 +663,7 @@
   line-height: normal;
 }
 
-.iphone-pro-max .text-wrapper-19 {
+.iphone-pro-max .text-wrapper-18 {
   position: relative;
   display: flex;
   align-items: center;
@@ -685,7 +679,7 @@
   line-height: normal;
 }
 
-.iphone-pro-max .text-wrapper-20 {
+.iphone-pro-max .text-wrapper-19 {
   position: relative;
   display: flex;
   align-items: center;
@@ -725,7 +719,7 @@
   height: 30px;
 }
 
-.iphone-pro-max .text-wrapper-21 {
+.iphone-pro-max .text-wrapper-20 {
   position: absolute;
   top: calc(50.00% - 15px);
   left: 0;
@@ -794,7 +788,7 @@
   aspect-ratio: 1;
 }
 
-.iphone-pro-max .frame-12 {
+.iphone-pro-max .frame-14 {
   flex-direction: column;
   width: 170px;
   height: 104px;
@@ -806,7 +800,7 @@
   align-items: center;
 }
 
-.iphone-pro-max .frame-13 {
+.iphone-pro-max .frame-15 {
   display: grid;
   grid-template-columns: repeat(1, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1fr) 20px 10px;
@@ -819,7 +813,7 @@
   border-color: #93a7bf;
 }
 
-.iphone-pro-max .text-wrapper-22 {
+.iphone-pro-max .text-wrapper-21 {
   position: relative;
   display: flex;
   align-items: center;
@@ -848,7 +842,7 @@
   line-height: normal;
 }
 
-.iphone-pro-max .text-wrapper-23 {
+.iphone-pro-max .text-wrapper-22 {
   position: relative;
   display: flex;
   align-items: center;
@@ -869,7 +863,7 @@
   white-space: nowrap;
 }
 
-.iphone-pro-max .text-wrapper-24 {
+.iphone-pro-max .text-wrapper-23 {
   position: relative;
   display: flex;
   align-items: center;
@@ -890,7 +884,7 @@
   white-space: nowrap;
 }
 
-.iphone-pro-max .text-wrapper-25 {
+.iphone-pro-max .text-wrapper-24 {
   position: relative;
   display: flex;
   align-items: center;
@@ -908,7 +902,7 @@
   white-space: nowrap;
 }
 
-.iphone-pro-max .frame-14 {
+.iphone-pro-max .frame-16 {
   position: absolute;
   top: calc(50.00% - 92px);
   left: 2px;
