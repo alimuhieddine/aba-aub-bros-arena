@@ -961,4 +961,76 @@
   height: 2px;
 }
 
+.box {
+  position: relative;
+  width: 353px;
+  height: 79px;
+}
 
+.box .menu-icons {
+  position: fixed;
+  top: -322px;
+  left: -314px;
+  width: 353px;
+  height: 79px;
+  border-radius: 5px;
+  overflow: hidden;
+  border: 1px dashed;
+  border-color: #9747ff;
+}
+
+.box .property-vector {
+  position: absolute;
+  top: 17px;
+  left: 20px;
+  width: 40px;
+  height: 40px;
+}
+
+.box .property-group {
+  top: 17px;
+  left: calc(50.00% - 63px);
+  position: absolute;
+  width: 40px;
+  height: 40px;
+}
+
+.box .img {
+  top: 17px;
+  left: 67px;
+  position: absolute;
+  width: 40px;
+  height: 40px;
+}
+
+.box .property-group-2 {
+  top: 17px;
+  left: 161px;
+  position: absolute;
+  width: 40px;
+  height: 40px;
+}
+
+.box .property-group-3 {
+  top: 17px;
+  left: 208px;
+  position: absolute;
+  width: 40px;
+  height: 40px;
+}
+
+.box .property-group-4 {
+  top: calc(50.00% - 23px);
+  left: 255px;
+  position: absolute;
+  width: 40px;
+  height: 40px;
+}
+
+.box .property-group-5 {
+  top: 17px;
+  left: 302px;
+  position: absolute;
+  width: 40px;
+  height: 40px;
+}
