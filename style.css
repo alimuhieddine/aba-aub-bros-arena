@@ -14,7 +14,7 @@
   align-items: center;
   gap: 10px;
   position: absolute;
-  top: 48px;
+  top: 23px;
   right: 4px;
 }
 
@@ -28,7 +28,7 @@
 
 .iphone-pro-max .text-wrapper {
   position: absolute;
-  top: 220px;
+  top: 195px;
   left: 3px;
   width: 99px;
   height: 25px;
@@ -44,7 +44,7 @@
 
 .iphone-pro-max .div {
   position: absolute;
-  top: 119px;
+  top: 94px;
   left: 3px;
   width: 321px;
   height: 30px;
@@ -80,7 +80,7 @@
 
 .iphone-pro-max .text-wrapper-4 {
   position: absolute;
-  top: 89px;
+  top: 64px;
   left: 3px;
   height: 30px;
   display: flex;
@@ -99,7 +99,7 @@
 
 .iphone-pro-max .text-wrapper-5 {
   position: absolute;
-  top: 48px;
+  top: 23px;
   left: 13px;
   font-family: "Roboto-BoldItalic", Helvetica;
   font-weight: 700;
@@ -112,59 +112,9 @@
   white-space: nowrap;
 }
 
-.iphone-pro-max .status-bar-iphone {
-  display: flex;
-  width: 430px;
-  height: 46px;
-  align-items: center;
-  justify-content: center;
-  gap: 154px;
-  padding: 21px 24px 19px;
-  position: absolute;
-  top: 0;
-  left: 0;
-}
-
-.iphone-pro-max .time {
-  display: flex;
-  height: 22px;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 1.5px 0px 0px;
-  position: relative;
-  flex: 1;
-  flex-grow: 1;
-  margin-top: -8px;
-  margin-bottom: -8px;
-}
-
-.iphone-pro-max .time-2 {
-  position: relative;
-  width: fit-content;
-  margin-top: -1.75px;
-  font-family: "SF Pro-Semibold", Helvetica;
-  font-weight: 400;
-  color: #ffffff;
-  font-size: 17px;
-  text-align: center;
-  letter-spacing: 0;
-  line-height: 22px;
-  white-space: nowrap;
-}
-
-.iphone-pro-max .levels {
-  position: relative;
-  flex: 1;
-  flex-grow: 1;
-  height: 22px;
-  margin-top: -8px;
-  margin-bottom: -8px;
-}
-
 .iphone-pro-max .img {
   position: absolute;
-  top: 160px;
+  top: 135px;
   left: 0;
   width: 430px;
   height: 55px;
@@ -179,7 +129,7 @@
   gap: 1px;
   padding: 2px;
   position: absolute;
-  top: 26.30%;
+  top: 23.62%;
   left: 0;
   aspect-ratio: 1.1;
 }
