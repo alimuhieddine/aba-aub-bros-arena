@@ -9,9 +9,30 @@
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body > .box {
+    display: none;
+  }
+
+  body > .iphone-pro-max {
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin: 0;
+  }
+
   .iphone-pro-max .nav-tabs-frame {
     position: absolute;
-    top: 135px;
+    top: 157px;
     left: 0;
     right: auto;
     width: 100%;
@@ -126,7 +147,7 @@
 
   .aba-login-card {
     position: absolute;
-    top: 23px;
+    top: 45px;
     left: 200px;
     display: grid;
     grid-template-columns: 64px 1fr;
@@ -160,10 +181,10 @@
     padding: 0 7px;
     border: 1px solid rgba(49,168,255,.72);
     border-radius: 999px;
-    background: rgba(49,168,255,.08);
+    background: #000000;
     color: #ffffff;
     font-family: Roboto, Helvetica;
-    font-size: 12px;
+    font-size: 10px;
     font-style: italic;
     outline: none;
     box-sizing: border-box;
@@ -200,7 +221,7 @@
   .aba-login-message {
     position: absolute;
     right: 14px;
-    bottom: 2px;
+    bottom: -13px;
     max-width: 150px;
     color: #ff6b75;
     font-family: Roboto, Helvetica;
@@ -209,13 +230,14 @@
   }
 
   .iphone-pro-max.is-logged-out .avatar-frame,
+  .iphone-pro-max.is-logged-out .welcome-row,
   .iphone-pro-max.is-logged-out .weekly-stats-title,
   .iphone-pro-max.is-logged-out .frame-stats-grid {
     display: none;
   }
 
   .iphone-pro-max.is-logged-out .nav-tabs-frame {
-    top: 280px;
+    top: 302px;
   }
 
   .iphone-pro-max.is-logged-out {
@@ -224,6 +246,47 @@
 
   .iphone-pro-max.is-logged-in .aba-login-card {
     display: none;
+  }
+
+  .iphone-pro-max .avatar-frame {
+    top: 45px;
+  }
+
+  .iphone-pro-max .avatar-frame,
+  .iphone-pro-max .avatar-frame .ellipse,
+  .iphone-pro-max .ellipse {
+    border-radius: 90px;
+    overflow: hidden;
+  }
+
+  .iphone-pro-max .text-wrapper-5 {
+    top: 45px;
+  }
+
+  .iphone-pro-max .text-wrapper-4 {
+    top: 86px;
+  }
+
+  .iphone-pro-max .welcome-row {
+    top: 116px;
+    gap: 16px;
+  }
+
+  .iphone-pro-max .welcome-row .text-wrapper-2 {
+    width: auto;
+  }
+
+  .iphone-pro-max .welcome-row .text-wrapper-3 {
+    margin-left: 4px;
+    width: auto;
+  }
+
+  .iphone-pro-max .weekly-stats-title {
+    top: 224px;
+  }
+
+  .iphone-pro-max .frame-stats-grid {
+    top: 254px;
   }
 </style>
 </head>
@@ -260,7 +323,7 @@
 </form>
     
 <div class="text-wrapper weekly-stats-title" >Weekly Stats</div>
-<div class="div" ><div class="text-wrapper-2" >Welcome back, </div>
+<div class="div welcome-row" ><div class="text-wrapper-2" >Welcome back, </div>
 <div class="text-wrapper-3" id="abaMemberName">Wolf</div></div>
 <div class="text-wrapper-4" >AUB Bros Arena</div>
 <div class="text-wrapper-5" >ABA</div>
@@ -359,13 +422,17 @@
 
   function abaSetMessage(message, isOk = false) {
     if (!abaLoginMessage) return;
+    if (isOk) {
+      abaLoginMessage.textContent = "";
+      return;
+    }
     abaLoginMessage.textContent = message || "";
     abaLoginMessage.style.color = isOk ? "#31e57d" : "#ff6b75";
   }
 
   function abaMemberDisplayName(member, user) {
     const fullName = [member?.first_name, member?.last_name].filter(Boolean).join(" ").trim();
-    return member?.display_name || fullName || user?.email || "Member";
+    return member?.display_name || fullName || "Member";
   }
 
   async function abaLoadMember(user) {
@@ -396,14 +463,18 @@
       return;
     }
 
-    const member = await abaLoadMember(session.user);
+    abaShell.classList.remove("is-logged-out");
+    abaShell.classList.add("is-logged-in");
+    if (abaMemberName) abaMemberName.textContent = " Member";
+    const member = await Promise.race([
+      abaLoadMember(session.user),
+      new Promise(resolve => setTimeout(() => resolve(null), 4500)),
+    ]);
     const displayName = abaMemberDisplayName(member, session.user);
     if (abaMemberName) abaMemberName.textContent = ` ${displayName}`;
     if (abaMemberAvatar) {
       abaMemberAvatar.src = member?.avatar_url || session.user.user_metadata?.avatar_url || "img/ellipse-1.png";
     }
-    abaShell.classList.remove("is-logged-out");
-    abaShell.classList.add("is-logged-in");
     abaSetMessage("");
   }
 
@@ -413,7 +484,7 @@
       abaSetMessage("Supabase client did not load.");
       return;
     }
-    abaSetMessage("Signing in...", true);
+    abaSetMessage("");
     const email = document.getElementById("abaLoginEmail")?.value.trim();
     const password = document.getElementById("abaLoginPassword")?.value;
     const { data, error } = await abaSupabase.auth.signInWithPassword({ email, password });
