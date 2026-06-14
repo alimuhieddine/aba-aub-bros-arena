@@ -1423,6 +1423,9 @@ let allMemberActivities = [];
 let allRankingPointRows = [];
 let allRankingActivityRows = [];
 let allMemberSportPermissions = [];
+let pendingActivitySettingsRepair = null;
+let pendingPadelPointBackfill = false;
+let activitySettingsRepairPromise = null;
 let allMemberRoleManagerMembers = [];
 let allNotifications = [];
 let allPendingMembers = [];
@@ -1468,6 +1471,7 @@ const ACTIVITY_PROOF_BUCKET = "activity-proofs";
 const MATCH_RESULT_PHOTO_BUCKET = "match-result-photos";
 const GARMIN_ACTIVITY_SOURCE = "garmin";
 const STRAVA_ACTIVITY_SOURCE = "strava";
+const MAX_STRAVA_MATCH_ACTIVITY_BONUS = 1;
 const DEFAULT_ACTIVITY_RATE = 1;
 const DEFAULT_ACTIVITY_CAP = 3;
 const MEMBER_ACTIVITY_SELECT = `
@@ -1697,7 +1701,7 @@ function renderPositionRankings() {
                     <div class="position-ranking-row">
                       <span>${index + 1}</span>
                       <strong>${memberMiniIdentityHtml(row.member, row.memberId, row.name)}</strong>
-                      ${row.isExternal ? `<em>External</em>` : ""}
+                      ${row.isExternal ? `<em class="external-inline-tag">External</em>` : ""}
                       <b>${row.rating.toFixed(1)}</b>
                     </div>
                   `).join("")
@@ -5536,6 +5540,7 @@ async function loadMatches(options = {}) {
     cacheMatchSummaries(data || []);
     allMatches = hydrateMatchSummaries(data || []);
     appLoadState.matches.loaded = true;
+    await maybeRepairActivitySettingsAndPadelPoints();
     updateMatchFilterOptions();
     renderMatches();
     renderLeagues();
@@ -6473,6 +6478,18 @@ function isMatchEditable(match) {
   return ABAMatches.isEditable(match);
 }
 
+function canAdminOverrideMatchDetailsLock(match) {
+  return isCurrentUserAdmin() && !isCancelledMatch(match);
+}
+
+function canManageExternalPlayersForMatch(match) {
+  const displayStatus = getMatchDisplayStatus(match);
+
+  return canManageMatch(match) &&
+    displayStatus !== "cancelled" &&
+    !hasSubmittedScore(match);
+}
+
 
 function inPlayerInvitations(match) {
   return ABAMatches.inPlayerInvitations(match);
@@ -6777,7 +6794,7 @@ function teamPlayerChips(team, match = null) {
           ${player.memberId ? memberMiniIdentityHtml(player.member, player.memberId, player.name, "inline-player-identity") : escapeHtml(player.name)}
           ${currentRating ? `<small class="rating-pill">R ${currentRating.toFixed(1)}</small>` : ""}
           ${player.isCaptain ? `<b>C</b>` : ""}
-          ${player.isExternal ? `<em>External</em>` : ""}
+          ${player.isExternal ? `<em class="external-inline-tag">External</em>` : ""}
           ${stravaMatchBadgeHtml(match, player.memberId)}
           ${matchPointBadgeHtml(match, player.memberId)}
           ${soccerAssessmentSelectHtml(match, player)}
@@ -7758,7 +7775,7 @@ function matchVoteGroupHtml(title, rows, emptyText) {
                 <span>
                   ${memberMiniIdentityHtml(row.member, row.memberId, row.name, "match-vote-player")}
                   ${row.isCreator ? `<em>Creator</em>` : ""}
-                  ${row.isExternal ? `<em>External</em>` : ""}
+                  ${row.isExternal ? `<em class="external-inline-tag">External</em>` : ""}
                 </span>
               `).join("")}
             </div>`
@@ -8537,8 +8554,8 @@ function renderMatchCardHtml(match) {
             ${renderMatchEditHistory(match)}
 
             ${
-              externalCount && canManageMatch(match) && matchEditable
-                ? `<div class="meta"><button class="tiny-btn" onclick="openExternalPlayersModal('${match.id}')">Manage external players</button></div>`
+              canManageExternalPlayersForMatch(match)
+                ? `<div class="meta"><button class="tiny-btn" onclick="openExternalPlayerPicker('${match.id}')">Manage external players</button></div>`
                 : ""
             }
 
@@ -8641,7 +8658,7 @@ function renderMatchCardHtml(match) {
                 }
 
                 ${
-                  matchEditable && !isFull
+                  canManageExternalPlayersForMatch(match) && !isFull
                     ? `<button class="small-btn" onclick="openExternalPlayerPicker('${match.id}')">
                         Add External
                       </button>`
@@ -8847,7 +8864,8 @@ function setMatchDateTimeFields(startIso, endIso, voteDeadlineIso = "") {
   setTimeParts("match-vote-deadline", deadline.getHours(), deadline.getMinutes());
 }
 
-function getMatchDateTimeValues() {
+function getMatchDateTimeValues(options = {}) {
+  const allowPastStart = Boolean(options?.allowPastStart);
   const startDate = $("match-start-date")?.value || "";
   const endDate = $("match-end-date")?.value || "";
   const deadlineDate = $("match-vote-deadline-date")?.value || "";
@@ -8869,7 +8887,7 @@ function getMatchDateTimeValues() {
     return null;
   }
 
-  if (startTimeValue <= new Date()) {
+  if (!allowPastStart && startTimeValue <= new Date()) {
     alert("Match start time must be in the future.");
     return null;
   }
@@ -9000,14 +9018,25 @@ async function editMatch(matchId) {
     return;
   }
 
-  if (isResultLocked(match)) {
+  const adminOverride = canAdminOverrideMatchDetailsLock(match);
+
+  if (isResultLocked(match) && !adminOverride) {
     alert("Match details are locked after result finalization. You can edit the result or formation using their dedicated buttons.");
     return;
   }
 
-  if (!isMatchEditable(match)) {
+  if (!isMatchEditable(match) && !adminOverride) {
     alert("You can only edit match details before the match starts.");
     return;
+  }
+
+  if (adminOverride && !isMatchEditable(match)) {
+    const ok = confirm(
+      isResultLocked(match)
+        ? "This finalized match already has saved points. Continue editing match details and recalculate points after saving?"
+        : "This completed match has already started. Continue editing match details?"
+    );
+    if (!ok) return;
   }
 
   editingMatchId = matchId;
@@ -9329,16 +9358,42 @@ async function loadExternalMembersForPicker(matchId) {
       .filter(inv => inv.status !== "removed")
       .map(inv => inv.member_id)
   );
+  const currentExternalInvitations = (match.match_invitations || [])
+    .filter(inv => inv.status !== "removed" && isExternalInvitation(inv));
 
   const box = $("external-player-options");
   if (!box) return;
 
-  if (allExternalMembers.length === 0) {
+  if (allExternalMembers.length === 0 && !currentExternalInvitations.length) {
     box.innerHTML = `<div class="hint">No external players saved yet. Create one below.</div>`;
     return;
   }
 
-  box.innerHTML = allExternalMembers.map(member => {
+  const linkedHtml = currentExternalInvitations.length
+    ? `
+      <div class="external-picker-section-title">Currently in this match</div>
+      ${currentExternalInvitations.map(inv => {
+        const member = invitationMember(inv);
+        const memberId = cleanUuidValue(member?.id || inv.member_id);
+        const name = invitationMemberDisplayName(inv);
+
+        return `
+          <div class="external-linked-row">
+            <div class="external-linked-name">
+              ${memberMiniIdentityHtml(member, memberId, name)}
+            </div>
+            <div class="external-linked-actions">
+              <button class="small-btn" type="button" onclick="renameExternalMember('${memberId}', '${matchId}', ${JSON.stringify(name)})">Rename</button>
+              <button class="small-btn danger-text-btn" type="button" onclick="removeExternalMemberFromMatch('${inv.id}', '${matchId}')">Remove</button>
+            </div>
+          </div>
+        `;
+      }).join("")}
+      <div class="external-picker-section-title">Available external players</div>
+    `
+    : "";
+
+  const optionsHtml = allExternalMembers.map(member => {
     const alreadyInMatch = alreadyLinkedIds.has(member.id);
 
     return `
@@ -9356,6 +9411,8 @@ async function loadExternalMembersForPicker(matchId) {
       </label>
     `;
   }).join("");
+
+  box.innerHTML = linkedHtml + optionsHtml;
 }
 
 async function loadExternalMembers() {
@@ -9391,22 +9448,20 @@ async function openExternalPlayerPicker(matchId) {
     return;
   }
 
-  if (!isMatchEditable(match)) {
-    alert("You can only add external players before the match starts.");
+  if (!canManageExternalPlayersForMatch(match)) {
+    alert("You can only manage external players before results are submitted.");
     return;
   }
 
   const remaining = remainingSpots(match);
-  if (remaining !== null && remaining <= 0) {
-    alert("This match is already full.");
-    return;
-  }
 
   currentExternalMatchId = matchId;
 
   if ($("external-player-match-label")) {
     $("external-player-match-label").textContent =
-      remaining === null
+      remaining !== null && remaining <= 0
+        ? "This match is full. You can still remove or rename external players below."
+        : remaining === null
         ? "Select existing external players, or create a new external profile."
         : `Remaining spots: ${remaining}. Select existing external players, or create a new external profile.`;
   }
@@ -9436,6 +9491,11 @@ async function addExternalMemberIdsToMatch(matchId, memberIds) {
 
   if (!canManageMatch(match)) {
     alert("You can only add external players for sports you manage.");
+    return false;
+  }
+
+  if (!canManageExternalPlayersForMatch(match)) {
+    alert("You can only manage external players before results are submitted.");
     return false;
   }
 
@@ -9589,8 +9649,8 @@ async function renameExternalMember(memberId, matchId, currentName) {
     return;
   }
 
-  if (!isMatchEditable(match)) {
-    alert("You can only rename external players before the match starts.");
+  if (!canManageExternalPlayersForMatch(match)) {
+    alert("You can only manage external players before results are submitted.");
     return;
   }
 
@@ -9624,6 +9684,7 @@ async function renameExternalMember(memberId, matchId, currentName) {
   }
 
   await refreshMatch(matchId);
+  await loadExternalMembersForPicker(matchId);
 }
 
 async function removeExternalMemberFromMatch(invitationId, matchId) {
@@ -9639,8 +9700,8 @@ async function removeExternalMemberFromMatch(invitationId, matchId) {
     return;
   }
 
-  if (!isMatchEditable(match)) {
-    alert("You can only remove external players before the match starts.");
+  if (!canManageExternalPlayersForMatch(match)) {
+    alert("You can only manage external players before results are submitted.");
     return;
   }
 
@@ -9661,6 +9722,7 @@ async function removeExternalMemberFromMatch(invitationId, matchId) {
   }
 
   await refreshMatch(matchId);
+  await loadExternalMembersForPicker(matchId);
 }
 
 
@@ -12222,6 +12284,52 @@ async function savePadelGameRatingAdjustmentRow(row) {
     .insert(cleanRow);
 
   if (error) {
+    const duplicate =
+      String(error.code || "") === "23505" ||
+      String(error.message || "").toLowerCase().includes("duplicate key");
+
+    if (duplicate) {
+      const { data: existingRows, error: fetchError } = await supabaseClient
+        .from("match_position_rating_adjustments")
+        .select("id,adjustment,rating_before,rating_after")
+        .eq("match_id", cleanRow.match_id)
+        .eq("member_id", cleanRow.member_id)
+        .eq("sport_id", cleanRow.sport_id);
+
+      if (fetchError) {
+        alert(fetchError.message);
+        return false;
+      }
+
+      const existing = existingRows?.[0] || null;
+      const mergedAdjustment = Number(existing?.adjustment || 0) + Number(cleanRow.adjustment || 0);
+      const ratingBefore = Number.isFinite(Number(existing?.rating_before))
+        ? Number(existing.rating_before)
+        : cleanRow.rating_before;
+
+      const { error: updateError } = await supabaseClient
+        .from("match_position_rating_adjustments")
+        .update({
+          game_id: cleanRow.game_id,
+          position_name: cleanRow.position_name,
+          adjustment: Number(mergedAdjustment.toFixed(3)),
+          rating_before: Number(Number(ratingBefore || 0).toFixed(2)),
+          rating_after: cleanRow.rating_after,
+          formula_version: cleanRow.formula_version,
+          settings_snapshot: cleanRow.settings_snapshot
+        })
+        .eq("match_id", cleanRow.match_id)
+        .eq("member_id", cleanRow.member_id)
+        .eq("sport_id", cleanRow.sport_id);
+
+      if (updateError) {
+        alert(updateError.message);
+        return false;
+      }
+
+      return true;
+    }
+
     alert(error.message);
     return false;
   }
@@ -12644,12 +12752,40 @@ function defaultActivityRateForSportName(name) {
   return 1;
 }
 
+function minimumActivityRateForSportName(name) {
+  const sportName = String(name || "").toLowerCase();
+  if (sportName.includes("padel")) return 1;
+  return 0;
+}
+
+function normalizedActivityRateForSportName(rate, name) {
+  const numericRate = Number(rate);
+  const baseRate = Number.isFinite(numericRate) && numericRate >= 0
+    ? numericRate
+    : DEFAULT_ACTIVITY_RATE;
+  return Math.max(minimumActivityRateForSportName(name), baseRate);
+}
+
+function activitySettingsRequireRepair(settings = {}) {
+  return (allSports || []).some(sport => {
+    const floor = minimumActivityRateForSportName(sport?.name);
+    if (floor <= 0) return false;
+    const saved = settings?.[sport.id];
+    if (!saved || saved.rate === undefined || saved.rate === null) return false;
+    const rate = Number(saved.rate);
+    return !Number.isFinite(rate) || rate < floor;
+  });
+}
+
 function normalizeActivitySportSettings(settings = {}) {
   const normalized = {};
 
   (allSports || []).forEach(sport => {
     const saved = settings[sport.id] || {};
-    const rate = Number(saved.rate ?? defaultActivityRateForSportName(sport.name));
+    const rate = normalizedActivityRateForSportName(
+      saved.rate ?? defaultActivityRateForSportName(sport.name),
+      sport.name
+    );
     const cap = Number(saved.cap ?? DEFAULT_ACTIVITY_CAP);
 
     normalized[sport.id] = {
@@ -12661,7 +12797,8 @@ function normalizeActivitySportSettings(settings = {}) {
   Object.entries(settings || {}).forEach(([sportId, saved]) => {
     if (normalized[sportId]) return;
 
-    const rate = Number(saved?.rate ?? DEFAULT_ACTIVITY_RATE);
+    const sport = (allSports || []).find(item => cleanUuidValue(item.id) === cleanUuidValue(sportId));
+    const rate = normalizedActivityRateForSportName(saved?.rate ?? DEFAULT_ACTIVITY_RATE, sport?.name);
     const cap = Number(saved?.cap ?? DEFAULT_ACTIVITY_CAP);
 
     normalized[sportId] = {
@@ -12691,6 +12828,74 @@ function activitySportSettings() {
   return normalizeActivitySportSettings(activitySportSettingsCache || readLocalActivitySportSettings());
 }
 
+async function recalculateFinalizedPadelPointRows(options = {}) {
+  const { silent = false } = options || {};
+  const matches = finalizedRecalculableMatches().filter(match => isPadelMatch(match));
+
+  for (const match of matches) {
+    const saved = await saveMatchMemberPoints(match);
+    if (!saved) return false;
+  }
+
+  if (!silent && matches.length) {
+    alert(`Recalculated points for ${matches.length} finalized padel match(es).`);
+  }
+
+  return true;
+}
+
+async function maybeRepairActivitySettingsAndPadelPoints() {
+  if (activitySettingsRepairPromise) return activitySettingsRepairPromise;
+  if (!pendingActivitySettingsRepair && !pendingPadelPointBackfill) return true;
+  if (!isCurrentUserAdmin() || !currentProfile?.id) return false;
+  if (pendingPadelPointBackfill && !allMatches.length) return false;
+
+  activitySettingsRepairPromise = (async () => {
+    if (pendingActivitySettingsRepair) {
+      const { error } = await supabaseClient
+        .from("app_settings")
+        .upsert({
+          key: ACTIVITY_SPORT_APP_SETTING_KEY,
+          value: pendingActivitySettingsRepair,
+          version: 1,
+          updated_by: currentProfile.id,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: "key"
+        });
+
+      if (error) {
+        console.warn("Could not repair activity sport settings:", error.message);
+        return false;
+      }
+
+      cacheActivitySportSettings(pendingActivitySettingsRepair);
+      pendingActivitySettingsRepair = null;
+    }
+
+    if (pendingPadelPointBackfill) {
+      const ok = await recalculateFinalizedPadelPointRows({ silent: true });
+      if (!ok) return false;
+      pendingPadelPointBackfill = false;
+
+      const refreshed = await fetchMatchesQuery("", { full: false });
+      if (!refreshed.error) {
+        cacheMatchSummaries(refreshed.data || []);
+        allMatches = hydrateMatchSummaries(refreshed.data || []);
+        appLoadState.matches.loaded = true;
+      }
+    }
+
+    return true;
+  })();
+
+  try {
+    return await activitySettingsRepairPromise;
+  } finally {
+    activitySettingsRepairPromise = null;
+  }
+}
+
 async function loadActivitySportSettings(force = false) {
   if (activitySportSettingsLoadPromise && !force) return activitySportSettingsLoadPromise;
 
@@ -12704,7 +12909,16 @@ async function loadActivitySportSettings(force = false) {
 
       if (error) throw error;
 
-      return cacheActivitySportSettings(data?.value || {});
+      const rawSettings = data?.value || {};
+      const normalized = cacheActivitySportSettings(rawSettings);
+
+      if (activitySettingsRequireRepair(rawSettings)) {
+        pendingActivitySettingsRepair = normalized;
+        pendingPadelPointBackfill = true;
+        await maybeRepairActivitySettingsAndPadelPoints();
+      }
+
+      return normalized;
     } catch (error) {
       console.warn("Using local activity sport settings fallback:", error.message);
       return cacheActivitySportSettings(readLocalActivitySportSettings());
@@ -12783,13 +12997,17 @@ function activitySettingsFromForm() {
 
   document.querySelectorAll(".activity-setting-row").forEach(row => {
     const sportId = cleanUuidValue(row.dataset.sportId);
+    const sport = (allSports || []).find(item => cleanUuidValue(item.id) === sportId);
     const rate = Number(row.querySelector(".activity-rate-input")?.value);
     const cap = Number(row.querySelector(".activity-cap-input")?.value);
 
     if (!sportId) return;
 
     settings[sportId] = {
-      rate: Number.isFinite(rate) && rate >= 0 ? rate : DEFAULT_ACTIVITY_RATE,
+      rate: normalizedActivityRateForSportName(
+        Number.isFinite(rate) && rate >= 0 ? rate : DEFAULT_ACTIVITY_RATE,
+        sport?.name
+      ),
       cap: Number.isFinite(cap) && cap >= 0 ? cap : DEFAULT_ACTIVITY_CAP
     };
   });
@@ -12803,7 +13021,13 @@ async function saveActivitySportSettings() {
     return;
   }
 
+  const previousSettings = activitySportSettings();
   const settings = activitySettingsFromForm();
+  const padelRateChanged = (allSports || []).some(sport =>
+    String(sport?.name || "").toLowerCase().includes("padel") &&
+    Number(previousSettings?.[sport.id]?.rate ?? defaultActivityRateForSportName(sport.name)) !==
+      Number(settings?.[sport.id]?.rate ?? defaultActivityRateForSportName(sport.name))
+  );
 
   const { error } = await supabaseClient
     .from("app_settings")
@@ -12825,8 +13049,16 @@ async function saveActivitySportSettings() {
   cacheActivitySportSettings(settings);
   updateActivityPointsPreview();
 
+  if (padelRateChanged) {
+    const ok = await recalculateFinalizedPadelPointRows({ silent: true });
+    if (!ok) return;
+    await loadMatches({ force: true });
+  }
+
   if ($("activity-settings-status")) {
-    $("activity-settings-status").textContent = "Activity settings saved.";
+    $("activity-settings-status").textContent = padelRateChanged
+      ? "Activity settings saved. Finalized padel points were recalculated."
+      : "Activity settings saved.";
   }
 }
 
@@ -12959,9 +13191,18 @@ function stravaActivityPointsForMatchMember(match, memberId) {
         return null;
       }
 
+      const estimatedPoints = activityPointsForMatch(match);
+      const stravaBonus = Math.min(
+        MAX_STRAVA_MATCH_ACTIVITY_BONUS,
+        Math.max(0, points - estimatedPoints)
+      );
+
       return {
         activity,
-        points: Math.round(points * 100) / 100,
+        rawPoints: Math.round(points * 100) / 100,
+        estimatedPoints: Math.round(estimatedPoints * 100) / 100,
+        bonusPoints: Math.round(stravaBonus * 100) / 100,
+        points: Math.round((estimatedPoints + stravaBonus) * 100) / 100,
         overlap
       };
     })
@@ -13054,8 +13295,10 @@ function stravaLinkedPointRowsForMatch(match) {
       member: point.member || memberById(memberId),
       activity: linked.activity,
       points: Number(linked.points || 0),
+      rawPoints: Number(linked.rawPoints || 0),
+      bonusPoints: Number(linked.bonusPoints || 0),
       overlap: Number(linked.overlap || 0),
-      estimatedPoints: activityPointsForMatch(match)
+      estimatedPoints: Number(linked.estimatedPoints || activityPointsForMatch(match))
     };
   }).filter(Boolean);
 }
@@ -13071,7 +13314,7 @@ function renderMatchStravaLinkedPoints(match) {
         ${rows.map(row => `
           <div class="match-insight-row">
             <span>${memberMiniIdentityHtml(row.member, row.memberId, memberDisplayName(row.member || memberById(row.memberId)) || "Player")}</span>
-            <em>${escapeHtml(row.activity.title || "Strava activity")} replaced estimated ${formatPointValue(row.estimatedPoints)} pts with ${formatPointValue(row.points)} pts${row.overlap ? ` • ${Math.round(row.overlap)} min overlap` : ""}</em>
+            <em>${escapeHtml(row.activity.title || "Strava activity")} boosted estimated ${formatPointValue(row.estimatedPoints)} pts to ${formatPointValue(row.points)} pts${row.bonusPoints ? ` • +${formatPointValue(row.bonusPoints)} Strava bonus` : ""}${row.rawPoints ? ` • raw Strava ${formatPointValue(row.rawPoints)} pts` : ""}${row.overlap ? ` • ${Math.round(row.overlap)} min overlap` : ""}</em>
           </div>
         `).join("")}
       </div>
@@ -13375,7 +13618,7 @@ function renderRatingChanges(match) {
           <div class="rating-change-row">
             <span>
               ${escapeHtml(memberDisplayName(row.member))}
-              ${row.member?.is_external ? `<em>External</em>` : ""}
+              ${row.member?.is_external ? `<em class="external-inline-tag">External</em>` : ""}
               <small>${escapeHtml(normalizeSoccerPosition(row.position_name))}</small>
             </span>
 
@@ -16862,7 +17105,7 @@ function renderRankings() {
 
           <span>
             ${memberMiniIdentityHtml(row.member, row.memberId, row.name)}
-            ${row.isExternal ? `<em>External</em>` : ""}
+            ${row.isExternal ? `<em class="external-inline-tag">External</em>` : ""}
           </span>
 
           <strong>${formatPointValue(row.totalPoints)}</strong>
@@ -18170,6 +18413,7 @@ async function loadMyProfile() {
   setProfileEditing(false);
   await loadGarminConnection(consumeGarminReturnStatus());
   await loadStravaConnection(consumeStravaReturnStatus());
+  await maybeRepairActivitySettingsAndPadelPoints();
 
   if (data.approval_status === "rejected" || data.approval_status === "suspended") {
     profileFieldIds().forEach(id => {
@@ -19095,6 +19339,15 @@ if ($("matchForm")) {
   $("matchForm").addEventListener("submit", async e => {
     e.preventDefault();
     const fd = new FormData(e.target);
+    const activeEditingMatchId = cleanUuidValue(editingMatchId);
+    const previousMatch = activeEditingMatchId
+      ? allMatches.find(existingMatch => cleanUuidValue(existingMatch.id) === activeEditingMatchId)
+      : null;
+    const allowPastStartEdit = Boolean(
+      previousMatch &&
+      canAdminOverrideMatchDetailsLock(previousMatch) &&
+      !isMatchEditable(previousMatch)
+    );
 
     if (!currentProfile || currentProfile.approval_status !== "approved") {
       alert("Approved members only.");
@@ -19109,7 +19362,9 @@ if ($("matchForm")) {
 
     const requiredPlayers = Number(fd.get("required_players") || 0);
     const maxPlayers = requiredPlayers;
-    const matchDateTimes = getMatchDateTimeValues();
+    const matchDateTimes = getMatchDateTimeValues({
+      allowPastStart: allowPastStartEdit
+    });
 
     if (!matchDateTimes) return;
 
@@ -19133,38 +19388,69 @@ if ($("matchForm")) {
       return;
     }
 
-    const selectedInviteIds = getSelectedInviteMemberIds();
+    let selectedInviteIds = getSelectedInviteMemberIds();
+
+    if (activeEditingMatchId && previousMatch && selectedInviteIds.length === 0) {
+      const preservedInviteIds = (previousMatch.match_invitations || [])
+        .filter(inv => inv.member_id !== currentProfile?.id && inv.status !== "removed")
+        .map(inv => inv.member_id)
+        .filter(memberId => {
+          const member = (allMembers || []).find(entry => entry.id === memberId);
+          return member && !member.is_external;
+        });
+
+      if (preservedInviteIds.length) {
+        selectedInviteIds = preservedInviteIds;
+      }
+    }
 
     if (!editingMatchId && selectedInviteIds.length + 1 > maxPlayers) {
       const ok = confirm("You invited more players than the required spots. Players can still vote, but only the first players to vote IN will take the spots. Continue?");
       if (!ok) return;
     }
 
+    const sportId = selectedSportId || previousMatch?.sport_id || previousMatch?.sports?.id || null;
+    const venueId = fd.get("venue_id") || previousMatch?.venue_id || previousMatch?.venues?.id || null;
+    const matchType = fd.get("match_type") || previousMatch?.match_type || "friendly";
+    const leagueId = matchType === "league"
+      ? (fd.get("league_id") || previousMatch?.league_id || null)
+      : null;
+    const matchTitle = fd.get("title") || previousMatch?.title || "";
+    const visibility = previousMatch?.visibility || "invited";
+    const matchStatus = previousMatch?.status || "open_for_votes";
+    const teamStatus = previousMatch?.team_status || "not_assigned";
+    const scoreStatus = previousMatch?.score_status || "pending";
+    const createdBy = previousMatch?.created_by || currentProfile.id;
+    const matchNotes = (fd.get("notes") ?? "") || previousMatch?.notes || null;
+
     const match = {
-      sport_id: selectedSportId,
-      venue_id: fd.get("venue_id"),
-      league_id: fd.get("match_type") === "league" ? (fd.get("league_id") || null) : null,
-      created_by: currentProfile.id,
-      title: fd.get("title"),
-      match_type: fd.get("match_type"),
+      sport_id: sportId,
+      venue_id: venueId,
+      league_id: leagueId,
+      created_by: createdBy,
+      title: matchTitle,
+      match_type: matchType,
       start_time: matchDateTimes.startTime.toISOString(),
       end_time: matchDateTimes.endTime.toISOString(),
       voting_deadline_at: matchDateTimes.votingDeadline.toISOString(),
-      status: "open_for_votes",
+      status: matchStatus,
       max_players: maxPlayers,
       required_players: requiredPlayers || maxPlayers,
-      visibility: "invited",
-      team_status: "not_assigned",
-      score_status: "pending",
-      notes: fd.get("notes") || null
+      visibility,
+      team_status: teamStatus,
+      score_status: scoreStatus,
+      notes: matchNotes
     };
 
     let result;
-    const activeEditingMatchId = cleanUuidValue(editingMatchId);
-    const previousMatch = activeEditingMatchId
-      ? allMatches.find(existingMatch => cleanUuidValue(existingMatch.id) === activeEditingMatchId)
-      : null;
     const updateSummary = previousMatch ? matchUpdateSummary(previousMatch, match) : "";
+    const correctedTimeSummary = previousMatch && updateSummary && (
+      updateSummary.includes("time changed to") ||
+      updateSummary.includes("date postponed") ||
+      updateSummary.includes("date moved earlier")
+    )
+      ? `${isCurrentUserOwner() ? "Owner" : "Admin"} corrected the match schedule: ${updateSummary}`
+      : updateSummary;
 
     if (activeEditingMatchId && previousMatch?.created_by) {
       match.created_by = previousMatch.created_by;
@@ -19192,7 +19478,8 @@ if ($("matchForm")) {
 
     if (activeEditingMatchId && updateSummary) {
       const updateNotificationResult = await sendMatchLifecycleNotification(matchId, "match_updated", {
-        update_summary: updateSummary
+        update_summary: correctedTimeSummary,
+        schedule_corrected: correctedTimeSummary !== updateSummary
       });
 
       if (updateNotificationResult?.error) {
@@ -19219,11 +19506,26 @@ if ($("matchForm")) {
       alert(`Match saved, but invite cancellation notifications failed: ${inviteCancelledResult.error}`);
     }
 
-    alert(activeEditingMatchId ? "Match updated." : "Match created.");
-
     closeMatchModal();
 
     await loadMatches({ force: true });
+
+    let matchSaveMessage = activeEditingMatchId ? "Match updated." : "Match created.";
+
+    if (activeEditingMatchId && previousMatch && hasSubmittedScore(previousMatch)) {
+      const refreshedMatch = allMatches.find(existingMatch =>
+        cleanUuidValue(existingMatch.id) === activeEditingMatchId
+      );
+
+      if (refreshedMatch) {
+        const pointsOk = await recalculateMatchPoints(refreshedMatch, false);
+        if (!pointsOk) return;
+        await loadMatches({ force: true });
+        matchSaveMessage = "Match updated and points recalculated.";
+      }
+    }
+
+    alert(matchSaveMessage);
 
     document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
     document.querySelectorAll(".view").forEach(v => v.classList.remove("active-view"));
