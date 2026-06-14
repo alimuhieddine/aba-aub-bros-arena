@@ -1,6 +1,43 @@
 const SUPABASE_URL = "https://welleqrjtlullhbdhive.supabase.co";
 const SUPABASE_KEY = "sb_publishable_e_Pu1JLmyXBKJnMvR5guXQ_GzvFcdK-";
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabaseClient = window.ABASupabase?.client ||
+  window.supabaseClient ||
+  window.supabase?.createClient?.(SUPABASE_URL, SUPABASE_KEY);
+
+const IS_LOCAL_DEV = ["127.0.0.1", "localhost"].includes(window.location.hostname);
+
+if (!supabaseClient) {
+  document.addEventListener("DOMContentLoaded", () => {
+    const status = document.getElementById("connectionStatus");
+    if (status) {
+      status.hidden = false;
+      status.innerHTML = `
+        <span>Offline</span>
+        <strong>Supabase did not load. Check the internet connection and refresh.</strong>
+      `;
+    }
+  });
+
+  throw new Error("Supabase SDK did not load.");
+}
+
+function clearLocalDevServiceWorkerCaches() {
+  if (!IS_LOCAL_DEV) return;
+
+  navigator.serviceWorker?.getRegistrations?.()
+    .then(registrations => registrations.forEach(registration => registration.unregister()))
+    .catch(() => {});
+
+  window.caches?.keys?.()
+    .then(keys => Promise.all(
+      keys
+        .filter(key => key.startsWith("aba-"))
+        .map(key => caches.delete(key))
+    ))
+    .catch(() => {});
+}
+
+clearLocalDevServiceWorkerCaches();
 
 const $ = (id) => document.getElementById(id);
 
@@ -5028,6 +5065,8 @@ function renderLeagueSection(leagueId, sectionKey, title, contentHtml) {
 }
 
 function renderLeagues() {
+  if (!shouldRenderView("leagues")) return;
+
   if (!$("leagueList")) return;
 
   if (!allLeagues || allLeagues.length === 0) {
@@ -14973,6 +15012,17 @@ function commentSection(m) {
   `;
 }
 
+function activityMemberIdentityHtml(member, memberId = "", name = "") {
+  const cleanId = cleanUuidValue(memberId || member?.id);
+  const displayName = name || (member ? memberDisplayName(member) : "Player");
+  const labelHtml = escapeHtml(displayName);
+  const label = cleanId
+    ? playerLinkHtml(cleanId, displayName, "mini-player-link", labelHtml)
+    : `<span class="mini-player-name">${escapeHtml(displayName)}</span>`;
+
+  return `<span class="mini-player-identity activity-player-identity">${label}</span>`;
+}
+
 function activityCard(a, compact = false) {
   const status = a.status || (a.approvals?.length >= 2 ? "approved" : "pending");
   const verified = status === "approved";
@@ -15012,7 +15062,7 @@ function activityCard(a, compact = false) {
     <article class="card">
       <div class="row">
         <div>
-          <h3>${memberMiniIdentityHtml(a.members, a.member_id, memberName)} - ${escapeHtml(title)}</h3>
+          <h3>${memberMiniIdentityHtml(a.members, a.member_id, memberName, "activity-player-identity")} - ${escapeHtml(title)}</h3>
           <div class="meta">${escapeHtml(sportName)}${durationText} - Activity ${formatPointValue(points)} pts</div>
           ${linkedMatch ? `
             <button class="linked-match-tag" type="button" onclick="openLinkedActivityMatch('${linkedMatch.id}')">
@@ -16941,6 +16991,8 @@ function profileFieldIds() {
 }
 
 function phoneNotificationsSupported() {
+  if (IS_LOCAL_DEV) return false;
+
   return Boolean(
     window.isSecureContext &&
     "Notification" in window &&
@@ -18257,27 +18309,11 @@ async function refreshAuthUI() {
     await loadCurrentMemberSportPermissions();
     renderLoggedInIdentity(session.user);
     applyAccessUI();
-if (currentProfile?.approval_status === "approved") {
-  await loadLeagues();
-  await loadSportProfiles();
-  await loadPositionRatings();
-  await loadSoccerRatingSettings();
-  await loadActivitySportSettings();
-  await loadMatches();
-  await loadMemberActivities();
-  await loadNotificationInbox();
-  restoreActiveTab();
-}
-    if (isCurrentUserAdmin()) {
-      await loadSportsOptions();
-      await loadMatchFormOptions();
-      await loadAdminNotificationMembers();
-      await loadPendingMembers();
-      await loadMemberRoleManager();
-      await loadActivitySportSettings();
-      renderActivitySettingsForm();
-      await loadVenues();
-      if (activeViewId() === "admin") restoreScrollPosition();
+    window.syncAbaShell?.();
+
+    if (currentProfile?.approval_status === "approved") {
+      restoreActiveTab();
+      queuePostAuthDataLoad();
     }
 
     return;
@@ -18302,11 +18338,75 @@ if (currentProfile?.approval_status === "approved") {
   localStorage.removeItem(SCROLL_STATE_KEY);
   localStorage.removeItem(PROFILE_IDENTITY_CACHE_KEY);
   localStorage.removeItem(MATCH_SUMMARY_CACHE_KEY);
+  postAuthDataLoadToken += 1;
   resetAppLoadState();
   currentProfile = null;
   clearProfileFields();
 
   setActiveTab("dashboard", false);
+  window.syncAbaShell?.();
+}
+
+let authRefreshTimer = null;
+let postAuthDataLoadToken = 0;
+
+function scheduleAuthRefresh() {
+  clearTimeout(authRefreshTimer);
+  authRefreshTimer = setTimeout(() => {
+    refreshAuthUI().catch(error => {
+      console.warn("Could not refresh authentication state:", error.message);
+    });
+  }, 0);
+}
+
+function queuePostAuthDataLoad() {
+  const token = ++postAuthDataLoadToken;
+
+  setTimeout(async () => {
+    if (token !== postAuthDataLoadToken) return;
+    if (currentProfile?.approval_status !== "approved") return;
+
+    try {
+      await Promise.allSettled([
+        loadLeagues(),
+        loadSportProfiles(),
+        loadPositionRatings(),
+        loadSoccerRatingSettings(),
+        loadActivitySportSettings()
+      ]);
+
+      await Promise.allSettled([
+        loadMatches(),
+        loadMemberActivities(),
+        loadNotificationInbox()
+      ]);
+
+      if (token !== postAuthDataLoadToken) return;
+
+      renderDeferredView(activeViewId());
+
+      if (isCurrentUserAdmin()) {
+        await Promise.allSettled([
+          loadSportsOptions(),
+          loadMatchFormOptions(),
+          loadAdminNotificationMembers(),
+          loadPendingMembers(),
+          loadMemberRoleManager(),
+          loadVenues()
+        ]);
+
+        await loadActivitySportSettings();
+        renderActivitySettingsForm();
+
+        if (activeViewId() === "admin") {
+          renderDeferredAdminPanel(activeAdminPanelName());
+          restoreScrollPosition();
+        }
+      }
+    } catch (error) {
+      console.warn("Could not finish background app preload:", error.message);
+    }
+  }, 0);
 }
 
 
@@ -18446,6 +18546,11 @@ function renderDeferredView(viewId) {
 
   if (viewId === "matches") {
     renderMatches();
+    return;
+  }
+
+  if (viewId === "leagues") {
+    renderLeagues();
     return;
   }
 
@@ -18754,6 +18859,7 @@ function setActiveTab(viewId, persist = true) {
   }
 
   renderDeferredView(viewId);
+  window.syncAbaShell?.();
 }
 
 function restoreActiveTab() {
@@ -19255,7 +19361,7 @@ if ($("matchForm")) {
   });
 
   supabaseClient.auth.onAuthStateChange(() => {
-    refreshAuthUI();
+    scheduleAuthRefresh();
   });
 }
 
@@ -19263,7 +19369,7 @@ bindEvents();
 bindPushDebugMessages();
 render();
 testConnection();
-refreshAuthUI();
+scheduleAuthRefresh();
 
 setInterval(() => {
   if (currentProfile?.approval_status === "approved" && allMatches?.length) {

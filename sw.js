@@ -1,8 +1,7 @@
-const SHELL_CACHE = "aba-pwa-shell-v4";
-const IMAGE_CACHE = "aba-image-cache-v3";
+const SHELL_CACHE = "aba-pwa-shell-v5";
+const IMAGE_CACHE = "aba-image-cache-v4";
 const IMAGE_CACHE_LIMIT = 160;
 const SHELL_ASSETS = [
-  "./index.html",
   "./manifest.json",
   "./assets/icons/icon-192.png",
   "./assets/icons/icon-512.png",
@@ -84,7 +83,7 @@ self.addEventListener("fetch", event => {
 
   if (url.origin !== self.location.origin) return;
 
-  event.respondWith(caches.match(request).then(cached => cached || fetch(request)));
+  event.respondWith(fetch(request).catch(() => caches.match(request)));
 });
 
 self.addEventListener("install", event => {

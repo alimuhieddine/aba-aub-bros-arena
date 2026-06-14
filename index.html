@@ -1,528 +1,4342 @@
-
-    <!DOCTYPE html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<meta charset="utf-8" />
-<link rel="stylesheet" href="globals.css">
-<link rel="stylesheet" href="styleguide.css">
-<link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<style>
-  html,
-  body {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    overscroll-behavior: none;
-  }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#000000" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="ABA" />
+  <title>ABA | AUB Bros Arena</title>
+  <script>
+    (function () {
+      if (!["127.0.0.1", "localhost"].includes(window.location.hostname)) return;
 
-  body > .box {
-    display: none;
-  }
+      navigator.serviceWorker?.getRegistrations?.()
+        .then(registrations => registrations.forEach(registration => registration.unregister()))
+        .catch(() => {});
 
-  body > .iphone-pro-max {
-    position: absolute;
-    top: 0;
-    left: 0;
-    margin: 0;
-  }
+      window.caches?.keys?.()
+        .then(keys => Promise.all(
+          keys
+            .filter(key => key.startsWith("aba-"))
+            .map(key => caches.delete(key))
+        ))
+        .catch(() => {});
+    })();
+  </script>
+  <link rel="manifest" href="manifest.json?v=2" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
+  <link rel="stylesheet" href="globals.css">
+  <link rel="stylesheet" href="styleguide.css">
+  <link rel="stylesheet" href="style.css?v=230" />
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      overscroll-behavior: none;
+    }
 
-  .iphone-pro-max .nav-tabs-frame {
-    position: absolute;
-    top: 157px;
-    left: 0;
-    right: auto;
-    width: 100%;
-    height: 54px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-    border-bottom: 1px solid #696969;
-  }
+    body > .box {
+      display: none;
+    }
 
-  .iphone-pro-max .nav-tabs-frame::-webkit-scrollbar {
-    display: none;
-  }
+    .iphone-pro-max {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      min-width: 430px;
+      height: 100dvh;
+      min-height: 932px;
+      background: #000;
+      overflow: hidden;
+    }
 
-  .iphone-pro-max .nav-tabs-frame .home-type-menu {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-    width: 52px;
-    height: 54px;
-    flex: 0 0 calc(103% / 6);
-    flex-shrink: 0;
-  }
+    .iphone-pro-max .nav-tabs-frame {
+      position: absolute;
+      top: 157px;
+      left: 0;
+      right: auto;
+      width: 100%;
+      height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+      border-bottom: 1px solid #696969;
+      z-index: 5;
+    }
 
-  .iphone-pro-max .nav-tabs-frame .div {
-    position: relative;
-    left: auto;
-    top: auto;
-    width: 52px;
-    height: 48px;
-  }
+    .iphone-pro-max .nav-tabs-frame::-webkit-scrollbar {
+      display: none;
+    }
 
-  .iphone-pro-max .nav-tabs-frame .menu-icons,
-  .iphone-pro-max .nav-tabs-frame .img {
-    position: absolute;
-    top: 0;
-    left: calc(50% - 20px);
-    width: 40px;
-    height: 40px;
-    filter: brightness(0) saturate(100%) invert(40%) sepia(0%) saturate(0%) hue-rotate(180deg) brightness(96%) contrast(88%);
-  }
+    .iphone-pro-max .nav-tabs-frame .home-type-menu {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      width: 52px;
+      height: 54px;
+      flex: 0 0 calc(103% / 6);
+      flex-shrink: 0;
+      cursor: pointer;
+    }
 
-  .iphone-pro-max .nav-tabs-frame .text-wrapper,
-  .iphone-pro-max .nav-tabs-frame .home,
-  .iphone-pro-max .nav-tabs-frame .home-2,
-  .iphone-pro-max .nav-tabs-frame .home-3,
-  .iphone-pro-max .nav-tabs-frame .home-4,
-  .iphone-pro-max .nav-tabs-frame .home-5 {
-    position: absolute;
-    top: auto;
-    bottom: -6px;
-    left: 50%;
-    width: max-content;
-    height: auto;
-    transform: translateX(-50%);
-    font-family: Roboto, "Roboto-Medium", Helvetica;
-    font-weight: 500;
-    font-size: 13px;
-    font-style: normal;
-    line-height: 130%;
-    letter-spacing: 0;
-    text-align: center;
-    white-space: nowrap;
-    color: #666666;
-  }
+    .iphone-pro-max .nav-tabs-frame .div {
+      position: relative;
+      left: auto;
+      top: auto;
+      width: 52px;
+      height: 48px;
+    }
 
-  .iphone-pro-max .nav-tabs-frame .nav-tab-active .menu-icons,
-  .iphone-pro-max .nav-tabs-frame .nav-tab-active .img {
-    filter: none;
-  }
+    .iphone-pro-max .nav-tabs-frame .menu-icons,
+    .iphone-pro-max .nav-tabs-frame .img {
+      position: absolute;
+      top: 0;
+      left: calc(50% - 20px);
+      width: 40px;
+      height: 40px;
+      filter: brightness(0) saturate(100%) invert(40%) sepia(0%) saturate(0%) hue-rotate(180deg) brightness(96%) contrast(88%);
+    }
 
-  .iphone-pro-max .nav-tabs-frame .nav-tab-active .text-wrapper,
-  .iphone-pro-max .nav-tabs-frame .nav-tab-active .home,
-  .iphone-pro-max .nav-tabs-frame .nav-tab-active .home-2,
-  .iphone-pro-max .nav-tabs-frame .nav-tab-active .home-3,
-  .iphone-pro-max .nav-tabs-frame .nav-tab-active .home-4,
-  .iphone-pro-max .nav-tabs-frame .nav-tab-active .home-5 {
-    color: #ffffff;
-  }
+    .iphone-pro-max .nav-tabs-frame .text-wrapper,
+    .iphone-pro-max .nav-tabs-frame .home,
+    .iphone-pro-max .nav-tabs-frame .home-2,
+    .iphone-pro-max .nav-tabs-frame .home-3,
+    .iphone-pro-max .nav-tabs-frame .home-4,
+    .iphone-pro-max .nav-tabs-frame .home-5 {
+      position: absolute;
+      top: auto;
+      bottom: -6px;
+      left: 50%;
+      width: max-content;
+      height: auto;
+      transform: translateX(-50%);
+      font-family: Roboto, "Roboto-Medium", Helvetica;
+      font-weight: 500;
+      font-size: 13px;
+      font-style: normal;
+      line-height: 130%;
+      letter-spacing: 0;
+      text-align: center;
+      white-space: nowrap;
+      color: #666666;
+    }
 
-  .iphone-pro-max .nav-tabs-frame .rectangle,
-  .iphone-pro-max .nav-tabs-frame .rectangle-2 {
-    position: absolute;
-    display: none;
-    left: 0;
-    bottom: 0;
-    width: 52px;
-    height: 2px;
-    min-height: 2px;
-    padding: 0;
-    border: 0;
-    box-sizing: border-box;
-    transform: none;
-  }
+    .iphone-pro-max .nav-tabs-frame .tab.active .menu-icons,
+    .iphone-pro-max .nav-tabs-frame .tab.active .img {
+      filter: none;
+    }
 
-  .iphone-pro-max .nav-tabs-frame .rectangle,
-  .iphone-pro-max .nav-tabs-frame .rectangle-2 {
-    background-color: #ffffff;
-  }
+    .iphone-pro-max .nav-tabs-frame .tab.active .text-wrapper,
+    .iphone-pro-max .nav-tabs-frame .tab.active .home,
+    .iphone-pro-max .nav-tabs-frame .tab.active .home-2,
+    .iphone-pro-max .nav-tabs-frame .tab.active .home-3,
+    .iphone-pro-max .nav-tabs-frame .tab.active .home-4,
+    .iphone-pro-max .nav-tabs-frame .tab.active .home-5 {
+      color: #fff;
+    }
 
-  .iphone-pro-max .nav-tabs-frame .nav-tab-active .rectangle,
-  .iphone-pro-max .nav-tabs-frame .nav-tab-active .rectangle-2 {
-    display: block;
-  }
+    .iphone-pro-max .nav-tabs-frame .rectangle,
+    .iphone-pro-max .nav-tabs-frame .rectangle-2 {
+      position: absolute;
+      display: none;
+      left: 0;
+      bottom: 0;
+      width: 52px;
+      height: 2px;
+      min-height: 2px;
+      padding: 0;
+      border: 0;
+      box-sizing: border-box;
+      background: #fff;
+      transform: none;
+    }
 
-  .aba-login-card {
-    position: absolute;
-    top: 45px;
-    left: 200px;
-    display: grid;
-    grid-template-columns: 64px 1fr;
-    grid-template-rows: 24px 24px 24px;
-    column-gap: 6px;
-    row-gap: 4px;
-    width: 224px;
-    height: 93px;
-    padding: 10px 12px 8px 10px;
-    border: 2px solid #31a8ff;
-    border-radius: 22px;
-    background: #000000;
-    box-sizing: border-box;
-    z-index: 8;
-    box-shadow: inset 0 0 0 1px rgba(49,168,255,.18), 0 0 18px rgba(49,168,255,.12);
-  }
+    .iphone-pro-max .nav-tabs-frame .tab.active .rectangle,
+    .iphone-pro-max .nav-tabs-frame .tab.active .rectangle-2 {
+      display: block;
+    }
 
-  .aba-login-card label {
-    display: flex;
-    align-items: center;
-    color: #ffffff;
-    font-family: Roboto, "Roboto-Medium", Helvetica;
-    font-size: 12px;
-    font-style: italic;
-    font-weight: 500;
-  }
+    .aba-login-card {
+      position: absolute;
+      top: 45px;
+      left: 200px;
+      display: grid;
+      grid-template-columns: 64px 1fr;
+      grid-template-rows: 24px 24px 24px;
+      column-gap: 6px;
+      row-gap: 4px;
+      width: 224px;
+      height: 93px;
+      padding: 10px 12px 8px 10px;
+      border: 2px solid #31a8ff;
+      border-radius: 22px;
+      background: #000;
+      box-sizing: border-box;
+      z-index: 8;
+      box-shadow: inset 0 0 0 1px rgba(49,168,255,.18), 0 0 18px rgba(49,168,255,.12);
+    }
 
-  .aba-login-card input {
-    width: 100%;
-    height: 23px;
-    padding: 0 7px;
-    border: 1px solid rgba(49,168,255,.72);
-    border-radius: 999px;
-    background: #000000;
-    color: #ffffff;
-    font-family: Roboto, Helvetica;
-    font-size: 10px;
-    font-style: italic;
-    outline: none;
-    box-sizing: border-box;
-  }
+    .aba-login-card[style*="flex"] {
+      display: grid !important;
+    }
 
-  .aba-login-card input:focus {
-    border-color: #31a8ff;
-    box-shadow: 0 0 0 2px rgba(49,168,255,.14);
-  }
+    .aba-login-card label {
+      display: flex;
+      align-items: center;
+      color: #fff;
+      font-family: Roboto, "Roboto-Medium", Helvetica;
+      font-size: 12px;
+      font-style: italic;
+      font-weight: 500;
+    }
 
-  .aba-login-actions {
-    grid-column: 2;
-    display: flex;
-    justify-content: center;
-    gap: 6px;
-  }
+    .aba-login-card input {
+      width: 100%;
+      height: 23px;
+      padding: 0 7px;
+      border: 1px solid rgba(49,168,255,.72);
+      border-radius: 999px;
+      background: #000;
+      color: #fff;
+      font-family: Roboto, Helvetica;
+      font-size: 10px;
+      font-style: italic;
+      outline: none;
+      box-sizing: border-box;
+    }
 
-  .aba-login-actions button {
-    min-width: 62px;
-    height: 23px;
-    border: 1px solid rgba(49,168,255,.78);
-    border-radius: 999px;
-    background: rgba(49,168,255,.12);
-    color: #ffffff;
-    font-family: Roboto, "Roboto-Medium", Helvetica;
-    font-size: 12px;
-    font-style: italic;
-    font-weight: 500;
-    white-space: nowrap;
-    cursor: pointer;
-    box-shadow: inset 0 0 0 1px rgba(49,168,255,.08);
-  }
+    .aba-login-card input:focus {
+      border-color: #31a8ff;
+      box-shadow: 0 0 0 2px rgba(49,168,255,.14);
+    }
 
-  .aba-login-message {
-    position: absolute;
-    right: 14px;
-    bottom: -13px;
-    max-width: 150px;
-    color: #ff6b75;
-    font-family: Roboto, Helvetica;
-    font-size: 8px;
-    text-align: right;
-  }
+    .aba-login-actions {
+      grid-column: 2;
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+    }
 
-  .iphone-pro-max.is-logged-out .avatar-frame,
-  .iphone-pro-max.is-logged-out .welcome-row,
-  .iphone-pro-max.is-logged-out .weekly-stats-title,
-  .iphone-pro-max.is-logged-out .frame-stats-grid {
-    display: none;
-  }
+    .aba-login-actions button {
+      min-width: 62px;
+      height: 23px;
+      border: 1px solid rgba(49,168,255,.78);
+      border-radius: 999px;
+      background: rgba(49,168,255,.12);
+      color: #fff;
+      font-family: Roboto, "Roboto-Medium", Helvetica;
+      font-size: 12px;
+      font-style: italic;
+      font-weight: 500;
+      white-space: nowrap;
+      cursor: pointer;
+      box-shadow: inset 0 0 0 1px rgba(49,168,255,.08);
+    }
 
-  .iphone-pro-max.is-logged-out .nav-tabs-frame {
-    top: 302px;
-  }
+    .aba-hidden-auth {
+      display: none !important;
+    }
 
-  .iphone-pro-max.is-logged-out {
-    min-height: 932px;
-  }
+    .iphone-pro-max .avatar-frame {
+      top: 45px;
+      z-index: 6;
+    }
 
-  .iphone-pro-max.is-logged-in .aba-login-card {
-    display: none;
-  }
+    .iphone-pro-max .avatar-frame,
+    .iphone-pro-max .avatar-frame .ellipse,
+    .iphone-pro-max .ellipse {
+      border-radius: 90px;
+      overflow: hidden;
+    }
 
-  .iphone-pro-max .avatar-frame {
-    top: 45px;
-  }
+    .iphone-pro-max #abaMemberAvatar.avatar-view-trigger {
+      cursor: zoom-in;
+      outline: none;
+      -webkit-tap-highlight-color: transparent;
+    }
 
-  .iphone-pro-max .avatar-frame,
-  .iphone-pro-max .avatar-frame .ellipse,
-  .iphone-pro-max .ellipse {
-    border-radius: 90px;
-    overflow: hidden;
-  }
+    .iphone-pro-max #abaMemberAvatar.avatar-view-trigger:focus-visible {
+      box-shadow: 0 0 0 2px rgba(49, 168, 255, .8);
+    }
 
-  .iphone-pro-max .text-wrapper-5 {
-    top: 45px;
-  }
+    .iphone-pro-max .text-wrapper-5 {
+      top: 45px;
+    }
 
-  .iphone-pro-max .text-wrapper-4 {
-    top: 86px;
-  }
+    .iphone-pro-max .text-wrapper-4 {
+      top: 86px;
+    }
 
-  .iphone-pro-max .welcome-row {
-    top: 116px;
-    gap: 16px;
-  }
+    .iphone-pro-max .welcome-row {
+      top: 116px;
+      gap: 16px;
+    }
 
-  .iphone-pro-max .welcome-row .text-wrapper-2 {
-    width: auto;
-  }
+    .iphone-pro-max .welcome-row .text-wrapper-2,
+    .iphone-pro-max .welcome-row .text-wrapper-3 {
+      width: auto;
+    }
 
-  .iphone-pro-max .welcome-row .text-wrapper-3 {
-    margin-left: 4px;
-    width: auto;
-  }
+    .iphone-pro-max .welcome-row .text-wrapper-3 {
+      margin-left: 4px;
+    }
 
-  .iphone-pro-max .weekly-stats-title {
-    top: 224px;
-  }
+    .iphone-pro-max.is-logged-out .avatar-frame,
+    .iphone-pro-max.is-logged-out .welcome-row,
+    .iphone-pro-max.is-logged-out .app-view-title,
+    .iphone-pro-max.is-logged-out .aba-tab-content {
+      display: none;
+    }
 
-  .iphone-pro-max .frame-stats-grid {
-    top: 254px;
-  }
-</style>
+    .iphone-pro-max.is-logged-out .nav-tabs-frame {
+      top: 302px;
+    }
+
+    .app-view-title {
+      position: absolute;
+      top: 224px;
+      left: 3px;
+      height: 25px;
+      display: flex;
+      align-items: center;
+      font-family: "Roboto-Medium", Helvetica;
+      font-weight: 500;
+      color: #fff;
+      font-size: 13px;
+      letter-spacing: 0;
+      line-height: normal;
+      z-index: 4;
+    }
+
+    div#appViewTitle.app-view-title,
+    .iphone-pro-max div#appViewTitle.app-view-title {
+      font-family: Roboto, Helvetica, Arial, sans-serif !important;
+      font-size: 13px !important;
+      font-style: normal !important;
+      font-weight: 500 !important;
+      line-height: 130% !important;
+      letter-spacing: 0 !important;
+      text-transform: none !important;
+    }
+
+    .aba-tab-content {
+      position: absolute;
+      top: 254px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      padding: 2px;
+      box-sizing: border-box;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .aba-tab-content .view {
+      display: none;
+      padding: 0 0 28px;
+    }
+
+    .aba-tab-content .view.active-view {
+      display: block;
+    }
+
+    .aba-tab-content .view > .section-head:first-child h2,
+    .aba-tab-content .view > .section-head:first-child .hint {
+      display: none;
+    }
+
+    .aba-tab-content .view > .section-head:first-child {
+      justify-content: flex-end;
+      margin: 0 0 10px;
+    }
+
+    #activities > .section-head:first-child,
+    #matches > .section-head:first-child,
+    #leagues > .section-head:first-child {
+      position: fixed;
+      top: 222px;
+      right: 4px;
+      z-index: 7;
+      margin: 0;
+    }
+
+    #activities {
+      color: #eef6ff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    #activities > .hint {
+      margin: 0 4px 10px;
+      padding: 9px 10px;
+      border: 1px solid rgba(49, 168, 255, .24);
+      border-radius: 8px;
+      background: rgba(49, 168, 255, .08);
+      color: rgba(238, 246, 255, .74);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    #activities #activityList {
+      display: grid;
+      gap: 8px;
+      padding: 0 4px 18px;
+    }
+
+    #activities .card {
+      border: 1px solid rgba(255, 255, 255, .1);
+      border-radius: 8px;
+      padding: 10px;
+      background: linear-gradient(135deg, rgba(16, 30, 48, .96), rgba(8, 17, 30, .98));
+      box-shadow: inset 0 0 0 1px rgba(49, 168, 255, .04), 0 10px 22px rgba(0, 0, 0, .22);
+      box-sizing: border-box;
+    }
+
+    #activities .row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: start;
+    }
+
+    #activities h3 {
+      margin: 0;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.22;
+    }
+
+    #activities .activity-player-identity {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    #activities .mini-player-link,
+    #activities .mini-player-name {
+      color: #fff;
+      text-decoration-color: rgba(49, 168, 255, .72);
+      text-underline-offset: 3px;
+    }
+
+    #activities .activity-player-identity .mini-avatar {
+      flex: 0 0 22px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, .24);
+      background: rgba(49, 168, 255, .14);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 900;
+      line-height: 22px;
+      text-align: center;
+    }
+
+    #activities .activity-player-identity .mini-avatar img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    #activities .meta {
+      margin-top: 5px;
+      color: rgba(238, 246, 255, .66);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    #activities .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 62px;
+      min-height: 22px;
+      padding: 3px 8px;
+      border: 1px solid rgba(255, 255, 255, .14);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .08);
+      color: rgba(238, 246, 255, .82);
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+      text-transform: capitalize;
+      box-sizing: border-box;
+    }
+
+    #activities .pill.green {
+      border-color: rgba(36, 209, 126, .38);
+      background: rgba(36, 209, 126, .14);
+      color: #24d17e;
+    }
+
+    #activities .pill.red {
+      border-color: rgba(255, 95, 103, .38);
+      background: rgba(255, 95, 103, .13);
+      color: #ff7a82;
+    }
+
+    #activities .pill.gold {
+      border-color: rgba(255, 209, 102, .4);
+      background: rgba(255, 209, 102, .13);
+      color: #ffd166;
+    }
+
+    #activities .strava-activity-card {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 8px;
+    }
+
+    #activities .strava-activity-card span {
+      display: inline-flex;
+      align-items: center;
+      min-height: 20px;
+      padding: 3px 7px;
+      border: 1px solid rgba(252, 76, 2, .35);
+      border-radius: 999px;
+      background: rgba(252, 76, 2, .08);
+      color: #ff9a5f;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    #activities .linked-match-tag,
+    #activities .link-btn,
+    #activities .small-btn {
+      min-height: 24px;
+      margin-top: 8px;
+      padding: 4px 9px;
+      border: 1px solid rgba(49, 168, 255, .45);
+      border-radius: 999px;
+      background: rgba(49, 168, 255, .1);
+      color: #31a8ff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    #activities .linked-match-tag {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+    }
+
+    #activities .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, .08);
+    }
+
+    #activities .danger-text,
+    #activities .danger-text-btn {
+      color: #ff7a82;
+    }
+
+    #activities > .section-head .primary-btn,
+    #matches > .section-head .primary-btn,
+    #leagues > .section-head .primary-btn {
+      min-height: 27px;
+      padding: 5px 11px;
+      border: 1px solid rgba(49, 168, 255, .72);
+      border-radius: 999px;
+      background: rgba(49, 168, 255, .12);
+      color: #fff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+      box-shadow: inset 0 0 0 1px rgba(49, 168, 255, .08), 0 6px 16px rgba(49, 168, 255, .1);
+    }
+
+    #leagues,
+    #rankings,
+    #account,
+    #admin {
+      color: #eef6ff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    #leagues .stack,
+    #rankings .stack,
+    #account .stack,
+    #admin .stack,
+    #leagues #leagueList,
+    #rankings #rankingList {
+      display: grid;
+      gap: 8px;
+      padding: 0 4px 18px;
+    }
+
+    #leagues .card,
+    #rankings .card,
+    #account .card,
+    #admin .card {
+      border: 1px solid rgba(255, 255, 255, .1);
+      border-radius: 8px;
+      padding: 10px;
+      background: linear-gradient(135deg, rgba(16, 30, 48, .96), rgba(8, 17, 30, .98));
+      box-shadow: inset 0 0 0 1px rgba(49, 168, 255, .04), 0 10px 22px rgba(0, 0, 0, .22);
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    #leagues .row,
+    #rankings .row,
+    #account .row,
+    #admin .row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: start;
+    }
+
+    #leagues h3,
+    #rankings h3,
+    #account h3,
+    #admin h3 {
+      margin: 0;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 900;
+      line-height: 1.22;
+    }
+
+    #leagues .meta,
+    #rankings .meta,
+    #account .meta,
+    #admin .meta,
+    #leagues .hint,
+    #rankings .hint,
+    #account .hint,
+    #admin .hint {
+      color: rgba(238, 246, 255, .66);
+      font-size: 10.5px;
+      line-height: 1.35;
+    }
+
+    #rankings .filters-card,
+    #admin .filters-card {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px;
+      margin: 0 4px 10px;
+      padding: 9px;
+      border: 1px solid rgba(49, 168, 255, .16);
+      border-radius: 8px;
+      background: rgba(15, 28, 46, .9);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .03);
+    }
+
+    #rankings .filters-card label,
+    #admin label,
+    #account label {
+      display: grid;
+      gap: 4px;
+      color: rgba(238, 246, 255, .68);
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    #rankings input,
+    #rankings select,
+    #account input,
+    #account select,
+    #account textarea,
+    #admin input,
+    #admin select,
+    #admin textarea {
+      width: 100%;
+      min-width: 0;
+      min-height: 28px;
+      padding: 0 8px;
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 999px;
+      background: #020a14;
+      color: #fff;
+      font-size: 10px;
+      outline: none;
+      box-sizing: border-box;
+    }
+
+    #account textarea,
+    #admin textarea {
+      min-height: 72px;
+      padding: 8px;
+      border-radius: 8px;
+      resize: vertical;
+    }
+
+    #rankings input:focus,
+    #rankings select:focus,
+    #account input:focus,
+    #account select:focus,
+    #account textarea:focus,
+    #admin input:focus,
+    #admin select:focus,
+    #admin textarea:focus {
+      border-color: rgba(49, 168, 255, .75);
+      box-shadow: 0 0 0 2px rgba(49, 168, 255, .12);
+    }
+
+    #leagues .pill,
+    #rankings .pill,
+    #account .pill,
+    #admin .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 20px;
+      padding: 3px 7px;
+      border: 1px solid rgba(255, 255, 255, .14);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .08);
+      color: rgba(238, 246, 255, .82);
+      font-size: 9.5px;
+      font-weight: 900;
+      line-height: 1;
+      box-sizing: border-box;
+    }
+
+    #leagues .primary-btn,
+    #leagues .secondary-btn,
+    #leagues .small-btn,
+    #rankings .primary-btn,
+    #rankings .secondary-btn,
+    #rankings .small-btn,
+    #account .primary-btn,
+    #account .secondary-btn,
+    #account .small-btn,
+    #admin .primary-btn,
+    #admin .secondary-btn,
+    #admin .small-btn,
+    #admin .tiny-btn {
+      min-height: 24px;
+      padding: 4px 9px;
+      border: 1px solid rgba(49, 168, 255, .42);
+      border-radius: 999px;
+      background: rgba(49, 168, 255, .1);
+      color: #31a8ff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 10px;
+      font-weight: 900;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    #account .actions,
+    #admin .actions,
+    #leagues .actions,
+    #rankings .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    #rankings .player-link,
+    #account .player-link,
+    #admin .player-link {
+      display: inline;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: #fff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 10.5px;
+      font-weight: 900;
+      line-height: 1.2;
+      text-decoration: underline;
+      text-decoration-color: rgba(49, 168, 255, .78);
+      text-underline-offset: 3px;
+      cursor: pointer;
+    }
+
+    #rankings .mini-avatar,
+    #account .mini-avatar,
+    #admin .mini-avatar,
+    #admin .avatar-preview,
+    #account .avatar-preview {
+      border-radius: 50%;
+      overflow: hidden;
+    }
+
+    #rankings .mini-avatar img,
+    #account .mini-avatar img,
+    #admin .mini-avatar img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    #admin .admin-subtabs {
+      display: flex;
+      gap: 6px;
+      margin: 0 4px 10px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #admin .admin-subtabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    #admin .admin-subtabs button {
+      flex: 0 0 auto;
+      min-height: 26px;
+      padding: 5px 10px;
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .06);
+      color: rgba(238, 246, 255, .72);
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    #admin .admin-subtabs button.active,
+    #admin .admin-subtabs button[aria-selected="true"] {
+      border-color: rgba(49, 168, 255, .58);
+      background: rgba(49, 168, 255, .14);
+      color: #fff;
+    }
+
+    #admin #venue-sports-options.checkbox-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+      padding: 7px;
+      border: 1px solid rgba(49, 168, 255, .16);
+      border-radius: 9px;
+      background: rgba(2, 10, 20, .36);
+      box-sizing: border-box;
+    }
+
+    #admin #venue-sports-options .sport-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      width: auto;
+      min-height: 24px;
+      margin: 0;
+      padding: 4px 7px;
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .06);
+      color: rgba(238, 246, 255, .82);
+      font-size: 9.5px;
+      font-weight: 900;
+      line-height: 1;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+
+    #admin #venue-sports-options .sport-chip:has(input:checked) {
+      border-color: rgba(49, 168, 255, .56);
+      background: rgba(49, 168, 255, .14);
+      color: #fff;
+    }
+
+    #admin #venue-sports-options .venue-sport-checkbox {
+      flex: 0 0 auto;
+      width: 13px;
+      height: 13px;
+      min-width: 13px;
+      min-height: 13px;
+      margin: 0;
+      padding: 0;
+      accent-color: #31a8ff;
+    }
+
+    #admin #venue-sports-options .sport-chip span {
+      display: inline-block;
+      overflow: hidden;
+      max-width: 76px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #activities .player-link.mini-player-link {
+      display: inline;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: #fff;
+      font: inherit;
+      font-weight: 800;
+      text-decoration: underline;
+      text-decoration-color: rgba(49, 168, 255, .78);
+      text-underline-offset: 3px;
+      cursor: pointer;
+    }
+
+    #activities .player-link.mini-player-link:focus-visible,
+    #matches .player-link:focus-visible {
+      outline: 2px solid rgba(49, 168, 255, .8);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    #matches {
+      color: #eef6ff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    #matches .match-filters-card {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px;
+      margin: 0 4px 10px;
+      padding: 9px;
+      border: 1px solid rgba(49, 168, 255, .16);
+      border-radius: 8px;
+      background: rgba(15, 28, 46, .9);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .03);
+    }
+
+    #matches .match-filters-card label {
+      display: grid;
+      gap: 3px;
+      color: rgba(238, 246, 255, .64);
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    #matches .match-filters-card input,
+    #matches .match-filters-card select {
+      width: 100%;
+      min-width: 0;
+      height: 27px;
+      padding: 0 8px;
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 999px;
+      background: #020a14;
+      color: #fff;
+      font-size: 10px;
+      outline: none;
+      box-sizing: border-box;
+    }
+
+    #matches .match-filters-card input:focus,
+    #matches .match-filters-card select:focus {
+      border-color: rgba(49, 168, 255, .75);
+      box-shadow: 0 0 0 2px rgba(49, 168, 255, .12);
+    }
+
+    #matches #match-filter-reset {
+      grid-column: 1 / -1;
+      min-height: 27px;
+      padding: 5px 10px;
+      border: 1px solid rgba(255, 255, 255, .14);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .06);
+      color: rgba(238, 246, 255, .78);
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    #matches #matchList {
+      display: grid;
+      gap: 9px;
+      padding: 0 4px 18px;
+    }
+
+    #matches .match-card,
+    #matches #matchList > .card {
+      border: 1px solid rgba(255, 255, 255, .1);
+      border-radius: 8px;
+      padding: 10px;
+      background: linear-gradient(135deg, rgba(16, 30, 48, .97), rgba(7, 16, 29, .99));
+      box-shadow: inset 0 0 0 1px rgba(49, 168, 255, .04), 0 10px 22px rgba(0, 0, 0, .22);
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    #matches .match-card > .row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: start;
+    }
+
+    #matches .match-card h3 {
+      margin: 0;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.22;
+    }
+
+    #matches .match-card .meta {
+      margin-top: 5px;
+      color: rgba(238, 246, 255, .66);
+      font-size: 10.5px;
+      line-height: 1.35;
+    }
+
+    #matches .match-card .meta a,
+    #matches .match-card .player-link,
+    #matches .match-card .mini-player-link {
+      color: #fff;
+      text-decoration-color: rgba(49, 168, 255, .75);
+      text-underline-offset: 3px;
+    }
+
+    #matches .match-card .meta a[href] {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      min-height: 22px;
+      padding: 3px 8px;
+      border: 1px solid rgba(49, 168, 255, .34);
+      border-radius: 999px;
+      background: rgba(49, 168, 255, .08);
+      color: #31a8ff;
+      font-size: 10px;
+      font-weight: 900;
+      line-height: 1;
+      text-decoration: underline;
+      text-decoration-color: rgba(49, 168, 255, .75);
+    }
+
+    #matches .match-card .player-link,
+    #matches .match-card button.player-link,
+    #matches .match-card .mini-player-link {
+      display: inline;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: #fff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 10.5px;
+      font-weight: 900;
+      line-height: 1.2;
+      text-align: inherit;
+      text-decoration: underline;
+      text-decoration-color: rgba(49, 168, 255, .78);
+      text-underline-offset: 3px;
+      cursor: pointer;
+    }
+
+    #matches .match-card .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 68px;
+      min-height: 22px;
+      padding: 3px 8px;
+      border: 1px solid rgba(255, 255, 255, .14);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .08);
+      color: rgba(238, 246, 255, .82);
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1;
+      text-transform: capitalize;
+      box-sizing: border-box;
+    }
+
+    #matches .match-card .pill.green,
+    #matches .match-card .pill.completed,
+    #matches .match-card .pill.scheduled {
+      border-color: rgba(36, 209, 126, .38);
+      background: rgba(36, 209, 126, .13);
+      color: #24d17e;
+    }
+
+    #matches .match-card .pill.gold,
+    #matches .match-card .pill.pending,
+    #matches .match-card .pill.playing {
+      border-color: rgba(255, 209, 102, .4);
+      background: rgba(255, 209, 102, .13);
+      color: #ffd166;
+    }
+
+    #matches .match-card .pill.red,
+    #matches .match-card .pill.cancelled {
+      border-color: rgba(255, 95, 103, .38);
+      background: rgba(255, 95, 103, .13);
+      color: #ff7a82;
+    }
+
+    #matches .match-card .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 9px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, .08);
+    }
+
+    #matches .match-card .small-btn,
+    #matches .match-card .tiny-btn {
+      min-height: 24px;
+      padding: 4px 9px;
+      border: 1px solid rgba(49, 168, 255, .42);
+      border-radius: 999px;
+      background: rgba(49, 168, 255, .1);
+      color: #31a8ff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    #matches .match-card .small-btn:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    #matches .match-card .selected-vote {
+      border-color: rgba(36, 209, 126, .55);
+      background: rgba(36, 209, 126, .16);
+      color: #24d17e;
+    }
+
+    #matches .match-card .selected-vote-red,
+    #matches .match-card .danger-text-btn,
+    #matches .match-card .danger-text {
+      border-color: rgba(255, 95, 103, .35);
+      background: rgba(255, 95, 103, .1);
+      color: #ff7a82;
+    }
+
+    #matches .match-card .match-status-grid,
+    #matches .match-card .formation-section,
+    #matches .match-card .team-formation,
+    #matches .match-card .score-summary,
+    #matches .match-card .points-summary,
+    #matches .match-card .match-edit-history,
+    #matches .match-card .match-smart-badges {
+      margin-top: 8px;
+    }
+
+    #matches .match-card .team-card,
+    #matches .match-card .team-panel,
+    #matches .match-card .formation-team-card,
+    #matches .match-card .match-points-card {
+      border: 1px solid rgba(255, 255, 255, .09);
+      border-radius: 8px;
+      background: rgba(2, 10, 20, .42);
+    }
+
+    #matches .match-status-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    #matches .match-status-box {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+      padding: 8px;
+      border: 1px solid rgba(255, 255, 255, .1);
+      border-radius: 8px;
+      background: rgba(2, 10, 20, .42);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .02);
+    }
+
+    #matches .match-status-box span {
+      color: rgba(238, 246, 255, .58);
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    #matches .match-status-box strong {
+      overflow: hidden;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1.15;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #matches .match-status-box em {
+      overflow: hidden;
+      color: rgba(238, 246, 255, .56);
+      font-size: 9.5px;
+      font-style: normal;
+      line-height: 1.25;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #matches .match-status-box.is-full,
+    #matches .match-status-box.is-in,
+    #matches .match-status-box.is-open {
+      border-color: rgba(36, 209, 126, .3);
+      background: rgba(36, 209, 126, .08);
+    }
+
+    #matches .match-status-box.is-full strong,
+    #matches .match-status-box.is-in strong,
+    #matches .match-status-box.is-open strong {
+      color: #24d17e;
+    }
+
+    #matches .match-status-box.is-out,
+    #matches .match-status-box.is-closed {
+      border-color: rgba(255, 209, 102, .28);
+      background: rgba(255, 209, 102, .07);
+    }
+
+    #matches .match-status-box.is-out strong,
+    #matches .match-status-box.is-closed strong {
+      color: #ffd166;
+    }
+
+    #matches .smart-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 8px;
+    }
+
+    #matches .smart-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 20px;
+      padding: 3px 7px;
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .06);
+      color: rgba(238, 246, 255, .76);
+      font-size: 9.5px;
+      font-weight: 900;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    #matches .smart-badge.danger {
+      border-color: rgba(255, 95, 103, .38);
+      background: rgba(255, 95, 103, .12);
+      color: #ff7a82;
+    }
+
+    #matches .smart-badge.success {
+      border-color: rgba(36, 209, 126, .34);
+      background: rgba(36, 209, 126, .1);
+      color: #24d17e;
+    }
+
+    #matches .smart-badge.warning {
+      border-color: rgba(255, 209, 102, .36);
+      background: rgba(255, 209, 102, .1);
+      color: #ffd166;
+    }
+
+    #matches .smart-badge.info,
+    #matches .smart-badge.neutral {
+      border-color: rgba(49, 168, 255, .32);
+      background: rgba(49, 168, 255, .08);
+      color: #31a8ff;
+    }
+
+    #matches .match-notices {
+      display: grid;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    #matches .match-notice {
+      position: relative;
+      display: grid;
+      gap: 3px;
+      padding: 8px 9px 8px 12px;
+      border: 1px solid rgba(49, 168, 255, .2);
+      border-radius: 8px;
+      background: rgba(49, 168, 255, .07);
+      overflow: hidden;
+    }
+
+    #matches .match-notice::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: #31a8ff;
+    }
+
+    #matches .match-notice strong {
+      color: #fff;
+      font-size: 11.5px;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+
+    #matches .match-notice span {
+      color: rgba(238, 246, 255, .65);
+      font-size: 10px;
+      line-height: 1.25;
+    }
+
+    #matches .match-notice.success {
+      border-color: rgba(36, 209, 126, .32);
+      background: linear-gradient(135deg, rgba(36, 209, 126, .12), rgba(2, 10, 20, .48));
+    }
+
+    #matches .match-notice.success::before {
+      background: #24d17e;
+    }
+
+    #matches .match-notice.warning {
+      border-color: rgba(255, 209, 102, .32);
+      background: linear-gradient(135deg, rgba(255, 209, 102, .12), rgba(2, 10, 20, .48));
+    }
+
+    #matches .match-notice.warning::before {
+      background: #ffd166;
+    }
+
+    #matches .match-notice.danger {
+      border-color: rgba(255, 95, 103, .32);
+      background: linear-gradient(135deg, rgba(255, 95, 103, .12), rgba(2, 10, 20, .48));
+    }
+
+    #matches .match-notice.danger::before {
+      background: #ff7a82;
+    }
+
+    #matches .match-formation-section {
+      margin-top: 9px;
+      border: 1px solid rgba(49, 168, 255, .18);
+      border-radius: 8px;
+      background: rgba(2, 10, 20, .42);
+      overflow: hidden;
+    }
+
+    #matches .match-formation-section.open {
+      border-color: rgba(49, 168, 255, .32);
+      background: rgba(6, 18, 32, .78);
+    }
+
+    #matches .match-formation-toggle {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 8px 9px;
+      border: 0;
+      background: linear-gradient(135deg, rgba(49, 168, 255, .13), rgba(255, 209, 102, .06));
+      color: #fff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    #matches .match-formation-toggle b {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      color: #ffd166;
+      background: rgba(255, 209, 102, .1);
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    #matches .game-stats-title-simple {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+      color: rgba(238, 246, 255, .82);
+      font-size: 10px;
+      line-height: 1.2;
+    }
+
+    #matches .game-stats-heading-simple {
+      grid-column: 1 / -1;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    #matches .game-stats-team-simple {
+      min-width: 0;
+      overflow: hidden;
+      color: rgba(238, 246, 255, .9);
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #matches .game-stats-score-simple {
+      padding: 3px 7px;
+      border: 1px solid rgba(255, 95, 103, .4);
+      border-radius: 999px;
+      background: rgba(255, 95, 103, .13);
+      color: #ff7a82;
+      font-size: 10px;
+      font-weight: 900;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    #matches .game-stats-expectation {
+      grid-column: 1 / -1;
+      overflow: hidden;
+      color: rgba(238, 246, 255, .58);
+      font-size: 9.5px;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #matches .match-formation-body {
+      padding: 9px;
+      border-top: 1px solid rgba(255, 255, 255, .08);
+    }
+
+    #matches .teams-summary {
+      display: grid;
+      gap: 8px;
+    }
+
+    #matches .team-summary-row {
+      padding: 8px;
+      border: 1px solid rgba(255, 255, 255, .09);
+      border-radius: 8px;
+      background: rgba(2, 10, 20, .34);
+    }
+
+    #matches .team-summary-main {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 7px;
+    }
+
+    #matches .team-summary-main strong {
+      color: #fff;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    #matches .team-result-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 20px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    #matches .team-result-pill.win {
+      border: 1px solid rgba(36, 209, 126, .34);
+      background: rgba(36, 209, 126, .12);
+      color: #24d17e;
+    }
+
+    #matches .team-result-pill.loss {
+      border: 1px solid rgba(255, 95, 103, .34);
+      background: rgba(255, 95, 103, .12);
+      color: #ff7a82;
+    }
+
+    #matches .team-result-pill.draw {
+      border: 1px solid rgba(255, 209, 102, .34);
+      background: rgba(255, 209, 102, .12);
+      color: #ffd166;
+    }
+
+    #matches .team-members-line {
+      display: grid;
+      gap: 6px;
+    }
+
+    #matches .team-player-chip {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      padding: 6px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .035);
+      box-sizing: border-box;
+    }
+
+    #matches .team-player-main-line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    #matches .inline-player-identity {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    #matches .inline-player-identity .mini-avatar {
+      flex: 0 0 22px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, .24);
+      background: rgba(49, 168, 255, .14);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 900;
+      line-height: 22px;
+      text-align: center;
+    }
+
+    #matches .inline-player-identity .mini-avatar img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    #matches .position-chip,
+    #matches .rating-pill,
+    #matches .team-player-main-line b,
+    #matches .team-player-main-line em,
+    #matches .soccer-performance-tag,
+    #matches .match-points-player-badge,
+    #matches .match-point-pill,
+    #matches .strava-synced-badge,
+    #matches .inline-rating-change {
+      display: inline-flex;
+      align-items: center;
+      min-height: 18px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      font-size: 9px;
+      font-style: normal;
+      font-weight: 900;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    #matches .position-chip {
+      background: rgba(255, 209, 102, .16);
+      color: #ffd166;
+    }
+
+    #matches .rating-pill {
+      background: rgba(255, 209, 102, .12);
+      color: #ffd166;
+    }
+
+    #matches .team-player-main-line b {
+      background: rgba(36, 209, 126, .14);
+      color: #24d17e;
+    }
+
+    #matches .team-player-main-line em {
+      background: rgba(49, 168, 255, .14);
+      color: #31a8ff;
+    }
+
+    #matches .soccer-performance-tag {
+      background: rgba(255, 255, 255, .08);
+      color: rgba(238, 246, 255, .82);
+    }
+
+    #matches .match-point-pill,
+    #matches .match-points-player-badge {
+      border: 1px solid rgba(255, 209, 102, .34);
+      background: rgba(255, 209, 102, .12);
+      color: #ffd166;
+    }
+
+    #matches .strava-synced-badge {
+      border: 1px solid rgba(252, 76, 2, .35);
+      background: rgba(252, 76, 2, .08);
+      color: #ff9a5f;
+    }
+
+    #matches .soccer-inline-assessment {
+      min-height: 24px;
+      max-width: 132px;
+      padding: 3px 8px;
+      border: 1px solid rgba(49, 168, 255, .32);
+      border-radius: 999px;
+      background: #020a14;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      outline: none;
+    }
+
+    #matches .soccer-inline-assessment:disabled {
+      opacity: .62;
+    }
+
+    #matches .inline-rating-wrap {
+      position: relative;
+      display: inline-block;
+    }
+
+    #matches .inline-rating-change {
+      border: 1px solid rgba(36, 209, 126, .3);
+      background: rgba(36, 209, 126, .11);
+      color: #24d17e;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    #matches .inline-rating-change.negative {
+      border-color: rgba(255, 95, 103, .34);
+      background: rgba(255, 95, 103, .11);
+      color: #ff7a82;
+    }
+
+    #matches .rating-change-breakdown {
+      display: block;
+      margin-top: 4px;
+      padding: 6px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, .28);
+      color: rgba(238, 246, 255, .7);
+      font-size: 9.5px;
+      line-height: 1.35;
+    }
+
+    #matches .match-insight-panel {
+      margin-top: 8px;
+      border: 1px solid rgba(49, 168, 255, .18);
+      border-radius: 8px;
+      background: rgba(2, 10, 20, .42);
+      overflow: hidden;
+    }
+
+    #matches .match-insight-panel[open] {
+      border-color: rgba(49, 168, 255, .3);
+      background: rgba(6, 18, 32, .72);
+    }
+
+    #matches .match-insight-panel summary {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 34px;
+      padding: 8px 30px 8px 10px;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 900;
+      line-height: 1.2;
+      list-style: none;
+      cursor: pointer;
+      background: linear-gradient(135deg, rgba(49, 168, 255, .12), rgba(255, 255, 255, .03));
+    }
+
+    #matches .match-insight-panel summary::-webkit-details-marker {
+      display: none;
+    }
+
+    #matches .match-insight-panel summary::after {
+      content: "▶";
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: rgba(255, 209, 102, .1);
+      color: #ffd166;
+      font-size: 9px;
+      transform: translateY(-50%);
+    }
+
+    #matches .match-insight-panel[open] summary::after {
+      content: "▼";
+    }
+
+    #matches .match-history-panel summary {
+      background: linear-gradient(135deg, rgba(255, 209, 102, .12), rgba(255, 255, 255, .03));
+    }
+
+    #matches .match-insight-list {
+      display: grid;
+      gap: 6px;
+      padding: 8px;
+      border-top: 1px solid rgba(255, 255, 255, .08);
+    }
+
+    #matches .match-insight-row {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+      padding: 7px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, .22);
+    }
+
+    #matches .match-insight-row > span {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+      color: #fff;
+      font-size: 10.5px;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    #matches .match-insight-row em {
+      color: rgba(238, 246, 255, .62);
+      font-size: 9.5px;
+      font-style: normal;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    #matches .match-insight-row .mini-player-identity {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    #matches .match-insight-row .mini-avatar,
+    #matches .match-card .mini-player-identity .mini-avatar {
+      flex: 0 0 22px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, .24);
+      background: rgba(49, 168, 255, .14);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 900;
+      line-height: 22px;
+      text-align: center;
+    }
+
+    #matches .match-insight-row .mini-avatar img,
+    #matches .match-card .mini-player-identity .mini-avatar img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    #matches .match-insight-row .player-link.mini-player-link,
+    #matches .match-insight-row button.player-link.mini-player-link {
+      display: inline;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: #fff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 10.5px;
+      font-weight: 900;
+      line-height: 1.2;
+      text-decoration: underline;
+      text-decoration-color: rgba(49, 168, 255, .78);
+      text-underline-offset: 3px;
+      cursor: pointer;
+    }
+
+    #matches .match-card > .actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    #matches .match-card > .actions .small-btn {
+      width: 100%;
+      justify-content: center;
+      text-align: center;
+    }
+
+    #matches .match-card > .actions .danger-text-btn {
+      border-color: rgba(255, 95, 103, .36);
+      background: rgba(255, 95, 103, .1);
+    }
+
+    #matches .match-result-photo {
+      display: grid;
+      gap: 6px;
+      width: 100%;
+      max-width: 100%;
+      margin-top: 9px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, .1);
+      border-radius: 8px;
+      background: rgba(2, 10, 20, .55);
+    }
+
+    #matches .match-result-photo img {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      height: auto;
+      max-height: 210px;
+      object-fit: cover;
+      object-position: center;
+    }
+
+    #matches .match-result-photo-caption {
+      display: grid;
+      gap: 2px;
+      padding: 0 8px 8px;
+      color: rgba(238, 246, 255, .66);
+      font-size: 10px;
+      line-height: 1.25;
+    }
+
+    #matches .match-result-photo-caption strong {
+      overflow: hidden;
+      color: #fff;
+      font-size: 11px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #matches .strava-match-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 17px;
+      width: fit-content;
+      padding: 2px 6px;
+      border: 1px solid rgba(252, 76, 2, .42);
+      border-radius: 999px;
+      background: rgba(252, 76, 2, .08);
+      color: #ff9a5f;
+      font-size: 8px;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: 0;
+      text-transform: uppercase;
+      white-space: nowrap;
+      box-sizing: border-box;
+    }
+
+    #matchModal,
+    #leagueModal {
+      width: 100vw;
+      max-width: none;
+      max-height: none;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: #eef6ff;
+    }
+
+    #matchModal::backdrop,
+    #leagueModal::backdrop {
+      background: rgba(0, 0, 0, .55);
+      backdrop-filter: blur(7px);
+    }
+
+    #matchForm.modal-card,
+    #leagueForm.modal-card {
+      position: relative;
+      width: min(calc(100vw - 18px), 412px);
+      max-height: calc(100dvh - 24px);
+      margin: 12px auto;
+      padding: 14px;
+      overflow: auto;
+      border: 1px solid rgba(49, 168, 255, .32);
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(16, 30, 48, .98), rgba(2, 10, 20, .99));
+      color: #eef6ff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      box-shadow: 0 18px 70px rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(255, 255, 255, .04);
+      box-sizing: border-box;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(49, 168, 255, .45) rgba(255, 255, 255, .06);
+    }
+
+    #matchForm h3,
+    #leagueForm h3 {
+      margin: 0 34px 12px 0;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+
+    #matchForm .close,
+    #leagueForm .close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: inline-grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border: 1px solid rgba(255, 255, 255, .16);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .06);
+      color: rgba(238, 246, 255, .86);
+      font-size: 18px;
+      font-weight: 800;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    #matchForm label,
+    #leagueForm label {
+      display: grid;
+      gap: 4px;
+      margin: 0 0 9px;
+      color: rgba(238, 246, 255, .72);
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    #matchForm input,
+    #matchForm select,
+    #matchForm textarea,
+    #leagueForm input,
+    #leagueForm select,
+    #leagueForm textarea {
+      width: 100%;
+      min-width: 0;
+      min-height: 30px;
+      padding: 0 9px;
+      border: 1px solid rgba(255, 255, 255, .13);
+      border-radius: 999px;
+      background: #020a14;
+      color: #fff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 11px;
+      outline: none;
+      box-sizing: border-box;
+    }
+
+    #matchForm textarea,
+    #leagueForm textarea {
+      min-height: 78px;
+      padding: 8px 9px;
+      border-radius: 9px;
+      resize: vertical;
+    }
+
+    #matchForm input:focus,
+    #matchForm select:focus,
+    #matchForm textarea:focus,
+    #leagueForm input:focus,
+    #leagueForm select:focus,
+    #leagueForm textarea:focus {
+      border-color: rgba(49, 168, 255, .78);
+      box-shadow: 0 0 0 2px rgba(49, 168, 255, .14);
+    }
+
+    #matchForm .grid.two,
+    #leagueForm .grid.two,
+    #matchForm .ampm-time-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    #matchForm .ampm-time-row {
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) minmax(0, 1.1fr);
+      align-items: center;
+      gap: 4px;
+    }
+
+    #matchForm .ampm-time-row span {
+      color: rgba(238, 246, 255, .68);
+      font-size: 12px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    #matchForm .checkbox-list,
+    #matchForm #match-invite-options,
+    #matchForm .choice-grid {
+      display: grid;
+      gap: 6px;
+      margin: 4px 0 10px;
+      padding: 8px;
+      border: 1px solid rgba(255, 255, 255, .1);
+      border-radius: 9px;
+      background: rgba(255, 255, 255, .04);
+    }
+
+    #matchForm .checkbox-list label,
+    #matchForm #match-invite-options label,
+    #matchForm .choice-grid label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin: 0;
+      color: rgba(238, 246, 255, .84);
+      font-size: 10.5px;
+    }
+
+    #matchForm input[type="checkbox"],
+    #matchForm input[type="radio"] {
+      width: 15px;
+      height: 15px;
+      min-height: 15px;
+      padding: 0;
+      accent-color: #31a8ff;
+    }
+
+    #matchForm #match-invite-options .mini-player-identity,
+    #matchForm #match-invite-options .member-option,
+    #matchForm #match-invite-options label {
+      min-width: 0;
+    }
+
+    #matchForm #match-invite-options .mini-avatar,
+    #matchForm #match-invite-options .member-avatar,
+    #matchForm #match-invite-options img {
+      flex: 0 0 22px !important;
+      width: 22px !important;
+      height: 22px !important;
+      max-width: 22px !important;
+      max-height: 22px !important;
+      border-radius: 50% !important;
+      object-fit: cover !important;
+      overflow: hidden !important;
+    }
+
+    #matchForm #match-invite-options .mini-avatar {
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid rgba(49, 168, 255, .32);
+      background: rgba(49, 168, 255, .12);
+      color: rgba(238, 246, 255, .86);
+      font-size: 8px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    #matchForm #match-invite-options .player-link.mini-player-link,
+    #matchForm #match-invite-options button.player-link.mini-player-link {
+      display: inline-block;
+      max-width: 120px;
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: #fff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 10.5px;
+      font-weight: 900;
+      line-height: 1.2;
+      overflow: hidden;
+      text-align: left;
+      text-decoration: underline;
+      text-decoration-color: rgba(49, 168, 255, .72);
+      text-overflow: ellipsis;
+      text-underline-offset: 3px;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    #matchForm #match-invite-options .player-link.mini-player-link:focus-visible {
+      outline: 2px solid rgba(49, 168, 255, .8);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    #matchForm .modal-actions,
+    #leagueForm .modal-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 12px;
+    }
+
+    #matchForm .primary-btn,
+    #matchForm .secondary-btn,
+    #matchForm .small-btn,
+    #leagueForm .primary-btn,
+    #leagueForm .secondary-btn,
+    #leagueForm .small-btn {
+      min-height: 30px;
+      padding: 6px 12px;
+      border: 1px solid rgba(49, 168, 255, .5);
+      border-radius: 999px;
+      background: rgba(49, 168, 255, .12);
+      color: #fff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 11px;
+      font-weight: 900;
+      line-height: 1;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+
+    #matchForm .modal-actions .primary-btn,
+    #matchForm .modal-actions .secondary-btn,
+    #leagueForm .modal-actions .primary-btn,
+    #leagueForm .modal-actions .secondary-btn {
+      flex: 1 1 120px;
+      width: auto;
+    }
+
+    #matchForm .primary-btn.full,
+    #leagueForm .primary-btn.full {
+      width: 100%;
+      margin-top: 4px;
+      border-color: rgba(49, 168, 255, .72);
+      background: linear-gradient(135deg, rgba(49, 168, 255, .32), rgba(49, 168, 255, .12));
+    }
+
+    #matchForm .hint,
+    #leagueForm .hint,
+    #matchForm small,
+    #leagueForm small {
+      color: rgba(238, 246, 255, .6);
+      font-size: 9.5px;
+      line-height: 1.35;
+    }
+
+    #rankings .rankings-table-card {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    #rankings .rankings-table-head,
+    #rankings .rankings-table-row {
+      display: grid;
+      grid-template-columns: 24px minmax(98px, 1.5fr) .75fr .65fr .65fr .48fr .7fr;
+      gap: 5px;
+      align-items: center;
+      min-width: 0;
+      padding: 7px 8px;
+      box-sizing: border-box;
+    }
+
+    #rankings .rankings-table-head {
+      border-bottom: 1px solid rgba(255, 255, 255, .08);
+      background: rgba(255, 255, 255, .04);
+      color: rgba(238, 246, 255, .58);
+      font-size: 8px;
+      font-weight: 900;
+      line-height: 1.1;
+      text-transform: uppercase;
+    }
+
+    #rankings .rankings-table-row {
+      border-top: 1px solid rgba(255, 255, 255, .06);
+      color: rgba(238, 246, 255, .78);
+      font-size: 9.5px;
+      line-height: 1.15;
+    }
+
+    #rankings .rankings-table-row:first-of-type {
+      border-top: 0;
+    }
+
+    #rankings .rankings-table-row > span,
+    #rankings .rankings-table-row > strong {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #rankings .rankings-table-row > span:nth-child(2) {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
+      overflow: visible;
+      white-space: normal;
+    }
+
+    #rankings .rank-number-mini {
+      display: inline-grid;
+      place-items: center;
+      width: 20px;
+      height: 20px;
+      border: 1px solid rgba(255, 209, 102, .34);
+      border-radius: 50%;
+      background: rgba(255, 209, 102, .12);
+      color: #ffd166;
+      font-size: 9px;
+      font-weight: 900;
+    }
+
+    #rankings .mini-player-identity {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    #rankings .mini-player-identity .mini-avatar {
+      flex: 0 0 22px;
+      width: 22px;
+      height: 22px;
+      border: 1px solid rgba(49, 168, 255, .32);
+      border-radius: 50%;
+      background: rgba(49, 168, 255, .14);
+      color: #fff;
+      display: inline-grid;
+      place-items: center;
+      font-size: 8px;
+      font-weight: 900;
+      line-height: 1;
+      overflow: hidden;
+    }
+
+    #rankings .mini-player-identity .mini-avatar img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    #rankings .rankings-table-row .player-link.mini-player-link {
+      max-width: 74px;
+      overflow: hidden;
+      color: #fff;
+      font-size: 10px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #rankings .rankings-table-row em {
+      display: inline-flex;
+      align-items: center;
+      min-height: 16px;
+      padding: 2px 5px;
+      border-radius: 999px;
+      background: rgba(49, 168, 255, .13);
+      color: #31a8ff;
+      font-size: 7.5px;
+      font-style: normal;
+      font-weight: 900;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+
+    #rankings .rankings-table-row > strong {
+      color: #ffd166;
+      font-size: 10.5px;
+      font-weight: 900;
+    }
+
+    #activityModal {
+      width: 100vw;
+      max-width: none;
+      max-height: none;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: #eef6ff;
+    }
+
+    #activityModal::backdrop {
+      background: rgba(0, 0, 0, .55);
+      backdrop-filter: blur(7px);
+    }
+
+    #activityForm.modal-card {
+      position: relative;
+      width: min(calc(100vw - 18px), 412px);
+      max-height: calc(100dvh - 24px);
+      margin: 12px auto;
+      padding: 14px;
+      overflow: auto;
+      border: 1px solid rgba(49, 168, 255, .32);
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(16, 30, 48, .98), rgba(2, 10, 20, .99));
+      color: #eef6ff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      box-shadow: 0 18px 70px rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(255, 255, 255, .04);
+      box-sizing: border-box;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(49, 168, 255, .45) rgba(255, 255, 255, .06);
+    }
+
+    #activityForm h3 {
+      margin: 0 34px 12px 0;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+
+    #activityForm .close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: inline-grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border: 1px solid rgba(255, 255, 255, .16);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .06);
+      color: rgba(238, 246, 255, .86);
+      font-size: 18px;
+      font-weight: 800;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    #activityForm label {
+      display: grid;
+      gap: 4px;
+      margin: 0 0 9px;
+      color: rgba(238, 246, 255, .72);
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    #activityForm input,
+    #activityForm select,
+    #activityForm textarea {
+      width: 100%;
+      min-width: 0;
+      min-height: 30px;
+      padding: 0 9px;
+      border: 1px solid rgba(255, 255, 255, .13);
+      border-radius: 999px;
+      background: #020a14;
+      color: #fff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 11px;
+      outline: none;
+      box-sizing: border-box;
+    }
+
+    #activityForm input[type="file"] {
+      display: flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 6px 9px;
+      border-radius: 9px;
+      border-style: dashed;
+      border-color: rgba(49, 168, 255, .32);
+      background: rgba(49, 168, 255, .06);
+      color: rgba(238, 246, 255, .78);
+      font-size: 10px;
+      cursor: pointer;
+    }
+
+    #activityForm input[type="file"]::file-selector-button {
+      min-height: 22px;
+      margin-right: 8px;
+      padding: 4px 8px;
+      border: 1px solid rgba(49, 168, 255, .48);
+      border-radius: 999px;
+      background: rgba(49, 168, 255, .14);
+      color: #fff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 9.5px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    #activityForm input[type="file"]::-webkit-file-upload-button {
+      min-height: 22px;
+      margin-right: 8px;
+      padding: 4px 8px;
+      border: 1px solid rgba(49, 168, 255, .48);
+      border-radius: 999px;
+      background: rgba(49, 168, 255, .14);
+      color: #fff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 9.5px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    #activityForm textarea {
+      min-height: 78px;
+      padding: 8px 9px;
+      border-radius: 9px;
+      resize: vertical;
+    }
+
+    #activityForm input:focus,
+    #activityForm select:focus,
+    #activityForm textarea:focus {
+      border-color: rgba(49, 168, 255, .78);
+      box-shadow: 0 0 0 2px rgba(49, 168, 255, .14);
+    }
+
+    #activityForm .grid.two {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    #activityForm .ampm-time-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) minmax(0, 1.1fr);
+      align-items: center;
+      gap: 4px;
+    }
+
+    #activityForm .ampm-time-row span {
+      color: rgba(238, 246, 255, .68);
+      font-size: 12px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    #activityForm .modal-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 12px;
+    }
+
+    #activityForm .primary-btn,
+    #activityForm .secondary-btn {
+      flex: 1 1 120px;
+      min-height: 30px;
+      width: auto;
+      padding: 6px 12px;
+      border: 1px solid rgba(49, 168, 255, .5);
+      border-radius: 999px;
+      background: rgba(49, 168, 255, .12);
+      color: #fff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 11px;
+      font-weight: 900;
+      line-height: 1;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+
+    #activityForm .primary-btn {
+      border-color: rgba(49, 168, 255, .72);
+      background: linear-gradient(135deg, rgba(49, 168, 255, .32), rgba(49, 168, 255, .12));
+    }
+
+    #activityForm .hint,
+    #activityForm small {
+      color: rgba(238, 246, 255, .6);
+      font-size: 9.5px;
+      line-height: 1.35;
+    }
+
+    #playerProfileModal {
+      width: 100vw;
+      max-width: none;
+      max-height: none;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: #eef6ff;
+    }
+
+    #playerProfileModal::backdrop {
+      background: rgba(0, 0, 0, .55);
+      backdrop-filter: blur(7px);
+    }
+
+    #playerProfileModal .player-profile-modal-card {
+      position: relative;
+      width: min(calc(100vw - 18px), 412px);
+      max-height: calc(100dvh - 24px);
+      margin: 12px auto;
+      padding: 14px;
+      overflow: auto;
+      border: 1px solid rgba(49, 168, 255, .32);
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(16, 30, 48, .98), rgba(2, 10, 20, .99));
+      color: #eef6ff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      box-shadow: 0 18px 70px rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(255, 255, 255, .04);
+      box-sizing: border-box;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(49, 168, 255, .45) rgba(255, 255, 255, .06);
+    }
+
+    #playerProfileModal .modal-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: start;
+      margin-bottom: 11px;
+      padding-bottom: 9px;
+      border-bottom: 1px solid rgba(255, 255, 255, .08);
+    }
+
+    #playerProfileModal .modal-head h3 {
+      margin: 0;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+
+    #playerProfileModal .modal-head .hint,
+    #playerProfileModal .hint {
+      color: rgba(238, 246, 255, .6);
+      font-size: 9.5px;
+      line-height: 1.35;
+    }
+
+    #playerProfileModal .modal-close-btn,
+    #playerProfileModal .icon-btn {
+      display: inline-grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border: 1px solid rgba(255, 255, 255, .16);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .06);
+      color: rgba(238, 246, 255, .86);
+      font-size: 18px;
+      font-weight: 800;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    #playerProfileModal .player-profile-content {
+      display: grid;
+      gap: 9px;
+    }
+
+    #playerProfileModal .player-profile-hero {
+      display: grid;
+      grid-template-columns: 64px minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+      padding: 8px;
+      border: 1px solid rgba(49, 168, 255, .16);
+      border-radius: 9px;
+      background: rgba(2, 10, 20, .36);
+      box-sizing: border-box;
+    }
+
+    #playerProfileModal .player-profile-avatar {
+      display: inline-grid;
+      place-items: center;
+      width: 58px;
+      height: 58px;
+      border: 1px solid rgba(49, 168, 255, .34);
+      border-radius: 50%;
+      background: rgba(49, 168, 255, .12);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 900;
+      line-height: 1;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    #playerProfileModal .player-profile-avatar img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    #playerProfileModal .player-profile-hero strong {
+      display: block;
+      overflow: hidden;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 900;
+      line-height: 1.2;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #playerProfileModal .player-profile-stats,
+    #playerProfileModal .profile-sport-stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px;
+    }
+
+    #playerProfileModal .profile-stat-box,
+    #playerProfileModal .profile-line {
+      min-width: 0;
+      padding: 8px;
+      border: 1px solid rgba(255, 255, 255, .09);
+      border-radius: 8px;
+      background: rgba(2, 10, 20, .42);
+      box-sizing: border-box;
+    }
+
+    #playerProfileModal .profile-stat-box {
+      display: grid;
+      gap: 3px;
+    }
+
+    #playerProfileModal .profile-stat-box span,
+    #playerProfileModal .profile-line span {
+      color: rgba(238, 246, 255, .58);
+      font-size: 9px;
+      font-weight: 900;
+      line-height: 1.15;
+    }
+
+    #playerProfileModal .profile-stat-box strong {
+      overflow: hidden;
+      color: #31a8ff;
+      font-size: 17px;
+      font-weight: 900;
+      line-height: 1;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #playerProfileModal .profile-stat-box em {
+      overflow: hidden;
+      color: rgba(238, 246, 255, .62);
+      font-size: 9px;
+      font-style: normal;
+      line-height: 1.25;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #playerProfileModal .player-profile-grid,
+    #playerProfileModal .profile-sport-grid {
+      display: grid;
+      gap: 8px;
+    }
+
+    #playerProfileModal .profile-section-card,
+    #playerProfileModal .profile-sport-card {
+      padding: 9px;
+      border: 1px solid rgba(255, 255, 255, .1);
+      border-radius: 9px;
+      background: linear-gradient(135deg, rgba(16, 30, 48, .96), rgba(8, 17, 30, .98));
+      box-shadow: inset 0 0 0 1px rgba(49, 168, 255, .04), 0 10px 22px rgba(0, 0, 0, .22);
+      box-sizing: border-box;
+    }
+
+    #playerProfileModal .profile-section-card h4,
+    #playerProfileModal .profile-sport-head h4 {
+      margin: 0;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+
+    #playerProfileModal .profile-sport-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    #playerProfileModal .profile-sport-head span {
+      display: inline-flex;
+      align-items: center;
+      min-height: 18px;
+      padding: 2px 6px;
+      border: 1px solid rgba(49, 168, 255, .32);
+      border-radius: 999px;
+      background: rgba(49, 168, 255, .08);
+      color: #31a8ff;
+      font-size: 8.5px;
+      font-weight: 900;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    #playerProfileModal .profile-line {
+      display: grid;
+      grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+      gap: 6px;
+      align-items: center;
+      margin-top: 6px;
+    }
+
+    #playerProfileModal .profile-line b {
+      overflow: hidden;
+      color: #fff;
+      font-size: 10.5px;
+      font-weight: 900;
+      line-height: 1.2;
+      text-align: right;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #playerProfileModal .profile-rating-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 8px;
+    }
+
+    #playerProfileModal .profile-rating-pill {
+      display: inline-grid;
+      grid-template-columns: auto auto;
+      gap: 2px 5px;
+      align-items: center;
+      min-height: 24px;
+      padding: 4px 6px;
+      border: 1px solid rgba(255, 209, 102, .28);
+      border-radius: 999px;
+      background: rgba(255, 209, 102, .1);
+      color: #ffd166;
+      font-size: 8.5px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    #playerProfileModal .profile-rating-pill em {
+      grid-column: 1 / -1;
+      color: rgba(238, 246, 255, .58);
+      font-size: 7.5px;
+      font-style: normal;
+      font-weight: 800;
+    }
+
+    #playerProfileModal .profile-match-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      margin-top: 7px;
+      padding: 8px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 8px;
+      background: rgba(2, 10, 20, .35);
+    }
+
+    #playerProfileModal .profile-match-row div {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    #playerProfileModal .profile-match-row strong {
+      overflow: hidden;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 900;
+      line-height: 1.2;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #playerProfileModal .profile-match-row span,
+    #playerProfileModal .profile-match-row em {
+      overflow: hidden;
+      color: rgba(238, 246, 255, .6);
+      font-size: 9px;
+      font-style: normal;
+      line-height: 1.25;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #playerProfileModal .profile-match-row > b {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 20px;
+      max-width: 128px;
+      padding: 3px 7px;
+      border: 1px solid rgba(255, 209, 102, .34);
+      border-radius: 999px;
+      background: rgba(255, 209, 102, .1);
+      color: #ffd166;
+      font-size: 8.5px;
+      font-weight: 900;
+      line-height: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #playerProfileModal .profile-match-row > b.win {
+      border-color: rgba(36, 209, 126, .34);
+      background: rgba(36, 209, 126, .11);
+      color: #24d17e;
+    }
+
+    #playerProfileModal .profile-match-row > b.loss {
+      border-color: rgba(255, 95, 103, .34);
+      background: rgba(255, 95, 103, .11);
+      color: #ff7a82;
+    }
+
+    #playerProfileModal .profile-match-row > b.draw {
+      border-color: rgba(255, 209, 102, .34);
+      background: rgba(255, 209, 102, .1);
+      color: #ffd166;
+    }
+
+    #rankings .ranking-summary-card {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px;
+      padding: 8px;
+    }
+
+    #rankings .ranking-summary-card > div {
+      min-width: 0;
+      padding: 7px 6px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 8px;
+      background: rgba(2, 10, 20, .35);
+      text-align: center;
+      box-sizing: border-box;
+    }
+
+    #rankings .ranking-summary-card .meta {
+      overflow: hidden;
+      font-size: 8.5px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #rankings .ranking-summary-card strong {
+      display: block;
+      margin-top: 4px;
+      overflow: hidden;
+      color: #31a8ff;
+      font-size: clamp(15px, 5.2vw, 22px);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: 0;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-shadow: 0 5px 14px rgba(49, 168, 255, .22);
+    }
+
+    #account .profile-card {
+      display: grid;
+      gap: 9px;
+    }
+
+    #account .profile-photo-panel {
+      display: grid;
+      grid-template-columns: 64px minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+      padding: 8px;
+      border: 1px solid rgba(49, 168, 255, .16);
+      border-radius: 9px;
+      background: rgba(2, 10, 20, .36);
+    }
+
+    #account #profile-avatar-preview.avatar-preview {
+      display: inline-grid;
+      place-items: center;
+      width: 58px;
+      height: 58px;
+      min-width: 58px;
+      min-height: 58px;
+      max-width: 58px;
+      max-height: 58px;
+      border: 1px solid rgba(49, 168, 255, .32);
+      border-radius: 50%;
+      background: rgba(49, 168, 255, .12);
+      color: rgba(238, 246, 255, .8);
+      font-size: 12px;
+      font-weight: 900;
+      line-height: 1;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    #account #profile-avatar-preview.avatar-preview img,
+    #account #profile-avatar-preview.avatar-preview > img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .iphone-pro-max #dashboard .matches-glance .text-wrapper-6,
+    .iphone-pro-max #dashboard .verified-activities .text-wrapper-13,
+    .iphone-pro-max #dashboard .ranks-glance .text-wrapper-6,
+    .iphone-pro-max #dashboard .points-glance .text-wrapper-6 {
+      font-family: Roboto, Helvetica, Arial, sans-serif !important;
+      font-size: 16px !important;
+      font-style: normal !important;
+      font-weight: 500 !important;
+      line-height: 130% !important;
+      letter-spacing: 0 !important;
+    }
+
+    .iphone-pro-max #dashboard .matches-glance,
+    .iphone-pro-max #dashboard .verified-activities,
+    .iphone-pro-max #dashboard .ranks-glance,
+    .iphone-pro-max #dashboard .points-glance {
+      background: linear-gradient(135deg, rgba(16, 30, 48, .96), rgba(8, 17, 30, .98)) !important;
+      box-shadow: inset 0 0 0 1px rgba(49, 168, 255, .04), 0 10px 22px rgba(0, 0, 0, .22) !important;
+    }
+
+    @media (max-width: 390px) {
+      #rankings .rankings-table-head,
+      #rankings .rankings-table-row {
+        grid-template-columns: 22px minmax(86px, 1.35fr) .7fr .58fr .58fr .45fr .62fr;
+        gap: 4px;
+        padding-left: 6px;
+        padding-right: 6px;
+      }
+
+      #matchForm .grid.two,
+      #leagueForm .grid.two,
+      #matchForm .ampm-time-row,
+      #activityForm .grid.two,
+      #activityForm .ampm-time-row {
+        grid-template-columns: 1fr;
+      }
+
+      #playerProfileModal .player-profile-stats,
+      #playerProfileModal .profile-sport-stat-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    #dashboard .frame-stats-grid {
+      display: none;
+      position: static;
+      top: auto;
+      left: auto;
+      width: 100%;
+      min-height: 470px;
+      height: auto;
+      aspect-ratio: 1.1;
+      padding: 2px;
+      box-sizing: border-box;
+    }
+
+    #dashboard.active-view .frame-stats-grid {
+      display: grid;
+    }
+
+    #auth-logged-in {
+      display: none !important;
+    }
+
+    #avatarViewerModal {
+      width: 100vw;
+      height: 100dvh;
+      max-width: none;
+      max-height: none;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      place-items: center;
+      overflow: hidden;
+      cursor: zoom-out;
+    }
+
+    #avatarViewerModal[open] {
+      display: grid;
+    }
+
+    #avatarViewerModal::backdrop {
+      background: rgba(0, 0, 0, .12);
+      backdrop-filter: blur(8px);
+    }
+
+    #avatar-viewer-img {
+      width: min(72vw, 320px);
+      height: min(72vw, 320px);
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid rgba(255, 255, 255, .45);
+      box-shadow: 0 18px 60px rgba(0, 0, 0, .45);
+      pointer-events: none;
+    }
+
+    html.avatar-viewer-open,
+    body.avatar-viewer-open {
+      overflow: hidden !important;
+    }
+  </style>
 </head>
 <body>
-<div class="box" ><div class="home-type-menu" ><div class="property-default" ><div class="frame" ><img class="menu-icons" src="svg/home.svg" />
-<div class="text-wrapper" >Home</div></div>
-<div class="rectangle" ></div></div>
-<div class="property" ><div class="frame" ><img class="menu-icons" src="img/home.svg" />
-<div class="div" >Home</div></div>
-<div class="rectangle-2" ></div></div></div></div>
+  <div class="iphone-pro-max is-logged-out" id="abaAppShell">
+    <div class="frame avatar-frame"><img id="abaMemberAvatar" class="ellipse" src="assets/icons/icon-192.png" alt="Member avatar" /></div>
 
-<div class="box" ><div class="menu-icons" ><img class="property-vector" src="svg/home.svg" />
-<img class="property-group" src="svg/activities.svg" />
-<img class="img" src="svg/macthes.svg" />
-<img class="property-group-2" src="svg/leagues.svg" />
-<img class="property-group-3" src="svg/ranks.svg" />
-<img class="property-group-4" src="svg/account.svg" />
-<img class="property-group-5" src="svg/admin.svg" /></div></div>
+    <div class="aba-login-card" id="auth-logged-out">
+      <label for="auth-email">email</label>
+      <input id="auth-email" type="text" inputmode="email" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+      <label for="auth-password">Password</label>
+      <input id="auth-password" type="password" autocomplete="new-password" autocorrect="off" autocapitalize="none" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+      <div class="aba-login-actions">
+        <button id="signup-btn" type="button">sign up</button>
+        <button id="login-btn" type="button">sign in</button>
+      </div>
+    </div>
 
+    <div id="auth-logged-in" class="aba-hidden-auth">
+      <span id="current-user"></span>
+      <button id="logout-btn" type="button">Log Out</button>
+    </div>
 
+    <div class="text-wrapper-5">ABA</div>
+    <div class="text-wrapper-4">AUB Bros Arena</div>
+    <div class="div welcome-row"><div class="text-wrapper-2">Welcome back,</div><div class="text-wrapper-3" id="abaMemberName"></div></div>
 
-    
-<div class="iphone-pro-max is-logged-out" id="abaAppShell" ><div class="frame avatar-frame" ><img id="abaMemberAvatar" class="ellipse" src="img/ellipse-1.png" /></div>
-<form class="aba-login-card" id="abaLoginForm">
-<label for="abaLoginEmail">email</label>
-<input id="abaLoginEmail" type="email" autocomplete="email" required />
-<label for="abaLoginPassword">Password</label>
-<input id="abaLoginPassword" type="password" autocomplete="current-password" required />
-<div class="aba-login-actions">
-<button type="button" id="abaSignupBtn">sign up</button>
-<button type="submit">sign in</button>
+    <div class="frame nav-tabs-frame" aria-label="Main navigation">
+      <div class="home-type-menu tab active" data-view="dashboard"><div class="div"><img class="menu-icons" src="svg/home.svg" /><div class="text-wrapper">Home</div></div><div class="rectangle"></div></div>
+      <div class="home-type-menu tab" data-view="activities"><div class="div"><img class="menu-icons" src="svg/activities.svg" /><div class="home">Activity</div></div><div class="rectangle-2"></div></div>
+      <div class="home-type-menu tab" data-view="matches"><div class="div"><img class="menu-icons" src="svg/matches.svg" /><div class="home-2">Matches</div></div><div class="rectangle-2"></div></div>
+      <div class="home-type-menu tab" data-view="leagues"><div class="div"><img class="menu-icons" src="svg/leagues.svg" /><div class="home-2">Leagues</div></div><div class="rectangle-2"></div></div>
+      <div class="home-type-menu tab" data-view="rankings"><div class="div"><img class="menu-icons" src="svg/ranks.svg" /><div class="home-3">Ranks</div></div><div class="rectangle-2"></div></div>
+      <div class="home-type-menu tab auth-only" data-view="account" style="display:none;"><div class="div"><img class="menu-icons" src="svg/account.svg" /><div class="home-4">Account</div></div><div class="rectangle-2"></div></div>
+      <div class="home-type-menu tab admin-only" data-view="admin" style="display:none;"><div class="div"><img class="img" src="svg/admin.svg" /><div class="home-5">Admin</div></div><div class="rectangle-2"></div></div>
+    </div>
+
+    <div id="pullRefreshIndicator" class="pull-refresh-indicator" aria-live="polite" hidden>Pull to refresh</div>
+    <div id="connectionStatus" class="connection-status" hidden></div>
+    <div class="app-view-title" id="appViewTitle">Weekly Stats</div>
+
+    <main class="aba-tab-content">
+      <section id="dashboard" class="view active-view">
+        <div class="frame-stats-grid"><div class="matches-glance"><div class="frame-wrapper"><div class="frame-2"></div></div>
+          <img class="stadium" src="svg/stadium.svg" />
+          <div class="text-wrapper-6">Matches</div>
+          <div class="frame-3"><div class="frame-4"><img class="img-2" src="svg/racquetball.svg" />
+          <div class="text-wrapper-7">2</div></div>
+          <div class="frame-5"><img class="img-2" src="svg/soccer-player.svg" />
+          <div class="text-wrapper-7">2</div></div>
+          <div class="frame-6"><img class="img-2" src="svg/tennis-player.svg" />
+          <div class="text-wrapper-8">2</div></div>
+          <div class="frame-7"><img class="img-2" src="svg/netball.svg" />
+          <div class="text-wrapper-9">2</div></div></div>
+          <div class="div-wrapper"><div class="frame-8"><div class="text-wrapper-10">54</div>
+          <div class="text-wrapper-11">vs last week</div>
+          <div class="text-wrapper-12">+23 ↑21%</div></div></div></div>
+          <div class="verified-activities"><div class="frame-wrapper"><div class="frame-2"></div></div>
+          <div class="text-wrapper-13">Verified Activities</div>
+          <div class="frame-9"><div class="sports-matches-frame"><div class="text-wrapper-14">1</div>
+          <img class="running" src="svg/running.svg" /></div>
+          <div class="frame-5"><img class="img-2" src="svg/swimming.svg" />
+          <div class="text-wrapper-7">2</div></div>
+          <div class="frame-6"><img class="img-2" src="svg/weightlifting.svg" />
+          <div class="text-wrapper-8">2</div></div>
+          <div class="frame-7"><img class="walking" src="svg/walking.svg" />
+          <div class="text-wrapper-9">2</div></div></div>
+          <img class="protect" src="svg/protect.svg" />
+          <div class="frame-10"><div class="frame-11"><div class="text-wrapper-15">7</div>
+          <div class="text-wrapper-11">vs last week</div>
+          <p class="element"><span class="span">-10 ↓15%</span><span class="text-wrapper-16"></span></p></div></div></div>
+          <div class="ranks-glance"><div class="frame-wrapper"><div class="frame-2"></div></div>
+          <div class="text-wrapper-6">Ranking</div>
+          <img class="leaderboard" src="svg/leaderboard.svg" />
+          <div class="frame-12"><div class="frame-13"><div class="text-wrapper-17">22</div>
+          <div class="text-wrapper-18">vs last week</div>
+          <div class="text-wrapper-19">+2 positions</div></div></div>
+          <div class="pos-location"><div class="player"><div class="text-wrapper-20">🥇</div>
+          <img class="ellipse-2" src="assets/icons/icon-192.png" /></div>
+          <div class="player-2"><div class="text-wrapper-20">🥈</div>
+          <img class="ellipse-2" src="assets/icons/icon-192.png" /></div>
+          <div class="player-3"><div class="text-wrapper-20">🥉</div>
+          <img class="ellipse-2" src="assets/icons/icon-192.png" /></div></div></div>
+          <div class="points-glance"><div class="frame-wrapper"><div class="frame-2"></div></div>
+          <div class="text-wrapper-6">Points</div>
+          <img class="hand-drawn-star" src="svg/hand-drawn-star.svg" />
+          <div class="frame-14"><div class="frame-15"><div class="text-wrapper-21">2 450 pts</div>
+          <div class="text-wrapper-22">550 pts left</div>
+          <div class="text-wrapper-23">of 3 000 pts</div></div>
+          <div class="text-wrapper-24">+25 pts this week</div>
+          <div class="frame-16"></div></div></div></div>
+      </section>
+<section id="leagues" class="view">
+        <div class="section-head">
+          <h2>Leagues</h2>
+          <button class="primary-btn" data-open="leagueModal" type="button">+ League</button>
+        </div>
+
+        <div id="leagueList" class="stack"></div>
+      </section>
+
+      <section id="matches" class="view">
+        <div class="section-head">
+          <h2>Friendly & League Matches</h2>
+          <button class="primary-btn" data-open="matchModal" type="button">+ Match</button>
+        </div>
+
+        <div class="filters-card match-filters-card">
+          <label>
+            Search
+            <input id="match-filter-search" type="search" placeholder="Search title or venue">
+          </label>
+
+          <label>
+            Sport
+            <select id="match-filter-sport">
+              <option value="all">All sports</option>
+            </select>
+          </label>
+
+          <label>
+            League
+            <select id="match-filter-league">
+              <option value="all">All leagues</option>
+            </select>
+          </label>
+
+          <label>
+            Status
+            <select id="match-filter-status">
+              <option value="active">Active / not cancelled</option>
+              <option value="all">All statuses</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="full">Full</option>
+              <option value="playing">Playing now</option>
+              <option value="result_pending">Result pending</option>
+              <option value="completed">Completed / submitted</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </label>
+
+          <label>
+            My status
+            <select id="match-filter-my-status">
+              <option value="all">All</option>
+              <option value="in">I’m IN</option>
+              <option value="maybe">Maybe</option>
+              <option value="out">Out</option>
+              <option value="invited">Invited</option>
+              <option value="not_in">Not IN</option>
+            </select>
+          </label>
+
+          <button id="match-filter-reset" class="secondary-btn" type="button">Reset filters</button>
 </div>
-<div class="aba-login-message" id="abaLoginMessage"></div>
-</form>
+
+        <div id="matchList" class="stack"></div>
+      </section>
+
+      <section id="activities" class="view">
+        <div class="section-head">
+          <h2>Activity</h2>
+          <button class="primary-btn" data-open="activityModal" type="button">+ Log Activity</button>
+        </div>
+
+        <p class="hint">Log non-match activities. Admin approval is required before activity points count.</p>
+        <div id="activityList" class="stack"></div>
+      </section>
+
+      <section id="rankings" class="view">
+        <div class="section-head">
+          <div>
+            <h2>ABA Rankings</h2>
+            <p class="hint">Based on finalized match points.</p>
+          </div>
+          <span class="pill">Live points</span>
+        </div>
+
+        <div class="filters-card">
+          <label>
+            Sport
+            <select id="rank-sport-filter">
+              <option value="all">All sports</option>
+            </select>
+          </label>
+
+          <label>
+            League
+            <select id="rank-league-filter">
+              <option value="all">All leagues</option>
+            </select>
+          </label>
+
+          <label>
+            Player type
+            <select id="rank-player-type-filter">
+              <option value="all">All players</option>
+              <option value="members">Members only</option>
+              <option value="external">External only</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="rankingList" class="stack"></div>
+      </section>
+
+      <section id="account" class="view">
+        <div class="section-head">
+          <div>
+            <h2>My Profile</h2>
+            <p class="hint" id="profile-status">Login to load your profile.</p>
+          </div>
+        </div>
+
+        <div class="card profile-card">
+          <div class="profile-photo-panel">
+            <div id="profile-avatar-preview" class="avatar-preview avatar-fallback">--</div>
+            <div>
+              <strong>Profile photo</strong>
+              <p class="hint">JPG, PNG, or WebP up to 2 MB.</p>
+              <input id="profile-avatar-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+              <div class="actions profile-photo-actions">
+                <button id="profile-avatar-upload-btn" class="secondary-btn" type="button">Change Photo</button>
+                <button id="profile-avatar-remove-btn" class="secondary-btn danger-text-btn" type="button">Remove</button>
+              </div>
+            </div>
+          </div>
+
+          <label>
+            First Name
+            <input id="profile-first-name" type="text" disabled>
+          </label>
+
+          <label>
+            Last Name
+            <input id="profile-last-name" type="text" disabled>
+          </label>
+
+          <label>
+            Display Name
+            <input id="profile-display-name" type="text" disabled>
+          </label>
+
+          <label>
+            Birth Date
+            <input id="profile-birth-date" type="date" disabled>
+          </label>
+
+          <label>
+            Gender
+            <select id="profile-gender" disabled>
+              <option value="">Select gender</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </label>
+
+          <div class="grid two">
+            <label>
+              Height (cm)
+              <input id="profile-height-cm" type="number" min="100" max="230" step="1" disabled>
+            </label>
+
+            <label>
+              Weight (kg)
+              <input id="profile-weight-kg" type="number" min="30" max="250" step="0.1" disabled>
+            </label>
+          </div>
+
+          <label>
+            Phone
+            <input id="profile-phone" type="tel" disabled>
+          </label>
+
+          <div class="actions profile-actions">
+            <button id="profile-action-btn" class="primary-btn" type="button">
+              Edit Profile
+            </button>
+          </div>
+        </div>
+
+        <div class="card notification-card">
+          <div>
+            <h3>Phone notifications</h3>
+            <p id="notification-status" class="hint">Login to manage phone notifications.</p>
+          </div>
+
+          <div class="actions notification-actions">
+            <button id="enable-notifications-btn" class="primary-btn" type="button">
+              Enable Notifications
+            </button>
+            <button id="disable-notifications-btn" class="secondary-btn" type="button">
+              Disable This Device
+            </button>
+            <button id="test-notifications-btn" class="secondary-btn" type="button">
+              Send Test
+            </button>
+          </div>
+        </div>
+
+        <div id="strava-connection-panel" class="card garmin-connection-panel"></div>
+        <div id="garmin-connection-panel" class="card garmin-connection-panel" hidden></div>
+
+        <div class="card notification-inbox-card">
+          <div class="section-head">
+            <div>
+              <h3>Notification Inbox</h3>
+              <p id="notification-inbox-status" class="hint">Login to view notifications.</p>
+            </div>
+            <button id="mark-notifications-read-btn" class="secondary-btn" type="button">
+              Mark all read
+            </button>
+          </div>
+
+          <div id="notificationInboxList" class="stack"></div>
+        </div>
+      </section>
+
+      <section id="admin" class="view">
+        <div class="section-head">
+          <div>
+            <h2>Admin Dashboard</h2>
+            <p class="hint">Quick overview of pending work and lifecycle reminders.</p>
+          </div>
+        </div>
+
+        <div id="adminDashboardCards" class="admin-dashboard-grid"></div>
+        <div id="adminActionQueue" class="admin-action-queue"></div>
+
+        <div class="section-head">
+          <div>
+            <h2>Admin Review</h2>
+            <p class="hint">Review pending member profiles.</p>
+          </div>
+        </div>
+
+        <div id="pendingMembersList" class="stack"></div>
+
+        <div class="section-head">
+          <div>
+            <h2>Member Roles</h2>
+            <p class="hint">Assign admins, committee members, and sport permissions.</p>
+          </div>
+        </div>
+
+        <div id="memberRoleList" class="stack"></div>
+
+        <div class="section-head">
+          <div>
+            <h2>Notifications</h2>
+            <p class="hint">Send app notifications to members.</p>
+          </div>
+        </div>
+
+        <div class="card admin-notification-card">
+          <label>
+            Recipient
+            <select id="admin-notify-member">
+              <option value="">Choose member</option>
+            </select>
+          </label>
+
+          <label>
+            Title
+            <input id="admin-notify-title" type="text" placeholder="Notification title">
+          </label>
+
+          <label>
+            Message
+            <textarea id="admin-notify-message" rows="3" placeholder="Write the notification text..."></textarea>
+          </label>
+
+          <label>
+            Link
+            <input id="admin-notify-url" type="text" value="./#dashboard">
+          </label>
+
+          <div class="actions">
+            <button id="use-strava-notification-btn" class="secondary-btn" type="button">
+              Use Strava text
+            </button>
+            <button id="send-admin-notification-btn" class="primary-btn" type="button">
+              Send
+            </button>
+            <button id="send-admin-notification-all-btn" class="secondary-btn" type="button">
+              Send to all
+            </button>
+          </div>
+
+          <p id="admin-notify-status" class="hint"></p>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <h2>Sport Ratings</h2>
+            <p class="hint">Set player ratings by sport for future team suggestions.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <label>
+            Sport
+            <select id="rating-sport-filter">
+              <option value="">Select sport</option>
+            </select>
+          </label>
+
+          <div id="sportRatingList" class="sport-rating-list">
+            Select a sport to edit ratings.
+          </div>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <h2>Activity Settings</h2>
+            <p class="hint">Configure activity intensity points for non-match activity logs.</p>
+          </div>
+        </div>
+
+        <div class="card activity-settings-card">
+          <div id="activity-settings-list" class="activity-settings-list">
+            Loading activity settings...
+          </div>
+
+          <div class="actions">
+            <button id="save-activity-settings-btn" class="primary-btn" type="button">
+              Save activity settings
+            </button>
+          </div>
+
+          <p id="activity-settings-status" class="hint">
+            Logged activities use continuous duration: points = min(cap, duration_minutes / 30 * rate).
+          </p>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <h2>Activity Review</h2>
+            <p class="hint">Approve logged activities before points count.</p>
+          </div>
+        </div>
+
+        <div id="pendingActivitiesList" class="stack"></div>
+
+        <div class="section-head">
+          <div>
+            <h2>Soccer Rating Formula</h2>
+            <p class="hint">Tune soccer position rating changes without editing code.</p>
+          </div>
+        </div>
+
+        <div id="soccer-rating-settings-card" class="card soccer-settings-card">
+          <div class="soccer-settings-grid">
+            <label>
+              <span class="rating-label-line">
+                Rolling average window
+                <small>Last N soccer matches used for expected total goals.</small>
+              </span>
+              <input id="soccer-setting-rolling-window" type="number" step="1" min="1">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                Minimum matches required
+                <small>Uses default goals until enough match history exists.</small>
+              </span>
+              <input id="soccer-setting-min-matches" type="number" step="1" min="0">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                Default average total goals
+                <small>Fallback expected match total before enough games are recorded.</small>
+              </span>
+              <input id="soccer-setting-default-total-goals" type="number" step="0.1" min="0">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                Attack constant
+                <small>Controls how strongly scoring above/below expectation affects ATT/MID.</small>
+              </span>
+              <input id="soccer-setting-attack-constant" type="number" step="0.01">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                Defense constant
+                <small>Controls how strongly conceding below/above expectation affects DEF/GK/MID.</small>
+              </span>
+              <input id="soccer-setting-defense-constant" type="number" step="0.01">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                ATT attack share
+                <small>Share of attack performance assigned to attackers.</small>
+              </span>
+              <input id="soccer-setting-att-attack-share" type="number" step="0.05" min="0" max="1">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                MID attack share
+                <small>Share of attack performance assigned to midfielders.</small>
+              </span>
+              <input id="soccer-setting-mid-attack-share" type="number" step="0.05" min="0" max="1">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                MID defense share
+                <small>Share of defensive performance assigned to midfielders.</small>
+              </span>
+              <input id="soccer-setting-mid-defense-share" type="number" step="0.05" min="0" max="1">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                DEF defense share
+                <small>Share of defensive performance assigned to defenders.</small>
+              </span>
+              <input id="soccer-setting-def-defense-share" type="number" step="0.05" min="0" max="1">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                GK defense share
+                <small>Share of defensive performance assigned to goalkeepers.</small>
+              </span>
+              <input id="soccer-setting-gk-defense-share" type="number" step="0.05" min="0" max="1">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                Win modifier
+                <small>Small rating boost added to every player on the winning team.</small>
+              </span>
+              <input id="soccer-setting-win" type="number" step="0.01">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                Loss modifier
+                <small>Small rating reduction added to every player on the losing team.</small>
+              </span>
+              <input id="soccer-setting-loss" type="number" step="0.01">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                Max gain per match
+                <small>Caps extreme positive changes from unusual scorelines.</small>
+              </span>
+              <input id="soccer-setting-max-gain" type="number" step="0.01" min="0">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                Max loss per match
+                <small>Caps extreme negative changes from unusual scorelines.</small>
+              </span>
+              <input id="soccer-setting-max-loss" type="number" step="0.01" min="0">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                Minimum allowed rating
+                <small>Prevents position ratings from falling below this boundary.</small>
+              </span>
+              <input id="soccer-setting-min-rating" type="number" step="0.1" min="0" max="100">
+            </label>
+
+            <label>
+              <span class="rating-label-line">
+                Maximum allowed rating
+                <small>Prevents position ratings from rising above this boundary.</small>
+              </span>
+              <input id="soccer-setting-max-rating" type="number" step="0.1" min="0" max="100">
+            </label>
+          </div>
+
+          <div class="soccer-expected-preview">
+            <strong>Formula preview</strong>
+            <div class="hint">
+              Expected goals are calculated from the rolling average total goals and the current formations:
+              <code>Team ATT ÷ Opponent DEF</code>.
+            </div>
+            <div class="hint">
+              Attackers gain or lose from <code>Actual goals - Expected goals</code>.
+              Defenders/GK gain or lose from <code>Expected goals against - Actual goals against</code>.
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="save-soccer-settings-btn" class="primary-btn" type="button">
+              Save soccer formula
+            </button>
+
+            <button id="reset-soccer-settings-btn" class="secondary-btn" type="button">
+              Reset defaults
+            </button>
+          </div>
+
+          <p id="soccer-settings-status" class="hint">
+            Changes affect future calculations. Use Maintenance Tools to recalculate old finalized matches.
+          </p>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <h2>Maintenance Tools</h2>
+            <p class="hint">Recalculate finalized matches after formula or formation changes.</p>
+          </div>
+        </div>
+
+        <div class="card maintenance-card">
+          <div class="actions">
+            <button id="recalc-all-points-btn" class="secondary-btn" type="button">
+              Recalculate all points
+            </button>
+
+            <button id="recalc-all-soccer-ratings-btn" class="secondary-btn" type="button">
+              Recalculate all soccer ratings
+            </button>
+
+            <button id="recalc-all-finalized-btn" class="primary-btn" type="button">
+              Recalculate all finalized matches
+            </button>
+          </div>
+
+          <p class="hint">
+            Uses the current app formula. Cancelled matches are ignored.
+          </p>
+
+          <div id="adminMatchReminderList" class="stack"></div>
+          <p id="admin-reminder-status" class="hint"></p>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <h2>Venue Management</h2>
+            <p class="hint">Add venues and choose the sports supported by each venue.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <label>
+            Venue Name
+            <input id="venue-name" type="text" placeholder="The Padict Club">
+          </label>
+
+          <label>
+            Address
+            <input id="venue-address" type="text" placeholder="Beirut, Lebanon">
+          </label>
+
+          <label>
+            Google Maps Link
+            <input id="venue-google-maps-url" type="url" placeholder="https://maps.google.com/...">
+          </label>
+          <input id="venue-map-url" type="hidden">
+
+          <label>
+            Image URL
+            <input id="venue-image-url" type="url" placeholder="https://...">
+          </label>
+
+          <label>
+            Supported Sports
+            <div id="venue-sports-options" class="checkbox-list">
+              Loading sports...
+            </div>
+          </label>
+
+          <div class="actions">
+            <button id="add-venue-btn" class="primary-btn" type="button">
+              Add Venue
+            </button>
+
+            <button id="cancel-venue-edit-btn" class="secondary-btn" type="button">
+              Cancel
+            </button>
+          </div>
+        </div>
+
+        <div id="venuesList" class="stack"></div>
+      </section>
     
-<div class="text-wrapper weekly-stats-title" >Weekly Stats</div>
-<div class="div welcome-row" ><div class="text-wrapper-2" >Welcome back, </div>
-<div class="text-wrapper-3" id="abaMemberName">Wolf</div></div>
-<div class="text-wrapper-4" >AUB Bros Arena</div>
-<div class="text-wrapper-5" >ABA</div>
+    </main>
+  </div>
+<dialog id="leagueModal" class="modal">
+    <form method="dialog" id="leagueForm" class="modal-card">
+      <button class="close" value="cancel" type="button" onclick="document.getElementById('leagueModal')?.close()">×</button>
+      <h3>Create League</h3>
 
-<div class="frame nav-tabs-frame" ><div class="home-type-menu nav-tab-active" ><div class="div" ><img class="menu-icons" src="svg/home.svg" />
-<div class="text-wrapper" >Home</div></div>
-<div class="rectangle" ></div></div>
-<div class="home-type-menu" ><div class="div" ><img class="menu-icons" src="svg/activities.svg" />
-<div class="home" >Activity</div></div>
-<div class="rectangle-2" ></div></div>
-<div class="home-type-menu" ><div class="div" ><img class="menu-icons" src="svg/matches.svg" />
-<div class="home-2" >Matches</div></div>
-<div class="rectangle-2" ></div></div>
-<div class="home-type-menu" ><div class="div" ><img class="menu-icons" src="svg/leagues.svg" />
-<div class="home-2" >Leagues</div></div>
-<div class="rectangle-2" ></div></div>
-<div class="home-type-menu" ><div class="div" ><img class="menu-icons" src="svg/ranks.svg" />
-<div class="home-3" >Ranks</div></div>
-<div class="rectangle-2" ></div></div>
-<div class="home-type-menu" ><div class="div" ><img class="menu-icons" src="svg/account.svg" />
-<div class="home-4" >Account</div></div>
-<div class="rectangle-2" ></div></div>
-<div class="home-type-menu" ><div class="div" ><img class="img" src="svg/admin.svg" />
-<div class="home-5" >Admin</div></div>
-<div class="rectangle-2" ></div></div>
-</div>
+      <label>
+        League name
+        <input name="name" required placeholder="ABA Padel League" />
+      </label>
 
-    
+      <label>
+        Sport
+        <select name="sport_id" id="league-sport" required>
+          <option value="">Select sport</option>
+        </select>
+      </label>
+
+      <label>
+        Format
+        <input name="format" placeholder="Doubles, 5v5, round robin..." />
+      </label>
+
+      <label>
+        Status
+        <select name="status" id="league-status">
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+        </select>
+      </label>
+
+      <div class="grid two">
+        <label>
+          Start date optional
+          <input name="start_date" type="date" />
+        </label>
+
+        <label>
+          End date optional
+          <input name="end_date" type="date" />
+        </label>
+      </div>
+
+      <button class="primary-btn full" type="submit">Create League</button>
+    </form>
+  </dialog>
+
+ <dialog id="matchModal" class="modal">
+  <form method="dialog" id="matchForm" class="modal-card">
+    <button class="close" id="match-modal-close" value="cancel" type="button">×</button>
+    <h3 id="match-modal-title">Create Match</h3>
+
+    <label>
+      Sport
+      <select name="sport_id" id="match-sport" required>
+        <option value="">Select sport</option>
+      </select>
+    </label>
+
+    <label>
+      Venue
+      <select name="venue_id" id="match-venue" required>
+        <option value="">Select venue</option>
+      </select>
+    </label>
+
+    <label>
+      Title
+      <input name="title" required placeholder="Wolf & Fox vs Pigs" />
+    </label>
+
+    <label>
+      Match Type
+      <select name="match_type" id="match-type">
+        <option value="friendly">Friendly</option>
+        <option value="league">League</option>
+      </select>
+    </label>
+
+    <label id="match-league-label" style="display:none;">
+      League
+      <select name="league_id" id="match-league">
+        <option value="">Select league</option>
+      </select>
+    </label>
+
+    <label>
+      Required players
+      <input name="required_players" type="number" min="2" step="2" value="4" required />
+    </label>
+
+    <div class="grid two match-date-time-grid">
+      <label>
+        Start date
+        <input id="match-start-date" type="date" required />
+      </label>
+
+      <label>
+        Start time
+        <div class="ampm-time-row">
+          <select id="match-start-hour" required></select>
+          <span>:</span>
+          <select id="match-start-minute" required></select>
+          <select id="match-start-ampm" required>
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+      </label>
+    </div>
+
+    <div class="grid two match-date-time-grid">
+      <label>
+        End date
+        <input id="match-end-date" type="date" required />
+      </label>
+
+      <label>
+        End time
+        <div class="ampm-time-row">
+          <select id="match-end-hour" required></select>
+          <span>:</span>
+          <select id="match-end-minute" required></select>
+          <select id="match-end-ampm" required>
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+      </label>
+    </div>
+
+    <div class="grid two match-date-time-grid">
+      <label>
+        Voting deadline date
+        <input id="match-vote-deadline-date" type="date" required />
+      </label>
+
+      <label>
+        Voting deadline time
+        <div class="ampm-time-row">
+          <select id="match-vote-deadline-hour" required></select>
+          <span>:</span>
+          <select id="match-vote-deadline-minute" required></select>
+          <select id="match-vote-deadline-ampm" required>
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+      </label>
+    </div>
+
+    <p class="hint">
+      Players can change votes until this deadline. Default is 24 hours before match start.
+    </p>
+
+    <label>
+      Invite Players
+      <div id="match-invite-options" class="checkbox-list">
+        Loading members...
+      </div>
+    </label>
+
+    <label>
+      Notes
+      <input name="notes" placeholder="Optional notes..." />
+    </label>
+
+    <div class="modal-actions">
+      <button class="secondary-btn full" id="match-cancel-btn" type="button">Cancel</button>
+      <button class="primary-btn full" id="match-submit-btn" type="submit">Create Match</button>
+    </div>
+  </form>
+</dialog>
 
 
+  <dialog id="externalPlayerModal" class="modal">
+    <form method="dialog" id="externalPlayerForm" class="modal-card">
+      <button class="close" value="cancel" type="submit">×</button>
+      <h3>Add External Players</h3>
+
+      <p class="hint" id="external-player-match-label">
+        Select existing external players, or create a new external profile.
+      </p>
+
+      <label>
+        Existing External Players
+        <div id="external-player-options" class="checkbox-list external-picker-list">
+          Loading external players...
+        </div>
+      </label>
+
+      <div class="actions">
+        <button id="add-selected-external-btn" class="primary-btn" type="button">
+          Add Selected
+        </button>
+      </div>
+
+      <div class="external-new-box">
+        <h3>New External Player</h3>
+
+        <label>
+          Display name
+          <input id="new-external-name" type="text" placeholder="Joe">
+        </label>
+
+        <label>
+          Phone optional
+          <input id="new-external-phone" type="tel" placeholder="+961...">
+        </label>
+
+        <label>
+          Email optional
+          <input id="new-external-email" type="email" placeholder="joe@example.com">
+        </label>
+
+        <button id="create-external-player-btn" class="secondary-btn full" type="button">
+          Create External Profile
+        </button>
+      </div>
+    </form>
+  </dialog>
 
 
+  <dialog id="teamModal" class="modal">
+    <form method="dialog" id="teamForm" class="modal-card team-modal-card">
+      <button class="close" value="cancel" type="submit">×</button>
+      <h3 id="team-modal-title">Assign Teams</h3>
+
+      <p class="hint" id="team-match-label">
+        Assign IN players to teams.
+      </p>
+
+      <div class="grid two">
+        <label>
+          Team A name
+          <input id="team-a-name" type="text" value="Team A">
+        </label>
+
+        <label>
+          Team B name
+          <input id="team-b-name" type="text" value="Team B">
+        </label>
+      </div>
+
+      <div id="team-assignment-list" class="team-assignment-list">
+        Loading players...
+      </div>
+
+      <div id="team-balance-status" class="team-balance-status">
+        Team A: 0 • Team B: 0
+      </div>
+
+      <div id="team-rating-status" class="team-rating-status">
+        Ratings: Team A 0 • Team B 0
+      </div>
+
+      <div id="formation-status" class="formation-status">
+        Formation: assign teams first.
+      </div>
+
+      <div id="suggested-formation-summary" class="suggested-formation-summary" style="display:none;"></div>
+
+      <div id="captain-selectors" class="captain-selectors" style="display:none;">
+        <label>
+          Team A Captain
+          <select id="team-a-captain">
+            <option value="">Select captain</option>
+          </select>
+        </label>
+
+        <label>
+          Team B Captain
+          <select id="team-b-captain">
+            <option value="">Select captain</option>
+          </select>
+        </label>
+      </div>
+
+      <button id="suggest-teams-btn" class="secondary-btn full" type="button">
+        Suggest Balanced Teams / Formation
+      </button>
+
+      <button id="reset-team-assignment-btn" class="secondary-btn full" type="button">
+        Reset Assignments
+      </button>
+
+      <button id="save-teams-btn" class="primary-btn full" type="button">
+        Save Teams
+      </button>
+    </form>
+  </dialog>
 
 
+  <dialog id="scoreModal" class="modal">
+    <form method="dialog" id="scoreForm" class="modal-card score-modal-card">
+      <button class="close" value="cancel" type="submit">×</button>
+      <h3>Add Result</h3>
+
+      <p class="hint" id="score-match-label">
+        Enter the final score.
+      </p>
+
+      <div id="simple-score-section">
+        <div class="grid two">
+          <label>
+            <span id="score-team-a-label">Team A score</span>
+            <input id="score-team-a" type="number" min="0" step="1" value="0">
+          </label>
+
+          <label>
+            <span id="score-team-b-label">Team B score</span>
+            <input id="score-team-b" type="number" min="0" step="1" value="0">
+          </label>
+        </div>
+      </div>
+
+      <div id="padel-score-section" style="display:none;">
+        <p class="hint">
+          A match is the booking/session. Inside it, add a new game or continue a pending game.
+        </p>
+
+        <div class="grid two">
+          <label>
+            Game action
+            <select id="padel-game-mode">
+              <option value="new">New Game</option>
+              <option value="continue">Edit / Continue Game</option>
+            </select>
+          </label>
+
+          <label id="padel-pending-game-label" style="display:none;">
+            Existing / Pending Game
+            <select id="padel-pending-game"></select>
+          </label>
+        </div>
+
+        <label>
+          Game title
+          <input id="padel-game-title" type="text" placeholder="Game 1">
+        </label>
+
+        <p class="hint">
+          Each padel game is best of 3 sets. Valid completed sets include 6-0 to 6-4, 7-5, 7-6 tie-break, or 8-6 / 9-7 advantage sets.
+        </p>
+
+        <div class="padel-set-grid padel-set-head">
+          <span>Set</span>
+          <span id="padel-team-a-head">Team A</span>
+          <span id="padel-team-b-head">Team B</span>
+          <span>Done</span>
+        </div>
+
+        <div id="padel-set-list">
+          <div class="padel-set-grid">
+            <span>1</span>
+            <input id="padel-set-1-a" type="number" min="0" step="1" value="">
+            <input id="padel-set-1-b" type="number" min="0" step="1" value="">
+            <input id="padel-set-1-completed" type="checkbox">
+          </div>
+
+          <div class="padel-set-grid">
+            <span>2</span>
+            <input id="padel-set-2-a" type="number" min="0" step="1" value="">
+            <input id="padel-set-2-b" type="number" min="0" step="1" value="">
+            <input id="padel-set-2-completed" type="checkbox">
+          </div>
+
+          <div class="padel-set-grid">
+            <span>3</span>
+            <input id="padel-set-3-a" type="number" min="0" step="1" value="">
+            <input id="padel-set-3-b" type="number" min="0" step="1" value="">
+            <input id="padel-set-3-completed" type="checkbox">
+          </div>
+        </div>
+
+        <div id="padel-score-preview" class="score-preview">
+          Sets: 0 - 0
+        </div>
+      </div>
+
+      <label>
+        Match summary / notes
+        <textarea id="score-summary" rows="4" placeholder="Optional match summary..."></textarea>
+      </label>
+
+      <label>
+        Result photo
+        <input id="score-result-photo" type="file" accept="image/png,image/jpeg,image/webp">
+      </label>
+
+      <div id="score-result-photo-preview" class="match-result-photo-preview"></div>
+
+      <div class="actions score-actions">
+        <button id="save-game-btn" class="secondary-btn" type="button">
+          Save Game
+        </button>
+
+        <button id="delete-game-btn" class="secondary-btn danger-btn" type="button">
+          Delete Game
+        </button>
+
+        <button id="save-score-btn" class="primary-btn" type="button">
+          Finalize Match Result
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="activityModal" class="modal">
+    <form method="dialog" id="activityForm" class="modal-card">
+      <button class="close" id="activity-modal-close" value="cancel" type="button">×</button>
+      <h3>Log Activity</h3>
+
+      <label>Sport
+        <select id="activity-sport" name="sport_id" required>
+          <option value="">Select sport</option>
+        </select>
+      </label>
+
+      <label>Activity
+        <input id="activity-title" name="title" required placeholder="5 km run, gym session, padel practice..." />
+      </label>
+
+      <label>Date
+        <input id="activity-date" name="activity_date" type="date" required />
+      </label>
+
+      <div class="grid two">
+        <label>Start time
+          <div class="ampm-time-row">
+            <select id="activity-start-hour" required></select>
+            <span>:</span>
+            <select id="activity-start-minute" required></select>
+            <select id="activity-start-ampm" required>
+              <option>AM</option>
+              <option>PM</option>
+            </select>
+          </div>
+        </label>
+
+        <label>End time
+          <div class="ampm-time-row">
+            <select id="activity-end-hour" required></select>
+            <span>:</span>
+            <select id="activity-end-minute" required></select>
+            <select id="activity-end-ampm" required>
+              <option>AM</option>
+              <option>PM</option>
+            </select>
+          </div>
+        </label>
+      </div>
+
+      <label>Proof upload
+        <input id="activity-proof-file" name="proof_file" type="file" accept="image/*,.pdf" required />
+      </label>
+
+      <label>Notes
+        <textarea id="activity-notes" name="notes" rows="3" placeholder="Optional context: distance, calories, app used, teammates, gym check-in..."></textarea>
+      </label>
+
+      <p id="activity-points-preview" class="hint">Select sport and time to preview points.</p>
+
+      <div class="modal-actions">
+        <button class="secondary-btn full" id="activity-cancel-btn" type="button">Cancel</button>
+        <button class="primary-btn full" type="submit">Submit for Approval</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="push-toast" class="push-toast" role="status" aria-live="polite" hidden></div>
+
+<dialog id="ratingHistoryModal" class="modal wide-modal">
+  <form method="dialog" class="modal-card">
+    <div class="modal-head">
+      <div>
+        <h3 id="rating-history-title">Rating History</h3>
+        <p id="rating-history-subtitle" class="hint">Position rating changes by match.</p>
+      </div>
+      <button class="icon-btn modal-close-btn" value="cancel" aria-label="Close rating history">×</button>
+    </div>
+
+    <div class="grid two">
+      <label>
+        Position
+        <select id="rating-history-position-filter">
+          <option value="all">All positions</option>
+          <option value="GK">GK</option>
+          <option value="DEF">DEF</option>
+          <option value="MID">MID</option>
+          <option value="ATT">ATT</option>
+        </select>
+      </label>
+
+      <label>
+        Sort
+        <select id="rating-history-sort">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="ratingHistoryList" class="rating-history-list">
+      Select a player to view history.
+    </div>
+  </form>
+</dialog>
 
 
-    
-<div class="frame-stats-grid" ><div class="matches-glance" ><div class="frame-wrapper" ><div class="frame-2" ></div></div>
-<img class="stadium" src="svg/stadium.svg" />
-<div class="text-wrapper-6" >Matches</div>
-<div class="frame-3" ><div class="frame-4" ><img class="img-2" src="svg/racquetball.svg" />
-<div class="text-wrapper-7" >2</div></div>
-<div class="frame-5" ><img class="img-2" src="svg/soccer-player.svg" />
-<div class="text-wrapper-7" >2</div></div>
-<div class="frame-6" ><img class="img-2" src="svg/tennis-player.svg" />
-<div class="text-wrapper-8" >2</div></div>
-<div class="frame-7" ><img class="img-2" src="svg/netball.svg" />
-<div class="text-wrapper-9" >2</div></div></div>
-<div class="div-wrapper" ><div class="frame-8" ><div class="text-wrapper-10" >54</div>
-<div class="text-wrapper-11" >vs last week</div>
-<div class="text-wrapper-12" >+23 ↑21%</div></div></div></div>
-<div class="verified-activities" ><div class="frame-wrapper" ><div class="frame-2" ></div></div>
-<div class="text-wrapper-13" >Verified Activities</div>
-<div class="frame-9" ><div class="sports-matches-frame" ><div class="text-wrapper-14" >1</div>
-<img class="running" src="svg/running.svg" /></div>
-<div class="frame-5" ><img class="img-2" src="svg/swimming.svg" />
-<div class="text-wrapper-7" >2</div></div>
-<div class="frame-6" ><img class="img-2" src="svg/weightlifting.svg" />
-<div class="text-wrapper-8" >2</div></div>
-<div class="frame-7" ><img class="walking" src="svg/walking.svg" />
-<div class="text-wrapper-9" >2</div></div></div>
-<img class="protect" src="svg/protect.svg" />
-<div class="frame-10" ><div class="frame-11" ><div class="text-wrapper-15" >7</div>
-<div class="text-wrapper-11" >vs last week</div>
-<p class="element" ><span class="span" >-10 ↓15%</span>
-<span class="text-wrapper-16" ></span></p></div></div></div>
-<div class="ranks-glance" ><div class="frame-wrapper" ><div class="frame-2" ></div></div>
-<div class="text-wrapper-6" >Ranking</div>
-<img class="leaderboard" src="svg/leaderboard.svg" />
-<div class="frame-12" ><div class="frame-13" ><div class="text-wrapper-17" >22</div>
-<div class="text-wrapper-18" >vs last week</div>
-<div class="text-wrapper-19" >+2 positions</div></div></div>
-<div class="pos-location" ><div class="player" ><div class="text-wrapper-20" >🥇</div>
-<img class="ellipse-2" src="img/image.png" /></div>
-<div class="player-2" ><div class="text-wrapper-20" >🥈</div>
-<img class="ellipse-2" src="img/ellipse-2.png" /></div>
-<div class="player-3" ><div class="text-wrapper-20" >🥉</div>
-<img class="ellipse-2" src="img/ellipse-2-2.png" /></div></div></div>
-<div class="points-glance" ><div class="frame-wrapper" ><div class="frame-2" ></div></div>
-<div class="text-wrapper-6" >Points</div>
-<img class="hand-drawn-star" src="svg/hand-drawn-star.svg" />
-<div class="frame-14" ><div class="frame-15" ><div class="text-wrapper-21" >2 450 pts</div>
-<div class="text-wrapper-22" >550 pts left</div>
-<div class="text-wrapper-23" >of 3 000 pts</div></div>
-<div class="text-wrapper-24" >+25 pts this week</div>
-<div class="frame-16" ></div></div></div></div></div>
-<script>
-  const ABA_SUPABASE_URL = "https://welleqrjtlullhbdhive.supabase.co";
-  const ABA_SUPABASE_KEY = "sb_publishable_e_Pu1JLmyXBKJnMvR5guXQ_GzvFcdK-";
-  const abaSupabase = window.supabase?.createClient(ABA_SUPABASE_URL, ABA_SUPABASE_KEY);
-  const abaShell = document.getElementById("abaAppShell");
-  const abaLoginForm = document.getElementById("abaLoginForm");
-  const abaLoginMessage = document.getElementById("abaLoginMessage");
-  const abaMemberName = document.getElementById("abaMemberName");
-  const abaMemberAvatar = document.getElementById("abaMemberAvatar");
+<dialog id="playerProfileModal" class="modal wide-modal">
+  <form method="dialog" class="modal-card player-profile-modal-card">
+    <div class="modal-head">
+      <div>
+        <h3 id="player-profile-title">Player Profile</h3>
+        <p id="player-profile-subtitle" class="hint">Points, ratings, and recent matches.</p>
+      </div>
+      <button class="icon-btn modal-close-btn" value="cancel" aria-label="Close player profile">×</button>
+    </div>
 
-  function abaSetMessage(message, isOk = false) {
-    if (!abaLoginMessage) return;
-    if (isOk) {
-      abaLoginMessage.textContent = "";
-      return;
-    }
-    abaLoginMessage.textContent = message || "";
-    abaLoginMessage.style.color = isOk ? "#31e57d" : "#ff6b75";
-  }
+    <div id="playerProfileContent" class="player-profile-content">
+      Select a player to view profile.
+    </div>
+  </form>
+</dialog>
 
-  function abaMemberDisplayName(member, user) {
-    const fullName = [member?.first_name, member?.last_name].filter(Boolean).join(" ").trim();
-    return member?.display_name || fullName || "Member";
-  }
 
-  async function abaLoadMember(user) {
-    if (!abaSupabase || !user) return null;
-    let { data, error } = await abaSupabase
-      .from("members")
-      .select("id,display_name,first_name,last_name,email,avatar_url")
-      .eq("id", user.id)
-      .maybeSingle();
-    if (!data && user.email) {
-      const fallback = await abaSupabase
-        .from("members")
-        .select("id,display_name,first_name,last_name,email,avatar_url")
-        .ilike("email", user.email)
-        .maybeSingle();
-      data = fallback.data;
-      error = fallback.error;
-    }
-    if (error) console.warn("Could not load ABA member profile", error);
-    return data;
-  }
+<dialog id="avatarViewerModal" aria-label="Profile photo preview">
+  <img id="avatar-viewer-img" alt="">
+</dialog>
 
-  async function abaApplySession(session) {
-    if (!abaShell) return;
-    if (!session?.user) {
-      abaShell.classList.add("is-logged-out");
-      abaShell.classList.remove("is-logged-in");
-      return;
-    }
 
-    abaShell.classList.remove("is-logged-out");
-    abaShell.classList.add("is-logged-in");
-    if (abaMemberName) abaMemberName.textContent = " Member";
-    const member = await Promise.race([
-      abaLoadMember(session.user),
-      new Promise(resolve => setTimeout(() => resolve(null), 4500)),
-    ]);
-    const displayName = abaMemberDisplayName(member, session.user);
-    if (abaMemberName) abaMemberName.textContent = ` ${displayName}`;
-    if (abaMemberAvatar) {
-      abaMemberAvatar.src = member?.avatar_url || session.user.user_metadata?.avatar_url || "img/ellipse-1.png";
-    }
-    abaSetMessage("");
-  }
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="js/supabase-client.js?v=1"></script>
+  <script defer src="js/auth.js?v=1"></script>
+  <script defer src="js/admin.js?v=1"></script>
+  <script defer src="js/venues.js?v=1"></script>
+  <script defer src="js/leagues.js?v=1"></script>
+  <script defer src="js/matches.js?v=2"></script>
+  <script defer src="js/teams.js?v=1"></script>
+  <script defer src="js/scoring.js?v=1"></script>
+  <script defer src="js/utils.js?v=1"></script>
+  <script defer src="app.js?v=238"></script>
+  <script defer src="js/utils-runtime-bridge.js?v=1"></script>
+  <script defer src="js/auth-runtime-bridge.js?v=1"></script>
 
-  async function abaSignIn(event) {
-    event.preventDefault();
-    if (!abaSupabase) {
-      abaSetMessage("Supabase client did not load.");
-      return;
-    }
-    abaSetMessage("");
-    const email = document.getElementById("abaLoginEmail")?.value.trim();
-    const password = document.getElementById("abaLoginPassword")?.value;
-    const { data, error } = await abaSupabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      abaSetMessage(error.message);
-      return;
-    }
-    await abaApplySession(data.session);
-  }
+  <script>
+    (function () {
+      const titles = {
+        dashboard: "Weekly Stats",
+        activities: "Activities",
+        matches: "Matches",
+        leagues: "Leagues",
+        rankings: "All Rankings",
+        account: "Account Management",
+        admin: "Admin Area"
+      };
 
-  async function abaSignUp() {
-    if (!abaSupabase) {
-      abaSetMessage("Supabase client did not load.");
-      return;
-    }
-    const email = document.getElementById("abaLoginEmail")?.value.trim();
-    const password = document.getElementById("abaLoginPassword")?.value;
-    if (!email || !password) {
-      abaSetMessage("Enter email and password first.");
-      return;
-    }
-    abaSetMessage("Creating account...", true);
-    const { error } = await abaSupabase.auth.signUp({ email, password });
-    abaSetMessage(error ? error.message : "Account created. Check email if confirmation is required.", !error);
-  }
+      const shell = document.getElementById("abaAppShell");
+      const viewTitle = document.getElementById("appViewTitle");
+      const memberName = document.getElementById("abaMemberName");
+      const memberAvatar = document.getElementById("abaMemberAvatar");
+      const currentUser = document.getElementById("current-user");
+      const authLoggedOut = document.getElementById("auth-logged-out");
+      let syncFrame = null;
 
-  document.querySelectorAll(".nav-tabs-frame .home-type-menu").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      document.querySelectorAll(".nav-tabs-frame .home-type-menu").forEach((item) => {
-        item.classList.toggle("nav-tab-active", item === tab);
+      function activeViewIdForShell() {
+        return document.querySelector(".view.active-view")?.id || "dashboard";
+      }
+
+      function syncTitle() {
+        const viewId = activeViewIdForShell();
+        const nextTitle = titles[viewId] || "Weekly Stats";
+        if (viewTitle && viewTitle.textContent !== nextTitle) {
+          viewTitle.textContent = nextTitle;
+        }
+      }
+
+      function syncIdentity() {
+        const loggedOutVisible = authLoggedOut && getComputedStyle(authLoggedOut).display !== "none";
+        shell?.classList.toggle("is-logged-out", Boolean(loggedOutVisible));
+        shell?.classList.toggle("is-logged-in", !loggedOutVisible);
+
+        const name = currentUser?.querySelector(".logged-display-name")?.textContent?.trim() || "";
+        const nextName = name ? ` ${name}` : "";
+        if (memberName && memberName.textContent !== nextName) {
+          memberName.textContent = nextName;
+        }
+
+        const avatarImg = currentUser?.querySelector("img");
+        const avatar = avatarImg?.getAttribute("src") || "";
+        if (memberAvatar && avatar) {
+          if (memberAvatar.getAttribute("src") !== avatar) {
+            memberAvatar.src = avatar;
+          }
+          memberAvatar.classList.add("avatar-view-trigger");
+          memberAvatar.dataset.avatarUrl = avatar;
+          memberAvatar.dataset.avatarName = name || "Member";
+          memberAvatar.setAttribute("role", "button");
+          memberAvatar.setAttribute("tabindex", "0");
+          memberAvatar.alt = name ? `${name} profile photo` : "Member profile photo";
+        } else if (memberAvatar) {
+          memberAvatar.classList.remove("avatar-view-trigger");
+          delete memberAvatar.dataset.avatarUrl;
+          delete memberAvatar.dataset.avatarName;
+          memberAvatar.removeAttribute("role");
+          memberAvatar.removeAttribute("tabindex");
+          memberAvatar.alt = "Member avatar";
+        }
+      }
+
+      function syncShell() {
+        syncFrame = null;
+        syncTitle();
+        syncIdentity();
+      }
+
+      function requestSyncShell() {
+        if (syncFrame) return;
+        const schedule = window.requestAnimationFrame || (callback => setTimeout(callback, 16));
+        syncFrame = schedule(syncShell);
+      }
+
+      document.addEventListener("click", event => {
+        if (event.target?.closest?.(".nav-tabs-frame .tab")) {
+          requestSyncShell();
+        }
       });
-    });
-  });
 
-  abaLoginForm?.addEventListener("submit", abaSignIn);
-  document.getElementById("abaSignupBtn")?.addEventListener("click", abaSignUp);
-  abaSupabase?.auth.getSession().then(({ data }) => abaApplySession(data.session));
-  abaSupabase?.auth.onAuthStateChange((_event, session) => abaApplySession(session));
-</script>
+      window.addEventListener("hashchange", requestSyncShell);
+      window.addEventListener("load", () => {
+        window.scrollTo(0, 0);
+        requestSyncShell();
+      });
+      requestSyncShell();
+      setTimeout(requestSyncShell, 600);
+      setTimeout(requestSyncShell, 1600);
+      window.syncAbaShell = requestSyncShell;
+    })();
+  </script>
 </body>
 </html>
