@@ -3089,6 +3089,8 @@ function renderStats() {
   renderHomeSnapshot();
   renderLegacyHomeMatchesCard();
   renderLegacyHomeActivitiesCard();
+  renderLegacyHomeRankingCard();
+  renderLegacyHomePointsCard();
 }
 
 function homeApprovedActivities() {
@@ -3169,6 +3171,69 @@ function homeRankingRows() {
     row.totalPoints += standaloneActivityPoints(activity);
     table.set(memberId, row);
   });
+
+  return Array.from(table.values()).sort((a, b) =>
+    b.totalPoints - a.totalPoints ||
+    b.wins - a.wins ||
+    b.matches - a.matches ||
+    a.name.localeCompare(b.name)
+  );
+}
+
+function homeRankingRowsAsOf(asOfMs) {
+  const table = new Map();
+
+  (allMatches || [])
+    .filter(match => !isCancelledMatch(match) && hasSubmittedScore(match))
+    .filter(match => {
+      const time = new Date(match.start_time || 0).getTime();
+      return Number.isFinite(time) && time <= asOfMs;
+    })
+    .forEach(match => {
+      (match.match_member_points || []).forEach(point => {
+        const memberId = cleanUuidValue(point.member_id);
+        const member = rankingMemberForId(memberId, point.member);
+        if (!memberId || !member) return;
+
+        const row = table.get(memberId) || {
+          memberId,
+          member,
+          name: memberDisplayName(member),
+          totalPoints: 0,
+          matches: 0,
+          wins: 0
+        };
+        const result = teamResultForMember(match, memberId).result || "participated";
+
+        row.totalPoints += pointTotalPoints(point);
+        row.matches += 1;
+        if (result === "win") row.wins += 1;
+        table.set(memberId, row);
+      });
+    });
+
+  (allMemberActivities || [])
+    .filter(activity => activity.status === "approved")
+    .filter(activity => {
+      const time = new Date(activity.activity_date || activity.created_at || 0).getTime();
+      return Number.isFinite(time) && time <= asOfMs;
+    })
+    .forEach(activity => {
+      const memberId = cleanUuidValue(activity.member_id);
+      if (!memberId) return;
+
+      const row = table.get(memberId) || {
+        memberId,
+        member: rankingMemberForId(memberId, activity.members),
+        name: rankingMemberName(memberId, activity.members),
+        totalPoints: 0,
+        matches: 0,
+        wins: 0
+      };
+
+      row.totalPoints += standaloneActivityPoints(activity);
+      table.set(memberId, row);
+    });
 
   return Array.from(table.values()).sort((a, b) =>
     b.totalPoints - a.totalPoints ||
@@ -3427,6 +3492,187 @@ function renderLegacyHomeActivitiesCard() {
     deltaNode.style.textShadow = "0 0 10px rgba(255, 95, 103, .14)";
   } else {
     deltaNode.style.color = "rgba(238, 246, 255, .72)";
+    deltaNode.style.textShadow = "none";
+  }
+}
+
+function homeRankingDeltaMeta(currentRank, previousRank) {
+  const current = Number(currentRank || 0);
+  const previous = Number(previousRank || 0);
+
+  if (!current || !previous) {
+    return { text: "no change", tone: "neutral" };
+  }
+
+  const delta = Math.abs(current - previous);
+  if (!delta) {
+    return { text: "no change", tone: "neutral" };
+  }
+
+  if (current < previous) {
+    return { text: `+${delta} positions`, tone: "positive" };
+  }
+
+  return { text: `-${delta} positions`, tone: "negative" };
+}
+
+function setHomeRankingAvatar(node, member) {
+  if (!node) return;
+
+  const memberId = cleanUuidValue(member?.id);
+  node.onclick = null;
+  node.onkeydown = null;
+  node.removeAttribute("role");
+  node.removeAttribute("tabindex");
+
+  const avatarUrl = String(member?.avatar_url || "").trim();
+  if (avatarUrl) {
+    node.src = avatarUrl;
+    node.alt = `${memberDisplayName(member)} profile photo`;
+  } else {
+    node.src = "assets/icons/icon-192.png";
+    node.alt = `${memberDisplayName(member) || "Member"} profile photo`;
+  }
+
+  if (memberId) {
+    node.setAttribute("role", "button");
+    node.setAttribute("tabindex", "0");
+    node.onclick = () => openPlayerProfile(memberId);
+    node.onkeydown = event => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openPlayerProfile(memberId);
+      }
+    };
+  }
+}
+
+function renderLegacyHomeRankingCard() {
+  const rankNode = $("homeRankingCurrentRank");
+  const deltaNode = $("homeRankingWeeklyDelta");
+  const top1Node = $("homeRankingTop1Avatar");
+  const top2Node = $("homeRankingTop2Avatar");
+  const top3Node = $("homeRankingTop3Avatar");
+
+  if (!rankNode || !deltaNode || !top1Node || !top2Node || !top3Node) return;
+
+  const memberId = cleanUuidValue(currentProfile?.id);
+  const currentRows = homeRankingRows();
+  const previousWeek = homePreviousWeekBounds();
+  const previousRows = homeRankingRowsAsOf(previousWeek.endMs);
+
+  const currentRankIndex = currentRows.findIndex(row => cleanUuidValue(row.memberId) === memberId);
+  const previousRankIndex = previousRows.findIndex(row => cleanUuidValue(row.memberId) === memberId);
+  const currentRank = currentRankIndex >= 0 ? currentRankIndex + 1 : 0;
+  const previousRank = previousRankIndex >= 0 ? previousRankIndex + 1 : 0;
+  const delta = homeRankingDeltaMeta(currentRank, previousRank);
+
+  rankNode.textContent = currentRank ? String(currentRank) : "-";
+  deltaNode.textContent = delta.text;
+
+  if (delta.tone === "positive") {
+    deltaNode.style.color = "#2EE582";
+    deltaNode.style.textShadow = "0 0 10px rgba(46, 229, 130, .14)";
+  } else if (delta.tone === "negative") {
+    deltaNode.style.color = "#FF5F67";
+    deltaNode.style.textShadow = "0 0 10px rgba(255, 95, 103, .14)";
+  } else {
+    deltaNode.style.color = "rgba(238, 246, 255, .72)";
+    deltaNode.style.textShadow = "none";
+  }
+
+  setHomeRankingAvatar(top1Node, currentRows[0]?.member);
+  setHomeRankingAvatar(top2Node, currentRows[1]?.member);
+  setHomeRankingAvatar(top3Node, currentRows[2]?.member);
+}
+
+function playerProfileStatsAsOf(memberId, asOfMs) {
+  const cleanId = cleanUuidValue(memberId);
+  const stats = {
+    totalPoints: 0,
+    basePoints: 0,
+    bonusPoints: 0
+  };
+
+  if (!cleanId) return stats;
+
+  (allMatches || [])
+    .filter(match => !isCancelledMatch(match) && hasSubmittedScore(match))
+    .filter(match => {
+      const time = new Date(match.start_time || 0).getTime();
+      return Number.isFinite(time) && time <= asOfMs;
+    })
+    .forEach(match => {
+      const point = (match.match_member_points || []).find(row => cleanUuidValue(row.member_id) === cleanId);
+      if (!point) return;
+
+      const total = pointTotalPoints(point);
+      const activity = Number(point.activity_points ?? point.base_points ?? 0);
+      const score = Number(point.score_points ?? point.consistency_bonus ?? 0);
+
+      stats.totalPoints += total;
+      stats.basePoints += activity;
+      stats.bonusPoints += score;
+    });
+
+  (allMemberActivities || [])
+    .filter(activity => cleanUuidValue(activity.member_id) === cleanId)
+    .filter(activity => activity.status === "approved")
+    .filter(activity => {
+      const time = new Date(activity.activity_date || activity.created_at || 0).getTime();
+      return Number.isFinite(time) && time <= asOfMs;
+    })
+    .forEach(activity => {
+      const points = standaloneActivityPoints(activity);
+      stats.totalPoints += points;
+      stats.basePoints += points;
+    });
+
+  return stats;
+}
+
+function renderLegacyHomePointsCard() {
+  const totalNode = $("homePointsTotal");
+  const activityNode = $("homePointsActivityTotal");
+  const scoreNode = $("homePointsScoreTotal");
+  const deltaNode = $("homePointsWeeklyDelta");
+
+  if (!totalNode || !activityNode || !scoreNode || !deltaNode) return;
+
+  const memberId = cleanUuidValue(currentProfile?.id);
+  if (!memberId) {
+    totalNode.textContent = "0 pts";
+    activityNode.textContent = "0 active pts";
+    scoreNode.textContent = "0 score pts";
+    deltaNode.textContent = "no change";
+    deltaNode.style.color = "#93A7BF";
+    deltaNode.style.textShadow = "none";
+    return;
+  }
+
+  const current = playerProfileStats(memberId);
+  const previousWeek = homePreviousWeekBounds();
+  const previous = playerProfileStatsAsOf(memberId, previousWeek.endMs);
+  const weeklyDelta = Number(current.totalPoints || 0) - Number(previous.totalPoints || 0);
+  const weeklyPct = Number(current.totalPoints || 0) > 0
+    ? Math.round(Math.abs((weeklyDelta / Number(current.totalPoints || 0)) * 100))
+    : 0;
+
+  totalNode.textContent = `${formatPointValue(current.totalPoints)} pts`;
+  activityNode.textContent = `${formatPointValue(current.basePoints)} active pts`;
+  scoreNode.textContent = `${formatPointValue(current.bonusPoints)} score pts`;
+
+  if (weeklyDelta > 0) {
+    deltaNode.textContent = `+${formatPointValue(weeklyDelta)} ↑${weeklyPct}%`;
+    deltaNode.style.color = "#2EE582";
+    deltaNode.style.textShadow = "0 0 10px rgba(46, 229, 130, .14)";
+  } else if (weeklyDelta < 0) {
+    deltaNode.textContent = `-${formatPointValue(Math.abs(weeklyDelta))} ↓${weeklyPct}%`;
+    deltaNode.style.color = "#FF5F67";
+    deltaNode.style.textShadow = "0 0 10px rgba(255, 95, 103, .14)";
+  } else {
+    deltaNode.textContent = "no change";
+    deltaNode.style.color = "#93A7BF";
     deltaNode.style.textShadow = "none";
   }
 }
