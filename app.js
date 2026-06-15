@@ -3087,6 +3087,8 @@ function renderStats() {
   if (!shouldRenderView("dashboard")) return;
 
   renderHomeSnapshot();
+  renderLegacyHomeMatchesCard();
+  renderLegacyHomeActivitiesCard();
 }
 
 function homeApprovedActivities() {
@@ -3236,6 +3238,197 @@ function homeMatchesBetween(startMs, endMs) {
       return Number.isFinite(time) && time >= startMs && time <= endMs;
     })
     .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+}
+
+function homePreviousWeekBounds() {
+  const { startMs, endMs } = homeThisWeekBounds();
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  return {
+    startMs: startMs - weekMs,
+    endMs: endMs - weekMs
+  };
+}
+
+function memberPlayedMatch(match, memberId = currentProfile?.id) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  if (!match || !cleanMemberId || isCancelledMatch(match)) return false;
+
+  const startMs = new Date(match.start_time || 0).getTime();
+  if (!Number.isFinite(startMs) || startMs > Date.now()) return false;
+
+  if ((match.match_member_points || []).some(point => cleanUuidValue(point.member_id) === cleanMemberId)) {
+    return true;
+  }
+
+  return userIsInMatch(match, cleanMemberId);
+}
+
+function homePlayedMatchesBetween(startMs, endMs, memberId = currentProfile?.id) {
+  return homeMatchesBetween(startMs, endMs)
+    .filter(match => memberPlayedMatch(match, memberId));
+}
+
+function matchSportNameLower(match) {
+  return String(match?.sports?.name || sportNameById(match?.sport_id) || "").trim().toLowerCase();
+}
+
+function homeSportMatchCount(matches, keywords = []) {
+  return (matches || []).filter(match => {
+    const sport = matchSportNameLower(match);
+    return (keywords || []).some(keyword => sport.includes(String(keyword || "").toLowerCase()));
+  }).length;
+}
+
+function homeMatchesWeeklyDeltaText(currentWeekMatches, previousWeekMatches) {
+  const tmcw = Number(currentWeekMatches || 0);
+  const tmpw = Number(previousWeekMatches || 0);
+  const x = tmcw - tmpw;
+  const pct = tmcw > 0 ? Math.abs((x / tmcw) * 100) : 0;
+  const roundedPct = Math.round(pct);
+
+  if (x > 0) return `+${x} ↑${roundedPct}%`;
+  if (x < 0) return `-${Math.abs(x)} ↓${roundedPct}%`;
+  return "0";
+}
+
+function homeMatchesWeeklyDeltaMeta(currentWeekMatches, previousWeekMatches) {
+  const tmcw = Number(currentWeekMatches || 0);
+  const tmpw = Number(previousWeekMatches || 0);
+  const x = tmcw - tmpw;
+  const pct = tmcw > 0 ? Math.abs((x / tmcw) * 100) : 0;
+  const roundedPct = Math.round(pct);
+
+  if (x > 0) {
+    return {
+      text: `+${x} ↑${roundedPct}%`,
+      tone: "positive"
+    };
+  }
+
+  if (x < 0) {
+    return {
+      text: `-${Math.abs(x)} ↓${roundedPct}%`,
+      tone: "negative"
+    };
+  }
+
+  return {
+    text: "0",
+    tone: "neutral"
+  };
+}
+
+function renderLegacyHomeMatchesCard() {
+  const memberId = cleanUuidValue(currentProfile?.id);
+  const padelNode = $("homeMatchesPadelCount");
+  const soccerNode = $("homeMatchesSoccerCount");
+  const tennisNode = $("homeMatchesTennisCount");
+  const basketballNode = $("homeMatchesBasketballCount");
+  const totalNode = $("homeMatchesTotalCount");
+  const deltaNode = $("homeMatchesWeeklyDelta");
+
+  if (!padelNode || !soccerNode || !tennisNode || !basketballNode || !totalNode || !deltaNode) return;
+
+  if (!memberId) {
+    [padelNode, soccerNode, tennisNode, basketballNode, totalNode].forEach(node => {
+      node.textContent = "0";
+    });
+    deltaNode.textContent = "0";
+    return;
+  }
+
+  const currentWeek = homeThisWeekBounds();
+  const previousWeek = homePreviousWeekBounds();
+  const currentWeekPlayed = homePlayedMatchesBetween(currentWeek.startMs, currentWeek.endMs, memberId);
+  const previousWeekPlayed = homePlayedMatchesBetween(previousWeek.startMs, previousWeek.endMs, memberId);
+
+  padelNode.textContent = String(homeSportMatchCount(currentWeekPlayed, ["padel"]));
+  soccerNode.textContent = String(homeSportMatchCount(currentWeekPlayed, ["soccer", "football"]));
+  tennisNode.textContent = String(homeSportMatchCount(currentWeekPlayed, ["tennis"]));
+  basketballNode.textContent = String(homeSportMatchCount(currentWeekPlayed, ["basketball"]));
+  totalNode.textContent = String(currentWeekPlayed.length);
+  const delta = homeMatchesWeeklyDeltaMeta(currentWeekPlayed.length, previousWeekPlayed.length);
+  deltaNode.textContent = delta.text;
+
+  if (delta.tone === "positive") {
+    deltaNode.style.color = "#2EE582";
+    deltaNode.style.textShadow = "0 0 10px rgba(46, 229, 130, .14)";
+  } else if (delta.tone === "negative") {
+    deltaNode.style.color = "#FF5F67";
+    deltaNode.style.textShadow = "0 0 10px rgba(255, 95, 103, .14)";
+  } else {
+    deltaNode.style.color = "rgba(238, 246, 255, .72)";
+    deltaNode.style.textShadow = "none";
+  }
+}
+
+function activitySportNameLower(activity) {
+  return String(activity?.sports?.name || sportNameById(activity?.sport_id) || "").trim().toLowerCase();
+}
+
+function homeOwnApprovedActivitiesBetween(startMs, endMs) {
+  const memberId = cleanUuidValue(currentProfile?.id);
+  if (!memberId) return [];
+
+  return homeActivitiesBetween(
+    startMs,
+    endMs,
+    homeOwnActivities().filter(activity => activity.status === "approved")
+  ).filter(activity => cleanUuidValue(activity.member_id) === memberId);
+}
+
+function homeSportActivityCount(activities, keywords = []) {
+  return (activities || []).filter(activity => {
+    const sport = activitySportNameLower(activity);
+    return (keywords || []).some(keyword => sport.includes(String(keyword || "").toLowerCase()));
+  }).length;
+}
+
+function renderLegacyHomeActivitiesCard() {
+  const runNode = $("homeActivitiesRunCount");
+  const swimNode = $("homeActivitiesSwimCount");
+  const workoutNode = $("homeActivitiesWorkoutCount");
+  const walkNode = $("homeActivitiesWalkCount");
+  const totalNode = $("homeActivitiesTotalCount");
+  const deltaNode = $("homeActivitiesWeeklyDelta");
+
+  if (!runNode || !swimNode || !workoutNode || !walkNode || !totalNode || !deltaNode) return;
+
+  const memberId = cleanUuidValue(currentProfile?.id);
+  if (!memberId) {
+    [runNode, swimNode, workoutNode, walkNode, totalNode].forEach(node => {
+      node.textContent = "0";
+    });
+    deltaNode.textContent = "0";
+    deltaNode.style.color = "rgba(238, 246, 255, .72)";
+    deltaNode.style.textShadow = "none";
+    return;
+  }
+
+  const currentWeek = homeThisWeekBounds();
+  const previousWeek = homePreviousWeekBounds();
+  const currentWeekActivities = homeOwnApprovedActivitiesBetween(currentWeek.startMs, currentWeek.endMs);
+  const previousWeekActivities = homeOwnApprovedActivitiesBetween(previousWeek.startMs, previousWeek.endMs);
+
+  runNode.textContent = String(homeSportActivityCount(currentWeekActivities, ["run", "running"]));
+  swimNode.textContent = String(homeSportActivityCount(currentWeekActivities, ["swim", "swimming"]));
+  workoutNode.textContent = String(homeSportActivityCount(currentWeekActivities, ["gym", "workout", "fitness", "weightlifting"]));
+  walkNode.textContent = String(homeSportActivityCount(currentWeekActivities, ["walk", "walking"]));
+  totalNode.textContent = String(currentWeekActivities.length);
+
+  const delta = homeMatchesWeeklyDeltaMeta(currentWeekActivities.length, previousWeekActivities.length);
+  deltaNode.textContent = delta.text;
+
+  if (delta.tone === "positive") {
+    deltaNode.style.color = "#2EE582";
+    deltaNode.style.textShadow = "0 0 10px rgba(46, 229, 130, .14)";
+  } else if (delta.tone === "negative") {
+    deltaNode.style.color = "#FF5F67";
+    deltaNode.style.textShadow = "0 0 10px rgba(255, 95, 103, .14)";
+  } else {
+    deltaNode.style.color = "rgba(238, 246, 255, .72)";
+    deltaNode.style.textShadow = "none";
+  }
 }
 
 function homeActivitiesBetween(startMs, endMs, activities = homeApprovedActivities()) {

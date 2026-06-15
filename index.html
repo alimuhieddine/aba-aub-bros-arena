@@ -51,7 +51,7 @@
       top: 0;
       left: 0;
       width: 100%;
-      min-width: 430px;
+      max-width: 430px;
       height: 100dvh;
       min-height: 932px;
       background: #000;
@@ -343,14 +343,15 @@
       bottom: 0;
       overflow-x: hidden;
       overflow-y: auto;
-      padding: 2px;
+      padding: 2px 4px calc(26px + env(safe-area-inset-bottom, 0px));
       box-sizing: border-box;
       -webkit-overflow-scrolling: touch;
+      overscroll-behavior-y: contain;
     }
 
     .aba-tab-content .view {
       display: none;
-      padding: 0 0 28px;
+      padding: 0 0 calc(56px + env(safe-area-inset-bottom, 0px));
     }
 
     .aba-tab-content .view.active-view {
@@ -364,7 +365,8 @@
 
     .aba-tab-content .view > .section-head:first-child {
       justify-content: flex-end;
-      margin: 0 0 10px;
+      align-items: center;
+      margin: 0 0 12px;
     }
 
     #activities > .section-head:first-child,
@@ -372,9 +374,17 @@
     #leagues > .section-head:first-child {
       position: fixed;
       top: 222px;
-      right: 4px;
+      right: 8px;
       z-index: 7;
       margin: 0;
+    }
+
+    #rankings > .section-head:first-child,
+    #account > .section-head:first-child,
+    #admin > .section-head:first-child {
+      margin: 0 4px 12px;
+      min-height: 28px;
+      align-items: center;
     }
 
     #activities {
@@ -576,6 +586,7 @@
       font-weight: 700;
       line-height: 1;
       box-shadow: inset 0 0 0 1px rgba(49, 168, 255, .08), 0 6px 16px rgba(49, 168, 255, .1);
+      white-space: nowrap;
     }
 
     #leagues,
@@ -3875,28 +3886,134 @@
     .iphone-pro-max #dashboard .verified-activities,
     .iphone-pro-max #dashboard .ranks-glance,
     .iphone-pro-max #dashboard .points-glance {
+      width: 100% !important;
+      height: 100% !important;
+      min-width: 0 !important;
+      min-height: 0 !important;
+      max-width: 100% !important;
+      max-height: 100% !important;
+      align-self: stretch !important;
+      justify-self: stretch !important;
       border-radius: 10px !important;
-      box-shadow: 0 4px 4px 0 rgba(0, 0, 0, .25) !important;
+      overflow: hidden !important;
+      box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, .04),
+        0 8px 18px rgba(0, 0, 0, .28),
+        0 0 18px rgba(49, 168, 255, .06) !important;
     }
 
     .iphone-pro-max #dashboard .matches-glance {
       border: 1px solid #31A8FF !important;
       background: linear-gradient(305deg, rgba(16, 30, 48, .96) 21.08%, rgba(8, 17, 30, .98) 87.67%) !important;
+      box-shadow:
+        inset 0 0 0 1px rgba(49, 168, 255, .08),
+        0 10px 22px rgba(0, 0, 0, .28),
+        0 0 22px rgba(49, 168, 255, .18),
+        0 0 0 1px rgba(49, 168, 255, .18) !important;
     }
 
     .iphone-pro-max #dashboard .verified-activities {
       border: 1px solid #2EE582 !important;
       background: linear-gradient(312deg, rgba(16, 30, 48, .96) 21.29%, rgba(8, 17, 30, .98) 77.28%) !important;
+      box-shadow:
+        inset 0 0 0 1px rgba(46, 229, 130, .08),
+        0 10px 22px rgba(0, 0, 0, .28),
+        0 0 22px rgba(46, 229, 130, .16),
+        0 0 0 1px rgba(46, 229, 130, .16) !important;
     }
 
     .iphone-pro-max #dashboard .ranks-glance {
       border: 1px solid #A35CFF !important;
       background: linear-gradient(312deg, rgba(16, 30, 48, .96) 2.22%, rgba(8, 17, 30, .98) 97.78%) !important;
+      box-shadow:
+        inset 0 0 0 1px rgba(163, 92, 255, .08),
+        0 10px 22px rgba(0, 0, 0, .28),
+        0 0 22px rgba(163, 92, 255, .17),
+        0 0 0 1px rgba(163, 92, 255, .16) !important;
     }
 
     .iphone-pro-max #dashboard .points-glance {
       border: 1px solid #FFD166 !important;
       background: linear-gradient(312deg, rgba(16, 30, 48, .96) 2.49%, rgba(8, 17, 30, .98) 97.51%) !important;
+      box-shadow:
+        inset 0 0 0 1px rgba(255, 209, 102, .08),
+        0 10px 22px rgba(0, 0, 0, .28),
+        0 0 22px rgba(255, 209, 102, .16),
+        0 0 0 1px rgba(255, 209, 102, .15) !important;
+    }
+
+    .iphone-pro-max #dashboard .frame-stats-grid {
+      gap: 6px;
+      padding: 4px 4px 8px;
+      min-height: 484px;
+      overflow: visible;
+    }
+
+    .iphone-pro-max #dashboard .frame-wrapper {
+      opacity: .58;
+    }
+
+    .iphone-pro-max #dashboard .frame-13 {
+      width: 100px !important;
+      min-height: 106px;
+      margin-top: -21px !important;
+      gap: 4px !important;
+      overflow: visible;
+    }
+
+    .iphone-pro-max #dashboard .ranks-glance .frame-13 {
+      transform: translateY(-18px);
+    }
+
+    .iphone-pro-max #dashboard .ranks-glance .pos-location {
+      transform: translateY(8px);
+    }
+
+    .iphone-pro-max #dashboard .frame-12 {
+      height: auto !important;
+      top: calc(50% + 7px) !important;
+      right: 10px !important;
+      overflow: visible;
+    }
+
+    .iphone-pro-max #dashboard .text-wrapper-17 {
+      height: 64px !important;
+      margin-top: 0 !important;
+      padding-top: 2px;
+      align-items: flex-start !important;
+      line-height: .9 !important;
+      overflow: visible;
+    }
+
+    .iphone-pro-max #dashboard .text-wrapper-10,
+    .iphone-pro-max #dashboard .text-wrapper-15,
+    .iphone-pro-max #dashboard .text-wrapper-17,
+    .iphone-pro-max #dashboard .text-wrapper-21 {
+      letter-spacing: -.01em;
+      text-rendering: geometricPrecision;
+    }
+
+    .iphone-pro-max #dashboard .text-wrapper-10 {
+      height: 62px !important;
+      overflow: visible;
+    }
+
+    .iphone-pro-max #dashboard .text-wrapper-11,
+    .iphone-pro-max #dashboard .text-wrapper-18,
+    .iphone-pro-max #dashboard .text-wrapper-22 {
+      color: rgba(147, 167, 191, .9) !important;
+    }
+
+    .iphone-pro-max #dashboard .text-wrapper-12,
+    .iphone-pro-max #dashboard .text-wrapper-19,
+    .iphone-pro-max #dashboard .text-wrapper-24 {
+      text-shadow: 0 0 10px rgba(46, 229, 130, .08);
+    }
+
+    .aba-tab-content::after {
+      content: "";
+      display: block;
+      height: calc(18px + env(safe-area-inset-bottom, 0px));
     }
 
     @media (max-width: 390px) {
@@ -4040,30 +4157,30 @@
           <img class="stadium" src="svg/stadium.svg" />
           <div class="text-wrapper-6">Matches</div>
           <div class="frame-3"><div class="frame-4"><img class="img-2" src="svg/racquetball.svg" />
-          <div class="text-wrapper-7">2</div></div>
+          <div class="text-wrapper-7" id="homeMatchesPadelCount">0</div></div>
           <div class="frame-5"><img class="img-2" src="svg/soccer-player.svg" />
-          <div class="text-wrapper-7">2</div></div>
+          <div class="text-wrapper-7" id="homeMatchesSoccerCount">0</div></div>
           <div class="frame-6"><img class="img-2" src="svg/tennis-player.svg" />
-          <div class="text-wrapper-8">2</div></div>
+          <div class="text-wrapper-8" id="homeMatchesTennisCount">0</div></div>
           <div class="frame-7"><img class="img-2" src="svg/netball.svg" />
-          <div class="text-wrapper-9">2</div></div></div>
-          <div class="div-wrapper"><div class="frame-8"><div class="text-wrapper-10">54</div>
+          <div class="text-wrapper-9" id="homeMatchesBasketballCount">0</div></div></div>
+          <div class="div-wrapper"><div class="frame-8"><div class="text-wrapper-10" id="homeMatchesTotalCount">0</div>
           <div class="text-wrapper-11">vs last week</div>
-          <div class="text-wrapper-12">+23 ↑21%</div></div></div></div>
+          <div class="text-wrapper-12" id="homeMatchesWeeklyDelta">0</div></div></div></div>
           <div class="verified-activities"><div class="frame-wrapper"><div class="frame-2"></div></div>
           <div class="text-wrapper-13">Verified Activities</div>
-          <div class="frame-9"><div class="sports-matches-frame"><div class="text-wrapper-14">1</div>
-          <img class="running" src="svg/running.svg" /></div>
+          <div class="frame-9"><div class="sports-matches-frame"><img class="running" src="svg/running.svg" />
+          <div class="text-wrapper-14" id="homeActivitiesRunCount">0</div></div>
           <div class="frame-5"><img class="img-2" src="svg/swimming.svg" />
-          <div class="text-wrapper-7">2</div></div>
+          <div class="text-wrapper-7" id="homeActivitiesSwimCount">0</div></div>
           <div class="frame-6"><img class="img-2" src="svg/weightlifting.svg" />
-          <div class="text-wrapper-8">2</div></div>
+          <div class="text-wrapper-8" id="homeActivitiesWorkoutCount">0</div></div>
           <div class="frame-7"><img class="walking" src="svg/walking.svg" />
-          <div class="text-wrapper-9">2</div></div></div>
+          <div class="text-wrapper-9" id="homeActivitiesWalkCount">0</div></div></div>
           <img class="protect" src="svg/protect.svg" />
-          <div class="frame-10"><div class="frame-11"><div class="text-wrapper-15">7</div>
+          <div class="frame-10"><div class="frame-11"><div class="text-wrapper-15" id="homeActivitiesTotalCount">0</div>
           <div class="text-wrapper-11">vs last week</div>
-          <p class="element"><span class="span">-10 ↓15%</span><span class="text-wrapper-16"></span></p></div></div></div>
+          <p class="element"><span class="span" id="homeActivitiesWeeklyDelta">0</span><span class="text-wrapper-16"></span></p></div></div></div>
           <div class="ranks-glance"><div class="frame-wrapper"><div class="frame-2"></div></div>
           <div class="text-wrapper-6">Ranking</div>
           <img class="leaderboard" src="svg/leaderboard.svg" />
@@ -5267,7 +5384,7 @@
         shell?.classList.toggle("is-logged-in", !loggedOutVisible);
 
         const name = currentUser?.querySelector(".logged-display-name")?.textContent?.trim() || "";
-        const nextName = name ? ` ${name}` : "";
+        const nextName = name || "";
         if (memberName && memberName.textContent !== nextName) {
           memberName.textContent = nextName;
         }
