@@ -12,7 +12,7 @@
   width: 91px;
   height: 91px;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   position: absolute;
   top: 23px;
   right: 4px;
@@ -211,12 +211,12 @@
   height: 30px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .iphone-pro-max .img-2 {
   position: relative;
-  width: auto;
+  width: 30px;
   height: 30px;
   margin-bottom: 0;
   object-fit: contain;
@@ -231,7 +231,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  width: 44px;
+  width: 40px;
   height: 30px;
   justify-content: flex-end;
   font-family: "Roboto-Medium", Helvetica;
@@ -250,7 +250,7 @@
   height: 30px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .iphone-pro-max .frame-6 {
@@ -261,12 +261,12 @@
   height: 30px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .iphone-pro-max .text-wrapper-8 {
   position: relative;
-  width: 44px;
+  width: 40px;
   height: 30px;
   justify-content: flex-end;
   color: #ffffff;
@@ -287,7 +287,7 @@
   height: 30px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .iphone-pro-max .matches-volleyball-row {
@@ -298,12 +298,12 @@
   height: 30px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .iphone-pro-max .volleyball-stat-icon {
   position: relative;
-  width: auto;
+  width: 30px;
   height: 30px;
   margin-bottom: 0;
   aspect-ratio: auto;
@@ -313,7 +313,7 @@
 
 .iphone-pro-max .text-wrapper-9 {
   position: relative;
-  width: 44px;
+  width: 40px;
   height: 30px;
   justify-content: flex-end;
   color: #ffffff;
@@ -457,7 +457,7 @@
   height: 30px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .iphone-pro-max .text-wrapper-14 {
@@ -466,7 +466,7 @@
   top: auto;
   left: auto;
   align-items: center;
-  width: 44px;
+  width: 40px;
   height: 30px;
   justify-content: flex-end;
   color: #ffffff;
@@ -480,7 +480,7 @@
 
 .iphone-pro-max .running {
   position: relative;
-  width: auto;
+  width: 30px;
   height: 30px;
   margin-bottom: 0;
   object-fit: contain;
@@ -490,7 +490,7 @@
 
 .iphone-pro-max .walking {
   position: relative;
-  width: auto;
+  width: 30px;
   height: 30px;
   object-fit: contain;
   margin-bottom: 0;
