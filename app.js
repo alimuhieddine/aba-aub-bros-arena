@@ -3297,6 +3297,82 @@ function homeUpcomingSportTone(match) {
   return { color: "#93A7BF", name: "default" };
 }
 
+function homeUpcomingToneShadow(toneColor, fallback = "blue") {
+  const shadows = {
+    "#2EE582": {
+      border: "rgba(46, 229, 130, .92)",
+      outer: "rgba(46, 229, 130, .28)",
+      glow: "rgba(46, 229, 130, .40)",
+      outline: "rgba(46, 229, 130, .14)"
+    },
+    "#FFD166": {
+      border: "rgba(255, 209, 102, .92)",
+      outer: "rgba(255, 209, 102, .28)",
+      glow: "rgba(255, 209, 102, .40)",
+      outline: "rgba(255, 209, 102, .14)"
+    },
+    "#FF9F3A": {
+      border: "rgba(255, 167, 69, .92)",
+      outer: "rgba(255, 167, 69, .28)",
+      glow: "rgba(255, 167, 69, .40)",
+      outline: "rgba(255, 167, 69, .14)"
+    },
+    "#FF5F67": {
+      border: "rgba(255, 95, 103, .92)",
+      outer: "rgba(255, 95, 103, .28)",
+      glow: "rgba(255, 95, 103, .40)",
+      outline: "rgba(255, 95, 103, .14)"
+    },
+    "#93A7BF": {
+      border: "rgba(147, 167, 191, .92)",
+      outer: "rgba(147, 167, 191, .28)",
+      glow: "rgba(147, 167, 191, .40)",
+      outline: "rgba(147, 167, 191, .14)"
+    }
+  };
+
+  const tone = shadows[toneColor] || shadows[(fallback === "green" ? "#2EE582" : fallback === "yellow" ? "#FFD166" : fallback === "orange" ? "#FF9F3A" : fallback === "red" ? "#FF5F67" : "#93A7BF")];
+  return `border: 1px solid ${tone.border} !important; box-shadow: 0 0 0 1px ${tone.outline}, 0 0 18px ${tone.outer}, 0 0 36px ${tone.glow}, inset 0 0 0 1px ${tone.outline} !important; filter: drop-shadow(0 0 10px ${tone.outer}) drop-shadow(0 0 20px ${tone.glow}) !important;`;
+}
+
+function homeUpcomingOrbShadow(toneColor, fallback = "blue") {
+  const shadows = {
+    "#2EE582": {
+      border: "rgba(46, 229, 130, .95)",
+      outer: "rgba(46, 229, 130, .24)",
+      glow: "rgba(46, 229, 130, .36)",
+      inset: "rgba(255, 255, 255, .04)"
+    },
+    "#FFD166": {
+      border: "rgba(255, 209, 102, .95)",
+      outer: "rgba(255, 209, 102, .24)",
+      glow: "rgba(255, 209, 102, .36)",
+      inset: "rgba(255, 255, 255, .04)"
+    },
+    "#FF9F3A": {
+      border: "rgba(255, 167, 69, .95)",
+      outer: "rgba(255, 167, 69, .24)",
+      glow: "rgba(255, 167, 69, .36)",
+      inset: "rgba(255, 255, 255, .04)"
+    },
+    "#FF5F67": {
+      border: "rgba(255, 95, 103, .95)",
+      outer: "rgba(255, 95, 103, .24)",
+      glow: "rgba(255, 95, 103, .36)",
+      inset: "rgba(255, 255, 255, .04)"
+    },
+    "#93A7BF": {
+      border: "rgba(147, 167, 191, .95)",
+      outer: "rgba(147, 167, 191, .24)",
+      glow: "rgba(147, 167, 191, .36)",
+      inset: "rgba(255, 255, 255, .04)"
+    }
+  };
+
+  const tone = shadows[toneColor] || shadows[(fallback === "green" ? "#2EE582" : fallback === "yellow" ? "#FFD166" : fallback === "orange" ? "#FF9F3A" : fallback === "red" ? "#FF5F67" : "#93A7BF")];
+  return `border: 1px solid ${tone.border}; box-shadow: inset 0 0 12px ${tone.inset}, 0 0 0 1px rgba(255,255,255,.02), 0 0 18px ${tone.outer}, 0 0 36px ${tone.glow}; filter: drop-shadow(0 0 10px ${tone.outer}) drop-shadow(0 0 20px ${tone.glow});`;
+}
+
 function homeUpcomingDayLabel(date) {
   const d = new Date(date || 0);
   if (!Number.isFinite(d.getTime())) return "Scheduled";
@@ -3323,10 +3399,11 @@ function homeUpcomingMatchRowHtml(match, index) {
   const dayLabel = homeUpcomingDayLabel(match?.start_time);
   const sportAsset = homeUpcomingSportAsset(match);
   const sportTone = homeUpcomingSportTone(match);
+  const cardStyle = `--sport-accent: ${sportTone.color}; ${homeUpcomingToneShadow(sportTone.color)} background: linear-gradient(305deg, rgba(16, 30, 48, .96) 21.08%, rgba(8, 17, 30, .98) 87.67%);`;
 
   return `
-    <article class="home-upcoming-match-card home-dashboard-card" style="--sport-accent: ${sportTone.color};" onclick="openMatchDeepLink('${match.id}')" role="button" tabindex="0" aria-label="Open ${escapeHtml(match.title || sport)}">
-      <div class="home-upcoming-match-orb home-upcoming-match-orb-${index}" style="--sport-accent: ${sportTone.color};">
+    <article class="home-upcoming-match-card home-dashboard-card" style="${escapeHtml(cardStyle)}" onclick="openMatchDeepLink('${match.id}')" role="button" tabindex="0" aria-label="Open ${escapeHtml(match.title || sport)}">
+      <div class="home-upcoming-match-orb home-upcoming-match-orb-${index}" style="--sport-accent: ${sportTone.color}; ${homeUpcomingOrbShadow(sportTone.color)}">
         <img src="${escapeHtml(sportAsset)}" alt="${escapeHtml(sport)} icon">
       </div>
 
@@ -3353,7 +3430,7 @@ function renderHomeUpcomingMatchesSection() {
 
   if (!upcoming.length) {
     box.innerHTML = `
-      <article class="home-upcoming-match-card home-dashboard-card home-upcoming-empty">
+      <article class="home-upcoming-match-card home-dashboard-card home-upcoming-empty" style="${escapeHtml(homeUpcomingToneShadow('#93A7BF'))} background: linear-gradient(305deg, rgba(16, 30, 48, .96) 21.08%, rgba(8, 17, 30, .98) 87.67%);">
         <div></div>
         <div class="home-upcoming-match-body">
           <div class="home-upcoming-match-title">No upcoming matches yet</div>
@@ -9458,6 +9535,15 @@ function renderMatchCardHtml(match) {
     const canVoteThisMatch = Boolean(invitation || isCreator || isAdmin);
     const conflictingVoteMatch = !userIsIn && votingOpen ? voteInTimeConflict(match) : null;
     const teamsAssigned = matchHasTeamsAssigned(match);
+    const matchTone = sportTitleIconConfig(match.sports?.name || "")?.tone || "blue";
+    const matchStyleMap = {
+      blue: "border: 2px solid rgba(49, 168, 255, .86); box-shadow: 0 0 0 1px rgba(49, 168, 255, .14), 0 0 18px rgba(49, 168, 255, .28), 0 0 36px rgba(49, 168, 255, .18), inset 0 0 0 1px rgba(49, 168, 255, .08), 0 0 18px rgba(49, 168, 255, .18); outline: 1px solid rgba(49, 168, 255, .12); outline-offset: 0; filter: drop-shadow(0 0 10px rgba(49, 168, 255, .18)) drop-shadow(0 0 20px rgba(49, 168, 255, .08));",
+      green: "border: 2px solid rgba(36, 209, 126, .86); box-shadow: 0 0 0 1px rgba(36, 209, 126, .14), 0 0 18px rgba(36, 209, 126, .28), 0 0 36px rgba(36, 209, 126, .18), inset 0 0 0 1px rgba(36, 209, 126, .08), 0 0 18px rgba(36, 209, 126, .18); outline: 1px solid rgba(36, 209, 126, .12); outline-offset: 0; filter: drop-shadow(0 0 10px rgba(36, 209, 126, .18)) drop-shadow(0 0 20px rgba(36, 209, 126, .08));",
+      yellow: "border: 2px solid rgba(255, 209, 102, .86); box-shadow: 0 0 0 1px rgba(255, 209, 102, .14), 0 0 18px rgba(255, 209, 102, .28), 0 0 36px rgba(255, 209, 102, .18), inset 0 0 0 1px rgba(255, 209, 102, .08), 0 0 18px rgba(255, 209, 102, .18); outline: 1px solid rgba(255, 209, 102, .12); outline-offset: 0; filter: drop-shadow(0 0 10px rgba(255, 209, 102, .18)) drop-shadow(0 0 20px rgba(255, 209, 102, .08));",
+      orange: "border: 2px solid rgba(255, 167, 69, .86); box-shadow: 0 0 0 1px rgba(255, 167, 69, .14), 0 0 18px rgba(255, 167, 69, .28), 0 0 36px rgba(255, 167, 69, .18), inset 0 0 0 1px rgba(255, 167, 69, .08), 0 0 18px rgba(255, 167, 69, .18); outline: 1px solid rgba(255, 167, 69, .12); outline-offset: 0; filter: drop-shadow(0 0 10px rgba(255, 167, 69, .18)) drop-shadow(0 0 20px rgba(255, 167, 69, .08));",
+      red: "border: 2px solid rgba(255, 95, 103, .86); box-shadow: 0 0 0 1px rgba(255, 95, 103, .14), 0 0 18px rgba(255, 95, 103, .28), 0 0 36px rgba(255, 95, 103, .18), inset 0 0 0 1px rgba(255, 95, 103, .08), 0 0 18px rgba(255, 95, 103, .18); outline: 1px solid rgba(255, 95, 103, .12); outline-offset: 0; filter: drop-shadow(0 0 10px rgba(255, 95, 103, .18)) drop-shadow(0 0 20px rgba(255, 95, 103, .08));"
+    };
+    const matchStyle = matchStyleMap[matchTone] || matchStyleMap.blue;
     const leagueName = leagueNameForId(match.league_id) || match.leagues?.name || match.match_type || "-";
     const durationText = formatProfileDurationMinutes(Math.max(0, Math.round(matchDurationHours(match) * 60)));
     const noticesHtml = renderMatchNotice({
@@ -9469,7 +9555,7 @@ function renderMatchCardHtml(match) {
     });
 
     return `
-      <article id="match-${escapeHtml(match.id)}" class="card match-card" data-match-id="${escapeHtml(match.id)}">
+      <article id="match-${escapeHtml(match.id)}" class="card match-card match-card-tone-${escapeHtml(matchTone)}" style="${escapeHtml(matchStyle)}" data-match-id="${escapeHtml(match.id)}">
         <div class="row">
           <div>
             <h3 class="match-title-row">
@@ -16385,6 +16471,7 @@ function activityCard(a, compact = false) {
   const durationMinutes = Number(a.duration_minutes ?? a.durationMinutes ?? 0);
   const memberName = a.members ? memberDisplayName(a.members) : (a.player || "Player");
   const sportName = a.sports?.name || a.sport || sportNameById(a.sport_id) || "Sport";
+  const sportTone = sportTitleIconConfig(sportName)?.tone || "blue";
   const title = a.title || a.activity || "Activity";
   const classification = classifyActivity(a);
   const points = standaloneActivityPoints(a);
@@ -16418,7 +16505,7 @@ function activityCard(a, compact = false) {
     : "";
 
   return `
-    <article class="card">
+    <article class="card activity-card activity-card-tone-${escapeHtml(sportTone)}">
       <div class="row">
         <div>
           <h3 class="activity-title-row">
