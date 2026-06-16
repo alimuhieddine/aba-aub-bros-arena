@@ -3333,6 +3333,22 @@ function homePlayedMatchesBetween(startMs, endMs, memberId = currentProfile?.id)
     .filter(match => memberPlayedMatch(match, memberId));
 }
 
+function isOutsideAppMatchActivity(activity) {
+  const sport = activitySportNameLower(activity);
+  const sports = ["padel", "soccer", "football", "tennis", "basketball", "volleyball"];
+
+  if (!sports.some(keyword => sport.includes(keyword))) return false;
+
+  return !linkedMatchForActivity(activity);
+}
+
+function homeSportMatchEquivalentActivityCount(activities, keywords = []) {
+  return (activities || []).filter(activity => {
+    const sport = activitySportNameLower(activity);
+    return (keywords || []).some(keyword => sport.includes(String(keyword || "").toLowerCase()));
+  }).length;
+}
+
 function matchSportNameLower(match) {
   return String(match?.sports?.name || sportNameById(match?.sport_id) || "").trim().toLowerCase();
 }
@@ -3389,13 +3405,14 @@ function renderLegacyHomeMatchesCard() {
   const soccerNode = $("homeMatchesSoccerCount");
   const tennisNode = $("homeMatchesTennisCount");
   const basketballNode = $("homeMatchesBasketballCount");
+  const volleyballNode = $("homeMatchesVolleyballCount");
   const totalNode = $("homeMatchesTotalCount");
   const deltaNode = $("homeMatchesWeeklyDelta");
 
-  if (!padelNode || !soccerNode || !tennisNode || !basketballNode || !totalNode || !deltaNode) return;
+  if (!padelNode || !soccerNode || !tennisNode || !basketballNode || !volleyballNode || !totalNode || !deltaNode) return;
 
   if (!memberId) {
-    [padelNode, soccerNode, tennisNode, basketballNode, totalNode].forEach(node => {
+    [padelNode, soccerNode, tennisNode, basketballNode, volleyballNode, totalNode].forEach(node => {
       node.textContent = "0";
     });
     deltaNode.textContent = "0";
@@ -3406,13 +3423,43 @@ function renderLegacyHomeMatchesCard() {
   const previousWeek = homePreviousWeekBounds();
   const currentWeekPlayed = homePlayedMatchesBetween(currentWeek.startMs, currentWeek.endMs, memberId);
   const previousWeekPlayed = homePlayedMatchesBetween(previousWeek.startMs, previousWeek.endMs, memberId);
+  const currentWeekOutsideActivities = homeOwnApprovedActivitiesBetween(currentWeek.startMs, currentWeek.endMs)
+    .filter(isOutsideAppMatchActivity);
+  const previousWeekOutsideActivities = homeOwnApprovedActivitiesBetween(previousWeek.startMs, previousWeek.endMs)
+    .filter(isOutsideAppMatchActivity);
 
-  padelNode.textContent = String(homeSportMatchCount(currentWeekPlayed, ["padel"]));
-  soccerNode.textContent = String(homeSportMatchCount(currentWeekPlayed, ["soccer", "football"]));
-  tennisNode.textContent = String(homeSportMatchCount(currentWeekPlayed, ["tennis"]));
-  basketballNode.textContent = String(homeSportMatchCount(currentWeekPlayed, ["basketball"]));
-  totalNode.textContent = String(currentWeekPlayed.length);
-  const delta = homeMatchesWeeklyDeltaMeta(currentWeekPlayed.length, previousWeekPlayed.length);
+  const currentWeekPadelCount = homeSportMatchCount(currentWeekPlayed, ["padel"])
+    + homeSportMatchEquivalentActivityCount(currentWeekOutsideActivities, ["padel"]);
+  const currentWeekSoccerCount = homeSportMatchCount(currentWeekPlayed, ["soccer", "football"])
+    + homeSportMatchEquivalentActivityCount(currentWeekOutsideActivities, ["soccer", "football"]);
+  const currentWeekTennisCount = homeSportMatchCount(currentWeekPlayed, ["tennis"])
+    + homeSportMatchEquivalentActivityCount(currentWeekOutsideActivities, ["tennis"]);
+  const currentWeekBasketballCount = homeSportMatchCount(currentWeekPlayed, ["basketball"])
+    + homeSportMatchEquivalentActivityCount(currentWeekOutsideActivities, ["basketball"]);
+  const currentWeekVolleyballCount = homeSportMatchCount(currentWeekPlayed, ["volleyball"])
+    + homeSportMatchEquivalentActivityCount(currentWeekOutsideActivities, ["volleyball"]);
+
+  const previousWeekPadelCount = homeSportMatchCount(previousWeekPlayed, ["padel"])
+    + homeSportMatchEquivalentActivityCount(previousWeekOutsideActivities, ["padel"]);
+  const previousWeekSoccerCount = homeSportMatchCount(previousWeekPlayed, ["soccer", "football"])
+    + homeSportMatchEquivalentActivityCount(previousWeekOutsideActivities, ["soccer", "football"]);
+  const previousWeekTennisCount = homeSportMatchCount(previousWeekPlayed, ["tennis"])
+    + homeSportMatchEquivalentActivityCount(previousWeekOutsideActivities, ["tennis"]);
+  const previousWeekBasketballCount = homeSportMatchCount(previousWeekPlayed, ["basketball"])
+    + homeSportMatchEquivalentActivityCount(previousWeekOutsideActivities, ["basketball"]);
+  const previousWeekVolleyballCount = homeSportMatchCount(previousWeekPlayed, ["volleyball"])
+    + homeSportMatchEquivalentActivityCount(previousWeekOutsideActivities, ["volleyball"]);
+
+  const currentWeekCombined = currentWeekPadelCount + currentWeekSoccerCount + currentWeekTennisCount + currentWeekBasketballCount + currentWeekVolleyballCount;
+  const previousWeekCombined = previousWeekPadelCount + previousWeekSoccerCount + previousWeekTennisCount + previousWeekBasketballCount + previousWeekVolleyballCount;
+
+  padelNode.textContent = String(currentWeekPadelCount);
+  soccerNode.textContent = String(currentWeekSoccerCount);
+  tennisNode.textContent = String(currentWeekTennisCount);
+  basketballNode.textContent = String(currentWeekBasketballCount);
+  volleyballNode.textContent = String(currentWeekVolleyballCount);
+  totalNode.textContent = String(currentWeekCombined);
+  const delta = homeMatchesWeeklyDeltaMeta(currentWeekCombined, previousWeekCombined);
   deltaNode.textContent = delta.text;
 
   if (delta.tone === "positive") {
@@ -3510,10 +3557,10 @@ function homeRankingDeltaMeta(currentRank, previousRank) {
   }
 
   if (current < previous) {
-    return { text: `+${delta} positions`, tone: "positive" };
+    return { text: `+${delta} position${delta === 1 ? "" : "s"}`, tone: "positive" };
   }
 
-  return { text: `-${delta} positions`, tone: "negative" };
+  return { text: `-${delta} position${delta === 1 ? "" : "s"}`, tone: "negative" };
 }
 
 function setHomeRankingAvatar(node, member) {
