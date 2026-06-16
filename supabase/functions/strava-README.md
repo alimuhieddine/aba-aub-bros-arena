@@ -70,7 +70,9 @@ Auto-approval rules:
 Points formula:
 
 ```text
-points = min(6, calories / weight_kg * 0.30 * 1.20)
+base_points = 3 * intensity_rate * duration_minutes / 90
+bonus_points = clamp((calories / (weight_kg * duration_hours) - 4) / 6, 0, 1)
+points = base_points + bonus_points
 ```
 
 If a member has no saved weight, the import uses 75 kg as a fallback for previewing points, but the activity stays pending for admin review.

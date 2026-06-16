@@ -101,6 +101,12 @@ function pointsFor(minutes: number, setting: { rate: number; cap: number }) {
   return Math.round(Math.min(Number(setting.cap || 3), Math.max(0, raw)) * 100) / 100;
 }
 
+function stravaBasePoints(minutes: number, setting: { rate: number; cap: number }) {
+  const rate = Number(setting.rate || 0);
+  if (!Number.isFinite(minutes) || minutes <= 0 || !Number.isFinite(rate) || rate <= 0) return 0;
+  return Math.round(((minutes / 90) * 3 * rate) * 100) / 100;
+}
+
 function memberWeightKg(connection: any) {
   const direct = Number(connection?.weight_kg || 0);
   const embedded = Number(connection?.member?.weight_kg || 0);
@@ -114,12 +120,22 @@ function hasRecordedWeight(connection: any) {
   return Number.isFinite(weight) && weight >= 30 && weight <= 250;
 }
 
-function stravaActivityPoints(activity: StravaActivity, connection: any) {
+function stravaActivityPoints(activity: StravaActivity, connection: any, setting: { rate: number; cap: number }) {
   const calories = Number(activity.calories || 0);
-  if (!Number.isFinite(calories) || calories <= 0) return 0;
+  const minutes = durationMinutes(activity);
+  const basePoints = stravaBasePoints(minutes, setting);
 
-  const points = (calories / memberWeightKg(connection)) * 0.30 * 1.20;
-  return Math.round(Math.min(6, Math.max(0, points)) * 100) / 100;
+  if (!Number.isFinite(calories) || calories <= 0) return basePoints;
+
+  const hours = minutes / 60;
+  const weight = memberWeightKg(connection);
+  if (!Number.isFinite(hours) || hours <= 0 || !Number.isFinite(weight) || weight <= 0) return basePoints;
+
+  const metEstimate = calories / (weight * hours);
+  const normalized = (metEstimate - 4) / 6;
+  const bonus = Math.max(0, Math.min(1, normalized));
+
+  return Math.round((basePoints + bonus) * 100) / 100;
 }
 
 function verificationForActivity(activity: StravaActivity, minutes: number, connection: any) {
@@ -140,7 +156,7 @@ function verificationForActivity(activity: StravaActivity, minutes: number, conn
   return {
     status: approved ? "approved" : "pending",
     reviewNotes: approved
-      ? `Auto-approved from Strava calories/body-weight formula: ${metrics}.`
+      ? `Auto-approved from Strava duration plus wearable-effort bonus formula: ${metrics}.`
       : `Pending review: Strava metrics did not meet auto-approval rules (${metrics || "missing metrics"}).`
   };
 }
@@ -267,7 +283,11 @@ async function importRecentForConnection(
     const start = startDate(detailedActivity);
     const minutes = durationMinutes(detailedActivity);
     const end = new Date(start.getTime() + minutes * 60000);
-    const points = stravaActivityPoints(detailedActivity, connection);
+    const points = stravaActivityPoints(
+      detailedActivity,
+      connection,
+      settingForSport(sharedSettings, sport.id, sport.name)
+    );
     const distanceKm = Number(detailedActivity.distance || 0) > 0
       ? `${(Number(detailedActivity.distance) / 1000).toFixed(2)} km`
       : "";

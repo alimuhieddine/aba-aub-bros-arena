@@ -4816,13 +4816,14 @@ function homePulseItemHtml(item) {
 
   const activity = item.data;
   const memberName = activity.members ? memberDisplayName(activity.members) : "Player";
+  const points = standaloneActivityPoints(activity);
 
   return `
     <article class="card home-pulse-card">
       <div>
         <h3>${memberMiniIdentityHtml(activity.members, activity.member_id, memberName)} - ${escapeHtml(activity.title || "Activity")}</h3>
         <div class="meta">${escapeHtml(activity.sports?.name || sportNameById(activity.sport_id) || "Sport")} - ${formatProfileDurationMinutes(activity.duration_minutes)}</div>
-        <div class="meta">${formatPointValue(activity.activity_points)} activity pts</div>
+        <div class="meta">${formatPointValue(points)} activity pts</div>
       </div>
       <span class="pill green">Activity</span>
     </article>
@@ -6074,6 +6075,19 @@ function queueMatchEnrichment() {
     try {
       await attachMatchPositionRatingAdjustments();
       await attachSoccerPerformanceAssessments();
+
+      const openRacketMatchesNeedingDetails = (allMatches || [])
+        .filter(match =>
+          isMatchFormationOpen(match.id) &&
+          isRacketRatingMatch(match) &&
+          hasSubmittedScore(match) &&
+          !match.__detailsLoaded
+        )
+        .map(match => match.id);
+
+      for (const matchId of openRacketMatchesNeedingDetails) {
+        await refreshMatch(matchId, { render: false });
+      }
 
       scheduleMatchUiRefresh({ rankings: false });
 
@@ -7946,7 +7960,7 @@ function hasSubmittedScore(match) {
 function renderScoreSummary(match) {
   return ABAScoring.renderScoreSummary(match, {
     hasSubmittedScore,
-    isPadelMatch,
+    isRacketMatch: isRacketRatingMatch,
     escapeHtml
   });
 }
@@ -8571,6 +8585,17 @@ function toggleMatchFormation(matchId) {
 
   ABAMatches.setFormationOpen(matchId, nextOpen);
 
+  if (nextOpen) {
+    const match = (allMatches || []).find(row => cleanUuidValue(row.id) === cleanUuidValue(matchId));
+    if (match && isRacketRatingMatch(match) && hasSubmittedScore(match) && !match.__detailsLoaded) {
+      renderMatches();
+      refreshMatch(matchId, { render: true }).catch(error => {
+        console.warn("Could not load racket match details:", error?.message || error);
+      });
+      return;
+    }
+  }
+
   renderMatches();
 }
 
@@ -8825,11 +8850,13 @@ function formationSectionTitleHtml(match) {
 
 function renderFormationSection(match) {
   const content = renderTeamsSummary(match);
+  const scoreSummary = renderScoreSummary(match);
 
-  if (!content) return "";
+  if (!content && !scoreSummary) return "";
 
   const open = isMatchFormationOpen(match.id);
   const titleHtml = formationSectionTitleHtml(match);
+  const bodyContent = [scoreSummary, content].filter(Boolean).join("");
 
   return `
     <div class="match-formation-section ${open ? "open" : "closed"}">
@@ -8838,7 +8865,7 @@ function renderFormationSection(match) {
         <b>${open ? "▼" : "▶"}</b>
       </button>
 
-      ${open ? `<div class="match-formation-body">${content}</div>` : ""}
+      ${open ? `<div class="match-formation-body">${bodyContent}</div>` : ""}
     </div>
   `;
 }
@@ -8925,7 +8952,10 @@ function renderMatchCardHtml(match) {
       <article id="match-${escapeHtml(match.id)}" class="card match-card" data-match-id="${escapeHtml(match.id)}">
         <div class="row">
           <div>
-            <h3>${escapeHtml(match.title || "Untitled match")}</h3>
+            <h3 class="match-title-row">
+              ${sportTitleIconHtml(match.sports?.name || "")}
+              <span class="match-title-text">${escapeHtml(match.title || "Untitled match")}</span>
+            </h3>
 
             <div class="meta">
               ${escapeHtml(match.sports?.name || "-")}
@@ -8981,8 +9011,6 @@ function renderMatchCardHtml(match) {
                 ? `<div class="meta conflict-warning">Time conflict with: ${escapeHtml(conflictingVoteMatch.title || "another match")}</div>`
                 : ""
             }
-
-            ${renderScoreSummary(match)}
 
             ${renderMatchResultPhoto(match)}
 
@@ -13096,7 +13124,13 @@ async function savePadelGameOnly() {
     gameId,
     gameStatus,
     winnerTeam,
-    score
+    score,
+    validSets: padelResult.validSets,
+    gameTitle,
+    teamAName,
+    teamBName,
+    sportId: match.sport_id,
+    leagueId: match.league_id || null
   };
 }
 
@@ -13121,6 +13155,64 @@ async function saveCurrentGameAndStayOpen() {
   if ($("padel-game-title")) $("padel-game-title").value = `Game ${nextGameNumber}`;
 
   clearPadelSetInputs();
+}
+
+function savedGameToOptimisticSessionRows(savedGame) {
+  if (!savedGame?.gameId) return [];
+
+  return [{
+    id: `optimistic-session-${savedGame.gameId}`,
+    game_id: savedGame.gameId,
+    match_games: {
+      id: savedGame.gameId,
+      sport_id: savedGame.sportId,
+      league_id: savedGame.leagueId || null,
+      title: savedGame.gameTitle || "Game",
+      status: savedGame.gameStatus || "completed",
+      team_a_name: savedGame.teamAName || "Team A",
+      team_b_name: savedGame.teamBName || "Team B",
+      team_a_score: Number(savedGame.score?.teamA || 0),
+      team_b_score: Number(savedGame.score?.teamB || 0),
+      winner_team: savedGame.winnerTeam || null,
+      created_by: currentProfile?.id || null,
+      created_at: new Date().toISOString()
+    }
+  }];
+}
+
+function savedGameToOptimisticScoreRows(matchId, sportId, savedGame) {
+  if (!savedGame?.gameId) return [];
+
+  return (savedGame.validSets || []).map((set, index) => ({
+    id: `optimistic-score-${savedGame.gameId}-${index + 1}`,
+    match_id: matchId,
+    game_id: savedGame.gameId,
+    sport_id: sportId,
+    entry_type: "padel_set",
+    game_number: null,
+    set_number: set.setNumber,
+    team_a_score: set.teamAScore,
+    team_b_score: set.teamBScore,
+    is_completed: set.isCompleted,
+    notes: null
+  }));
+}
+
+function mergeMatchGameSessionsForImmediateRender(existingSessions = [], newSessions = []) {
+  const withoutUpdated = (existingSessions || []).filter(session =>
+    !newSessions.some(nextSession => cleanUuidValue(nextSession.game_id) === cleanUuidValue(session.game_id))
+  );
+
+  return [...withoutUpdated, ...newSessions];
+}
+
+function mergeMatchScoreEntriesForImmediateRender(existingEntries = [], newEntries = []) {
+  const gameIds = [...new Set(newEntries.map(entry => cleanUuidValue(entry.game_id)).filter(Boolean))];
+  const withoutUpdated = (existingEntries || []).filter(entry =>
+    !gameIds.includes(cleanUuidValue(entry.game_id))
+  );
+
+  return [...withoutUpdated, ...newEntries];
 }
 
 
@@ -13512,6 +13604,84 @@ function activityPointsForMatch(match) {
   return Math.round((hours / 0.5) * rate * 100) / 100;
 }
 
+function sportTitleIconConfig(sportName = "") {
+  const text = String(sportName || "").toLowerCase();
+
+  if (text.includes("basket")) return { src: "svg/netball.svg", tone: "orange" };
+  if (text.includes("padel")) return { src: "svg/racquetball.svg", tone: "green" };
+  if (text.includes("run")) return { src: "svg/running.svg", tone: "green" };
+  if (text.includes("soccer") || text.includes("football")) return { src: "svg/soccer-player.svg", tone: "blue" };
+  if (text.includes("swim")) return { src: "svg/swimming.svg", tone: "blue" };
+  if (text.includes("tennis")) return { src: "svg/tennis-player.svg", tone: "yellow" };
+  if (text.includes("walk")) return { src: "svg/walking.svg", tone: "orange" };
+  if (text.includes("gym") || text.includes("weight") || text.includes("strength") || text.includes("workout")) {
+    return { src: "svg/weightlifting.svg", tone: "yellow" };
+  }
+
+  return null;
+}
+
+function sportTitleIconHtml(sportName = "") {
+  const config = sportTitleIconConfig(sportName);
+  if (!config?.src) return "";
+  return `<img class="sport-title-icon sport-title-icon-${escapeHtml(config.tone)}" src="${escapeHtml(config.src)}" alt="" aria-hidden="true">`;
+}
+
+function activityMemberWeightKg(activity) {
+  const embedded = Number(activity?.members?.weight_kg || 0);
+  if (Number.isFinite(embedded) && embedded >= 30 && embedded <= 250) return embedded;
+
+  const member = memberById(activity?.member_id);
+  const resolved = Number(member?.weight_kg || 0);
+  if (Number.isFinite(resolved) && resolved >= 30 && resolved <= 250) return resolved;
+
+  return 75;
+}
+
+function stravaWearableBonusPoints(activity) {
+  if (activity?.source !== STRAVA_ACTIVITY_SOURCE) return 0;
+
+  const payload = activity?.external_payload || {};
+  const calories = Number(payload.calories || 0);
+  const minutes = Number(activity?.duration_minutes || 0);
+  const weightKg = activityMemberWeightKg(activity);
+  const hours = minutes / 60;
+
+  if (
+    !Number.isFinite(calories) || calories <= 0 ||
+    !Number.isFinite(minutes) || minutes <= 0 ||
+    !Number.isFinite(weightKg) || weightKg <= 0 ||
+    !Number.isFinite(hours) || hours <= 0
+  ) {
+    return 0;
+  }
+
+  const metEstimate = calories / (weightKg * hours);
+  const normalized = (metEstimate - 4) / 6;
+  const bonus = Math.max(0, Math.min(MAX_STRAVA_MATCH_ACTIVITY_BONUS, normalized));
+  return Math.round(bonus * 100) / 100;
+}
+
+function stravaStandaloneActivityPoints(activity) {
+  if (activity?.source !== STRAVA_ACTIVITY_SOURCE) {
+    const points = Number(activity?.activity_points || 0);
+    return Number.isFinite(points) ? points : 0;
+  }
+
+  const minutes = Number(activity?.duration_minutes || 0);
+  const sportId = cleanUuidValue(activity?.sport_id);
+  const setting = activitySettingForSport(sportId);
+  const rate = Number(setting.rate ?? DEFAULT_ACTIVITY_RATE);
+
+  if (!Number.isFinite(minutes) || minutes <= 0 || !Number.isFinite(rate) || rate <= 0) {
+    return 0;
+  }
+
+  const basePoints = Math.round(((minutes / 90) * 3 * rate) * 100) / 100;
+  const bonusPoints = stravaWearableBonusPoints(activity);
+  return Math.round((basePoints + bonusPoints) * 100) / 100;
+}
+
 function parseLocalDateTimeMs(value) {
   const text = String(value || "").trim();
   if (!text) return NaN;
@@ -13618,7 +13788,7 @@ function stravaActivityPointsForMatchMember(match, memberId) {
       const minutes = Number(activity.duration_minutes || 0);
       const overlap = overlapMinutes(interval.start, interval.end, windowStart, windowEnd);
       const matchOverlap = overlapMinutes(interval.start, interval.end, matchStart, matchEnd);
-      const points = Number(activity.activity_points || 0);
+      const points = stravaStandaloneActivityPoints(activity);
       const overlapRatio = matchOverlap / Math.max(10, Math.min(matchMinutes, minutes || matchMinutes));
 
       if (
@@ -13674,7 +13844,9 @@ function linkedMatchForActivity(activity) {
 function standaloneActivityPoints(activity) {
   if (linkedMatchForActivity(activity)) return 0;
 
-  const points = Number(activity?.activity_points || 0);
+  const points = activity?.source === STRAVA_ACTIVITY_SOURCE
+    ? stravaStandaloneActivityPoints(activity)
+    : Number(activity?.activity_points || 0);
   return Number.isFinite(points) ? points : 0;
 }
 
@@ -13949,7 +14121,7 @@ async function saveMatchMemberPoints(match) {
   if (!match?.id) return false;
 
   const matchId = cleanUuidValue(match.id);
-  if (isPadelMatch(match)) {
+  if (isRacketRatingMatch(match)) {
     match = await ensureMatchDetails(matchId, { render: false }) || match;
   }
 
@@ -15448,11 +15620,12 @@ async function finalizeCurrentMatchResult() {
   const resultPhotoFile = $("score-result-photo")?.files?.[0] || null;
   let scoreA = Number(teamA.score || 0);
   let scoreB = Number(teamB.score || 0);
+  let savedGame = null;
   const teamAName = teamDisplayName(match, teamA, "Team A");
   const teamBName = teamDisplayName(match, teamB, "Team B");
 
   if (isPadelMatch(match)) {
-    const savedGame = await savePadelGameOnly();
+    savedGame = await savePadelGameOnly();
 
     if (!savedGame) return;
 
@@ -15585,6 +15758,18 @@ async function finalizeCurrentMatchResult() {
     status: "completed",
     score_status: "submitted",
     notes: summary,
+    match_game_sessions: savedGame
+      ? mergeMatchGameSessionsForImmediateRender(
+          match.match_game_sessions || [],
+          savedGameToOptimisticSessionRows(savedGame)
+        )
+      : (match.match_game_sessions || []),
+    match_score_entries: savedGame
+      ? mergeMatchScoreEntriesForImmediateRender(
+          match.match_score_entries || [],
+          savedGameToOptimisticScoreRows(scoreMatchId, match.sport_id, savedGame)
+        )
+      : (match.match_score_entries || []),
     match_teams: (match.match_teams || []).map(team => {
       if (team.id === teamA.id) {
         return {
@@ -15697,12 +15882,7 @@ function commentSection(m) {
 function activityMemberIdentityHtml(member, memberId = "", name = "") {
   const cleanId = cleanUuidValue(memberId || member?.id);
   const displayName = name || (member ? memberDisplayName(member) : "Player");
-  const labelHtml = escapeHtml(displayName);
-  const label = cleanId
-    ? playerLinkHtml(cleanId, displayName, "mini-player-link", labelHtml)
-    : `<span class="mini-player-name">${escapeHtml(displayName)}</span>`;
-
-  return `<span class="mini-player-identity activity-player-identity">${label}</span>`;
+  return memberMiniIdentityHtml(member, cleanId, displayName, "activity-player-identity");
 }
 
 function activityCard(a, compact = false) {
@@ -15713,13 +15893,16 @@ function activityCard(a, compact = false) {
   const memberName = a.members ? memberDisplayName(a.members) : (a.player || "Player");
   const sportName = a.sports?.name || a.sport || sportNameById(a.sport_id) || "Sport";
   const title = a.title || a.activity || "Activity";
-  const points = Number(a.activity_points ?? a.points ?? 0);
+  const points = standaloneActivityPoints(a);
   const isGarminActivity = a.source === GARMIN_ACTIVITY_SOURCE;
   const isStravaActivity = a.source === STRAVA_ACTIVITY_SOURCE;
   const linkedMatch = linkedMatchForActivity(a);
   const linkedMatchPoints = linkedMatch
     ? stravaActivityPointsForMatchMember(linkedMatch, a.member_id)
     : null;
+  const displayedPoints = linkedMatch
+    ? Number(linkedMatchPoints?.points ?? 0)
+    : points;
   const importedSourceName = isGarminActivity ? "Garmin" : isStravaActivity ? "Strava" : "";
   const proofLabel = a.proof_file_name || (importedSourceName ? `${importedSourceName} proof` : a.proof || "proof");
   const activityActions = compact ? [] : [
@@ -15744,18 +15927,27 @@ function activityCard(a, compact = false) {
     <article class="card">
       <div class="row">
         <div>
-          <h3>${memberMiniIdentityHtml(a.members, a.member_id, memberName, "activity-player-identity")} - ${escapeHtml(title)}</h3>
-          <div class="meta">${escapeHtml(sportName)}${durationText} - Activity ${formatPointValue(points)} pts</div>
-          ${linkedMatch ? `
-            <button class="linked-match-tag" type="button" onclick="openLinkedActivityMatch('${linkedMatch.id}')">
-              Linked to ${escapeHtml(linkedMatch.title || linkedMatch.sports?.name || "match")}
-            </button>
-            <div class="meta strava-linked-note">Standalone points set to 0 because ${formatPointValue(linkedMatchPoints?.points ?? points)} pts are counted inside the linked match.</div>
-          ` : ""}
-          <div class="meta">
-            ${escapeHtml(fmtDate(a.activity_date || a.created_at))}
-            ${a.start_time && a.end_time ? ` - ${escapeHtml(a.start_time)}-${escapeHtml(a.end_time)}` : ""}
+          <h3 class="activity-title-row">
+            ${activityMemberIdentityHtml(a.members, a.member_id, memberName)}
+            <span class="activity-title-sep">-</span>
+            ${sportTitleIconHtml(sportName)}
+            <span class="activity-title-text">${escapeHtml(title)}</span>
+          </h3>
+          <div class="meta">${escapeHtml(sportName)}${durationText}</div>
+          <div class="activity-tags">
+            <span class="activity-points-tag">${formatPointValue(displayedPoints)} pts</span>
+            ${
+              linkedMatch
+                ? `<button class="linked-match-tag activity-linked-tag" type="button" onclick="openLinkedActivityMatch('${linkedMatch.id}')">
+                    Counted in ${escapeHtml(linkedMatch.title || linkedMatch.sports?.name || "match")}
+                  </button>`
+                : ""
+            }
           </div>
+          ${linkedMatch ? `
+            <div class="meta strava-linked-note">Standalone activity points are set to 0 because ${formatPointValue(linkedMatchPoints?.points ?? points)} pts are counted inside the linked match.</div>
+          ` : ""}
+          <div class="meta">${escapeHtml(fmtDate(String(a.activity_date || a.created_at).slice(0, 10)))}</div>
           ${stravaActivityDetailsHtml(a)}
           ${a.notes ? `<div class="meta">${escapeHtml(a.notes)}</div>` : ""}
           ${a.proof_path || a.external_url || importedSourceName ? `<button class="link-btn" type="button" onclick="openActivityProof('${a.id}')">Open ${escapeHtml(proofLabel)}</button>` : `<div class="meta">Proof: not attached</div>`}
@@ -16803,7 +16995,7 @@ function playerProfileStats(memberId) {
 
       if (activity.source === STRAVA_ACTIVITY_SOURCE) {
         stats.stravaActivities += 1;
-        if (approved) stats.stravaActivityPoints += Number(activity.activity_points || 0);
+        if (approved) stats.stravaActivityPoints += Number(points || 0);
       }
 
       if (approved) {
@@ -20037,7 +20229,7 @@ if ($("matchForm")) {
     login($("auth-email").value.trim(), $("auth-password").value);
   });
 
-  $("logout-btn")?.addEventListener("click", logout);
+  $("account-logout-btn")?.addEventListener("click", logout);
 
   $("save-soccer-settings-btn")?.addEventListener("click", saveSoccerRatingSettings);
   $("reset-soccer-settings-btn")?.addEventListener("click", resetSoccerRatingSettings);

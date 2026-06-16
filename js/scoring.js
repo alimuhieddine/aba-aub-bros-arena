@@ -27,6 +27,40 @@
         }
       });
 
+    if (!byId.size) {
+      const groupedScoreEntries = new Map();
+
+      (match.match_score_entries || [])
+        .filter(entry => entry?.game_id)
+        .forEach(entry => {
+          const gameId = entry.game_id;
+          if (!groupedScoreEntries.has(gameId)) groupedScoreEntries.set(gameId, []);
+          groupedScoreEntries.get(gameId).push(entry);
+        });
+
+      Array.from(groupedScoreEntries.entries())
+        .sort((a, b) => {
+          const aMinSet = Math.min(...a[1].map(entry => Number(entry.set_number || 99)));
+          const bMinSet = Math.min(...b[1].map(entry => Number(entry.set_number || 99)));
+          return aMinSet - bMinSet;
+        })
+        .forEach(([gameId, entries], index) => {
+          const completedEntries = entries.filter(entry => entry.is_completed);
+          const teamACompletedWins = completedEntries.filter(entry => Number(entry.team_a_score || 0) > Number(entry.team_b_score || 0)).length;
+          const teamBCompletedWins = completedEntries.filter(entry => Number(entry.team_b_score || 0) > Number(entry.team_a_score || 0)).length;
+
+          byId.set(gameId, {
+            id: gameId,
+            title: `Game ${index + 1}`,
+            status: completedEntries.length ? "completed" : "in_progress",
+            winner_team:
+              teamACompletedWins > teamBCompletedWins ? "A" :
+              teamBCompletedWins > teamACompletedWins ? "B" :
+              null
+          });
+        });
+    }
+
     return Array.from(byId.values());
   }
 
@@ -152,7 +186,7 @@
 
   function renderScoreSummary(match, {
     hasSubmittedScore,
-    isPadelMatch,
+    isRacketMatch,
     escapeHtml
   } = {}) {
     if (!hasSubmittedScore?.(match)) return "";
@@ -163,7 +197,7 @@
       .filter(entry => !entry.game_id)
       .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0));
 
-    const padelDetails = isPadelMatch?.(match)
+    const padelDetails = isRacketMatch?.(match)
       ? sessionGames.length
         ? `
           <div class="padel-score-summary">

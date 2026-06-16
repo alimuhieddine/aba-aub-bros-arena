@@ -183,12 +183,15 @@
       width: 224px;
       height: 93px;
       padding: 10px 12px 8px 10px;
-      border: 2px solid #31a8ff;
-      border-radius: 22px;
-      background: #000;
+      border: 1px solid rgba(49, 168, 255, .28);
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(16, 30, 48, .96), rgba(8, 17, 30, .98));
       box-sizing: border-box;
       z-index: 8;
-      box-shadow: inset 0 0 0 1px rgba(49,168,255,.18), 0 0 18px rgba(49,168,255,.12);
+      box-shadow:
+        inset 0 0 0 1px rgba(49, 168, 255, .06),
+        0 10px 22px rgba(0, 0, 0, .22),
+        0 0 18px rgba(49, 168, 255, .10);
     }
 
     .aba-login-card[style*="flex"] {
@@ -198,7 +201,7 @@
     .aba-login-card label {
       display: flex;
       align-items: center;
-      color: #fff;
+      color: rgba(238, 246, 255, .88);
       font-family: Roboto, "Roboto-Medium", Helvetica;
       font-size: 12px;
       font-style: italic;
@@ -209,20 +212,23 @@
       width: 100%;
       height: 23px;
       padding: 0 7px;
-      border: 1px solid rgba(49,168,255,.72);
+      border: 1px solid rgba(49, 168, 255, .34);
       border-radius: 999px;
-      background: #000;
-      color: #fff;
+      background: rgba(2, 10, 20, .88);
+      color: rgba(255, 255, 255, .96);
       font-family: Roboto, Helvetica;
       font-size: 10px;
       font-style: italic;
       outline: none;
       box-sizing: border-box;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.02);
     }
 
     .aba-login-card input:focus {
       border-color: #31a8ff;
-      box-shadow: 0 0 0 2px rgba(49,168,255,.14);
+      box-shadow:
+        inset 0 0 0 1px rgba(49, 168, 255, .06),
+        0 0 0 2px rgba(49,168,255,.14);
     }
 
     .aba-login-actions {
@@ -235,9 +241,9 @@
     .aba-login-actions button {
       min-width: 62px;
       height: 23px;
-      border: 1px solid rgba(49,168,255,.78);
+      border: 1px solid rgba(49,168,255,.45);
       border-radius: 999px;
-      background: rgba(49,168,255,.12);
+      background: rgba(49,168,255,.10);
       color: #fff;
       font-family: Roboto, "Roboto-Medium", Helvetica;
       font-size: 12px;
@@ -245,7 +251,14 @@
       font-weight: 500;
       white-space: nowrap;
       cursor: pointer;
-      box-shadow: inset 0 0 0 1px rgba(49,168,255,.08);
+      box-shadow: inset 0 0 0 1px rgba(49,168,255,.05);
+    }
+
+    .aba-login-actions button:hover,
+    .aba-login-actions button:focus-visible {
+      background: rgba(49,168,255,.16);
+      border-color: rgba(49,168,255,.68);
+      outline: none;
     }
 
     .aba-hidden-auth {
@@ -290,10 +303,12 @@
     .iphone-pro-max .welcome-row .text-wrapper-2,
     .iphone-pro-max .welcome-row .text-wrapper-3 {
       width: auto;
+	height: auto;
     }
 
     .iphone-pro-max .welcome-row .text-wrapper-3 {
-      margin-left: 4px;
+      margin-left: -6px;
+
     }
 
     .iphone-pro-max.is-logged-out .avatar-frame,
@@ -304,7 +319,56 @@
     }
 
     .iphone-pro-max.is-logged-out .nav-tabs-frame {
-      top: 302px;
+      display: none;
+    }
+
+    .aba-logged-out-panel {
+      display: none;
+      position: absolute;
+      top: 176px;
+      left: 14px;
+      right: 14px;
+      padding: 16px 16px 14px;
+      border: 1px solid rgba(49, 168, 255, .22);
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(16, 30, 48, .96), rgba(8, 17, 30, .98));
+      box-shadow:
+        inset 0 0 0 1px rgba(49, 168, 255, .05),
+        0 10px 22px rgba(0, 0, 0, .24);
+      color: #eef6ff;
+      z-index: 6;
+    }
+
+    .iphone-pro-max.is-logged-out .aba-logged-out-panel {
+      display: block;
+    }
+
+    .aba-logged-out-panel h2 {
+      margin: 0 0 8px;
+      color: #fff;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .aba-logged-out-panel p {
+      margin: 0;
+      color: rgba(238, 246, 255, .78);
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .aba-logged-out-panel .aba-logged-out-note {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border: 1px solid rgba(49, 168, 255, .16);
+      border-radius: 10px;
+      background: rgba(49, 168, 255, .07);
+      color: rgba(238, 246, 255, .82);
+      font-size: 11px;
+      line-height: 1.45;
     }
 
     .app-view-title {
@@ -433,12 +497,71 @@
       line-height: 1.22;
     }
 
+    #activities .activity-title-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 5px;
+    }
+
     #activities .activity-player-identity {
       display: inline-flex;
       align-items: center;
       gap: 5px;
       min-width: 0;
       max-width: 100%;
+    }
+
+    #activities .activity-title-sep {
+      color: rgba(238, 246, 255, .58);
+      font-weight: 700;
+    }
+
+    #activities .activity-title-text {
+      color: #fff;
+      font-weight: 700;
+    }
+
+    #matches .match-title-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    #matches .match-title-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+#matches .sport-title-icon,
+#activities .sport-title-icon {
+      width: 22px;
+      height: 22px;
+      flex: 0 0 22px;
+      object-fit: contain;
+    }
+
+    #matches .sport-title-icon-blue,
+    #activities .sport-title-icon-blue {
+      filter: brightness(0) saturate(100%) invert(55%) sepia(99%) saturate(1734%) hue-rotate(186deg) brightness(102%) contrast(101%);
+    }
+
+    #matches .sport-title-icon-green,
+    #activities .sport-title-icon-green {
+      filter: brightness(0) saturate(100%) invert(72%) sepia(58%) saturate(1366%) hue-rotate(90deg) brightness(96%) contrast(90%);
+    }
+
+    #matches .sport-title-icon-yellow,
+    #activities .sport-title-icon-yellow {
+      filter: brightness(0) saturate(100%) invert(86%) sepia(65%) saturate(793%) hue-rotate(355deg) brightness(103%) contrast(101%);
+    }
+
+    #matches .sport-title-icon-orange,
+    #activities .sport-title-icon-orange {
+      filter: brightness(0) saturate(100%) invert(74%) sepia(64%) saturate(1614%) hue-rotate(346deg) brightness(101%) contrast(101%);
     }
 
     #activities .mini-player-link,
@@ -556,6 +679,33 @@
       display: inline-flex;
       align-items: center;
       width: fit-content;
+    }
+
+    #activities .activity-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    #activities .activity-points-tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 4px 9px;
+      border: 1px solid rgba(46, 229, 130, .4);
+      border-radius: 999px;
+      background: rgba(46, 229, 130, .1);
+      color: #2ee582;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+      box-sizing: border-box;
+    }
+
+    #activities .activity-linked-tag {
+      margin-top: 0;
     }
 
     #activities .actions {
@@ -987,34 +1137,34 @@
       grid-template-columns: minmax(0, 1fr);
     }
 
-    #admin .activity-setting-row > strong,
-    #admin .sport-rating-row > div > strong,
-    #admin .sport-rating-picker-card strong {
+#admin .activity-setting-row > strong,
+#admin .sport-rating-row > div > strong,
+#admin .sport-rating-picker-card strong {
       display: block;
       min-width: 0;
       overflow: hidden;
       color: #fff;
-      font-size: 10.5px;
-      font-weight: 900;
+      font-size: 11px;
+      font-weight: 700;
       line-height: 1.2;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
-    #admin .activity-setting-row label,
-    #admin .sport-rating-row label,
-    #admin .sport-rating-picker-card label {
+#admin .activity-setting-row label,
+#admin .sport-rating-row label,
+#admin .sport-rating-picker-card label {
       margin: 0;
-      font-size: 8.5px;
-    }
+      font-size: 10px;
+}
 
-    #admin .activity-setting-row input,
-    #admin .sport-rating-row input,
-    #admin .sport-rating-row select,
-    #admin .sport-rating-picker-card select {
+#admin .activity-setting-row input,
+#admin .sport-rating-row input,
+#admin .sport-rating-row select,
+#admin .sport-rating-picker-card select {
       min-height: 26px;
-      font-size: 9.5px;
-    }
+      font-size: 10px;
+}
 
     #admin .sport-rating-row .mini-player-identity {
       display: inline-flex;
@@ -1763,6 +1913,9 @@
     }
 
     #matches .game-stats-score-simple {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       padding: 3px 7px;
       border: 1px solid rgba(255, 95, 103, .4);
       border-radius: 999px;
@@ -1772,16 +1925,20 @@
       font-weight: 900;
       line-height: 1;
       white-space: nowrap;
+      width: fit-content;
+      min-width: 0;
+      justify-self: center;
     }
 
     #matches .game-stats-expectation {
       grid-column: 1 / -1;
-      overflow: hidden;
+      overflow: visible;
       color: rgba(238, 246, 255, .58);
       font-size: 9.5px;
       font-weight: 700;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      text-overflow: clip;
+      white-space: normal;
+      word-break: break-word;
     }
 
     #matches .match-formation-body {
@@ -4163,12 +4320,22 @@
 
     <div id="auth-logged-in" class="aba-hidden-auth">
       <span id="current-user"></span>
-      <button id="logout-btn" type="button">Log Out</button>
     </div>
 
     <div class="text-wrapper-5">ABA</div>
     <div class="text-wrapper-4">AUB Bros Arena</div>
     <div class="div welcome-row"><div class="text-wrapper-2">Welcome back,</div><div class="text-wrapper-3" id="abaMemberName"></div></div>
+    <section class="aba-logged-out-panel" aria-label="Welcome to ABA">
+      <h2>Welcome to ABA</h2>
+      <p>
+        AUB Bros Arena is where members organize matches, log verified activities,
+        build rankings, and track progress across sports.
+      </p>
+      <div class="aba-logged-out-note">
+        Already a member? Sign in above to continue.<br>
+        Not a member yet? Sign up to request access and join the arena.
+      </div>
+    </section>
 
     <div class="frame nav-tabs-frame" aria-label="Main navigation">
       <div class="home-type-menu tab active" data-view="dashboard"><div class="div"><img class="menu-icons" src="svg/home.svg" /><div class="text-wrapper">Home</div></div><div class="rectangle"></div></div>
@@ -4420,6 +4587,9 @@
           <div class="actions profile-actions">
             <button id="profile-action-btn" class="primary-btn" type="button">
               Edit Profile
+            </button>
+            <button id="account-logout-btn" class="secondary-btn danger-text-btn" type="button">
+              Sign Out
             </button>
           </div>
         </div>
