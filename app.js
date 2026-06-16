@@ -7033,6 +7033,7 @@ function openTeamAssignment(matchId, scope = "full") {
   }
 
   const players = inPlayerInvitations(match);
+  const singles = isSinglesMatch(match);
 
   if (players.length < 2) {
     alert("At least 2 IN players are needed to assign teams.");
