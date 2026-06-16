@@ -15947,7 +15947,7 @@ function activityCard(a, compact = false) {
           ${linkedMatch ? `
             <div class="meta strava-linked-note">Standalone activity points are set to 0 because ${formatPointValue(linkedMatchPoints?.points ?? points)} pts are counted inside the linked match.</div>
           ` : ""}
-          <div class="meta">${escapeHtml(fmtDate(String(a.activity_date || a.created_at).slice(0, 10)))}</div>
+          <div class="meta">${escapeHtml(formatActivityLogDate(a.activity_date || a.created_at))}</div>
           ${stravaActivityDetailsHtml(a)}
           ${a.notes ? `<div class="meta">${escapeHtml(a.notes)}</div>` : ""}
           ${a.proof_path || a.external_url || importedSourceName ? `<button class="link-btn" type="button" onclick="openActivityProof('${a.id}')">Open ${escapeHtml(proofLabel)}</button>` : `<div class="meta">Proof: not attached</div>`}
@@ -15979,6 +15979,15 @@ function renderActivities() {
   $("activityList").innerHTML = rows.length
     ? rows.map(a => activityCard(a)).join("")
     : `<article class="card"><div class="hint">No activities logged yet.</div></article>`;
+}
+
+function formatActivityLogDate(value) {
+  const date = new Date(value || 0);
+  if (!Number.isFinite(date.getTime())) return "";
+
+  const weekday = date.toLocaleDateString([], { weekday: "short" });
+  const monthDay = date.toLocaleDateString([], { month: "short", day: "numeric" });
+  return `${weekday}, ${monthDay}`;
 }
 
 function approvedLoggedActivities() {
@@ -17482,7 +17491,7 @@ function renderPlayerProfile(memberId) {
                   <div class="profile-match-row">
                     <div>
                       <strong>${escapeHtml(activity.title || "Activity")}</strong>
-                      <span>${escapeHtml(fmtDate(activity.activity_date || activity.created_at))} - ${escapeHtml(activity.sports?.name || sportNameById(activity.sport_id) || "-")} - ${escapeHtml(activitySourceLabel(activity))}</span>
+                      <span>${escapeHtml(formatActivityLogDate(activity.activity_date || activity.created_at))} - ${escapeHtml(activity.sports?.name || sportNameById(activity.sport_id) || "-")} - ${escapeHtml(activitySourceLabel(activity))}</span>
                       <em>${Number(activity.duration_minutes || 0)} min - ${formatPointValue(displayedPoints)} standalone pts${linkedMatch ? ` - linked to ${escapeHtml(linkedMatch.title || "match")}` : ""}</em>
                     </div>
                     <b class="${activity.status === "approved" ? "win" : activity.status === "rejected" ? "loss" : "draw"}">${escapeHtml(activity.status || "pending")}</b>
@@ -19800,6 +19809,13 @@ function bindEvents() {
   });
 
   document.addEventListener("click", e => {
+    const adminSubtab = e.target?.closest?.(".admin-subtab");
+    if (adminSubtab && adminSubtab.dataset?.adminPanel) {
+      e.preventDefault();
+      activateAdminPanel(adminSubtab.dataset.adminPanel);
+      return;
+    }
+
     if (Date.now() < avatarViewerSuppressOpenUntil) return;
     const avatar = e.target?.closest?.(".avatar-view-trigger");
     if (!avatar) return;
