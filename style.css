@@ -218,7 +218,7 @@
   position: relative;
   width: auto;
   height: 30px;
-  margin-bottom: -8px;
+  margin-bottom: 0;
   object-fit: contain;
   aspect-ratio: auto;
   transform: translateZ(0);
@@ -231,7 +231,9 @@
   position: relative;
   display: flex;
   align-items: center;
-  width: 38px;
+  width: 44px;
+  height: 30px;
+  justify-content: flex-end;
   font-family: "Roboto-Medium", Helvetica;
   font-weight: 500;
   color: #ffffff;
@@ -264,7 +266,9 @@
 
 .iphone-pro-max .text-wrapper-8 {
   position: relative;
-  width: 32px;
+  width: 44px;
+  height: 30px;
+  justify-content: flex-end;
   color: #ffffff;
   font-size: 20px;
   display: flex;
@@ -301,7 +305,7 @@
   position: relative;
   width: auto;
   height: 30px;
-  margin-bottom: -8px;
+  margin-bottom: 0;
   aspect-ratio: auto;
   filter: brightness(0) saturate(100%) invert(57%) sepia(95%) saturate(700%) hue-rotate(316deg) brightness(92%) contrast(101%);
   image-rendering: auto;
@@ -309,7 +313,9 @@
 
 .iphone-pro-max .text-wrapper-9 {
   position: relative;
-  width: 33px;
+  width: 44px;
+  height: 30px;
+  justify-content: flex-end;
   color: #ffffff;
   font-size: 20px;
   display: flex;
@@ -460,7 +466,9 @@
   top: auto;
   left: auto;
   align-items: center;
-  width: 38px;
+  width: 44px;
+  height: 30px;
+  justify-content: flex-end;
   color: #ffffff;
   font-size: 20px;
   font-family: "Roboto-Medium", Helvetica;
@@ -474,7 +482,7 @@
   position: relative;
   width: auto;
   height: 30px;
-  margin-bottom: -2px;
+  margin-bottom: 0;
   object-fit: contain;
   aspect-ratio: auto;
   image-rendering: auto;
@@ -485,6 +493,7 @@
   width: auto;
   height: 30px;
   object-fit: contain;
+  margin-bottom: 0;
   aspect-ratio: auto;
   image-rendering: auto;
 }
