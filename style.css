@@ -216,7 +216,7 @@
 
 .iphone-pro-max .img-2 {
   position: relative;
-  width: 30px;
+  width: auto;
   height: 30px;
   margin-bottom: -8px;
   object-fit: contain;
@@ -224,6 +224,7 @@
   transform: translateZ(0);
   backface-visibility: hidden;
   will-change: transform;
+  image-rendering: auto;
 }
 
 .iphone-pro-max .text-wrapper-7 {
@@ -298,11 +299,12 @@
 
 .iphone-pro-max .volleyball-stat-icon {
   position: relative;
-  width: 34px;
-  height: 38px;
+  width: auto;
+  height: 30px;
   margin-bottom: -8px;
-  aspect-ratio: 1;
+  aspect-ratio: auto;
   filter: brightness(0) saturate(100%) invert(57%) sepia(95%) saturate(700%) hue-rotate(316deg) brightness(92%) contrast(101%);
+  image-rendering: auto;
 }
 
 .iphone-pro-max .text-wrapper-9 {
@@ -470,19 +472,21 @@
 
 .iphone-pro-max .running {
   position: relative;
-  width: 30px;
+  width: auto;
   height: 30px;
   margin-bottom: -2px;
   object-fit: contain;
   aspect-ratio: auto;
+  image-rendering: auto;
 }
 
 .iphone-pro-max .walking {
   position: relative;
-  width: 30px;
+  width: auto;
   height: 30px;
   object-fit: contain;
-  aspect-ratio: 1;
+  aspect-ratio: auto;
+  image-rendering: auto;
 }
 
 .iphone-pro-max .protect {
