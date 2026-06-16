@@ -408,6 +408,15 @@
   white-space: nowrap;
 }
 
+.iphone-pro-max .home-dashboard-card {
+  cursor: pointer;
+}
+
+.iphone-pro-max .home-dashboard-card:focus-visible {
+  outline: 2px solid rgba(49, 168, 255, 0.7);
+  outline-offset: 2px;
+}
+
 .iphone-pro-max .verified-activities {
   position: relative;
   grid-row: 1 / 2;
@@ -446,7 +455,7 @@
   gap: 0px 10px;
   position: absolute;
   left: 3.33%;
-  bottom: 9px;
+  bottom: 20px;
 }
 
 .iphone-pro-max .sports-matches-frame {

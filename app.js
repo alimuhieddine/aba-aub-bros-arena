@@ -3333,13 +3333,94 @@ function homePlayedMatchesBetween(startMs, endMs, memberId = currentProfile?.id)
     .filter(match => memberPlayedMatch(match, memberId));
 }
 
-function isOutsideAppMatchActivity(activity) {
-  const sport = activitySportNameLower(activity);
+function activityClassificationText(activity) {
+  const payload = activity?.external_payload || {};
+  return [
+    activity?.title,
+    activity?.activity,
+    activity?.sports?.name,
+    sportNameById(activity?.sport_id),
+    payload.sport_type,
+    payload.type
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function isOutdoorMatchLoggedOutsideAba(activity) {
+  const sport = activityClassificationText(activity);
   const sports = ["padel", "soccer", "football", "tennis", "basketball", "volleyball"];
 
   if (!sports.some(keyword => sport.includes(keyword))) return false;
 
   return !linkedMatchForActivity(activity);
+}
+
+function isTrainingWorkoutActivity(activity) {
+  const text = activityClassificationText(activity);
+  if (!text.trim()) return false;
+
+  return [
+    "gym",
+    "workout",
+    "fitness",
+    "weight",
+    "weightlifting",
+    "lifting",
+    "strength",
+    "training",
+    "conditioning",
+    "crossfit",
+    "yoga",
+    "stretch",
+    "stretching"
+  ].some(keyword => text.includes(keyword));
+}
+
+function classifyActivity(activity) {
+  const linkedMatch = linkedMatchForActivity(activity);
+  if (linkedMatch) {
+    return {
+      bucket: "linked-match",
+      label: "Linked match",
+      tag: "Match-linked",
+      tone: "blue",
+      linkedMatch
+    };
+  }
+
+  if (isOutdoorMatchLoggedOutsideAba(activity)) {
+    return {
+      bucket: "external-match",
+      label: "External Match",
+      tag: "External Match",
+      tone: "green",
+      linkedMatch: null
+    };
+  }
+
+  if (isTrainingWorkoutActivity(activity)) {
+    return {
+      bucket: "training-workout",
+      label: "Training / workout",
+      tag: "Training / workout",
+      tone: "gold",
+      linkedMatch: null
+    };
+  }
+
+  return {
+    bucket: "standalone",
+    label: "Standalone activity",
+    tag: "Standalone activity",
+    tone: "blue",
+    linkedMatch: null
+  };
+}
+
+function isOutsideAppMatchActivity(activity) {
+  return classifyActivity(activity).bucket === "external-match";
 }
 
 function homeSportMatchEquivalentActivityCount(activities, keywords = []) {
@@ -3722,6 +3803,182 @@ function renderLegacyHomePointsCard() {
     deltaNode.style.color = "#93A7BF";
     deltaNode.style.textShadow = "none";
   }
+}
+
+function homeMiniTrendChipHtml(label, value, tone = "blue") {
+  return `<span class="home-mini-trend home-mini-trend-${escapeHtml(tone)}"><strong>${escapeHtml(label)}</strong>&nbsp;${escapeHtml(String(value))}</span>`;
+}
+
+function homeWeekPoints(memberId) {
+  const cleanId = cleanUuidValue(memberId);
+  if (!cleanId) {
+    return { total: 0, activity: 0, score: 0 };
+  }
+
+  const { startMs, endMs } = homeThisWeekBounds();
+  const totals = { total: 0, activity: 0, score: 0 };
+
+  homeMatchesBetween(startMs, endMs)
+    .filter(match => memberPlayedMatch(match, cleanId))
+    .forEach(match => {
+      const point = (match.match_member_points || []).find(row => cleanUuidValue(row.member_id) === cleanId);
+      if (!point) return;
+      totals.total += pointTotalPoints(point);
+      totals.activity += Number(point.activity_points ?? point.base_points ?? 0);
+      totals.score += Number(point.score_points ?? point.consistency_bonus ?? 0);
+    });
+
+  homeOwnApprovedActivitiesBetween(startMs, endMs)
+    .forEach(activity => {
+      const points = standaloneActivityPoints(activity);
+      totals.total += points;
+      totals.activity += points;
+    });
+
+  return totals;
+}
+
+function homeRankingProgressPct(currentRank, totalRows) {
+  const rank = Number(currentRank || 0);
+  const total = Number(totalRows || 0);
+  if (!rank || !total) return 0;
+  return clampNumber(Math.round(((total - rank + 1) / total) * 100), 0, 100);
+}
+
+function openHomeDashboardTarget(viewId) {
+  const target = String(viewId || "").trim();
+  if (!target) return;
+
+  if (target === "matches") {
+    resetMatchFiltersForDeepLink?.();
+    setActiveTab("matches");
+    requestAnimationFrame(() => renderMatches());
+    return;
+  }
+
+  if (target === "activities") {
+    setActiveTab("activities");
+    requestAnimationFrame(() => loadMemberActivities());
+    return;
+  }
+
+  if (target === "rankings") {
+    setActiveTab("rankings");
+    requestAnimationFrame(() => {
+      updateRankingFilters();
+      renderRankings();
+    });
+    return;
+  }
+
+  setActiveTab(target);
+}
+
+function renderHomeDashboardPolish() {
+  const memberId = cleanUuidValue(currentProfile?.id);
+  const matchesCard = document.querySelector(".matches-glance.home-dashboard-card");
+  const activitiesCard = document.querySelector(".verified-activities.home-dashboard-card");
+  const rankingCard = document.querySelector(".ranks-glance.home-dashboard-card");
+  const pointsCard = document.querySelector(".points-glance.home-dashboard-card");
+  const matchesTrend = $("homeMatchesMiniTrend");
+  const activitiesTrend = $("homeActivitiesMiniTrend");
+  const rankingTrend = $("homeRankingMiniTrend");
+  const pointsTrend = $("homePointsMiniTrend");
+
+  if (!memberId) {
+    if (matchesTrend) matchesTrend.innerHTML = "";
+    if (activitiesTrend) activitiesTrend.innerHTML = "";
+    if (rankingTrend) rankingTrend.innerHTML = "";
+    if (pointsTrend) pointsTrend.innerHTML = "";
+    return;
+  }
+
+  const currentWeek = homeThisWeekBounds();
+  const previousWeek = homePreviousWeekBounds();
+  const currentWeekMatches = homePlayedMatchesBetween(currentWeek.startMs, currentWeek.endMs, memberId);
+  const previousWeekMatches = homePlayedMatchesBetween(previousWeek.startMs, previousWeek.endMs, memberId);
+  const currentWeekActivities = homeOwnApprovedActivitiesBetween(currentWeek.startMs, currentWeek.endMs);
+  const previousWeekActivities = homeOwnApprovedActivitiesBetween(previousWeek.startMs, previousWeek.endMs);
+  const currentRows = homeRankingRows();
+  const rankIndex = currentRows.findIndex(row => cleanUuidValue(row.memberId) === memberId);
+  const currentRank = rankIndex >= 0 ? rankIndex + 1 : 0;
+  const previousRows = homeRankingRowsAsOf(previousWeek.endMs);
+  const previousRankIndex = previousRows.findIndex(row => cleanUuidValue(row.memberId) === memberId);
+  const previousRank = previousRankIndex >= 0 ? previousRankIndex + 1 : 0;
+  const currentWeekPoints = homeWeekPoints(memberId);
+  const previousWeekPoints = (function() {
+    const totals = { total: 0, activity: 0, score: 0 };
+    (allMatches || [])
+      .filter(match => !isCancelledMatch(match) && hasSubmittedScore(match))
+      .filter(match => {
+        const time = new Date(match.start_time || 0).getTime();
+        return Number.isFinite(time) && time >= previousWeek.startMs && time <= previousWeek.endMs;
+      })
+      .filter(match => memberPlayedMatch(match, memberId))
+      .forEach(match => {
+        const point = (match.match_member_points || []).find(row => cleanUuidValue(row.member_id) === memberId);
+        if (!point) return;
+        totals.total += pointTotalPoints(point);
+        totals.activity += Number(point.activity_points ?? point.base_points ?? 0);
+        totals.score += Number(point.score_points ?? point.consistency_bonus ?? 0);
+      });
+
+    homeOwnApprovedActivitiesBetween(previousWeek.startMs, previousWeek.endMs)
+      .forEach(activity => {
+        const points = standaloneActivityPoints(activity);
+        totals.total += points;
+        totals.activity += points;
+      });
+
+    return totals;
+  })();
+
+  if (matchesTrend) {
+    matchesTrend.innerHTML = [
+      homeMiniTrendChipHtml("P", homeSportMatchCount(currentWeekMatches, ["padel"]), "blue"),
+      homeMiniTrendChipHtml("S", homeSportMatchCount(currentWeekMatches, ["soccer", "football"]), "green"),
+      homeMiniTrendChipHtml("T", homeSportMatchCount(currentWeekMatches, ["tennis"]), "yellow"),
+      homeMiniTrendChipHtml("B", homeSportMatchCount(currentWeekMatches, ["basketball"]), "orange"),
+      homeMiniTrendChipHtml("V", homeSportMatchCount(currentWeekMatches, ["volleyball"]), "purple")
+    ].join("");
+  }
+
+  if (activitiesTrend) {
+    activitiesTrend.innerHTML = [
+      homeMiniTrendChipHtml("R", homeSportActivityCount(currentWeekActivities, ["run", "running"]), "green"),
+      homeMiniTrendChipHtml("S", homeSportActivityCount(currentWeekActivities, ["swim", "swimming"]), "blue"),
+      homeMiniTrendChipHtml("G", homeSportActivityCount(currentWeekActivities, ["gym", "workout", "fitness", "weightlifting"]), "orange"),
+      homeMiniTrendChipHtml("W", homeSportActivityCount(currentWeekActivities, ["walk", "walking"]), "gold")
+    ].join("");
+  }
+
+  if (rankingTrend) {
+    const delta = homeRankingDeltaMeta(currentRank, previousRank);
+    rankingTrend.innerHTML = [
+      homeMiniTrendChipHtml("Rk", currentRank ? `#${currentRank}` : "—", "purple"),
+      homeMiniTrendChipHtml("Δ", delta.text, delta.tone === "positive" ? "green" : delta.tone === "negative" ? "red" : "blue"),
+      homeMiniTrendChipHtml("T3", currentRank && currentRank <= 3 ? "yes" : "no", "gold")
+    ].join("");
+  }
+
+  if (pointsTrend) {
+    const weeklyPointsDelta = Number(currentWeekPoints.total || 0) - Number(previousWeekPoints.total || 0);
+    pointsTrend.innerHTML = [
+      homeMiniTrendChipHtml("A", formatPointValue(currentWeekPoints.activity), "blue"),
+      homeMiniTrendChipHtml("S", formatPointValue(currentWeekPoints.score), "green"),
+      homeMiniTrendChipHtml("W", weeklyPointsDelta >= 0 ? `+${formatPointValue(weeklyPointsDelta)}` : `-${formatPointValue(Math.abs(weeklyPointsDelta))}`, weeklyPointsDelta >= 0 ? "green" : "red")
+    ].join("");
+  }
+
+  const matchesPct = clampNumber(Math.round((currentWeekMatches.length / 5) * 100), 0, 100);
+  const activitiesPct = clampNumber(Math.round((currentWeekActivities.length / 4) * 100), 0, 100);
+  const rankingPct = homeRankingProgressPct(currentRank, currentRows.length);
+  const pointsPct = clampNumber(Math.round((Number(currentWeekPoints.total || 0) / 25) * 100), 0, 100);
+
+  if (matchesCard) matchesCard.style.setProperty("--goal-p", matchesPct);
+  if (activitiesCard) activitiesCard.style.setProperty("--goal-p", activitiesPct);
+  if (rankingCard) rankingCard.style.setProperty("--goal-p", rankingPct);
+  if (pointsCard) pointsCard.style.setProperty("--goal-p", pointsPct);
 }
 
 function homeActivitiesBetween(startMs, endMs, activities = homeApprovedActivities()) {
@@ -13889,7 +14146,7 @@ function linkedMatchForActivity(activity) {
 }
 
 function standaloneActivityPoints(activity) {
-  if (linkedMatchForActivity(activity)) return 0;
+  if (classifyActivity(activity).bucket === "linked-match") return 0;
 
   const points = activity?.source === STRAVA_ACTIVITY_SOURCE
     ? stravaStandaloneActivityPoints(activity)
@@ -15940,10 +16197,11 @@ function activityCard(a, compact = false) {
   const memberName = a.members ? memberDisplayName(a.members) : (a.player || "Player");
   const sportName = a.sports?.name || a.sport || sportNameById(a.sport_id) || "Sport";
   const title = a.title || a.activity || "Activity";
+  const classification = classifyActivity(a);
   const points = standaloneActivityPoints(a);
   const isGarminActivity = a.source === GARMIN_ACTIVITY_SOURCE;
   const isStravaActivity = a.source === STRAVA_ACTIVITY_SOURCE;
-  const linkedMatch = linkedMatchForActivity(a);
+  const linkedMatch = classification.linkedMatch;
   const linkedMatchPoints = linkedMatch
     ? stravaActivityPointsForMatchMember(linkedMatch, a.member_id)
     : null;
@@ -15983,16 +16241,17 @@ function activityCard(a, compact = false) {
           <div class="meta">${escapeHtml(sportName)}${durationText}</div>
           <div class="activity-tags">
             <span class="activity-points-tag">${formatPointValue(displayedPoints)} pts</span>
+            ${linkedMatch ? "" : `<span class="pill ${classification.tone}">${escapeHtml(classification.tag)}</span>`}
             ${
               linkedMatch
                 ? `<button class="linked-match-tag activity-linked-tag" type="button" onclick="openLinkedActivityMatch('${linkedMatch.id}')">
-                    Counted in ${escapeHtml(linkedMatch.title || linkedMatch.sports?.name || "match")}
+                    Linked match
                   </button>`
                 : ""
             }
           </div>
           ${linkedMatch ? `
-            <div class="meta strava-linked-note">Standalone activity points are set to 0 because ${formatPointValue(linkedMatchPoints?.points ?? points)} pts are counted inside the linked match.</div>
+            <div class="meta strava-linked-note">Points count in the linked match.</div>
           ` : ""}
           <div class="meta">${escapeHtml(formatActivityLogDate(a.activity_date || a.created_at))}</div>
           ${stravaActivityDetailsHtml(a)}
@@ -19863,6 +20122,13 @@ function bindEvents() {
       return;
     }
 
+    const homeCard = e.target?.closest?.(".home-dashboard-card");
+    if (homeCard?.dataset?.homeTarget) {
+      e.preventDefault();
+      openHomeDashboardTarget(homeCard.dataset.homeTarget);
+      return;
+    }
+
     if (Date.now() < avatarViewerSuppressOpenUntil) return;
     const avatar = e.target?.closest?.(".avatar-view-trigger");
     if (!avatar) return;
@@ -19873,6 +20139,13 @@ function bindEvents() {
     if (e.key === "Escape" && $("avatarViewerModal")?.open) {
       e.preventDefault();
       closeAvatarViewer();
+      return;
+    }
+
+    const homeCard = e.target?.closest?.(".home-dashboard-card");
+    if (homeCard?.dataset?.homeTarget && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      openHomeDashboardTarget(homeCard.dataset.homeTarget);
       return;
     }
 
