@@ -1441,9 +1441,11 @@ let currentGarminConnection = null;
 let currentStravaConnection = null;
 let stravaConnectedMemberIds = new Set();
 let voteDeadlineManuallyEdited = false;
+const MATCH_STATUS_OPEN_KEY_PREFIX = "aba_match_status_open:";
 let matchRenderQueued = false;
 let matchListRenderToken = 0;
 let matchEnrichmentQueued = false;
+let matchFormationCollapsedResetDone = false;
 let deferredViewRenders = new Set();
 let deferredAdminPanelRenders = new Set();
 const appLoadState = {
@@ -8434,6 +8436,7 @@ function matchSmartBadges(match) {
   const badges = [];
   const displayStatus = getMatchDisplayStatus(match);
   const minutesToStart = minutesUntilMatchStart(match);
+  const isFuture = new Date(match?.start_time || 0) > new Date();
   const hasTeams = matchHasTeamsAssigned(match);
   const formationIssues = soccerFormationIssues(match);
   const isCaptain = captainSidesForCurrentUser(match).length > 0;
@@ -8443,7 +8446,7 @@ function matchSmartBadges(match) {
     return badges;
   }
 
-  if (hasVotingDeadlinePassed(match) && !hasSubmittedScore(match)) {
+  if (isFuture && hasVotingDeadlinePassed(match) && !hasSubmittedScore(match)) {
     badges.push({ text: "Voting closed", type: "danger" });
   }
 
@@ -8535,7 +8538,8 @@ function renderMatchStatusGrid({
   currentVoteStatus = null,
   isCreator = false,
   votingOpen = false,
-  isFull = false
+  isFull = false,
+  noticesHtml = ""
 } = {}) {
   const remaining = maxPlayers ? Math.max(0, maxPlayers - filledCount) : 0;
   const spotsValue = maxPlayers
@@ -8553,34 +8557,87 @@ function renderMatchStatusGrid({
   const deadlineDetail = deadline ? votingDeadlineText(match) : "No deadline set";
   const responseValue = `${counts.inCount} in / ${counts.maybeCount} maybe`;
   const responseDetail = `${counts.outCount} out - ${counts.invitedCount} invited - ${externalCount} external`;
+  const displayStatus = String(getMatchDisplayStatus(match) || "").toLowerCase();
+  const autoOpen = !["completed", "finished", "cancelled"].includes(displayStatus);
+  const open = isMatchStatusOpen(match?.id, autoOpen);
+  const bodyId = `match-status-body-${cleanUuidValue(match?.id || "")}`;
 
   return `
-    <div class="match-status-grid">
-      <div class="match-status-box ${isFull ? "is-full" : ""}">
-        <span>Spots</span>
-        <strong>${escapeHtml(spotsValue)}</strong>
-        <em>${escapeHtml(spotsDetail)}</em>
-      </div>
+    <div class="match-insight-panel match-status-panel${open ? " open" : " closed"}">
+      <button
+        class="match-insight-toggle"
+        type="button"
+        aria-expanded="${open ? "true" : "false"}"
+        aria-controls="${escapeHtml(bodyId)}"
+        onclick="toggleMatchStatusPanel('${escapeHtml(match.id)}')"
+      >
+        <span>Match status</span>
+        <b>${open ? "▼" : "▶"}</b>
+      </button>
 
-      <div class="match-status-box ${currentVoteStatus === "in" ? "is-in" : currentVoteStatus === "out" ? "is-out" : ""}">
-        <span>My vote</span>
-        <strong>${escapeHtml(voteText)}</strong>
-        <em>${escapeHtml(voteDetail)}</em>
-      </div>
+      <div
+        id="${escapeHtml(bodyId)}"
+        class="match-status-body match-insight-list match-status-grid-wrap${open ? "" : " is-collapsed"}"
+      >
+        <div class="match-status-grid">
+          <div class="match-status-box ${isFull ? "is-full" : ""}">
+            <span>Spots</span>
+            <strong>${escapeHtml(spotsValue)}</strong>
+            <em>${escapeHtml(spotsDetail)}</em>
+          </div>
 
-      <div class="match-status-box ${votingOpen ? "is-open" : "is-closed"}">
-        <span>Voting</span>
-        <strong>${escapeHtml(deadlineValue)}</strong>
-        <em>${escapeHtml(deadlineDetail)}</em>
-      </div>
+          <div class="match-status-box ${currentVoteStatus === "in" ? "is-in" : currentVoteStatus === "out" ? "is-out" : ""}">
+            <span>My vote</span>
+            <strong>${escapeHtml(voteText)}</strong>
+            <em>${escapeHtml(voteDetail)}</em>
+          </div>
 
-      <div class="match-status-box">
-        <span>Responses</span>
-        <strong>${escapeHtml(responseValue)}</strong>
-        <em>${escapeHtml(responseDetail)}</em>
+          <div class="match-status-box ${votingOpen ? "is-open" : "is-closed"}">
+            <span>Voting</span>
+            <strong>${escapeHtml(deadlineValue)}</strong>
+            <em>${escapeHtml(deadlineDetail)}</em>
+          </div>
+
+          <div class="match-status-box">
+            <span>Responses</span>
+            <strong>${escapeHtml(responseValue)}</strong>
+            <em>${escapeHtml(responseDetail)}</em>
+          </div>
+        </div>
+        ${noticesHtml}
       </div>
     </div>
   `;
+}
+
+function matchStatusOpenStorageKey(matchId) {
+  return `${MATCH_STATUS_OPEN_KEY_PREFIX}${cleanUuidValue(matchId)}`;
+}
+
+function defaultMatchStatusOpen(match) {
+  const displayStatus = String(getMatchDisplayStatus(match) || "").toLowerCase();
+  return !["completed", "finished", "cancelled"].includes(displayStatus);
+}
+
+function isMatchStatusOpen(matchId, fallback = true) {
+  const key = matchStatusOpenStorageKey(matchId);
+  const saved = localStorage.getItem(key);
+
+  if (saved === null) return Boolean(fallback);
+  return saved === "1";
+}
+
+function setMatchStatusOpen(matchId, open) {
+  localStorage.setItem(matchStatusOpenStorageKey(matchId), open ? "1" : "0");
+}
+
+function toggleMatchStatusPanel(matchId) {
+  const match = (allMatches || []).find(row => cleanUuidValue(row.id) === cleanUuidValue(matchId));
+  if (!match) return;
+
+  const nextOpen = !isMatchStatusOpen(matchId, defaultMatchStatusOpen(match));
+  setMatchStatusOpen(matchId, nextOpen);
+  renderMatches();
 }
 
 function matchVoteGroups(match) {
@@ -9276,18 +9333,18 @@ function gameStatsExpectationHtml(match, teamAName, teamBName) {
     : "";
 }
 
-function formationSectionTitleHtml(match) {
+function formationSectionTitleHtml(match, open = false) {
   const parts = formationSectionTitleParts(match);
 
   if (!parts.teamAName || !parts.teamBName) {
-    return `<span class="game-stats-title-simple"><span class="game-stats-heading-simple">Game Stats</span></span>`;
+    return `<span class="game-stats-title-simple"><span class="game-stats-heading-simple game-stats-heading-force">Game Stats</span></span>`;
   }
 
   const expectationHtml = gameStatsExpectationHtml(match, parts.teamAName, parts.teamBName);
 
   return `
-    <span class="game-stats-title-simple">
-      <span class="game-stats-heading-simple">Game Stats</span>
+    <span class="game-stats-title-simple ${open ? "is-open" : "is-closed"}">
+      ${open ? `<span class="game-stats-heading-simple">Game Stats</span>` : ""}
       <span class="game-stats-team-simple">${escapeHtml(parts.teamAName)}</span>
       ${
         parts.hasScore
@@ -9295,7 +9352,7 @@ function formationSectionTitleHtml(match) {
           : `<span class="game-stats-score-simple">vs</span>`
       }
       <span class="game-stats-team-simple">${escapeHtml(parts.teamBName)}</span>
-      ${expectationHtml}
+      ${open ? expectationHtml : ""}
     </span>
   `;
 }
@@ -9306,8 +9363,10 @@ function renderFormationSection(match) {
 
   if (!content && !scoreSummary) return "";
 
-  const open = isMatchFormationOpen(match.id);
-  const titleHtml = formationSectionTitleHtml(match);
+  const open = hasSubmittedScore(match)
+    ? isMatchFormationOpen(match.id)
+    : false;
+  const titleHtml = formationSectionTitleHtml(match, open);
   const bodyContent = [scoreSummary, content].filter(Boolean).join("");
 
   return `
@@ -9399,6 +9458,15 @@ function renderMatchCardHtml(match) {
     const canVoteThisMatch = Boolean(invitation || isCreator || isAdmin);
     const conflictingVoteMatch = !userIsIn && votingOpen ? voteInTimeConflict(match) : null;
     const teamsAssigned = matchHasTeamsAssigned(match);
+    const leagueName = leagueNameForId(match.league_id) || match.leagues?.name || match.match_type || "-";
+    const durationText = formatProfileDurationMinutes(Math.max(0, Math.round(matchDurationHours(match) * 60)));
+    const noticesHtml = renderMatchNotice({
+      votingOpen,
+      isFull,
+      teamsAssigned,
+      isFuture,
+      lifecycleState
+    });
 
     return `
       <article id="match-${escapeHtml(match.id)}" class="card match-card" data-match-id="${escapeHtml(match.id)}">
@@ -9411,27 +9479,18 @@ function renderMatchCardHtml(match) {
 
             <div class="meta">
               ${escapeHtml(match.sports?.name || "-")}
-              • ${escapeHtml(match.match_type || "-")}
+              • ${escapeHtml(leagueName)}
               • ${fmtDate(match.start_time)}
             </div>
 
-            ${
-              match.league_id
-                ? `<div class="meta">🏆 League: ${escapeHtml(leagueNameForId(match.league_id) || "Linked league")}</div>`
-                : ""
-            }
-
             <div class="meta">
-              Time: ${fmtDate(match.start_time)} → ${fmtDate(match.end_time)}
-            </div>
-
-            <div class="meta">
-              Voting deadline: ${escapeHtml(votingDeadlineText(match))}
+              Duration: ${escapeHtml(durationText)}
             </div>
 
             <div class="meta">
               📍 ${escapeHtml(match.venues?.name || "-")}
               ${match.venues?.address ? "— " + escapeHtml(match.venues.address) : ""}
+              ${match.venues?.google_maps_url ? ` <a href="${escapeHtml(match.venues.google_maps_url)}" target="_blank">Open Map</a>` : ""}
             </div>
 
             ${renderSmartBadges(match)}
@@ -9445,15 +9504,8 @@ function renderMatchCardHtml(match) {
               currentVoteStatus,
               isCreator,
               votingOpen,
-              isFull
-            })}
-
-            ${renderMatchNotice({
-              votingOpen,
               isFull,
-              teamsAssigned,
-              isFuture,
-              lifecycleState
+              noticesHtml
             })}
 
             ${!teamsAssigned ? renderMatchVoteGroups(match) : ""}
@@ -9471,18 +9523,6 @@ function renderMatchCardHtml(match) {
             ${renderMatchStravaLinkedPoints(match)}
 
             ${renderMatchEditHistory(match)}
-
-            ${
-              canManageExternalPlayersForMatch(match)
-                ? `<div class="meta"><button class="tiny-btn" onclick="openExternalPlayerPicker('${match.id}')">Manage external players</button></div>`
-                : ""
-            }
-
-            ${
-              match.venues?.google_maps_url
-                ? `<div class="meta"><a href="${escapeHtml(match.venues.google_maps_url)}" target="_blank">Open Map</a></div>`
-                : ""
-            }
 
             ${
               match.notes
@@ -9577,9 +9617,9 @@ function renderMatchCardHtml(match) {
                 }
 
                 ${
-                  canManageExternalPlayersForMatch(match) && !isFull
+                  canManageExternalPlayersForMatch(match)
                     ? `<button class="small-btn" onclick="openExternalPlayerPicker('${match.id}')">
-                        Add External
+                        Manage external players
                       </button>`
                     : ""
                 }
@@ -14065,6 +14105,7 @@ function sportTitleIconConfig(sportName = "") {
   if (text.includes("soccer") || text.includes("football")) return { src: "svg/soccer-player.svg", tone: "blue" };
   if (text.includes("swim")) return { src: "svg/swimming.svg", tone: "blue" };
   if (text.includes("tennis")) return { src: "svg/tennis-player.svg", tone: "yellow" };
+  if (text.includes("volleyball")) return { src: "svg/volleyball-player.svg", tone: "red" };
   if (text.includes("walk")) return { src: "svg/walking.svg", tone: "orange" };
   if (text.includes("gym") || text.includes("weight") || text.includes("strength") || text.includes("workout")) {
     return { src: "svg/weightlifting.svg", tone: "yellow" };
@@ -19404,13 +19445,11 @@ function renderMatchResultPhoto(match) {
   const photoUrl = matchResultPhotoPublicUrl(match);
   if (!photoUrl) return "";
 
-  const fileName = matchResultPhotoRow(match)?.photo_file_name || match?.result_photo_file_name || "Match result photo";
-
   return `
     <div class="match-result-photo">
       <img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(match?.title || "Match result")} photo">
       <div class="match-result-photo-caption">
-        <strong>${escapeHtml(fileName)}</strong>
+        <strong>Match result photo</strong>
         <span>End-of-game photo attached to this result.</span>
       </div>
     </div>
