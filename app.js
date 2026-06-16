@@ -1325,6 +1325,7 @@ function renderAdminDashboard() {
     soccerAssessmentsMissing
   });
   renderAdminMatchReminders();
+  updateAdminNotificationBadge();
 }
 
 function adminQueueCard(label, detail, actionLabel, targetPanel = "") {
@@ -2698,9 +2699,11 @@ function renderStravaConnectionPanel(message = "") {
 
   if (!currentProfile) {
     box.innerHTML = `
-      <div>
-        <strong>Strava</strong>
-        <p class="hint">Login to connect Strava activities.</p>
+      <div class="section-head compact-section-head">
+        <div>
+          <h3>Strava</h3>
+          <p class="hint">Login to connect Strava activities.</p>
+        </div>
       </div>
       <span class="pill">Offline</span>
     `;
@@ -2709,9 +2712,11 @@ function renderStravaConnectionPanel(message = "") {
 
   if (!isApproved) {
     box.innerHTML = `
-      <div>
-        <strong>Strava</strong>
-        <p class="hint">Available after profile approval.</p>
+      <div class="section-head compact-section-head">
+        <div>
+          <h3>Strava</h3>
+          <p class="hint">Available after profile approval.</p>
+        </div>
       </div>
       <span class="pill">Locked</span>
     `;
@@ -2721,7 +2726,7 @@ function renderStravaConnectionPanel(message = "") {
   box.innerHTML = `
     <div class="garmin-panel-copy">
       <div class="garmin-panel-head">
-        <strong>Strava</strong>
+        <h3>Strava</h3>
         <span class="pill ${connected ? "green" : "blue"}">${connected ? "Connected" : "Not connected"}</span>
       </div>
       <p class="hint">
@@ -8983,6 +8988,26 @@ function focusAccountRouteTarget() {
   [150, 500, 1000].forEach(delay => setTimeout(scrollTarget, delay));
 }
 
+function focusAdminRouteTarget() {
+  const params = hashRouteParams();
+  const panel = params.get("panel") || params.get("focus");
+  if (!panel) return;
+
+  const openPanel = () => {
+    const buttons = Array.from(document.querySelectorAll(".admin-subtab"));
+    const match = buttons.find(button =>
+      button.dataset.adminPanel?.toLowerCase() === String(panel).toLowerCase()
+    );
+
+    if (match) {
+      activateAdminPanel(match.dataset.adminPanel);
+      match.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+
+  [150, 500, 1000].forEach(delay => setTimeout(openPanel, delay));
+}
+
 function openHashRoute({ restoreScroll = false } = {}) {
   if (openDeepLinkedMatch()) return true;
 
@@ -8991,6 +9016,7 @@ function openHashRoute({ restoreScroll = false } = {}) {
 
   setActiveTab(viewId, false);
   if (viewId === "account") focusAccountRouteTarget();
+  if (viewId === "admin") focusAdminRouteTarget();
   if (restoreScroll) restoreScrollPosition();
   return true;
 }
@@ -18450,7 +18476,39 @@ function showPushToast(title, body = "") {
 }
 
 function notificationTargetFromRow(notification) {
-  return notification?.url || notification?.data?.url || "./index.html#dashboard";
+  const payload = notificationPayload(notification);
+  const type = String(notification?.type || "").toLowerCase();
+  const explicitUrl = String(notification?.url || payload?.url || "").trim();
+
+  if (explicitUrl) return explicitUrl;
+
+  const matchId = cleanUuidValue(payload?.match_id || payload?.matchId || payload?.match?.id);
+  const activityId = cleanUuidValue(payload?.activity_id || payload?.activityId || payload?.member_activity_id);
+  const memberId = cleanUuidValue(payload?.member_id || payload?.memberId || payload?.target_member_id);
+
+  if (type.includes("match") || type.includes("game")) {
+    return matchId ? `./index.html#matches?match=${matchId}` : "./index.html#matches";
+  }
+
+  if (type.includes("approval")) {
+    return "./index.html#admin?panel=Members";
+  }
+
+  if (type.includes("reminder")) {
+    return matchId
+      ? `./index.html#matches?match=${matchId}`
+      : "./index.html#admin?panel=Maintenance";
+  }
+
+  if (type.includes("role")) {
+    return memberId ? "./index.html#account?focus=notifications" : "./index.html#admin?panel=Members";
+  }
+
+  if (type.includes("strava")) {
+    return activityId ? "./index.html#activities" : "./index.html#account?focus=strava";
+  }
+
+  return "./index.html#account?focus=notifications";
 }
 
 function notificationTypeLabel(type) {
@@ -18478,13 +18536,152 @@ function notificationTypeLabel(type) {
     .join(" ");
 }
 
+function notificationPayload(notification) {
+  const data = notification?.data;
+  if (data && typeof data === "object") return data;
+
+  if (typeof data === "string") {
+    try {
+      return JSON.parse(data);
+    } catch {
+      return {};
+    }
+  }
+
+  return {};
+}
+
+function notificationGroupForType(type) {
+  const clean = String(type || "").toLowerCase();
+  if (clean.includes("match") || clean.includes("game")) return "match";
+  if (clean.includes("approval")) return "approval";
+  if (clean.includes("reminder")) return "reminder";
+  if (clean.includes("role")) return "role";
+  if (clean.includes("strava")) return "strava";
+  return "other";
+}
+
+function notificationGroupTitle(group) {
+  const titles = {
+    match: "Match",
+    approval: "Approval",
+    reminder: "Reminder",
+    role: "Role",
+    strava: "Strava",
+    other: "Other"
+  };
+  return titles[group] || "Other";
+}
+
+function adminReminderInboxHtml() {
+  if (!isCurrentUserAdmin()) return "";
+
+  const pendingApprovals = (allPendingMembers || []).length;
+  const pendingResults = (allMatches || []).filter(match =>
+    canSubmitScore(match) &&
+    !hasSubmittedScore(match)
+  ).length;
+  const matchRemindersCount = matchReminders({ adminOnly: true }).length;
+
+  const cards = [
+    pendingApprovals
+      ? `<article class="notification-reminder-card">
+          <strong>${pendingApprovals} pending approval${pendingApprovals === 1 ? "" : "s"}</strong>
+          <p>Review new member requests in the admin Members panel.</p>
+          <div class="actions">
+            <button class="tiny-btn" type="button" onclick="setActiveTab('admin'); activateAdminPanel('Members')">Open Members</button>
+          </div>
+        </article>`
+      : "",
+    pendingResults
+      ? `<article class="notification-reminder-card">
+          <strong>${pendingResults} match result${pendingResults === 1 ? "" : "s"} need attention</strong>
+          <p>Finalize completed matches from the Matches tab or admin Maintenance panel.</p>
+          <div class="actions">
+            <button class="tiny-btn" type="button" onclick="setActiveTab('matches')">Open Matches</button>
+            <button class="tiny-btn" type="button" onclick="setActiveTab('admin'); activateAdminPanel('Maintenance')">Admin Maintenance</button>
+          </div>
+        </article>`
+      : "",
+    matchRemindersCount
+      ? `<article class="notification-reminder-card">
+          <strong>${matchRemindersCount} match reminder${matchRemindersCount === 1 ? "" : "s"}</strong>
+          <p>Send reminders to captains, members, or admins who still need to respond.</p>
+          <div class="actions">
+            <button class="tiny-btn" type="button" onclick="setActiveTab('admin'); activateAdminPanel('Overview')">Open Reminders</button>
+          </div>
+        </article>`
+      : ""
+  ].filter(Boolean);
+
+  if (!cards.length) return "";
+
+  return `
+    <div class="notification-reminder-group">
+      <div class="notification-group-title">
+        <span>Admin reminders</span>
+        <span>Approvals and results</span>
+      </div>
+      ${cards.join("")}
+    </div>
+  `;
+}
+
+function updateNotificationUnreadBadge() {
+  const badge = $("accountNotificationBadge");
+  if (!badge) return;
+
+  const unread = (allNotifications || []).filter(row => !row.read_at).length;
+  if (!unread) {
+    badge.hidden = true;
+    badge.textContent = "0";
+    return;
+  }
+
+  badge.hidden = false;
+  badge.textContent = unread > 99 ? "99+" : String(unread);
+}
+
+function updateAdminNotificationBadge() {
+  const badge = $("adminNotificationBadge");
+  if (!badge) return;
+
+  const pendingApprovals = (allPendingMembers || []).length;
+  const pendingResults = (allMatches || []).filter(match =>
+    canSubmitScore(match) &&
+    !hasSubmittedScore(match)
+  ).length;
+  const pendingActivities = (allMemberActivities || []).filter(activity =>
+    String(activity.status || "pending").toLowerCase() === "pending"
+  ).length;
+  const unreadNotifications = (allNotifications || []).filter(row => !row.read_at).length;
+
+  const count = pendingApprovals + pendingResults + pendingActivities + unreadNotifications;
+
+  if (!count) {
+    badge.hidden = true;
+    badge.textContent = "0";
+    return;
+  }
+
+  badge.hidden = false;
+  badge.textContent = count > 99 ? "99+" : String(count);
+}
+
 function renderNotificationInbox() {
   const list = $("notificationInboxList");
+  const reminders = $("notificationInboxReminders");
   const status = $("notification-inbox-status");
   const markReadBtn = $("mark-notifications-read-btn");
   if (!list) return;
 
   const unreadCount = (allNotifications || []).filter(row => !row.read_at).length;
+  const grouped = (allNotifications || []).reduce((acc, row) => {
+    const group = notificationGroupForType(row.type);
+    if (!acc.has(group)) acc.set(group, []);
+    acc.get(group).push(row);
+    return acc;
+  }, new Map());
 
   if (status) {
     status.textContent = unreadCount
@@ -18493,32 +18690,53 @@ function renderNotificationInbox() {
   }
 
   if (markReadBtn) markReadBtn.disabled = unreadCount === 0;
+  updateNotificationUnreadBadge();
+  updateAdminNotificationBadge();
+
+  if (reminders) {
+    reminders.innerHTML = adminReminderInboxHtml();
+  }
 
   if (!allNotifications.length) {
     list.innerHTML = `<div class="hint">No notifications yet.</div>`;
     return;
   }
 
-  list.innerHTML = allNotifications.map(row => {
-    const unread = !row.read_at;
-    const type = notificationTypeLabel(row.type);
-    const targetUrl = notificationTargetFromRow(row);
+  const order = ["match", "approval", "reminder", "role", "strava", "other"];
+
+  list.innerHTML = order.map(group => {
+    const rows = grouped.get(group) || [];
+    if (!rows.length) return "";
 
     return `
-      <article class="notification-inbox-item ${unread ? "unread" : ""}">
-        <button class="notification-inbox-open" type="button" onclick="openInboxNotification('${row.id}')">
-          <span>
-            <strong>${escapeHtml(row.title || "Notification")}</strong>
-            <small>${escapeHtml(type)} - ${escapeHtml(fmtDate(row.created_at))}</small>
-            ${row.body ? `<em>${escapeHtml(row.body)}</em>` : ""}
-          </span>
-          <b>${unread ? "New" : ""}</b>
-        </button>
-        <div class="notification-inbox-meta">
-          <span>${escapeHtml(row.delivery_status || "queued")}</span>
-          ${targetUrl ? `<span>${escapeHtml(String(targetUrl).replace("./index.html", ""))}</span>` : ""}
+      <div class="notification-inbox-group">
+        <div class="notification-group-title">
+          <span>${escapeHtml(notificationGroupTitle(group))}</span>
+          <span>${rows.length}</span>
         </div>
-      </article>
+        ${rows.map(row => {
+          const unread = !row.read_at;
+          const type = notificationTypeLabel(row.type);
+          const targetUrl = notificationTargetFromRow(row);
+
+          return `
+            <article class="notification-inbox-item ${unread ? "unread" : ""}">
+              <button class="notification-inbox-open" type="button" onclick="openInboxNotification('${row.id}')">
+                <span>
+                  <strong>${escapeHtml(row.title || "Notification")}</strong>
+                  <small>${escapeHtml(type)} - ${escapeHtml(fmtDate(row.created_at))}</small>
+                  ${row.body ? `<em>${escapeHtml(row.body)}</em>` : ""}
+                </span>
+                <b>${unread ? "New" : ""}</b>
+              </button>
+              <div class="notification-inbox-meta">
+                <span>${escapeHtml(row.delivery_status || "queued")}</span>
+                ${targetUrl ? `<span>${escapeHtml(String(targetUrl).replace("./index.html", ""))}</span>` : ""}
+              </div>
+            </article>
+          `;
+        }).join("")}
+      </div>
     `;
   }).join("");
 }
@@ -19036,9 +19254,27 @@ async function sendTestNotification() {
 
 async function sendMemberApprovalRequestedNotification() {
   try {
+    const { data: recipientsData, error: recipientsError } = await supabaseClient
+      .from("members")
+      .select("id")
+      .eq("approval_status", "approved")
+      .in("role", ["owner", "admin"]);
+
+    if (recipientsError) throw recipientsError;
+
+    const recipientIds = Array.from(new Set((recipientsData || [])
+      .map(row => cleanUuidValue(row.id))
+      .filter(Boolean)))
+      .filter(id => id !== currentProfile?.id);
+
+    if (!recipientIds.length) {
+      return { sent: 0, failed: 0, skipped: true };
+    }
+
     const { data, error } = await supabaseClient.functions.invoke("send-push", {
       body: {
-        type: "member_approval_requested"
+        type: "member_approval_requested",
+        recipient_member_ids: recipientIds
       }
     });
 

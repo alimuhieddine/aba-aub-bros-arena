@@ -934,6 +934,157 @@
   grid-template-columns: 90px minmax(0, 1fr) 92px;
 }
 
+.tab-notification-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ff5f67;
+  color: #fff;
+  font-family: Roboto, Helvetica, Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 10px rgba(255, 95, 103, .35);
+}
+
+.notification-reminders-stack {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.notification-reminder-group,
+.notification-inbox-group {
+  display: grid;
+  gap: 8px;
+}
+
+.notification-group-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #fff;
+  font-family: Roboto, Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.notification-group-title span:last-child {
+  color: #93a7bf;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.notification-reminder-card {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(49, 168, 255, .22);
+  background: linear-gradient(135deg, rgba(16, 30, 48, .96), rgba(8, 17, 30, .98));
+  box-shadow: inset 0 0 0 1px rgba(49, 168, 255, .05);
+}
+
+.notification-reminder-card strong {
+  color: #fff;
+  font-size: 13px;
+}
+
+.notification-reminder-card p {
+  margin: 0;
+  color: rgba(238, 246, 255, .78);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.notification-reminder-card .actions {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.notification-inbox-group .notification-group-title {
+  margin: 2px 0 0;
+}
+
+.notification-inbox-item {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(49, 168, 255, .12);
+  background: linear-gradient(135deg, rgba(16, 30, 48, .90), rgba(8, 17, 30, .96));
+}
+
+.notification-inbox-item.unread {
+  border-color: rgba(49, 168, 255, .28);
+  box-shadow: inset 0 0 0 1px rgba(49, 168, 255, .05);
+}
+
+.notification-inbox-open {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+}
+
+.notification-inbox-open strong {
+  display: block;
+  color: #fff;
+  font-size: 13px;
+}
+
+.notification-inbox-open small,
+.notification-inbox-open em {
+  display: block;
+  margin-top: 2px;
+  color: rgba(238, 246, 255, .72);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.notification-inbox-open em {
+  line-height: 1.35;
+}
+
+.notification-inbox-open b {
+  color: #2ee582;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.notification-inbox-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.notification-inbox-meta span {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(147, 167, 191, .22);
+  background: rgba(147, 167, 191, .08);
+  color: #cfe2f5;
+  font-size: 10px;
+  line-height: 1.2;
+}
+
 .iphone-pro-max .hand-drawn-star {
   position: absolute;
   top: 5px;

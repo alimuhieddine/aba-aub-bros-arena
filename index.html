@@ -224,6 +224,22 @@
       box-shadow: inset 0 0 0 1px rgba(255,255,255,.02);
     }
 
+    .aba-login-card input:-webkit-autofill,
+    .aba-login-card input:-webkit-autofill:hover,
+    .aba-login-card input:-webkit-autofill:focus,
+    .aba-login-card input:-webkit-autofill:active {
+      -webkit-text-fill-color: rgba(255, 255, 255, .96) !important;
+      caret-color: #fff;
+      transition: background-color 9999s ease-out 0s;
+      -webkit-box-shadow: 0 0 0 1000px rgba(2, 10, 20, .88) inset !important;
+      box-shadow: 0 0 0 1000px rgba(2, 10, 20, .88) inset !important;
+      border-color: rgba(49, 168, 255, .34) !important;
+    }
+
+    .aba-login-card input::placeholder {
+      color: rgba(255, 255, 255, .60);
+    }
+
     .aba-login-card input:focus {
       border-color: #31a8ff;
       box-shadow:
@@ -4671,8 +4687,8 @@
       <div class="home-type-menu tab" data-view="matches"><div class="div"><img class="menu-icons" src="svg/matches.svg" /><div class="home-2">Matches</div></div><div class="rectangle-2"></div></div>
       <div class="home-type-menu tab" data-view="leagues"><div class="div"><img class="menu-icons" src="svg/leagues.svg" /><div class="home-2">Leagues</div></div><div class="rectangle-2"></div></div>
       <div class="home-type-menu tab" data-view="rankings"><div class="div"><img class="menu-icons" src="svg/ranks.svg" /><div class="home-3">Ranks</div></div><div class="rectangle-2"></div></div>
-      <div class="home-type-menu tab auth-only" data-view="account" style="display:none;"><div class="div"><img class="menu-icons" src="svg/account.svg" /><div class="home-4">Account</div></div><div class="rectangle-2"></div></div>
-      <div class="home-type-menu tab admin-only" data-view="admin" style="display:none;"><div class="div"><img class="img" src="svg/admin.svg" /><div class="home-5">Admin</div></div><div class="rectangle-2"></div></div>
+      <div class="home-type-menu tab auth-only" data-view="account" style="display:none;"><div class="div"><img class="menu-icons" src="svg/account.svg" /><div class="home-4">Account</div><span id="accountNotificationBadge" class="tab-notification-badge" hidden>0</span></div><div class="rectangle-2"></div></div>
+      <div class="home-type-menu tab admin-only" data-view="admin" style="display:none;"><div class="div"><img class="img" src="svg/admin.svg" /><div class="home-5">Admin</div><span id="adminNotificationBadge" class="tab-notification-badge" hidden>0</span></div><div class="rectangle-2"></div></div>
     </div>
 
     <div id="pullRefreshIndicator" class="pull-refresh-indicator" aria-live="polite" hidden>Pull to refresh</div>
@@ -4960,6 +4976,7 @@
             </button>
           </div>
 
+          <div id="notificationInboxReminders" class="notification-reminders-stack"></div>
           <div id="notificationInboxList" class="stack"></div>
         </div>
       </section>
