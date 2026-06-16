@@ -1045,6 +1045,61 @@
       object-fit: cover;
     }
 
+    #admin .member-role-option {
+      text-align: left;
+      padding: 6px 8px;
+      border: 1px solid rgba(255, 255, 255, .1);
+      border-radius: 8px;
+      background: rgba(4, 10, 20, .45);
+      transition: border-color 0.2s, background-color 0.2s;
+    }
+
+    #admin .member-role-option.selected {
+      border-color: rgba(49, 168, 255, .55);
+      background: rgba(49, 168, 255, .12);
+    }
+
+    #admin .member-role-option-identity {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+      width: 100%;
+    }
+
+    #admin .member-role-option-identity > span {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+      align-content: center;
+    }
+
+    #admin .member-role-option-identity strong {
+      display: block;
+      min-width: 0;
+      overflow: hidden;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 900;
+      line-height: 1.2;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    #admin .member-role-option-identity small {
+      display: block;
+      color: rgba(238, 246, 255, .72);
+      font-size: 9.5px;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #admin .member-role-selected-preview .member-role-option-identity {
+      width: auto;
+    }
+
     #admin .admin-subtab {
       touch-action: manipulation;
     }
