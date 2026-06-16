@@ -3091,6 +3091,7 @@ function renderStats() {
   renderLegacyHomeActivitiesCard();
   renderLegacyHomeRankingCard();
   renderLegacyHomePointsCard();
+  renderHomeUpcomingMatchesSection();
 }
 
 function homeApprovedActivities() {
@@ -3253,6 +3254,112 @@ function homeNextMatch() {
     .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
 
   return upcoming[0] || null;
+}
+
+function homeUpcomingMatches(limit = 0) {
+  const now = Date.now();
+  const upcoming = (allMatches || [])
+    .filter(match => !isCancelledMatch(match))
+    .filter(match => new Date(match.start_time || 0).getTime() >= now)
+    .sort((a, b) => new Date(a.start_time || 0) - new Date(b.start_time || 0));
+
+  return limit > 0 ? upcoming.slice(0, limit) : upcoming;
+}
+
+function homeUpcomingSportAsset(match) {
+  const sport = String(match?.sports?.name || sportNameById(match?.sport_id) || "").toLowerCase();
+
+  if (sport.includes("padel")) return "svg/racquetball.svg";
+  if (sport.includes("soccer") || sport.includes("football")) return "svg/soccer-player.svg";
+  if (sport.includes("tennis")) return "svg/tennis-player.svg";
+  if (sport.includes("basketball")) return "svg/netball.svg";
+  if (sport.includes("volleyball")) return "svg/volleyball-player.svg";
+
+  return "svg/stadium.svg";
+}
+
+function homeUpcomingSportTone(match) {
+  const sport = String(match?.sports?.name || sportNameById(match?.sport_id) || "").toLowerCase();
+
+  if (sport.includes("padel")) return { color: "#2EE582", name: "padel" };
+  if (sport.includes("soccer") || sport.includes("football")) return { color: "#2EE582", name: "soccer" };
+  if (sport.includes("tennis")) return { color: "#FFD166", name: "tennis" };
+  if (sport.includes("basketball")) return { color: "#FF9F3A", name: "basketball" };
+  if (sport.includes("volleyball")) return { color: "#FF5F67", name: "volleyball" };
+
+  return { color: "#93A7BF", name: "default" };
+}
+
+function homeUpcomingDayLabel(date) {
+  const d = new Date(date || 0);
+  if (!Number.isFinite(d.getTime())) return "Scheduled";
+
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startTarget = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dayDiff = Math.round((startTarget - startToday) / 86400000);
+
+  if (dayDiff <= 0) return "Tonight";
+  if (dayDiff === 1) return "Tomorrow";
+
+  return d.toLocaleDateString([], { weekday: "long" });
+}
+
+function homeUpcomingMatchRowHtml(match, index) {
+  const sport = String(match?.sports?.name || sportNameById(match?.sport_id) || "Sport").trim();
+  const league = String(match?.leagues?.name || match?.league_name || "League").trim();
+  const venue = String(match?.venues?.name || match?.venue_name || "Venue pending").trim();
+  const d = new Date(match?.start_time || 0);
+  const timeLabel = Number.isFinite(d.getTime())
+    ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : "--";
+  const dayLabel = homeUpcomingDayLabel(match?.start_time);
+  const sportAsset = homeUpcomingSportAsset(match);
+  const sportTone = homeUpcomingSportTone(match);
+
+  return `
+    <article class="home-upcoming-match-card home-dashboard-card" style="--sport-accent: ${sportTone.color};" onclick="openMatchDeepLink('${match.id}')" role="button" tabindex="0" aria-label="Open ${escapeHtml(match.title || sport)}">
+      <div class="home-upcoming-match-orb home-upcoming-match-orb-${index}" style="--sport-accent: ${sportTone.color};">
+        <img src="${escapeHtml(sportAsset)}" alt="${escapeHtml(sport)} icon">
+      </div>
+
+      <div class="home-upcoming-match-body">
+        <div class="home-upcoming-match-title">${escapeHtml(match.title || sport)}</div>
+        <div class="home-upcoming-match-subtitle">${escapeHtml(sport)} - ${escapeHtml(league)}</div>
+        <div class="home-upcoming-match-venue">📍 ${escapeHtml(venue)}</div>
+      </div>
+
+      <div class="home-upcoming-match-time">
+        <div class="home-upcoming-match-day">${escapeHtml(dayLabel)}</div>
+        <div class="home-upcoming-match-clock">${escapeHtml(timeLabel)}</div>
+        <div class="home-upcoming-match-status"><span>Scheduled</span></div>
+      </div>
+    </article>
+  `;
+}
+
+function renderHomeUpcomingMatchesSection() {
+  const box = $("homeUpcomingMatchesSection");
+  if (!box) return;
+
+  const upcoming = homeUpcomingMatches();
+
+  if (!upcoming.length) {
+    box.innerHTML = `
+      <article class="home-upcoming-match-card home-dashboard-card home-upcoming-empty">
+        <div></div>
+        <div class="home-upcoming-match-body">
+          <div class="home-upcoming-match-title">No upcoming matches yet</div>
+          <div class="home-upcoming-match-subtitle">Create a match to see it here.</div>
+          <div class="home-upcoming-match-venue">You can tap Matches to schedule one.</div>
+        </div>
+        <div></div>
+      </article>
+    `;
+    return;
+  }
+
+  box.innerHTML = upcoming.map((match, index) => homeUpcomingMatchRowHtml(match, index + 1)).join("");
 }
 
 function homeWeekActivityMinutes() {
@@ -8821,6 +8928,21 @@ function openLinkedActivityMatch(matchId) {
   setTimeout(() => {
     if (!focusMatchCard(safeMatchId)) {
       showPushToast("Match not visible yet", "Refresh matches or clear filters to find the linked match.");
+    }
+  }, 120);
+}
+
+function openMatchDeepLink(matchId) {
+  const safeMatchId = cleanUuidValue(matchId);
+  if (!safeMatchId) return;
+
+  setActiveTab("matches", false);
+  resetMatchFiltersForDeepLink();
+  renderMatches();
+
+  setTimeout(() => {
+    if (!focusMatchCard(safeMatchId)) {
+      showPushToast("Match not visible yet", "Refresh matches or clear filters to find this match.");
     }
   }, 120);
 }
