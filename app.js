@@ -39,6 +39,25 @@ function clearLocalDevServiceWorkerCaches() {
 
 clearLocalDevServiceWorkerCaches();
 
+async function lockPortraitOrientation() {
+  const orientationApi = window.screen?.orientation;
+  if (!orientationApi?.lock) return;
+
+  try {
+    await orientationApi.lock("portrait");
+  } catch {
+    // Ignore unsupported or gesture-gated orientation lock failures.
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  lockPortraitOrientation();
+});
+
+window.addEventListener("focus", () => {
+  lockPortraitOrientation();
+});
+
 const $ = (id) => document.getElementById(id);
 
 if ("scrollRestoration" in history) {

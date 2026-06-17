@@ -1,5 +1,5 @@
-const SHELL_CACHE = "aba-pwa-shell-v5";
-const IMAGE_CACHE = "aba-image-cache-v4";
+const SHELL_CACHE = "aba-pwa-shell-v6";
+const IMAGE_CACHE = "aba-image-cache-v5";
 const IMAGE_CACHE_LIMIT = 160;
 const SHELL_ASSETS = [
   "./manifest.json",
