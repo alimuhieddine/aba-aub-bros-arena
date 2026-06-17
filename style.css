@@ -1553,4 +1553,128 @@
   white-space: nowrap;
 }
 
+.sport-rating-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.sport-rating-grid-head {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(128px, 2.8fr) repeat(4, minmax(44px, 1fr));
+  gap: 8px 6px;
+  align-items: center;
+  font-size: 13px;
+  color: #a9b8c8;
+}
+
+.sport-rating-grid-head strong {
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #8ea7bf;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.sport-rating-row {
+  width: 100%;
+}
+
+.sport-rating-player {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(128px, 2.8fr) repeat(4, minmax(44px, 1fr));
+  gap: 8px 6px;
+  align-items: center;
+}
+
+.sport-rating-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sport-rating-identity .mini-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #2a425a;
+  flex: 0 0 auto;
+}
+
+.sport-rating-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.sport-rating-position-input {
+  width: 100%;
+  max-width: 54px;
+  box-sizing: border-box;
+  padding: 8px 4px;
+  border-radius: 8px;
+  border: 1px solid #1f3348;
+  background: #081425;
+  color: #eef6ff;
+  text-align: center;
+  font-size: 13px;
+}
+
+.sport-rating-position-input:focus {
+  border-color: #31a8ff;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(49, 168, 255, 0.18);
+}
+
+.sport-rating-identity .mini-pill {
+  font-size: 11px;
+}
+
+.sport-rating-row > * {
+  min-width: 0;
+}
+
+.sport-rating-identity .mini-player-link {
+  min-width: 0;
+  font-size: 12px;
+}
+
+@media (max-width: 420px) {
+  .sport-rating-grid-head,
+  .sport-rating-player {
+    grid-template-columns: minmax(116px, 2.4fr) repeat(4, minmax(40px, 1fr));
+    gap: 6px 4px;
+  }
+
+  .sport-rating-grid-head strong {
+    font-size: 11px;
+  }
+
+  .sport-rating-position-input {
+    max-width: 48px;
+    padding: 7px 2px;
+    font-size: 12px;
+  }
+
+  .sport-rating-identity {
+    gap: 6px;
+  }
+
+  .sport-rating-identity .mini-avatar {
+    width: 24px;
+    height: 24px;
+  }
+
+  .sport-rating-identity .mini-player-link {
+    font-size: 11px;
+  }
+}
+
 
