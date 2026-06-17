@@ -212,12 +212,21 @@ function renderVenuesList() {
   const box = $("venuesList");
   if (!box) return;
 
-  if (!allVenues.length) {
-    box.innerHTML = `<article class="card">No venues added yet.</article>`;
+  const query = adminSearchQuery("admin-venue-search");
+  const venues = (allVenues || []).filter(venue => adminTextMatchesQuery([
+    venue.name,
+    venue.address,
+    venue.google_maps_url,
+    normalizeVenueImageUrl(venue.image_url),
+    ABAVenues.sportNamesForVenue(venue).join(" ")
+  ], query));
+
+  if (!venues.length) {
+    box.innerHTML = `<article class="card admin-compact-card">${query ? "No venues match your search." : "No venues added yet."}</article>`;
     return;
   }
 
-  box.innerHTML = allVenues.map(venue => {
+  box.innerHTML = venues.map(venue => {
     const sportNames = ABAVenues.sportNamesForVenue(venue);
     const imageUrl = normalizeVenueImageUrl(venue.image_url);
 
@@ -482,20 +491,27 @@ function renderPendingMembersList() {
   const box = $("pendingMembersList");
   if (!box) return;
 
-  if (!allPendingMembers.length) {
-    box.innerHTML = `<article class="card">No pending profiles.</article>`;
+  const query = adminSearchQuery("admin-pending-member-search");
+  const pendingMembers = (allPendingMembers || []).filter(member => adminTextMatchesQuery([
+    member.display_name,
+    member.first_name,
+    member.last_name,
+    member.email,
+    member.phone,
+    member.birth_date
+  ], query));
+
+  if (!pendingMembers.length) {
+    box.innerHTML = `<article class="card admin-compact-card">${query ? "No pending profiles match your search." : "No pending profiles."}</article>`;
     return;
   }
 
-  box.innerHTML = allPendingMembers.map(member => `
-    <article class="card">
+  box.innerHTML = pendingMembers.map(member => `
+    <article class="card admin-compact-card">
       <div class="row">
         <div>
           <h3>${escapeHtml(member.display_name || "Unnamed")}</h3>
-          <div class="meta">
-            ${escapeHtml(member.first_name || "")}
-            ${escapeHtml(member.last_name || "")}
-          </div>
+          <div class="meta">${escapeHtml(member.first_name || "")} ${escapeHtml(member.last_name || "")}</div>
           <div class="meta">${escapeHtml(member.email || "")}</div>
           <div class="meta">Phone: ${escapeHtml(member.phone || "-")}</div>
           <div class="meta">Birth Date: ${escapeHtml(member.birth_date || "-")}</div>
@@ -677,9 +693,19 @@ function renderMemberRoleManager(members = []) {
   }
 
   allMemberRoleManagerMembers = members;
+  const query = adminSearchQuery("admin-member-role-search");
+  const visibleMembers = members.filter(member => adminTextMatchesQuery([
+    member.display_name,
+    member.first_name,
+    member.last_name,
+    member.email,
+    member.role,
+    member.phone
+  ], query));
   const selectedMember = members.find(member =>
     cleanUuidValue(member.id) === cleanUuidValue(currentMemberRoleManagerId)
   ) || null;
+  const memberList = query ? visibleMembers : members;
 
   box.innerHTML = `
     <article class="card member-role-picker-card">
@@ -690,7 +716,7 @@ function renderMemberRoleManager(members = []) {
           : `<span class="hint">Select a member</span>`}
       </div>
       <div class="member-role-option-list member-role-option-list-inline" role="listbox" aria-label="Members">
-        ${members.map(member => `
+        ${memberList.map(member => `
           <button
             class="member-role-option ${selectedMember?.id === member.id ? "selected" : ""}"
             type="button"
@@ -702,6 +728,7 @@ function renderMemberRoleManager(members = []) {
           </button>
         `).join("")}
       </div>
+      ${query && !visibleMembers.length ? `<div class="hint">No members match your search.</div>` : ""}
     </article>
 
     <div id="member-role-editor-slot">
@@ -1007,45 +1034,112 @@ function renderAdminMatchReminders() {
   if (!shouldRenderAdminPanel("Maintenance")) return;
 
   const box = $("adminMatchReminderList");
-  if (!box || !isCurrentUserAdmin()) return;
+  const lookupBox = $("adminMatchLookupList");
+  if ((!box && !lookupBox) || !isCurrentUserAdmin()) return;
 
-  const reminders = matchReminders({ adminOnly: true });
+  const query = adminSearchQuery("admin-match-search");
+  const reminders = matchReminders({ adminOnly: true }).filter(reminder => {
+    const match = matchById(reminder.matchId);
+    return adminTextMatchesQuery([
+      reminder.title,
+      reminder.detail,
+      reminder.type,
+      match?.title,
+      match?.sports?.name,
+      match?.leagues?.name,
+      match?.venues?.name,
+      match?.venues?.address,
+      fmtDate(match?.start_time)
+    ], query);
+  });
 
-  if (!reminders.length) {
-    box.innerHTML = `<article class="card">No active match reminders right now.</article>`;
-    return;
+  if (box) {
+    if (!reminders.length) {
+      box.innerHTML = `<article class="card">No active match reminders right now.</article>`;
+    } else {
+      box.innerHTML = `
+        <article class="card match-reminder-actions">
+          <div>
+            <strong>${reminders.length} active reminder${reminders.length === 1 ? "" : "s"}</strong>
+            <div id="admin-reminder-status" class="hint">Send reminders only when you want to notify members.</div>
+          </div>
+          <button class="secondary-btn" type="button" onclick="sendAllMatchReminders()">Send All</button>
+        </article>
+        ${reminders.map(reminder => {
+          const match = matchById(reminder.matchId);
+          const recipients = matchReminderRecipients(match, reminder.audience);
+          return `
+            <article class="card match-reminder-card">
+              <div class="row">
+                <div>
+                  <h3>${escapeHtml(reminder.title)}</h3>
+                  <p>${escapeHtml(reminder.detail)}</p>
+                  <div class="meta">${escapeHtml(match?.sports?.name || "Match")} • ${escapeHtml(fmtDate(match?.start_time))}</div>
+                  <div class="meta">${recipients.length} recipient${recipients.length === 1 ? "" : "s"}</div>
+                </div>
+                <span class="pill ${escapeHtml(reminderBadgeType(reminder))}">${escapeHtml(reminder.type)}</span>
+              </div>
+              <div class="actions">
+                <button class="small-btn" type="button" onclick="openLinkedActivityMatch('${escapeHtml(reminder.matchId)}')">Open Match</button>
+                <button class="small-btn" type="button" onclick="sendMatchReminder('${escapeHtml(reminder.key)}')" ${recipients.length ? "" : "disabled"}>Send Reminder</button>
+              </div>
+            </article>
+          `;
+        }).join("")}
+      `;
+    }
   }
 
-  box.innerHTML = `
-    <article class="card match-reminder-actions">
-      <div>
-        <strong>${reminders.length} active reminder${reminders.length === 1 ? "" : "s"}</strong>
-        <div id="admin-reminder-status" class="hint">Send reminders only when you want to notify members.</div>
-      </div>
-      <button class="secondary-btn" type="button" onclick="sendAllMatchReminders()">Send All</button>
-    </article>
-    ${reminders.map(reminder => {
-      const match = matchById(reminder.matchId);
-      const recipients = matchReminderRecipients(match, reminder.audience);
-      return `
-        <article class="card match-reminder-card">
-          <div class="row">
-            <div>
-              <h3>${escapeHtml(reminder.title)}</h3>
-              <p>${escapeHtml(reminder.detail)}</p>
-              <div class="meta">${escapeHtml(match?.sports?.name || "Match")} • ${escapeHtml(fmtDate(match?.start_time))}</div>
-              <div class="meta">${recipients.length} recipient${recipients.length === 1 ? "" : "s"}</div>
-            </div>
-            <span class="pill ${escapeHtml(reminderBadgeType(reminder))}">${escapeHtml(reminder.type)}</span>
+  if (lookupBox) {
+    const matches = (allMatches || []).filter(match => {
+      if (query && !adminTextMatchesQuery([
+        match.title,
+        match.sports?.name,
+        match.leagues?.name,
+        match.venues?.name,
+        match.venues?.address,
+        match.status,
+        match.score_status,
+        fmtDate(match.start_time),
+        match.end_time ? fmtDate(match.end_time) : ""
+      ], query)) return false;
+      return !isCancelledMatch(match);
+    }).sort((a, b) => new Date(b.start_time || 0) - new Date(a.start_time || 0)).slice(0, query ? 30 : 8);
+
+    lookupBox.innerHTML = matches.length
+      ? `
+        <div class="section-head compact-section-head">
+          <div>
+            <h3>Match lookup</h3>
+            <p class="hint">Quickly open, edit, or inspect any match.</p>
           </div>
-          <div class="actions">
-            <button class="small-btn" type="button" onclick="openLinkedActivityMatch('${escapeHtml(reminder.matchId)}')">Open Match</button>
-            <button class="small-btn" type="button" onclick="sendMatchReminder('${escapeHtml(reminder.key)}')" ${recipients.length ? "" : "disabled"}>Send Reminder</button>
-          </div>
-        </article>
-      `;
-    }).join("")}
-  `;
+        </div>
+        ${matches.map(match => {
+          const statusText = getMatchDisplayStatus(match);
+          const sport = match?.sports?.name || "Match";
+          const venue = match?.venues?.name || "-";
+          const league = match?.leagues?.name || "-";
+          return `
+            <article class="card admin-match-lookup-card">
+              <div class="row">
+                <div>
+                  <h3>${escapeHtml(match.title || sport)}</h3>
+                  <div class="meta">${escapeHtml(sport)} • ${escapeHtml(league)}</div>
+                  <div class="meta">📍 ${escapeHtml(venue)}</div>
+                  <div class="meta">${escapeHtml(fmtDate(match.start_time))}${match.end_time ? ` • ${escapeHtml(fmtDate(match.end_time))}` : ""}</div>
+                </div>
+                <span class="pill ${escapeHtml(matchLifecycleClass(match))}">${escapeHtml(statusText)}</span>
+              </div>
+              <div class="actions">
+                <button class="small-btn" type="button" onclick="openMatchDeepLink('${escapeHtml(match.id)}')">Open</button>
+                <button class="small-btn" type="button" onclick="editMatch('${escapeHtml(match.id)}')">Edit</button>
+              </div>
+            </article>
+          `;
+        }).join("")}
+      `
+      : `<article class="card"><div class="hint">${query ? "No matches matched your search." : "No matches available."}</div></article>`;
+  }
 }
 
 async function sendMatchReminder(reminderKey, { quiet = false } = {}) {
@@ -1198,6 +1292,25 @@ function adminPanelNameForHeading(heading) {
   if (text.includes("maintenance")) return "Maintenance";
   if (text.includes("venue")) return "Venues";
   return "Other";
+}
+
+function normalizeAdminSearchText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function adminSearchQuery(inputId) {
+  return normalizeAdminSearchText($(inputId)?.value || "");
+}
+
+function adminTextMatchesQuery(textParts = [], query = "") {
+  const needle = normalizeAdminSearchText(query);
+  if (!needle) return true;
+  const haystack = normalizeAdminSearchText(textParts.filter(Boolean).join(" "));
+  return haystack.includes(needle);
 }
 
 function activateAdminPanel(panelName, options = {}) {
@@ -1374,13 +1487,13 @@ function renderAdminActionQueue(counts = {}) {
     ? `
       <div class="section-head compact-section-head">
         <div>
-          <h3>Action Queue</h3>
-          <p class="hint">High-priority admin follow-ups from live app data.</p>
+          <h3>Pending actions</h3>
+          <p class="hint">High-priority follow-ups pulled from live app data.</p>
         </div>
       </div>
       <div class="admin-queue-grid">${cards.join("")}</div>
     `
-    : `<article class="card admin-queue-card"><strong>Action Queue</strong><p>All clear right now.</p></article>`;
+    : `<article class="card admin-queue-card"><strong>Pending actions</strong><p>All clear right now.</p></article>`;
 }
 
 function loadData() {
@@ -3302,37 +3415,42 @@ function homeUpcomingToneShadow(toneColor, fallback = "blue") {
     "#2EE582": {
       border: "rgba(46, 229, 130, .92)",
       outer: "rgba(46, 229, 130, .28)",
-      glow: "rgba(46, 229, 130, .40)",
-      outline: "rgba(46, 229, 130, .14)"
+      glow: "rgba(46, 229, 130, .18)",
+      inner: "rgba(46, 229, 130, .08)",
+      outline: "rgba(46, 229, 130, .18)"
     },
     "#FFD166": {
       border: "rgba(255, 209, 102, .92)",
       outer: "rgba(255, 209, 102, .28)",
-      glow: "rgba(255, 209, 102, .40)",
-      outline: "rgba(255, 209, 102, .14)"
+      glow: "rgba(255, 209, 102, .18)",
+      inner: "rgba(255, 209, 102, .08)",
+      outline: "rgba(255, 209, 102, .18)"
     },
     "#FF9F3A": {
       border: "rgba(255, 167, 69, .92)",
       outer: "rgba(255, 167, 69, .28)",
-      glow: "rgba(255, 167, 69, .40)",
-      outline: "rgba(255, 167, 69, .14)"
+      glow: "rgba(255, 167, 69, .18)",
+      inner: "rgba(255, 167, 69, .08)",
+      outline: "rgba(255, 167, 69, .18)"
     },
     "#FF5F67": {
       border: "rgba(255, 95, 103, .92)",
       outer: "rgba(255, 95, 103, .28)",
-      glow: "rgba(255, 95, 103, .40)",
-      outline: "rgba(255, 95, 103, .14)"
+      glow: "rgba(255, 95, 103, .18)",
+      inner: "rgba(255, 95, 103, .08)",
+      outline: "rgba(255, 95, 103, .18)"
     },
     "#93A7BF": {
       border: "rgba(147, 167, 191, .92)",
       outer: "rgba(147, 167, 191, .28)",
-      glow: "rgba(147, 167, 191, .40)",
-      outline: "rgba(147, 167, 191, .14)"
+      glow: "rgba(147, 167, 191, .18)",
+      inner: "rgba(147, 167, 191, .08)",
+      outline: "rgba(147, 167, 191, .18)"
     }
   };
 
   const tone = shadows[toneColor] || shadows[(fallback === "green" ? "#2EE582" : fallback === "yellow" ? "#FFD166" : fallback === "orange" ? "#FF9F3A" : fallback === "red" ? "#FF5F67" : "#93A7BF")];
-  return `border: 1px solid ${tone.border} !important; box-shadow: 0 0 0 1px ${tone.outline}, 0 0 18px ${tone.outer}, 0 0 36px ${tone.glow}, inset 0 0 0 1px ${tone.outline} !important; filter: drop-shadow(0 0 10px ${tone.outer}) drop-shadow(0 0 20px ${tone.glow}) !important;`;
+  return `border: 1px solid ${tone.border} !important; box-shadow: inset 0 0 0 1px ${tone.inner}, 0 8px 18px rgba(0, 0, 0, .28), 0 0 18px ${tone.outer}, 0 0 0 1px ${tone.outline} !important;`;
 }
 
 function homeUpcomingOrbShadow(toneColor, fallback = "blue") {
@@ -9537,11 +9655,11 @@ function renderMatchCardHtml(match) {
     const teamsAssigned = matchHasTeamsAssigned(match);
     const matchTone = sportTitleIconConfig(match.sports?.name || "")?.tone || "blue";
     const matchStyleMap = {
-      blue: "border: 2px solid rgba(49, 168, 255, .86); box-shadow: 0 0 0 1px rgba(49, 168, 255, .14), 0 0 18px rgba(49, 168, 255, .28), 0 0 36px rgba(49, 168, 255, .18), inset 0 0 0 1px rgba(49, 168, 255, .08), 0 0 18px rgba(49, 168, 255, .18); outline: 1px solid rgba(49, 168, 255, .12); outline-offset: 0; filter: drop-shadow(0 0 10px rgba(49, 168, 255, .18)) drop-shadow(0 0 20px rgba(49, 168, 255, .08));",
-      green: "border: 2px solid rgba(36, 209, 126, .86); box-shadow: 0 0 0 1px rgba(36, 209, 126, .14), 0 0 18px rgba(36, 209, 126, .28), 0 0 36px rgba(36, 209, 126, .18), inset 0 0 0 1px rgba(36, 209, 126, .08), 0 0 18px rgba(36, 209, 126, .18); outline: 1px solid rgba(36, 209, 126, .12); outline-offset: 0; filter: drop-shadow(0 0 10px rgba(36, 209, 126, .18)) drop-shadow(0 0 20px rgba(36, 209, 126, .08));",
-      yellow: "border: 2px solid rgba(255, 209, 102, .86); box-shadow: 0 0 0 1px rgba(255, 209, 102, .14), 0 0 18px rgba(255, 209, 102, .28), 0 0 36px rgba(255, 209, 102, .18), inset 0 0 0 1px rgba(255, 209, 102, .08), 0 0 18px rgba(255, 209, 102, .18); outline: 1px solid rgba(255, 209, 102, .12); outline-offset: 0; filter: drop-shadow(0 0 10px rgba(255, 209, 102, .18)) drop-shadow(0 0 20px rgba(255, 209, 102, .08));",
-      orange: "border: 2px solid rgba(255, 167, 69, .86); box-shadow: 0 0 0 1px rgba(255, 167, 69, .14), 0 0 18px rgba(255, 167, 69, .28), 0 0 36px rgba(255, 167, 69, .18), inset 0 0 0 1px rgba(255, 167, 69, .08), 0 0 18px rgba(255, 167, 69, .18); outline: 1px solid rgba(255, 167, 69, .12); outline-offset: 0; filter: drop-shadow(0 0 10px rgba(255, 167, 69, .18)) drop-shadow(0 0 20px rgba(255, 167, 69, .08));",
-      red: "border: 2px solid rgba(255, 95, 103, .86); box-shadow: 0 0 0 1px rgba(255, 95, 103, .14), 0 0 18px rgba(255, 95, 103, .28), 0 0 36px rgba(255, 95, 103, .18), inset 0 0 0 1px rgba(255, 95, 103, .08), 0 0 18px rgba(255, 95, 103, .18); outline: 1px solid rgba(255, 95, 103, .12); outline-offset: 0; filter: drop-shadow(0 0 10px rgba(255, 95, 103, .18)) drop-shadow(0 0 20px rgba(255, 95, 103, .08));"
+      blue: "border: 1px solid rgba(49, 168, 255, .86); box-shadow: inset 0 0 0 1px rgba(49, 168, 255, .08), 0 10px 22px rgba(0, 0, 0, .28), 0 0 18px rgba(49, 168, 255, .28), 0 0 36px rgba(49, 168, 255, .18), 0 0 0 1px rgba(49, 168, 255, .18); filter: drop-shadow(0 0 10px rgba(49, 168, 255, .18)) drop-shadow(0 0 20px rgba(49, 168, 255, .08));",
+      green: "border: 1px solid rgba(36, 209, 126, .86); box-shadow: inset 0 0 0 1px rgba(36, 209, 126, .08), 0 10px 22px rgba(0, 0, 0, .28), 0 0 18px rgba(36, 209, 126, .28), 0 0 36px rgba(36, 209, 126, .18), 0 0 0 1px rgba(36, 209, 126, .18); filter: drop-shadow(0 0 10px rgba(36, 209, 126, .18)) drop-shadow(0 0 20px rgba(36, 209, 126, .08));",
+      yellow: "border: 1px solid rgba(255, 209, 102, .86); box-shadow: inset 0 0 0 1px rgba(255, 209, 102, .08), 0 10px 22px rgba(0, 0, 0, .28), 0 0 18px rgba(255, 209, 102, .28), 0 0 36px rgba(255, 209, 102, .18), 0 0 0 1px rgba(255, 209, 102, .18); filter: drop-shadow(0 0 10px rgba(255, 209, 102, .18)) drop-shadow(0 0 20px rgba(255, 209, 102, .08));",
+      orange: "border: 1px solid rgba(255, 167, 69, .86); box-shadow: inset 0 0 0 1px rgba(255, 167, 69, .08), 0 10px 22px rgba(0, 0, 0, .28), 0 0 18px rgba(255, 167, 69, .28), 0 0 36px rgba(255, 167, 69, .18), 0 0 0 1px rgba(255, 167, 69, .18); filter: drop-shadow(0 0 10px rgba(255, 167, 69, .18)) drop-shadow(0 0 20px rgba(255, 167, 69, .08));",
+      red: "border: 1px solid rgba(255, 95, 103, .86); box-shadow: inset 0 0 0 1px rgba(255, 95, 103, .08), 0 10px 22px rgba(0, 0, 0, .28), 0 0 18px rgba(255, 95, 103, .28), 0 0 36px rgba(255, 95, 103, .18), 0 0 0 1px rgba(255, 95, 103, .18); filter: drop-shadow(0 0 10px rgba(255, 95, 103, .18)) drop-shadow(0 0 20px rgba(255, 95, 103, .08));"
     };
     const matchStyle = matchStyleMap[matchTone] || matchStyleMap.blue;
     const leagueName = leagueNameForId(match.league_id) || match.leagues?.name || match.match_type || "-";
@@ -20591,6 +20709,11 @@ function bindEvents() {
 
   $("rank-league-filter")?.addEventListener("change", renderRankings);
   $("rank-player-type-filter")?.addEventListener("change", renderRankings);
+
+  $("admin-pending-member-search")?.addEventListener("input", renderPendingMembersList);
+  $("admin-member-role-search")?.addEventListener("input", () => renderMemberRoleManager(allMemberRoleManagerMembers || []));
+  $("admin-venue-search")?.addEventListener("input", renderVenuesList);
+  $("admin-match-search")?.addEventListener("input", renderAdminMatchReminders);
 
   document.addEventListener("change", e => {
     if (e.target?.classList?.contains("soccer-inline-assessment")) {

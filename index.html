@@ -513,48 +513,58 @@
     }
 
     #activities .activity-card.activity-card-tone-blue {
-      border: 2px solid rgba(49, 168, 255, .84);
+      border: 1px solid rgba(49, 168, 255, .86);
       box-shadow:
-        0 0 0 1px rgba(49, 168, 255, .14),
+        inset 0 0 0 1px rgba(49, 168, 255, .08),
+        0 10px 22px rgba(0, 0, 0, .28),
         0 0 18px rgba(49, 168, 255, .28),
-        0 0 38px rgba(49, 168, 255, .42),
-        inset 0 0 0 1px rgba(49, 168, 255, .08);
+        0 0 36px rgba(49, 168, 255, .18),
+        0 0 0 1px rgba(49, 168, 255, .18);
+      filter: drop-shadow(0 0 10px rgba(49, 168, 255, .18)) drop-shadow(0 0 20px rgba(49, 168, 255, .08));
     }
 
     #activities .activity-card.activity-card-tone-green {
-      border: 2px solid rgba(36, 209, 126, .84);
+      border: 1px solid rgba(36, 209, 126, .86);
       box-shadow:
-        0 0 0 1px rgba(36, 209, 126, .14),
+        inset 0 0 0 1px rgba(36, 209, 126, .08),
+        0 10px 22px rgba(0, 0, 0, .28),
         0 0 18px rgba(36, 209, 126, .28),
-        0 0 38px rgba(36, 209, 126, .42),
-        inset 0 0 0 1px rgba(36, 209, 126, .08);
+        0 0 36px rgba(36, 209, 126, .18),
+        0 0 0 1px rgba(36, 209, 126, .18);
+      filter: drop-shadow(0 0 10px rgba(36, 209, 126, .18)) drop-shadow(0 0 20px rgba(36, 209, 126, .08));
     }
 
     #activities .activity-card.activity-card-tone-yellow {
-      border: 2px solid rgba(255, 209, 102, .84);
+      border: 1px solid rgba(255, 209, 102, .86);
       box-shadow:
-        0 0 0 1px rgba(255, 209, 102, .14),
+        inset 0 0 0 1px rgba(255, 209, 102, .08),
+        0 10px 22px rgba(0, 0, 0, .28),
         0 0 18px rgba(255, 209, 102, .28),
-        0 0 38px rgba(255, 209, 102, .42),
-        inset 0 0 0 1px rgba(255, 209, 102, .08);
+        0 0 36px rgba(255, 209, 102, .18),
+        0 0 0 1px rgba(255, 209, 102, .18);
+      filter: drop-shadow(0 0 10px rgba(255, 209, 102, .18)) drop-shadow(0 0 20px rgba(255, 209, 102, .08));
     }
 
     #activities .activity-card.activity-card-tone-orange {
-      border: 2px solid rgba(255, 167, 69, .84);
+      border: 1px solid rgba(255, 167, 69, .86);
       box-shadow:
-        0 0 0 1px rgba(255, 167, 69, .14),
+        inset 0 0 0 1px rgba(255, 167, 69, .08),
+        0 10px 22px rgba(0, 0, 0, .28),
         0 0 18px rgba(255, 167, 69, .28),
-        0 0 38px rgba(255, 167, 69, .42),
-        inset 0 0 0 1px rgba(255, 167, 69, .08);
+        0 0 36px rgba(255, 167, 69, .18),
+        0 0 0 1px rgba(255, 167, 69, .18);
+      filter: drop-shadow(0 0 10px rgba(255, 167, 69, .18)) drop-shadow(0 0 20px rgba(255, 167, 69, .08));
     }
 
     #activities .activity-card.activity-card-tone-red {
-      border: 2px solid rgba(255, 95, 103, .84);
+      border: 1px solid rgba(255, 95, 103, .86);
       box-shadow:
-        0 0 0 1px rgba(255, 95, 103, .14),
+        inset 0 0 0 1px rgba(255, 95, 103, .08),
+        0 10px 22px rgba(0, 0, 0, .28),
         0 0 18px rgba(255, 95, 103, .28),
-        0 0 38px rgba(255, 95, 103, .42),
-        inset 0 0 0 1px rgba(255, 95, 103, .08);
+        0 0 36px rgba(255, 95, 103, .18),
+        0 0 0 1px rgba(255, 95, 103, .18);
+      filter: drop-shadow(0 0 10px rgba(255, 95, 103, .18)) drop-shadow(0 0 20px rgba(255, 95, 103, .08));
     }
 
     #activities .row {
@@ -1074,6 +1084,12 @@
       overflow-x: auto;
       scrollbar-width: none;
       -webkit-overflow-scrolling: touch;
+      position: sticky;
+      top: 0;
+      z-index: 4;
+      padding: 2px 0 3px;
+      background: linear-gradient(180deg, rgba(7, 17, 31, .96), rgba(7, 17, 31, .84));
+      backdrop-filter: blur(10px);
     }
 
     #admin .admin-panel-stack {
@@ -1191,6 +1207,61 @@
 
     #admin .member-role-selected-preview .member-role-option-identity {
       width: auto;
+    }
+
+    #admin .member-role-option-list {
+      display: grid;
+      gap: 5px;
+    }
+
+    #admin .member-role-option-list-inline {
+      max-height: 260px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    #admin .admin-search-card {
+      display: grid;
+      gap: 4px;
+      margin: 0 4px 8px;
+      padding: 8px;
+      border: 1px solid rgba(49, 168, 255, .14);
+      border-radius: 8px;
+      background: rgba(2, 10, 20, .38);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .03);
+    }
+
+    #admin .admin-search-card-inline {
+      margin: 0 0 8px;
+    }
+
+    #admin .admin-search-card label {
+      margin: 0;
+      gap: 3px;
+      font-size: 9px;
+    }
+
+    #admin .admin-search-card input {
+      min-height: 28px;
+      font-size: 10px;
+    }
+
+    #admin .admin-compact-card {
+      padding: 9px !important;
+    }
+
+    #admin .admin-match-lookup-card {
+      display: grid;
+      gap: 5px;
+      padding: 9px;
+    }
+
+    #admin .admin-match-lookup-card .meta {
+      font-size: 9.5px;
+    }
+
+    #admin .admin-match-lookup-card .actions {
+      margin-top: 2px;
     }
 
     #admin .admin-subtab {
@@ -1660,58 +1731,58 @@
     }
 
     #matches .match-card.match-card-tone-blue {
-      border: 2px solid rgba(49, 168, 255, .84) !important;
+      border: 1px solid rgba(49, 168, 255, .86) !important;
       box-shadow:
-        0 0 0 1px rgba(49, 168, 255, .14),
-        0 0 18px rgba(49, 168, 255, .28),
-        0 0 38px rgba(49, 168, 255, .42),
         inset 0 0 0 1px rgba(49, 168, 255, .08),
-        0 0 22px rgba(49, 168, 255, .18);
-      outline: 1px solid rgba(49, 168, 255, .12);
+        0 10px 22px rgba(0, 0, 0, .28),
+        0 0 18px rgba(49, 168, 255, .28),
+        0 0 36px rgba(49, 168, 255, .18),
+        0 0 0 1px rgba(49, 168, 255, .18);
+      filter: drop-shadow(0 0 10px rgba(49, 168, 255, .18)) drop-shadow(0 0 20px rgba(49, 168, 255, .08));
     }
 
     #matches .match-card.match-card-tone-green {
-      border: 2px solid rgba(36, 209, 126, .84) !important;
+      border: 1px solid rgba(36, 209, 126, .86) !important;
       box-shadow:
-        0 0 0 1px rgba(36, 209, 126, .14),
-        0 0 18px rgba(36, 209, 126, .28),
-        0 0 38px rgba(36, 209, 126, .42),
         inset 0 0 0 1px rgba(36, 209, 126, .08),
-        0 0 22px rgba(36, 209, 126, .18);
-      outline: 1px solid rgba(36, 209, 126, .12);
+        0 10px 22px rgba(0, 0, 0, .28),
+        0 0 18px rgba(36, 209, 126, .28),
+        0 0 36px rgba(36, 209, 126, .18),
+        0 0 0 1px rgba(36, 209, 126, .18);
+      filter: drop-shadow(0 0 10px rgba(36, 209, 126, .18)) drop-shadow(0 0 20px rgba(36, 209, 126, .08));
     }
 
     #matches .match-card.match-card-tone-yellow {
-      border: 2px solid rgba(255, 209, 102, .84) !important;
+      border: 1px solid rgba(255, 209, 102, .86) !important;
       box-shadow:
-        0 0 0 1px rgba(255, 209, 102, .14),
-        0 0 18px rgba(255, 209, 102, .28),
-        0 0 38px rgba(255, 209, 102, .42),
         inset 0 0 0 1px rgba(255, 209, 102, .08),
-        0 0 22px rgba(255, 209, 102, .18);
-      outline: 1px solid rgba(255, 209, 102, .12);
+        0 10px 22px rgba(0, 0, 0, .28),
+        0 0 18px rgba(255, 209, 102, .28),
+        0 0 36px rgba(255, 209, 102, .18),
+        0 0 0 1px rgba(255, 209, 102, .18);
+      filter: drop-shadow(0 0 10px rgba(255, 209, 102, .18)) drop-shadow(0 0 20px rgba(255, 209, 102, .08));
     }
 
     #matches .match-card.match-card-tone-orange {
-      border: 2px solid rgba(255, 167, 69, .84) !important;
+      border: 1px solid rgba(255, 167, 69, .86) !important;
       box-shadow:
-        0 0 0 1px rgba(255, 167, 69, .14),
-        0 0 18px rgba(255, 167, 69, .28),
-        0 0 38px rgba(255, 167, 69, .42),
         inset 0 0 0 1px rgba(255, 167, 69, .08),
-        0 0 22px rgba(255, 167, 69, .18);
-      outline: 1px solid rgba(255, 167, 69, .12);
+        0 10px 22px rgba(0, 0, 0, .28),
+        0 0 18px rgba(255, 167, 69, .28),
+        0 0 36px rgba(255, 167, 69, .18),
+        0 0 0 1px rgba(255, 167, 69, .18);
+      filter: drop-shadow(0 0 10px rgba(255, 167, 69, .18)) drop-shadow(0 0 20px rgba(255, 167, 69, .08));
     }
 
     #matches .match-card.match-card-tone-red {
-      border: 2px solid rgba(255, 95, 103, .84) !important;
+      border: 1px solid rgba(255, 95, 103, .86) !important;
       box-shadow:
-        0 0 0 1px rgba(255, 95, 103, .14),
-        0 0 18px rgba(255, 95, 103, .28),
-        0 0 38px rgba(255, 95, 103, .42),
         inset 0 0 0 1px rgba(255, 95, 103, .08),
-        0 0 22px rgba(255, 95, 103, .18);
-      outline: 1px solid rgba(255, 95, 103, .12);
+        0 10px 22px rgba(0, 0, 0, .28),
+        0 0 18px rgba(255, 95, 103, .28),
+        0 0 36px rgba(255, 95, 103, .18),
+        0 0 0 1px rgba(255, 95, 103, .18);
+      filter: drop-shadow(0 0 10px rgba(255, 95, 103, .18)) drop-shadow(0 0 20px rgba(255, 95, 103, .08));
     }
 
     #matches .match-card h3 {
@@ -4517,7 +4588,7 @@
     .iphone-pro-max #dashboard .home-upcoming-section-title {
       position: static !important;
       inset: auto !important;
-      margin: 10px 0 0;
+      margin: 18px 0 0;
       padding: 0 2px;
       width: 100%;
       height: auto;
@@ -4541,12 +4612,20 @@
       border: 1px solid var(--sport-accent, #31A8FF) !important;
       background: linear-gradient(305deg, rgba(16, 30, 48, .96) 21.08%, rgba(8, 17, 30, .98) 87.67%) !important;
       box-shadow:
-        inset 0 0 0 1px color-mix(in srgb, var(--sport-accent, #31A8FF) 14%, transparent),
-        0 10px 22px rgba(0, 0, 0, .28),
-        0 0 22px color-mix(in srgb, var(--sport-accent, #31A8FF) 16%, transparent),
-        0 0 0 1px color-mix(in srgb, var(--sport-accent, #31A8FF) 18%, transparent) !important;
+        inset 0 0 0 1px rgba(255, 255, 255, .04),
+        0 8px 18px rgba(0, 0, 0, .28),
+        0 0 18px rgba(49, 168, 255, .10) !important;
       overflow: hidden;
       box-sizing: border-box;
+    }
+
+    .iphone-pro-max #dashboard .home-upcoming-matches-grid {
+      margin-top: 10px;
+      padding: 6px;
+      border-radius: 10px;
+      overflow: hidden;
+      box-sizing: border-box;
+      background: rgba(2, 10, 20, .18);
     }
 
     .iphone-pro-max #dashboard .home-upcoming-match-orb {
@@ -5203,6 +5282,13 @@
           </div>
         </div>
 
+        <div class="card admin-search-card">
+          <label>
+            Search approvals
+            <input id="admin-pending-member-search" type="search" placeholder="Name, email, phone...">
+          </label>
+        </div>
+
         <div id="pendingMembersList" class="stack"></div>
 
         <div class="section-head">
@@ -5210,6 +5296,13 @@
             <h2>Member Roles</h2>
             <p class="hint">Assign admins, committee members, and sport permissions.</p>
           </div>
+        </div>
+
+        <div class="card admin-search-card">
+          <label>
+            Search members
+            <input id="admin-member-role-search" type="search" placeholder="Name, email, role...">
+          </label>
         </div>
 
         <div id="memberRoleList" class="stack"></div>
@@ -5502,7 +5595,15 @@
             Uses the current app formula. Cancelled matches are ignored.
           </p>
 
+          <div class="card admin-search-card admin-search-card-inline">
+            <label>
+              Search matches
+              <input id="admin-match-search" type="search" placeholder="Title, sport, league, venue...">
+            </label>
+          </div>
+
           <div id="adminMatchReminderList" class="stack"></div>
+          <div id="adminMatchLookupList" class="stack"></div>
           <p id="admin-reminder-status" class="hint"></p>
         </div>
 
@@ -5511,6 +5612,13 @@
             <h2>Venue Management</h2>
             <p class="hint">Add venues and choose the sports supported by each venue.</p>
           </div>
+        </div>
+
+        <div class="card admin-search-card">
+          <label>
+            Search venues
+            <input id="admin-venue-search" type="search" placeholder="Venue name, address, sport...">
+          </label>
         </div>
 
         <div class="card">
