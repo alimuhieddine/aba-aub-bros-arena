@@ -2319,6 +2319,55 @@ function renderSportRatingEditor(sportId) {
   `;
 }
 
+function renderGeneralSportRatingEditor(sportId) {
+  const selectedSport = (allSports || []).find(sport => sport.id === sportId);
+  const selectedMembers = approvedRatingMembers();
+
+  return `
+    <article class="card sport-rating-picker-card">
+      <div class="member-role-selected-preview">
+        ${escapeHtml(selectedSport?.name || "Sport")}
+      </div>
+
+      <div class="sport-rating-grid sport-rating-grid-general">
+        <div class="sport-rating-grid-head sport-rating-grid-head-general">
+          <strong>Player</strong>
+          <strong>Rating</strong>
+        </div>
+
+        ${selectedMembers.map(member => `
+          <div class="sport-rating-row sport-rating-row-general" data-member-id="${member.id}">
+            <div class="sport-rating-player sport-rating-player-general">
+              <div class="sport-rating-identity">
+                ${memberMiniIdentityHtml(member, member.id, memberDisplayName(member))}
+                ${member.is_external ? `<span class="mini-pill">External</span>` : ""}
+              </div>
+
+              <div class="sport-rating-cell">
+                <input
+                  class="sport-rating-position-input sport-rating-general-input"
+                  type="number"
+                  min="1"
+                  max="10"
+                  step="0.1"
+                  data-member-id="${member.id}"
+                  value="${Number(memberSportRating(member.id, sportId) || 5).toFixed(2)}"
+                >
+              </div>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+
+      <div class="sport-rating-actions">
+        <button class="small-btn" type="button" onclick="saveMemberSportProfile()">
+          Save Ratings
+        </button>
+      </div>
+    </article>
+  `;
+}
+
 function selectSportRatingMember(memberId) {
   currentSportRatingMemberId = cleanUuidValue(memberId);
   renderSportRatingManager();
@@ -2353,7 +2402,9 @@ function renderSportRatingManager() {
 
   box.innerHTML = isSoccer
     ? renderSportRatingEditor(sportId)
-    : `<div class="hint">Select a soccer sport to edit committee ratings.</div>`;
+    : isCurrentUserAdmin()
+      ? renderGeneralSportRatingEditor(sportId)
+      : `<div class="hint">Committee ratings are available for soccer only.</div>`;
 }
 
 async function saveMemberSportProfile(memberId) {
@@ -2372,13 +2423,43 @@ async function saveMemberSportProfile(memberId) {
   const isSoccer = String(selectedSport?.name || "").toLowerCase().includes("soccer") ||
     String(selectedSport?.name || "").toLowerCase().includes("football");
 
-  if (!isSoccer) {
-    alert("Committee ratings are available for soccer matches only.");
+  if (!sportId) {
+    alert("Select a sport first.");
     return;
   }
 
-  if (!sportId) {
-    alert("Select a sport first.");
+  if (!isSoccer) {
+    if (!isCurrentUserAdmin()) {
+      alert("Committee ratings are available for soccer matches only.");
+      return;
+    }
+
+    const ratingInputs = Array.from(document.querySelectorAll(".sport-rating-general-input[data-member-id]"));
+
+    for (const input of ratingInputs) {
+      const targetMemberId = cleanUuidValue(input.dataset.memberId) || "";
+      const rating = Number(input.value);
+
+      if (!targetMemberId) continue;
+
+      if (!Number.isFinite(rating) || rating < 1 || rating > 10) {
+        alert(`${memberDisplayName({ id: targetMemberId })} rating must be between 1 and 10.`);
+        return;
+      }
+
+      const ok = await setOverallSportRatingValue(
+        targetMemberId,
+        sportId,
+        Number(rating.toFixed(2)),
+        0
+      );
+
+      if (!ok) return;
+    }
+
+    await loadSportProfiles();
+    renderSportRatingManager();
+    renderRankings();
     return;
   }
 
@@ -13176,6 +13257,29 @@ function completedPadelGamesForMatch(match) {
   );
 }
 
+function padelCascadeMatchesFrom(match) {
+  const cleanMatchId = cleanUuidValue(match?.id);
+  const cleanSportId = cleanUuidValue(match?.sport_id || match?.sports?.id);
+  const pivotStart = new Date(match?.start_time || 0).getTime();
+  const pivotCreated = new Date(match?.created_at || 0).getTime();
+
+  return finalizedRecalculableMatches()
+    .filter(row =>
+      isPadelMatch(row) &&
+      cleanUuidValue(row.id) !== cleanMatchId &&
+      cleanUuidValue(row.sport_id || row.sports?.id) === cleanSportId
+    )
+    .filter(row => {
+      const rowStart = new Date(row.start_time || 0).getTime();
+      const rowCreated = new Date(row.created_at || 0).getTime();
+      return rowStart > pivotStart || (rowStart === pivotStart && rowCreated >= pivotCreated);
+    })
+    .sort((a, b) =>
+      new Date(a.start_time || 0) - new Date(b.start_time || 0) ||
+      new Date(a.created_at || 0) - new Date(b.created_at || 0)
+    );
+}
+
 async function recalculateMatchPadelRatings(match, showAlert = true) {
   if (!canManageMatch(match)) {
     alert("You can only recalculate matches for sports you manage.");
@@ -13192,34 +13296,49 @@ async function recalculateMatchPadelRatings(match, showAlert = true) {
     return true;
   }
 
-  const detailedMatch = await ensureMatchDetails(match.id, { render: false }) || match;
-  const games = completedPadelGamesForMatch(detailedMatch);
+  const cascadeMatches = [
+    await ensureMatchDetails(match.id, { render: false }) || match,
+    ...padelCascadeMatchesFrom(match)
+  ];
 
-  if (!games.length) {
-    if (showAlert) alert("No completed padel games found for this match.");
-    return true;
+  const affectedMatchIds = [];
+
+  for (const cascadeMatch of cascadeMatches) {
+    const detailedMatch = cleanUuidValue(cascadeMatch.id) === cleanUuidValue(match.id)
+      ? cascadeMatch
+      : await ensureMatchDetails(cascadeMatch.id, { render: false }) || cascadeMatch;
+    const games = completedPadelGamesForMatch(detailedMatch);
+
+    if (!games.length) continue;
+
+    for (const game of games) {
+      const saved = await savePadelGameRatingAdjustments(
+        detailedMatch,
+        game.id,
+        padelSetEntriesForGame(detailedMatch, game.id),
+        game.winner_team
+      );
+
+      if (!saved) return false;
+    }
+
+    affectedMatchIds.push(cleanUuidValue(detailedMatch.id));
+    await logMatchEditEvent(detailedMatch.id, "ratings_recalculated", "Padel ratings recalculated.", {
+      recalculated: true,
+      trigger: cleanUuidValue(detailedMatch.id) === cleanUuidValue(match.id) ? "manual" : "padel cascade",
+      source_match_id: cleanUuidValue(match.id)
+    });
   }
-
-  for (const game of games) {
-    const saved = await savePadelGameRatingAdjustments(
-      detailedMatch,
-      game.id,
-      padelSetEntriesForGame(detailedMatch, game.id),
-      game.winner_team
-    );
-
-    if (!saved) return false;
-  }
-
-  await logMatchEditEvent(detailedMatch.id, "ratings_recalculated", "Padel ratings recalculated.", {
-    recalculated: true,
-    trigger: "manual"
-  });
 
   if (showAlert) {
     alert("Padel ratings recalculated.");
     await loadSportProfiles();
-    await refreshMatch(match.id, { rankings: true });
+    await Promise.all(
+      affectedMatchIds
+        .filter(Boolean)
+        .map(id => refreshMatch(id, { render: false }))
+    );
+    scheduleMatchUiRefresh({ rankings: true });
   }
 
   return true;

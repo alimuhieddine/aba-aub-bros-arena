@@ -1677,4 +1677,24 @@
   }
 }
 
+.sport-rating-grid-head-general,
+.sport-rating-player-general {
+  grid-template-columns: minmax(170px, 3fr) minmax(72px, 1fr);
+}
+
+.sport-rating-general-input {
+  max-width: 76px;
+}
+
+@media (max-width: 420px) {
+  .sport-rating-grid-head-general,
+  .sport-rating-player-general {
+    grid-template-columns: minmax(132px, 2.6fr) minmax(64px, 1fr);
+  }
+
+  .sport-rating-general-input {
+    max-width: 64px;
+  }
+}
+
 
