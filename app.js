@@ -3721,6 +3721,13 @@ function homeUpcomingSportTone(match) {
 
 function homeUpcomingToneShadow(toneColor, fallback = "blue") {
   const shadows = {
+    "#31A8FF": {
+      border: "rgba(49, 168, 255, .92)",
+      outer: "rgba(49, 168, 255, .28)",
+      glow: "rgba(49, 168, 255, .18)",
+      inner: "rgba(49, 168, 255, .08)",
+      outline: "rgba(49, 168, 255, .18)"
+    },
     "#2EE582": {
       border: "rgba(46, 229, 130, .92)",
       outer: "rgba(46, 229, 130, .28)",
@@ -3771,6 +3778,12 @@ function homeUpcomingToneShadow(toneColor, fallback = "blue") {
 
 function homeUpcomingOrbShadow(toneColor, fallback = "blue") {
   const shadows = {
+    "#31A8FF": {
+      border: "rgba(49, 168, 255, .95)",
+      outer: "rgba(49, 168, 255, .24)",
+      glow: "rgba(49, 168, 255, .36)",
+      inset: "rgba(255, 255, 255, .04)"
+    },
     "#2EE582": {
       border: "rgba(46, 229, 130, .95)",
       outer: "rgba(46, 229, 130, .24)",
