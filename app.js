@@ -47,6 +47,8 @@ if ("scrollRestoration" in history) {
 
 const STORAGE_KEY = "aba_phase1_data";
 const PUSH_NOTIFICATIONS_APP_SETTING_KEY = "push_notifications";
+const HOME_HIGHLIGHT_MEDIA_APP_SETTING_KEY = "home_highlight_media";
+const HOME_HIGHLIGHT_MEDIA_LOCAL_KEY = "aba_home_highlight_media";
 const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
 const MATCH_SUMMARY_CACHE_KEY = "aba_match_summary_cache";
 
@@ -439,6 +441,22 @@ function manageableSports() {
   if (!isApprovedCurrentUser()) return [];
   if (isCurrentUserAdmin()) return allSports || [];
   return (allSports || []).filter(sport => canManageSport(sport.id));
+}
+
+function isMatchSportName(name = "") {
+  const sportName = String(name || "").toLowerCase();
+  return (
+    sportName.includes("soccer") ||
+    sportName.includes("football") ||
+    sportName.includes("padel") ||
+    sportName.includes("tennis") ||
+    sportName.includes("volleyball") ||
+    sportName.includes("basket")
+  );
+}
+
+function matchCreatableSports() {
+  return manageableSports().filter(sport => isMatchSportName(sport?.name));
 }
 
 function canManageAnySport() {
@@ -1613,6 +1631,8 @@ let currentSportRatingMemberId = "";
 let allCommitteePositionRatingVotes = [];
 let activitySportSettingsCache = {};
 let activitySportSettingsLoadPromise = null;
+let homeHighlightSettingsCache = null;
+let homeHighlightSettingsLoadPromise = null;
 let editingActivityId = null;
 let currentGarminConnection = null;
 let currentStravaConnection = null;
@@ -2625,7 +2645,7 @@ async function loadMatchFormOptions() {
 
   await loadSportProfiles();
   const sportSelect = $("match-sport");
-  const creatableSports = manageableSports();
+  const creatableSports = matchCreatableSports();
   if (sportSelect) {
     sportSelect.innerHTML = `
       <option value="">Select sport</option>
@@ -3459,6 +3479,7 @@ function renderStats() {
   renderLegacyHomeActivitiesCard();
   renderLegacyHomeRankingCard();
   renderLegacyHomePointsCard();
+  renderHomeClubStatsSection();
   renderHomeUpcomingMatchesSection();
 }
 
@@ -3634,6 +3655,46 @@ function homeUpcomingMatches(limit = 0) {
   return limit > 0 ? upcoming.slice(0, limit) : upcoming;
 }
 
+function simulatedHomeUpcomingMatches() {
+  const now = new Date();
+  const makeDate = (daysAhead, hour, minute) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() + daysAhead);
+    d.setHours(hour, minute, 0, 0);
+    return d.toISOString();
+  };
+
+  return [
+    {
+      id: "preview-upcoming-padel",
+      title: "Wolf & Rabbit vs Sheep & Deer",
+      start_time: makeDate(0, 20, 0),
+      sport_id: "preview-padel",
+      sports: { id: "preview-padel", name: "Padel" },
+      leagues: { name: "Friday Ladder" },
+      venues: { name: "Padel District" }
+    },
+    {
+      id: "preview-upcoming-soccer",
+      title: "ABA 5v5 Night Match",
+      start_time: makeDate(1, 21, 30),
+      sport_id: "preview-soccer",
+      sports: { id: "preview-soccer", name: "Soccer" },
+      leagues: { name: "Friendly" },
+      venues: { name: "AUB Green Field" }
+    },
+    {
+      id: "preview-upcoming-tennis",
+      title: "Singles Challenge Court 2",
+      start_time: makeDate(3, 19, 0),
+      sport_id: "preview-tennis",
+      sports: { id: "preview-tennis", name: "Tennis" },
+      leagues: { name: "Weekend Series" },
+      venues: { name: "Campus Tennis Court" }
+    }
+  ];
+}
+
 function homeUpcomingSportAsset(match) {
   const sport = String(match?.sports?.name || sportNameById(match?.sport_id) || "").toLowerCase();
 
@@ -3650,8 +3711,8 @@ function homeUpcomingSportTone(match) {
   const sport = String(match?.sports?.name || sportNameById(match?.sport_id) || "").toLowerCase();
 
   if (sport.includes("padel")) return { color: "#2EE582", name: "padel" };
-  if (sport.includes("soccer") || sport.includes("football")) return { color: "#2EE582", name: "soccer" };
-  if (sport.includes("tennis")) return { color: "#FFD166", name: "tennis" };
+  if (sport.includes("soccer") || sport.includes("football")) return { color: "#31A8FF", name: "soccer" };
+  if (sport.includes("tennis")) return { color: "#FFFD54", name: "tennis" };
   if (sport.includes("basketball")) return { color: "#FF9F3A", name: "basketball" };
   if (sport.includes("volleyball")) return { color: "#FF5F67", name: "volleyball" };
 
@@ -3673,6 +3734,13 @@ function homeUpcomingToneShadow(toneColor, fallback = "blue") {
       glow: "rgba(255, 209, 102, .18)",
       inner: "rgba(255, 209, 102, .08)",
       outline: "rgba(255, 209, 102, .18)"
+    },
+    "#FFFD54": {
+      border: "rgba(255, 253, 84, .92)",
+      outer: "rgba(255, 253, 84, .28)",
+      glow: "rgba(255, 253, 84, .18)",
+      inner: "rgba(255, 253, 84, .08)",
+      outline: "rgba(255, 253, 84, .18)"
     },
     "#FF9F3A": {
       border: "rgba(255, 167, 69, .92)",
@@ -3713,6 +3781,12 @@ function homeUpcomingOrbShadow(toneColor, fallback = "blue") {
       border: "rgba(255, 209, 102, .95)",
       outer: "rgba(255, 209, 102, .24)",
       glow: "rgba(255, 209, 102, .36)",
+      inset: "rgba(255, 255, 255, .04)"
+    },
+    "#FFFD54": {
+      border: "rgba(255, 253, 84, .95)",
+      outer: "rgba(255, 253, 84, .24)",
+      glow: "rgba(255, 253, 84, .36)",
       inset: "rgba(255, 255, 255, .04)"
     },
     "#FF9F3A": {
@@ -3788,6 +3862,439 @@ function homeUpcomingMatchRowHtml(match, index) {
   `;
 }
 
+function homeClubSportMeta(sportName = "") {
+  const text = String(sportName || "").toLowerCase();
+
+  if (text.includes("padel")) {
+    return { key: "padel", label: "Padel", icon: "svg/racquetball.svg", color: "#2EE582" };
+  }
+  if (text.includes("soccer") || text.includes("football")) {
+    return { key: "soccer", label: "Soccer", icon: "svg/soccer-player.svg", color: "#31A8FF" };
+  }
+  if (text.includes("tennis")) {
+    return { key: "tennis", label: "Tennis", icon: "svg/tennis-player.svg", color: "#FFFD54" };
+  }
+  if (text.includes("basket")) {
+    return { key: "basketball", label: "Basketball", icon: "svg/netball.svg", color: "#FF9F3A" };
+  }
+  if (text.includes("volleyball")) {
+    return { key: "volleyball", label: "Volleyball", icon: "svg/volleyball-player.svg", color: "#FF5F67" };
+  }
+
+  return null;
+}
+
+function homeCompletedClubMatches() {
+  return (allMatches || []).filter(match => !isCancelledMatch(match) && hasSubmittedScore(match));
+}
+
+function homeCompletedExternalMatchActivities() {
+  return approvedLoggedActivities().filter(activity => isOutsideAppMatchActivity(activity));
+}
+
+function homeClubCompletedMatchSportStats() {
+  const stats = new Map();
+
+  homeCompletedClubMatches().forEach(match => {
+    const sportName = match?.sports?.name || sportNameById(match?.sport_id) || "";
+    const meta = homeClubSportMeta(sportName);
+    if (!meta) return;
+
+    const row = stats.get(meta.key) || { ...meta, count: 0 };
+    row.count += 1;
+    stats.set(meta.key, row);
+  });
+
+  homeCompletedExternalMatchActivities().forEach(activity => {
+    const sportName = activity?.sports?.name || sportNameById(activity?.sport_id) || activity?.sport || "";
+    const meta = homeClubSportMeta(sportName);
+    if (!meta) return;
+
+    const row = stats.get(meta.key) || { ...meta, count: 0 };
+    row.count += 1;
+    stats.set(meta.key, row);
+  });
+
+  return Array.from(stats.values())
+    .filter(row => Number(row.count || 0) > 0)
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+function homeClubPreviewStats(realStats) {
+  const base = Array.isArray(realStats) ? realStats.map(row => ({ ...row })) : [];
+  const table = new Map(base.map(row => [row.key, { ...row }]));
+  const previewMinimumSports = 4;
+  const previewMinimumMatches = 14;
+
+  if (table.size >= previewMinimumSports && base.reduce((sum, row) => sum + Number(row.count || 0), 0) >= previewMinimumMatches) {
+    return { stats: base, simulated: false };
+  }
+
+  const simulatedSeed = [
+    { key: "padel", label: "Padel", icon: "svg/racquetball.svg", color: "#2EE582", count: 16 },
+    { key: "soccer", label: "Soccer", icon: "svg/soccer-player.svg", color: "#31A8FF", count: 11 },
+    { key: "tennis", label: "Tennis", icon: "svg/tennis-player.svg", color: "#FFFD54", count: 8 },
+    { key: "basketball", label: "Basketball", icon: "svg/netball.svg", color: "#FF9F3A", count: 6 },
+    { key: "volleyball", label: "Volleyball", icon: "svg/volleyball-player.svg", color: "#FF5F67", count: 4 }
+  ];
+
+  simulatedSeed.forEach(seed => {
+    const existing = table.get(seed.key);
+    if (existing) {
+      existing.count = Math.max(Number(existing.count || 0), seed.count);
+      existing.simulated = Number(existing.count || 0) !== Number(realStats.find(row => row.key === seed.key)?.count || 0);
+      table.set(seed.key, existing);
+      return;
+    }
+
+    table.set(seed.key, {
+      ...seed,
+      simulated: true
+    });
+  });
+
+  const stats = Array.from(table.values())
+    .filter(row => Number(row.count || 0) > 0)
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+
+  return { stats, simulated: true };
+}
+
+function homeClubApprovedMetricActivities() {
+  return approvedLoggedActivities().filter(activity => activity?.external_payload);
+}
+
+function homeClubMatchContributorRows(limit = 3) {
+  const table = new Map();
+
+  homeCompletedClubMatches().forEach(match => {
+    (match.match_member_points || []).forEach(point => {
+      const memberId = cleanUuidValue(point.member_id);
+      const member = rankingMemberForId(memberId, point.member);
+      if (!memberId || !member) return;
+
+      const row = table.get(memberId) || {
+        memberId,
+        member,
+        name: memberDisplayName(member),
+        value: 0
+      };
+
+      row.value += 1;
+      table.set(memberId, row);
+    });
+  });
+
+  homeCompletedExternalMatchActivities().forEach(activity => {
+    const memberId = cleanUuidValue(activity.member_id);
+    const member = rankingMemberForId(memberId, activity.members);
+    if (!memberId || !member) return;
+
+    const row = table.get(memberId) || {
+      memberId,
+      member,
+      name: memberDisplayName(member),
+      value: 0
+    };
+
+    row.value += 1;
+    table.set(memberId, row);
+  });
+
+  return Array.from(table.values())
+    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name))
+    .slice(0, limit);
+}
+
+function homeClubCaloriesSummary(limit = 3) {
+  const table = new Map();
+  let total = 0;
+
+  homeClubApprovedMetricActivities().forEach(activity => {
+    const calories = Number(activity?.external_payload?.calories || 0);
+    if (!Number.isFinite(calories) || calories <= 0) return;
+
+    const memberId = cleanUuidValue(activity.member_id);
+    const member = rankingMemberForId(memberId, activity.members);
+    if (!memberId || !member) return;
+
+    total += calories;
+
+    const row = table.get(memberId) || {
+      memberId,
+      member,
+      name: memberDisplayName(member),
+      value: 0
+    };
+
+    row.value += calories;
+    table.set(memberId, row);
+  });
+
+  return {
+    total,
+    top: Array.from(table.values())
+      .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name))
+      .slice(0, limit)
+  };
+}
+
+function homeClubDistanceSummary(limit = 3) {
+  const table = new Map();
+  let totalKm = 0;
+
+  homeClubApprovedMetricActivities().forEach(activity => {
+    const distanceKm = Number(activity?.external_payload?.distance || 0) / 1000;
+    if (!Number.isFinite(distanceKm) || distanceKm <= 0) return;
+
+    const memberId = cleanUuidValue(activity.member_id);
+    const member = rankingMemberForId(memberId, activity.members);
+    if (!memberId || !member) return;
+
+    totalKm += distanceKm;
+
+    const row = table.get(memberId) || {
+      memberId,
+      member,
+      name: memberDisplayName(member),
+      value: 0
+    };
+
+    row.value += distanceKm;
+    table.set(memberId, row);
+  });
+
+  return {
+    totalKm,
+    top: Array.from(table.values())
+      .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name))
+      .slice(0, limit)
+  };
+}
+
+function homeClubContributorRowsHtml(rows, formatter, emptyText = "No data yet.") {
+  if (!rows.length) {
+    return `<div class="home-club-contributor-empty">${escapeHtml(emptyText)}</div>`;
+  }
+
+  return rows.map((row, index) => `
+    <div class="home-club-contributor-row">
+      <span class="home-club-contributor-rank">${index + 1}</span>
+      <span class="home-club-contributor-member">
+        ${memberMiniIdentityHtml(row.member, row.memberId, row.name, "home-club-contributor-identity")}
+      </span>
+      <b>${escapeHtml(formatter(row.value))}</b>
+    </div>
+  `).join("");
+}
+
+function homeClubMetricCardHtml(options) {
+  const {
+    title = "",
+    total = "",
+    subtitle = "",
+    rows = [],
+    formatter = value => String(value),
+    accent = "#93A7BF",
+    emptyText = "No data yet."
+  } = options || {};
+
+  return `
+    <article class="home-club-metric-card home-dashboard-card" style="${escapeHtml(homeUpcomingToneShadow(accent))} background: linear-gradient(305deg, rgba(16, 30, 48, .96) 21.08%, rgba(8, 17, 30, .98) 87.67%); --sport-accent:${accent};">
+      <div class="home-club-metric-title">${escapeHtml(title)}</div>
+      <div class="home-club-metric-total">${escapeHtml(total)}</div>
+      <div class="home-club-metric-subtitle">${escapeHtml(subtitle)}</div>
+      <div class="home-club-contributor-list">
+        ${homeClubContributorRowsHtml(rows, formatter, emptyText)}
+      </div>
+    </article>
+  `;
+}
+
+function homeClubHighlightVideoCardHtml() {
+  if (homeHighlightSettingsCache === null && !homeHighlightSettingsLoadPromise) {
+    loadHomeHighlightSettings().then(() => {
+      if (shouldRenderView("dashboard")) renderHomeClubStatsSection();
+      if (shouldRenderAdminPanel("Activities")) renderHomeHighlightSettingsForm();
+    }).catch(() => {});
+  }
+
+  const settings = currentHomeHighlightSettings();
+  if (!settings.videoUrl) return "";
+
+  const title = settings.title || "Club highlight";
+  const posterAttr = settings.posterUrl ? ` poster="${escapeHtml(settings.posterUrl)}"` : "";
+
+  return `
+    <article class="home-club-video-card home-dashboard-card" style="${escapeHtml(homeUpcomingToneShadow('#31A8FF'))} background: linear-gradient(305deg, rgba(16, 30, 48, .96) 21.08%, rgba(8, 17, 30, .98) 87.67%);">
+      <div class="home-club-video-head">
+        <div class="home-club-video-title">${escapeHtml(title)}</div>
+        ${settings.caption ? `<div class="home-club-video-caption">${escapeHtml(settings.caption)}</div>` : ""}
+      </div>
+      <video class="home-club-highlight-video" src="${escapeHtml(settings.videoUrl)}"${posterAttr} autoplay muted loop playsinline preload="metadata"></video>
+    </article>
+  `;
+}
+
+function polarToCartesian(cx, cy, radius, angleDeg) {
+  const angleRad = (angleDeg - 90) * (Math.PI / 180);
+  return {
+    x: cx + (radius * Math.cos(angleRad)),
+    y: cy + (radius * Math.sin(angleRad))
+  };
+}
+
+function homeClubArcPath(cx, cy, radius, startAngle, endAngle) {
+  const start = polarToCartesian(cx, cy, radius, endAngle);
+  const end = polarToCartesian(cx, cy, radius, startAngle);
+  const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+  return `M ${start.x.toFixed(3)} ${start.y.toFixed(3)} A ${radius} ${radius} 0 ${largeArcFlag} 0 ${end.x.toFixed(3)} ${end.y.toFixed(3)}`;
+}
+
+function homeClubArcLabelPath(cx, cy, radius, startAngle, endAngle) {
+  const start = polarToCartesian(cx, cy, radius, startAngle);
+  const end = polarToCartesian(cx, cy, radius, endAngle);
+  const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+  return `M ${start.x.toFixed(3)} ${start.y.toFixed(3)} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${end.x.toFixed(3)} ${end.y.toFixed(3)}`;
+}
+
+function homeClubRingChartHtml(stats) {
+  const total = stats.reduce((sum, row) => sum + Number(row.count || 0), 0);
+  if (!total) return "";
+
+  const cx = 98;
+  const cy = 140;
+  const startAngle = 0;
+  const totalSweep = 180;
+  const outerRadius = 108;
+  const ringStep = 18;
+
+  const rings = stats.map((row, index) => {
+    const radius = outerRadius - (index * ringStep);
+    const share = Math.max(0, Number(row.count || 0)) / total;
+    const arcSweep = Math.max(12, totalSweep * share);
+    const endAngle = startAngle + arcSweep;
+    const path = homeClubArcPath(cx, cy, radius, startAngle, endAngle);
+    const track = homeClubArcPath(cx, cy, radius, startAngle, startAngle + totalSweep);
+    const labelRadius = Math.max(18, radius);
+    const labelPath = homeClubArcLabelPath(cx, cy, labelRadius, startAngle, endAngle);
+    const labelPathId = `home-club-ring-label-${index}`;
+    const percent = Math.round(share * 100);
+    const labelText = `${percent}%`;
+    const arcLength = ((Math.PI * 2 * labelRadius) * arcSweep) / 360;
+    const approxTextWidthPx = Math.max(12, labelText.length * 6.4);
+    const endPaddingPx = 1;
+    const labelStartOffset = Math.max(
+      38,
+      Math.min(
+        90,
+        100 - (((approxTextWidthPx + endPaddingPx) / Math.max(arcLength, 1)) * 100)
+      )
+    );
+
+    return `
+      <g class="home-club-ring-group">
+        <path class="home-club-ring-track" d="${track}"></path>
+        <path class="home-club-ring-fill" d="${path}" style="stroke:${row.color}; filter: drop-shadow(0 0 10px ${row.color}55) drop-shadow(0 0 18px ${row.color}33);"></path>
+        <path id="${labelPathId}" class="home-club-ring-label-path" d="${labelPath}"></path>
+        <text class="home-club-ring-percent" dy="0.18em">
+          <textPath href="#${labelPathId}" startOffset="${labelStartOffset.toFixed(2)}%">${labelText}</textPath>
+        </text>
+      </g>
+    `;
+  }).join("");
+
+  return `
+    <svg class="home-club-ring-svg" viewBox="0 0 280 280" aria-label="Total matches by sport">
+      ${rings}
+      <circle class="home-club-ring-center" cx="${cx}" cy="${cy}" r="44"></circle>
+      <text class="home-club-ring-title" x="${cx}" y="${cy - 12}">Total</text>
+      <text class="home-club-ring-title" x="${cx}" y="${cy + 8}">Matches</text>
+      <text class="home-club-ring-total" x="${cx}" y="${cy + 34}">${total}</text>
+    </svg>
+  `;
+}
+
+function renderHomeClubStatsSection() {
+  const box = $("homeClubStatsSection");
+  if (!box) return;
+
+  const realStats = homeClubCompletedMatchSportStats();
+  const matchLeaders = homeClubMatchContributorRows(3);
+  const calories = homeClubCaloriesSummary(3);
+  const distance = homeClubDistanceSummary(3);
+  const preview = realStats.length ? homeClubPreviewStats(realStats) : { stats: [], simulated: false };
+  const stats = preview.stats;
+
+  const mainCardHtml = realStats.length
+    ? `
+      <article class="home-club-stats-card home-dashboard-card" style="${escapeHtml(homeUpcomingToneShadow('#93A7BF'))} background: linear-gradient(305deg, rgba(16, 30, 48, .96) 21.08%, rgba(8, 17, 30, .98) 87.67%);">
+        ${preview.simulated ? `
+          <div class="home-club-preview-note">Preview mix: simulated extra sports added to help visualize future club totals.</div>
+        ` : ""}
+        <div class="home-club-stats-primary">
+          <div class="home-club-rings-wrap">
+            ${homeClubRingChartHtml(stats)}
+          </div>
+
+          <div class="home-club-side-panel">
+            <div class="home-club-side-title">Top contributors</div>
+            <div class="home-club-side-subtitle">Completed ABA + approved external matches</div>
+            <div class="home-club-contributor-list">
+              ${homeClubContributorRowsHtml(matchLeaders, value => `${value}`, "No completed match contributors yet.")}
+            </div>
+          </div>
+        </div>
+
+        <div class="home-club-legend">
+          ${stats.map(row => `
+            <div class="home-club-legend-item" style="--sport-accent:${row.color};">
+              <div class="home-club-legend-orb" style="${homeUpcomingOrbShadow(row.color)}">
+                <img src="${escapeHtml(row.icon)}" alt="${escapeHtml(row.label)} icon">
+              </div>
+              <div class="home-club-legend-count">${row.count}${row.simulated ? '<span class="home-club-legend-preview-mark">*</span>' : ""}</div>
+            </div>
+          `).join("")}
+        </div>
+      </article>
+    `
+    : `
+      <article class="home-club-stats-card home-dashboard-card" style="${escapeHtml(homeUpcomingToneShadow('#93A7BF'))} background: linear-gradient(305deg, rgba(16, 30, 48, .96) 21.08%, rgba(8, 17, 30, .98) 87.67%);">
+        <div class="home-club-empty-state">
+          <div class="home-club-empty-title">No completed matches yet</div>
+          <div class="home-club-empty-copy">Once matches are completed, their sport totals and contributor rings will appear here.</div>
+        </div>
+      </article>
+    `;
+
+  box.innerHTML = `
+    <div class="home-club-stats-layout">
+      ${mainCardHtml}
+      <div class="home-club-metrics-grid">
+        ${homeClubMetricCardHtml({
+          title: "Calories burnt",
+          total: `${Math.round(calories.total).toLocaleString()} cal`,
+          subtitle: "Approved wearable calories across the club",
+          rows: calories.top,
+          formatter: value => `${Math.round(value).toLocaleString()} cal`,
+          accent: "#FF9F3A",
+          emptyText: "No approved calorie data yet."
+        })}
+        ${homeClubMetricCardHtml({
+          title: "Approved km",
+          total: `${distance.totalKm.toFixed(1)} km`,
+          subtitle: "Approved wearable distance across the club",
+          rows: distance.top,
+          formatter: value => `${Number(value).toFixed(1)} km`,
+          accent: "#31A8FF",
+          emptyText: "No approved distance data yet."
+        })}
+      </div>
+      ${homeClubHighlightVideoCardHtml()}
+    </div>
+  `;
+}
+
 function renderHomeUpcomingMatchesSection() {
   const box = $("homeUpcomingMatchesSection");
   if (!box) return;
@@ -3795,16 +4302,10 @@ function renderHomeUpcomingMatchesSection() {
   const upcoming = homeUpcomingMatches();
 
   if (!upcoming.length) {
+    const previewMatches = simulatedHomeUpcomingMatches();
     box.innerHTML = `
-      <article class="home-upcoming-match-card home-dashboard-card home-upcoming-empty" style="${escapeHtml(homeUpcomingToneShadow('#93A7BF'))} background: linear-gradient(305deg, rgba(16, 30, 48, .96) 21.08%, rgba(8, 17, 30, .98) 87.67%);">
-        <div></div>
-        <div class="home-upcoming-match-body">
-          <div class="home-upcoming-match-title">No upcoming matches yet</div>
-          <div class="home-upcoming-match-subtitle">Create a match to see it here.</div>
-          <div class="home-upcoming-match-venue">You can tap Matches to schedule one.</div>
-        </div>
-        <div></div>
-      </article>
+      <div class="home-upcoming-preview-note">Preview upcoming matches</div>
+      ${previewMatches.map((match, index) => homeUpcomingMatchRowHtml(match, index + 1)).join("")}
     `;
     return;
   }
@@ -14821,6 +15322,116 @@ async function saveActivitySportSettings() {
   }
 }
 
+function normalizeHomeHighlightSettings(raw = {}) {
+  return {
+    title: String(raw?.title || "").trim(),
+    videoUrl: String(raw?.videoUrl || raw?.video_url || "").trim(),
+    posterUrl: String(raw?.posterUrl || raw?.poster_url || "").trim(),
+    caption: String(raw?.caption || "").trim()
+  };
+}
+
+function readLocalHomeHighlightSettings() {
+  try {
+    return normalizeHomeHighlightSettings(JSON.parse(localStorage.getItem(HOME_HIGHLIGHT_MEDIA_LOCAL_KEY) || "{}"));
+  } catch {
+    return normalizeHomeHighlightSettings({});
+  }
+}
+
+function cacheHomeHighlightSettings(raw = {}) {
+  const normalized = normalizeHomeHighlightSettings(raw);
+  homeHighlightSettingsCache = normalized;
+
+  try {
+    localStorage.setItem(HOME_HIGHLIGHT_MEDIA_LOCAL_KEY, JSON.stringify(normalized));
+  } catch {}
+
+  return normalized;
+}
+
+function currentHomeHighlightSettings() {
+  return homeHighlightSettingsCache || cacheHomeHighlightSettings(readLocalHomeHighlightSettings());
+}
+
+async function loadHomeHighlightSettings(force = false) {
+  if (homeHighlightSettingsLoadPromise && !force) return homeHighlightSettingsLoadPromise;
+
+  homeHighlightSettingsLoadPromise = (async () => {
+    try {
+      const { data, error } = await supabaseClient
+        .from("app_settings")
+        .select("value")
+        .eq("key", HOME_HIGHLIGHT_MEDIA_APP_SETTING_KEY)
+        .maybeSingle();
+
+      if (error) throw error;
+      return cacheHomeHighlightSettings(data?.value || {});
+    } catch (error) {
+      console.warn("Using local home highlight settings fallback:", error.message);
+      return cacheHomeHighlightSettings(readLocalHomeHighlightSettings());
+    }
+  })();
+
+  return homeHighlightSettingsLoadPromise;
+}
+
+function renderHomeHighlightSettingsForm() {
+  if (!shouldRenderAdminPanel("Activities")) return;
+
+  const settings = currentHomeHighlightSettings();
+  if ($("home-highlight-title")) $("home-highlight-title").value = settings.title || "";
+  if ($("home-highlight-video-url")) $("home-highlight-video-url").value = settings.videoUrl || "";
+  if ($("home-highlight-poster-url")) $("home-highlight-poster-url").value = settings.posterUrl || "";
+  if ($("home-highlight-caption")) $("home-highlight-caption").value = settings.caption || "";
+}
+
+function homeHighlightSettingsFromForm() {
+  return normalizeHomeHighlightSettings({
+    title: $("home-highlight-title")?.value || "",
+    videoUrl: $("home-highlight-video-url")?.value || "",
+    posterUrl: $("home-highlight-poster-url")?.value || "",
+    caption: $("home-highlight-caption")?.value || ""
+  });
+}
+
+async function saveHomeHighlightSettings() {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin only.");
+    return;
+  }
+
+  const settings = homeHighlightSettingsFromForm();
+  const { error } = await supabaseClient
+    .from("app_settings")
+    .upsert({
+      key: HOME_HIGHLIGHT_MEDIA_APP_SETTING_KEY,
+      value: settings,
+      version: 1,
+      updated_by: currentProfile?.id || null,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: "key"
+    });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  cacheHomeHighlightSettings(settings);
+
+  if ($("home-highlight-settings-status")) {
+    $("home-highlight-settings-status").textContent = settings.videoUrl
+      ? "Home highlight video saved."
+      : "Home highlight video cleared.";
+  }
+
+  if (shouldRenderView("dashboard")) {
+    renderHomeClubStatsSection();
+  }
+}
+
 function activityPointsForMatch(match) {
   const hours = matchDurationHours(match);
   const setting = activitySettingForSport(match?.sport_id);
@@ -17497,8 +18108,10 @@ async function loadActivityFormOptions() {
   }
 
   await loadActivitySportSettings();
+  await loadHomeHighlightSettings();
   updateActivitySportOptions();
   renderActivitySettingsForm();
+  renderHomeHighlightSettingsForm();
 }
 
 function activityDurationMinutesFromForm() {
@@ -21811,6 +22424,7 @@ if ($("matchForm")) {
   $("save-soccer-settings-btn")?.addEventListener("click", saveSoccerRatingSettings);
   $("reset-soccer-settings-btn")?.addEventListener("click", resetSoccerRatingSettings);
   $("save-activity-settings-btn")?.addEventListener("click", saveActivitySportSettings);
+  $("save-home-highlight-btn")?.addEventListener("click", saveHomeHighlightSettings);
 
   $("recalc-all-points-btn")?.addEventListener("click", recalculateAllFinalizedPoints);
   $("recalc-all-soccer-ratings-btn")?.addEventListener("click", recalculateAllSoccerRatings);
