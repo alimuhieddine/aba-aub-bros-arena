@@ -50,12 +50,29 @@ async function lockPortraitOrientation() {
   }
 }
 
+function updateLandscapeLockState() {
+  const isCoarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches;
+  const isLandscape = window.matchMedia?.("(orientation: landscape)")?.matches;
+  const shortViewport = Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 600;
+  const shouldLock = Boolean(isCoarsePointer && isLandscape && shortViewport);
+  document.documentElement.classList.toggle("aba-landscape-lock", shouldLock);
+  document.body.classList.toggle("aba-landscape-lock", shouldLock);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   lockPortraitOrientation();
+  updateLandscapeLockState();
 });
 
 window.addEventListener("focus", () => {
   lockPortraitOrientation();
+  updateLandscapeLockState();
+});
+
+window.addEventListener("resize", updateLandscapeLockState);
+window.addEventListener("orientationchange", () => {
+  lockPortraitOrientation();
+  updateLandscapeLockState();
 });
 
 const $ = (id) => document.getElementById(id);
@@ -4721,7 +4738,7 @@ function renderLegacyHomeActivitiesCard() {
   totalNode.textContent = String(currentWeekActivities.length);
 
   const delta = homeMatchesWeeklyDeltaMeta(currentWeekActivities.length, previousWeekActivities.length);
-  deltaNode.textContent = delta.text;
+  deltaNode.textContent = delta.tone === "neutral" ? "no change" : delta.text;
 
   if (delta.tone === "positive") {
     deltaNode.style.color = "#2EE582";

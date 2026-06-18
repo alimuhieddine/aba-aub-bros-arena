@@ -7,6 +7,74 @@
   position: relative;
 }
 
+.aba-landscape-lock-screen {
+  display: none;
+}
+
+.aba-landscape-lock-card {
+  width: min(280px, calc(100vw - 48px));
+  border-radius: 16px;
+  border: 1px solid rgba(49, 168, 255, .38);
+  background: linear-gradient(305deg, rgba(16, 30, 48, .96) 21.08%, rgba(8, 17, 30, .98) 87.67%);
+  box-shadow:
+    inset 0 0 0 1px rgba(49, 168, 255, .08),
+    0 18px 40px rgba(0, 0, 0, .34),
+    0 0 26px rgba(49, 168, 255, .14);
+  padding: 20px 18px;
+  display: grid;
+  gap: 8px;
+  text-align: center;
+}
+
+.aba-landscape-lock-card strong {
+  color: #fff;
+  font-family: Roboto, Helvetica, Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.aba-landscape-lock-card span {
+  color: rgba(238, 246, 255, .78);
+  font-family: Roboto, Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+html.aba-landscape-lock,
+body.aba-landscape-lock {
+  overflow: hidden !important;
+}
+
+html.aba-landscape-lock .iphone-pro-max,
+body.aba-landscape-lock .iphone-pro-max {
+  width: 100vw !important;
+  max-width: none !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  overflow: hidden !important;
+}
+
+html.aba-landscape-lock .iphone-pro-max > :not(.aba-landscape-lock-screen),
+body.aba-landscape-lock .iphone-pro-max > :not(.aba-landscape-lock-screen) {
+  display: none !important;
+}
+
+html.aba-landscape-lock .aba-landscape-lock-screen,
+body.aba-landscape-lock .aba-landscape-lock-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(7, 17, 31, .96);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 24px;
+}
+
 .iphone-pro-max .frame {
   display: flex;
   width: 91px;
