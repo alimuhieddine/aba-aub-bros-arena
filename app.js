@@ -68,6 +68,7 @@ const STORAGE_KEY = "aba_phase1_data";
 const PUSH_NOTIFICATIONS_APP_SETTING_KEY = "push_notifications";
 const HOME_HIGHLIGHT_MEDIA_APP_SETTING_KEY = "home_highlight_media";
 const HOME_HIGHLIGHT_MEDIA_LOCAL_KEY = "aba_home_highlight_media";
+const HOME_HIGHLIGHT_BUCKET = "highlights";
 const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
 const MATCH_SUMMARY_CACHE_KEY = "aba_match_summary_cache";
 
@@ -15377,6 +15378,7 @@ function normalizeHomeHighlightSettings(raw = {}) {
   return {
     title: String(raw?.title || "").trim(),
     videoUrl: String(raw?.videoUrl || raw?.video_url || "").trim(),
+    videoPath: String(raw?.videoPath || raw?.video_path || "").trim(),
     posterUrl: String(raw?.posterUrl || raw?.poster_url || "").trim(),
     caption: String(raw?.caption || "").trim()
   };
@@ -15438,12 +15440,94 @@ function renderHomeHighlightSettingsForm() {
 }
 
 function homeHighlightSettingsFromForm() {
+  const previous = currentHomeHighlightSettings();
   return normalizeHomeHighlightSettings({
     title: $("home-highlight-title")?.value || "",
     videoUrl: $("home-highlight-video-url")?.value || "",
+    videoPath: previous.videoPath || "",
     posterUrl: $("home-highlight-poster-url")?.value || "",
     caption: $("home-highlight-caption")?.value || ""
   });
+}
+
+function homeHighlightVideoExtension(file) {
+  if (file?.type === "video/webm") return "webm";
+  if (file?.type === "video/quicktime") return "mov";
+  return "mp4";
+}
+
+function homeHighlightVideoStoragePath(file) {
+  const cleanAuthId = cleanUuidValue(currentProfile?.auth_user_id);
+  if (!cleanAuthId || !file) return "";
+  return `${cleanAuthId}/${Date.now()}-${crypto.randomUUID()}.${homeHighlightVideoExtension(file)}`;
+}
+
+async function uploadHomeHighlightVideo(file) {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin only.");
+    return null;
+  }
+
+  if (!file) return null;
+
+  const allowedTypes = new Set(["video/mp4", "video/webm", "video/quicktime"]);
+  if (!allowedTypes.has(file.type)) {
+    alert("Please choose an MP4, WebM, or MOV video.");
+    return null;
+  }
+
+  if (file.size > 100 * 1024 * 1024) {
+    alert("Highlight video must be 100 MB or smaller.");
+    return null;
+  }
+
+  const path = homeHighlightVideoStoragePath(file);
+  if (!path) {
+    alert("Could not prepare the highlight video upload path.");
+    return null;
+  }
+
+  const status = $("home-highlight-settings-status");
+  if (status) status.textContent = "Uploading highlight video...";
+
+  const { error } = await supabaseClient
+    .storage
+    .from(HOME_HIGHLIGHT_BUCKET)
+    .upload(path, file, {
+      upsert: false,
+      contentType: file.type,
+      cacheControl: "3600"
+    });
+
+  if (error) {
+    alert(error.message);
+    if (status) status.textContent = "Highlight upload failed.";
+    return null;
+  }
+
+  const { data } = supabaseClient
+    .storage
+    .from(HOME_HIGHLIGHT_BUCKET)
+    .getPublicUrl(path);
+
+  const publicUrl = data?.publicUrl ? `${data.publicUrl}?v=${Date.now()}` : "";
+  if (!publicUrl) {
+    if (status) status.textContent = "Highlight uploaded, but public URL could not be created.";
+    return null;
+  }
+
+  if ($("home-highlight-video-url")) {
+    $("home-highlight-video-url").value = publicUrl;
+  }
+
+  homeHighlightSettingsCache = normalizeHomeHighlightSettings({
+    ...currentHomeHighlightSettings(),
+    videoUrl: publicUrl,
+    videoPath: path
+  });
+
+  if (status) status.textContent = "Highlight video uploaded. Click Save highlight video to publish it.";
+  return { path, publicUrl };
 }
 
 async function saveHomeHighlightSettings() {
@@ -22476,6 +22560,14 @@ if ($("matchForm")) {
   $("reset-soccer-settings-btn")?.addEventListener("click", resetSoccerRatingSettings);
   $("save-activity-settings-btn")?.addEventListener("click", saveActivitySportSettings);
   $("save-home-highlight-btn")?.addEventListener("click", saveHomeHighlightSettings);
+  $("home-highlight-upload-btn")?.addEventListener("click", () => {
+    $("home-highlight-video-file")?.click();
+  });
+  $("home-highlight-video-file")?.addEventListener("change", async event => {
+    const file = event?.target?.files?.[0];
+    await uploadHomeHighlightVideo(file);
+    if (event?.target) event.target.value = "";
+  });
 
   $("recalc-all-points-btn")?.addEventListener("click", recalculateAllFinalizedPoints);
   $("recalc-all-soccer-ratings-btn")?.addEventListener("click", recalculateAllSoccerRatings);
