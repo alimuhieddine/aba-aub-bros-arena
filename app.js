@@ -4152,10 +4152,20 @@ function homeClubHighlightVideoCardHtml() {
   }
 
   const settings = currentHomeHighlightSettings();
-  if (!settings.videoUrl) return "";
-
   const title = settings.title || "Club highlight";
   const posterAttr = settings.posterUrl ? ` poster="${escapeHtml(settings.posterUrl)}"` : "";
+
+  if (!settings.videoUrl) {
+    return `
+      <article class="home-club-video-card home-dashboard-card" style="${escapeHtml(homeUpcomingToneShadow('#31A8FF'))} background: linear-gradient(305deg, rgba(16, 30, 48, .96) 21.08%, rgba(8, 17, 30, .98) 87.67%);">
+        <div class="home-club-video-head">
+          <div class="home-club-video-title">${escapeHtml(title)}</div>
+          <div class="home-club-video-caption">No highlight video added yet.</div>
+        </div>
+        <div class="home-club-video-empty">Highlight video will appear here once an admin adds it.</div>
+      </article>
+    `;
+  }
 
   return `
     <article class="home-club-video-card home-dashboard-card" style="${escapeHtml(homeUpcomingToneShadow('#31A8FF'))} background: linear-gradient(305deg, rgba(16, 30, 48, .96) 21.08%, rgba(8, 17, 30, .98) 87.67%);">
@@ -4513,6 +4523,11 @@ function isOutsideAppMatchActivity(activity) {
   return classifyActivity(activity).bucket === "external-match";
 }
 
+function isMatchLikeActivity(activity) {
+  const bucket = classifyActivity(activity).bucket;
+  return bucket === "linked-match" || bucket === "external-match";
+}
+
 function homeSportMatchEquivalentActivityCount(activities, keywords = []) {
   return (activities || []).filter(activity => {
     const sport = activitySportNameLower(activity);
@@ -4660,6 +4675,11 @@ function homeOwnApprovedActivitiesBetween(startMs, endMs) {
   ).filter(activity => cleanUuidValue(activity.member_id) === memberId);
 }
 
+function homeOwnVerifiedActivitiesBetween(startMs, endMs) {
+  return homeOwnApprovedActivitiesBetween(startMs, endMs)
+    .filter(activity => !isMatchLikeActivity(activity));
+}
+
 function homeSportActivityCount(activities, keywords = []) {
   return (activities || []).filter(activity => {
     const sport = activitySportNameLower(activity);
@@ -4690,8 +4710,8 @@ function renderLegacyHomeActivitiesCard() {
 
   const currentWeek = homeThisWeekBounds();
   const previousWeek = homePreviousWeekBounds();
-  const currentWeekActivities = homeOwnApprovedActivitiesBetween(currentWeek.startMs, currentWeek.endMs);
-  const previousWeekActivities = homeOwnApprovedActivitiesBetween(previousWeek.startMs, previousWeek.endMs);
+  const currentWeekActivities = homeOwnVerifiedActivitiesBetween(currentWeek.startMs, currentWeek.endMs);
+  const previousWeekActivities = homeOwnVerifiedActivitiesBetween(previousWeek.startMs, previousWeek.endMs);
 
   runNode.textContent = String(homeSportActivityCount(currentWeekActivities, ["run", "running"]));
   swimNode.textContent = String(homeSportActivityCount(currentWeekActivities, ["swim", "swimming"]));
@@ -4987,8 +5007,8 @@ function renderHomeDashboardPolish() {
   const previousWeek = homePreviousWeekBounds();
   const currentWeekMatches = homePlayedMatchesBetween(currentWeek.startMs, currentWeek.endMs, memberId);
   const previousWeekMatches = homePlayedMatchesBetween(previousWeek.startMs, previousWeek.endMs, memberId);
-  const currentWeekActivities = homeOwnApprovedActivitiesBetween(currentWeek.startMs, currentWeek.endMs);
-  const previousWeekActivities = homeOwnApprovedActivitiesBetween(previousWeek.startMs, previousWeek.endMs);
+  const currentWeekActivities = homeOwnVerifiedActivitiesBetween(currentWeek.startMs, currentWeek.endMs);
+  const previousWeekActivities = homeOwnVerifiedActivitiesBetween(previousWeek.startMs, previousWeek.endMs);
   const currentRows = homeRankingRows();
   const rankIndex = currentRows.findIndex(row => cleanUuidValue(row.memberId) === memberId);
   const currentRank = rankIndex >= 0 ? rankIndex + 1 : 0;
@@ -5013,7 +5033,7 @@ function renderHomeDashboardPolish() {
         totals.score += Number(point.score_points ?? point.consistency_bonus ?? 0);
       });
 
-    homeOwnApprovedActivitiesBetween(previousWeek.startMs, previousWeek.endMs)
+    homeOwnVerifiedActivitiesBetween(previousWeek.startMs, previousWeek.endMs)
       .forEach(activity => {
         const points = standaloneActivityPoints(activity);
         totals.total += points;
@@ -5386,8 +5406,7 @@ function renderHomeSnapshot() {
   const activeMinutes = homeWeekActivityMinutes();
   const { startMs: weekStart, endMs: weekEnd } = homeThisWeekBounds();
   const weekMatches = homeMatchesBetween(weekStart, weekEnd);
-  const verifiedActivities = homeActivitiesBetween(weekStart, weekEnd)
-    .filter(activity => activity.status === "approved").length;
+  const verifiedActivities = homeOwnVerifiedActivitiesBetween(weekStart, weekEnd).length;
   const upcomingMatches = (allMatches || [])
     .filter(match => !isCancelledMatch(match))
     .filter(match => new Date(match.start_time || 0).getTime() >= Date.now())
@@ -5402,10 +5421,10 @@ function renderHomeSnapshot() {
   const challengePct = Math.round((challengeProgress / weekActivityGoal) * 100);
   const last7Start = Date.now() - (7 * 24 * 60 * 60 * 1000);
   const last7Matches = homeMatchesBetween(last7Start, Date.now()).filter(match => hasSubmittedScore(match));
-  const last7Activities = homeActivitiesBetween(last7Start, Date.now());
+  const last7Activities = homeOwnVerifiedActivitiesBetween(last7Start, Date.now());
   const padelSessions = last7Matches.filter(match => String(match.sports?.name || sportNameById(match.sport_id) || "").toLowerCase().includes("padel")).length;
   const soccerGames = last7Matches.filter(match => isSoccerMatch(match)).length;
-  const verifiedProofs = last7Activities.filter(activity => activity.status === "approved").length;
+  const verifiedProofs = last7Activities.length;
   const totalPoints = Number(stats.totalPoints || 0);
   const monthPoints = homeMonthPoints(currentProfile.id);
   const firstName = String(memberDisplayName(currentProfile)).split(/\s+/)[0] || memberDisplayName(currentProfile);
