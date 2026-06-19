@@ -5705,6 +5705,16 @@
               </div>
             </label>
 
+            <div id="home-highlight-upload-progress" class="home-highlight-upload-progress" hidden>
+              <div class="home-highlight-upload-progress-head">
+                <strong id="home-highlight-upload-progress-title">Uploading highlight video</strong>
+                <span id="home-highlight-upload-progress-text">Uploading...</span>
+              </div>
+              <div class="home-highlight-upload-progress-track" aria-hidden="true">
+                <div id="home-highlight-upload-progress-bar" class="home-highlight-upload-progress-bar is-loading"></div>
+              </div>
+            </div>
+
             <label>
               Poster URL
               <input id="home-highlight-poster-url" type="url" placeholder="https://.../poster.jpg">
@@ -6387,6 +6397,16 @@
         Result photo
         <input id="score-result-photo" type="file" accept="image/png,image/jpeg,image/webp">
       </label>
+
+      <div id="score-result-photo-upload-progress" class="home-highlight-upload-progress score-upload-progress" hidden>
+        <div class="home-highlight-upload-progress-head">
+          <strong id="score-result-photo-upload-progress-title">Uploading result photo</strong>
+          <span id="score-result-photo-upload-progress-text">Uploading...</span>
+        </div>
+        <div class="home-highlight-upload-progress-track" aria-hidden="true">
+          <div id="score-result-photo-upload-progress-bar" class="home-highlight-upload-progress-bar is-loading"></div>
+        </div>
+      </div>
 
       <div id="score-result-photo-preview" class="match-result-photo-preview"></div>
 

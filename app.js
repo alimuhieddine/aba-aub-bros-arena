@@ -1648,6 +1648,14 @@ let currentExternalMatchId = null;
 let currentTeamMatchId = null;
 let currentTeamEditScope = "full";
 let currentScoreMatchId = null;
+let currentScorePhotoUpload = {
+  matchId: null,
+  state: "idle",
+  fileName: "",
+  path: "",
+  error: "",
+  promise: null
+};
 let currentRatingHistoryMemberId = null;
 let currentRatingHistorySportId = null;
 let allPendingGames = [];
@@ -14115,6 +14123,8 @@ async function openScoreSubmission(matchId) {
   if ($("score-team-b")) $("score-team-b").value = Number(teamB.score || 0);
   if ($("score-summary")) $("score-summary").value = match.notes || "";
   if ($("score-result-photo")) $("score-result-photo").value = "";
+  resetCurrentScorePhotoUpload();
+  setMatchPhotoUploadUiState({ visible: false, percent: 0, busy: false });
   updateScorePhotoPreview(match);
 
   setScoreMode(match);
@@ -15454,6 +15464,7 @@ function renderHomeHighlightSettingsForm() {
   if ($("home-highlight-video-url")) $("home-highlight-video-url").value = settings.videoUrl || "";
   if ($("home-highlight-poster-url")) $("home-highlight-poster-url").value = settings.posterUrl || "";
   if ($("home-highlight-caption")) $("home-highlight-caption").value = settings.caption || "";
+  setHomeHighlightUploadUiState({ visible: false, percent: 0, busy: false });
 }
 
 function homeHighlightSettingsFromForm() {
@@ -15477,6 +15488,77 @@ function homeHighlightVideoStoragePath(file) {
   const cleanAuthId = cleanUuidValue(currentProfile?.auth_user_id);
   if (!cleanAuthId || !file) return "";
   return `${cleanAuthId}/${Date.now()}-${crypto.randomUUID()}.${homeHighlightVideoExtension(file)}`;
+}
+
+function waitForUiPaint() {
+  return new Promise(resolve => {
+    requestAnimationFrame(() => {
+      window.setTimeout(resolve, 0);
+    });
+  });
+}
+
+function setHomeHighlightUploadUiState({
+  visible = false,
+  percent = 0,
+  title = "Uploading highlight video",
+  busy = false
+} = {}) {
+  const progressCard = $("home-highlight-upload-progress");
+  const progressTitle = $("home-highlight-upload-progress-title");
+  const progressText = $("home-highlight-upload-progress-text");
+  const progressBar = $("home-highlight-upload-progress-bar");
+  const uploadButton = $("home-highlight-upload-btn");
+  const saveButton = $("save-home-highlight-btn");
+
+  if (progressCard) progressCard.hidden = !visible;
+  if (progressTitle) progressTitle.textContent = title;
+
+  const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
+  if (progressText) {
+    progressText.textContent = busy
+      ? "Uploading..."
+      : safePercent >= 100
+        ? "Done"
+        : title === "Upload failed"
+          ? "Failed"
+          : `${Math.round(safePercent)}%`;
+  }
+  if (progressBar) {
+    progressBar.classList.toggle("is-loading", busy);
+    progressBar.style.width = busy ? "42%" : `${safePercent}%`;
+    if (!busy) progressBar.style.transform = "translateX(0)";
+  }
+
+  if (uploadButton) uploadButton.disabled = busy;
+  if (saveButton) saveButton.disabled = busy;
+}
+
+async function uploadHomeHighlightVideoWithProgress(file, path, onProgress) {
+  let syntheticPercent = 12;
+  onProgress?.(syntheticPercent);
+  await waitForUiPaint();
+
+  const ticker = window.setInterval(() => {
+    syntheticPercent = Math.min(92, syntheticPercent + Math.max(2, (92 - syntheticPercent) * 0.14));
+    onProgress?.(syntheticPercent);
+  }, 160);
+
+  try {
+    const { error } = await supabaseClient
+      .storage
+      .from(HOME_HIGHLIGHT_BUCKET)
+      .upload(path, file, {
+        upsert: false,
+        contentType: file.type,
+        cacheControl: "3600"
+      });
+
+    if (error) throw error;
+    onProgress?.(100);
+  } finally {
+    window.clearInterval(ticker);
+  }
 }
 
 async function uploadHomeHighlightVideo(file) {
@@ -15506,19 +15588,31 @@ async function uploadHomeHighlightVideo(file) {
 
   const status = $("home-highlight-settings-status");
   if (status) status.textContent = "Uploading highlight video...";
+  setHomeHighlightUploadUiState({
+    visible: true,
+    percent: 12,
+    title: `Uploading ${file.name || "highlight video"}`,
+    busy: true
+  });
 
-  const { error } = await supabaseClient
-    .storage
-    .from(HOME_HIGHLIGHT_BUCKET)
-    .upload(path, file, {
-      upsert: false,
-      contentType: file.type,
-      cacheControl: "3600"
+  try {
+    await uploadHomeHighlightVideoWithProgress(file, path, percent => {
+      setHomeHighlightUploadUiState({
+        visible: true,
+        percent,
+        title: `Uploading ${file.name || "highlight video"}`,
+        busy: true
+      });
     });
-
-  if (error) {
+  } catch (error) {
     alert(error.message);
     if (status) status.textContent = "Highlight upload failed.";
+    setHomeHighlightUploadUiState({
+      visible: true,
+      percent: 0,
+      title: "Upload failed",
+      busy: false
+    });
     return null;
   }
 
@@ -15544,6 +15638,12 @@ async function uploadHomeHighlightVideo(file) {
   });
 
   if (status) status.textContent = "Highlight video uploaded. Click Save highlight video to publish it.";
+  setHomeHighlightUploadUiState({
+    visible: true,
+    percent: 100,
+    title: "Upload complete",
+    busy: false
+  });
   return { path, publicUrl };
 }
 
@@ -17672,12 +17772,23 @@ async function finalizeCurrentMatchResult() {
   }
 
   const summary = $("score-summary")?.value.trim() || null;
-  const resultPhotoFile = $("score-result-photo")?.files?.[0] || null;
   let scoreA = Number(teamA.score || 0);
   let scoreB = Number(teamB.score || 0);
   let savedGame = null;
   const teamAName = teamDisplayName(match, teamA, "Team A");
   const teamBName = teamDisplayName(match, teamB, "Team B");
+
+  if (currentScorePhotoUpload.matchId === scoreMatchId) {
+    if (currentScorePhotoUpload.state === "uploading") {
+      alert("Please wait for the result photo upload to finish.");
+      return;
+    }
+
+    if (currentScorePhotoUpload.state === "failed") {
+      alert("Result photo upload failed. Re-select the photo or remove it before finalizing.");
+      return;
+    }
+  }
 
   if (isPadelMatch(match)) {
     savedGame = await savePadelGameOnly();
@@ -17808,6 +17919,8 @@ async function finalizeCurrentMatchResult() {
     return;
   }
 
+  const photoSaveNote = "";
+
   const refreshedMatchForPoints = {
     ...match,
     status: "completed",
@@ -17857,6 +17970,7 @@ async function finalizeCurrentMatchResult() {
 
   $("scoreModal")?.close();
   currentScoreMatchId = null;
+  resetCurrentScorePhotoUpload();
   updateScorePhotoPreview(null);
   logMatchEditEvent(
     scoreMatchId,
@@ -17904,17 +18018,6 @@ async function finalizeCurrentMatchResult() {
     });
   }
 
-  let photoSaveNote = "";
-
-  if (resultPhotoFile) {
-    const photoResult = await saveMatchResultPhoto(match, resultPhotoFile);
-
-    if (!photoResult.ok) {
-      console.warn("Match result photo could not be saved:", photoResult.stage || "photo save", photoResult.error);
-      photoSaveNote = ` Photo note: ${photoResult.stage ? `${photoResult.stage}: ` : ""}${photoResult.error}`;
-    }
-  }
-
   const finalMessage = isSoccerMatch(refreshedMatchForPoints)
     ? "Match result finalized, points saved, and soccer position ratings updated."
     : isPadelMatch(refreshedMatchForPoints)
@@ -17931,7 +18034,41 @@ async function finalizeCurrentMatchResult() {
 }
 
 async function saveScore() {
-  await finalizeCurrentMatchResult();
+  const scoreModal = $("scoreModal");
+  const hasSelectedPhoto = Boolean($("score-result-photo")?.files?.[0]);
+
+  if (hasSelectedPhoto && currentScorePhotoUpload.state === "uploaded") {
+    setMatchPhotoUploadUiState({
+      visible: true,
+      percent: 100,
+      title: currentScorePhotoUpload.fileName || "Result photo selected",
+      busy: false,
+      statusText: "Uploaded"
+    });
+  } else if (hasSelectedPhoto) {
+    setMatchPhotoUploadUiState({
+      visible: true,
+      percent: 12,
+      title: currentScorePhotoUpload.fileName || "Result photo selected",
+      busy: true,
+      statusText: "Processing result..."
+    });
+  }
+
+  try {
+    await finalizeCurrentMatchResult();
+  } finally {
+    const stillEditingSameScore = Boolean(currentScoreMatchId && scoreModal?.open);
+    if (hasSelectedPhoto && stillEditingSameScore && currentScorePhotoUpload.state !== "uploaded") {
+      setMatchPhotoUploadUiState({
+        visible: true,
+        percent: 0,
+        title: currentScorePhotoUpload.fileName || "Result photo selected",
+        busy: false,
+        statusText: "Ready to upload"
+      });
+    }
+  }
 }
 
 function commentSection(m) {
@@ -21079,6 +21216,233 @@ function updateScorePhotoPreview(match) {
   `;
 }
 
+function resetCurrentScorePhotoUpload() {
+  currentScorePhotoUpload = {
+    matchId: currentScoreMatchId || null,
+    state: "idle",
+    fileName: "",
+    path: "",
+    error: "",
+    promise: null
+  };
+}
+
+function setMatchPhotoUploadUiState({
+  visible = false,
+  percent = 0,
+  title = "Uploading result photo",
+  busy = false,
+  statusText = ""
+} = {}) {
+  const progressCard = $("score-result-photo-upload-progress");
+  const progressTitle = $("score-result-photo-upload-progress-title");
+  const progressText = $("score-result-photo-upload-progress-text");
+  const progressBar = $("score-result-photo-upload-progress-bar");
+  const saveScoreButton = $("save-score-btn");
+  const saveGameButton = $("save-game-btn");
+  const deleteGameButton = $("delete-game-btn");
+
+  if (progressCard) progressCard.hidden = !visible;
+  if (progressTitle) progressTitle.textContent = title;
+
+  const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
+  if (progressText) {
+    progressText.textContent = statusText || (
+      busy
+        ? "Uploading..."
+        : safePercent >= 100
+          ? "Done"
+          : title === "Upload failed"
+            ? "Failed"
+            : `${Math.round(safePercent)}%`
+    );
+  }
+  if (progressBar) {
+    progressBar.classList.toggle("is-loading", busy);
+    progressBar.style.width = busy ? "42%" : `${safePercent}%`;
+    if (!busy) progressBar.style.transform = "translateX(0)";
+  }
+
+  if (saveScoreButton) saveScoreButton.disabled = busy;
+  if (saveGameButton) saveGameButton.disabled = busy;
+  if (deleteGameButton) deleteGameButton.disabled = busy;
+}
+
+async function handleScoreResultPhotoSelection() {
+  const file = $("score-result-photo")?.files?.[0] || null;
+  if (!file) {
+    resetCurrentScorePhotoUpload();
+    setMatchPhotoUploadUiState({ visible: false, percent: 0, busy: false, statusText: "" });
+    return;
+  }
+
+  const matchId = cleanUuidValue(currentScoreMatchId);
+  const match = allMatches.find(row => cleanUuidValue(row.id) === matchId);
+  if (!matchId || !match) {
+    setMatchPhotoUploadUiState({
+      visible: true,
+      percent: 0,
+      title: file.name || "Result photo selected",
+      busy: false,
+      statusText: "Match not ready"
+    });
+    return;
+  }
+
+  currentScorePhotoUpload = {
+    matchId,
+    state: "uploading",
+    fileName: file.name || "",
+    path: "",
+    error: "",
+    promise: null
+  };
+
+  setMatchPhotoUploadUiState({
+    visible: true,
+    percent: 12,
+    title: file.name || "Result photo selected",
+    busy: true,
+    statusText: "Uploading..."
+  });
+
+  const uploadPromise = saveMatchResultPhoto(match, file);
+  currentScorePhotoUpload.promise = uploadPromise;
+
+  const uploadResult = await uploadPromise;
+
+  if (!uploadResult?.ok) {
+    currentScorePhotoUpload = {
+      matchId,
+      state: "failed",
+      fileName: file.name || "",
+      path: "",
+      error: uploadResult?.error || "Upload failed.",
+      promise: null
+    };
+    setMatchPhotoUploadUiState({
+      visible: true,
+      percent: 0,
+      title: file.name || "Result photo selected",
+      busy: false,
+      statusText: "Upload failed"
+    });
+    return;
+  }
+
+  currentScorePhotoUpload = {
+    matchId,
+    state: "uploaded",
+    fileName: file.name || "",
+    path: uploadResult.path || "",
+    error: "",
+    promise: null
+  };
+
+  const optimisticMatch = {
+    ...match,
+    result_photo_path: uploadResult.path || "",
+    result_photo_file_name: file.name || "",
+    match_result_photos: {
+      photo_path: uploadResult.path || "",
+      photo_file_name: file.name || ""
+    }
+  };
+  updateScorePhotoPreview(optimisticMatch);
+  setMatchPhotoUploadUiState({
+    visible: true,
+    percent: 100,
+    title: file.name || "Result photo selected",
+    busy: false,
+    statusText: "Uploaded"
+  });
+}
+
+async function uploadMatchResultPhotoWithProgress(matchId, file, onProgress) {
+  const path = matchResultPhotoStoragePath(matchId, file);
+  if (!path) {
+    return {
+      ok: false,
+      error: "Could not prepare the result photo upload path."
+    };
+  }
+
+  const sessionResult = await supabaseClient.auth.getSession();
+  const accessToken = sessionResult?.data?.session?.access_token;
+  if (!accessToken) {
+    return {
+      ok: false,
+      stage: "auth session",
+      error: "You need to be signed in before uploading a result photo."
+    };
+  }
+
+  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${MATCH_RESULT_PHOTO_BUCKET}/${path}`;
+  onProgress?.(2);
+  await waitForUiPaint();
+
+  return new Promise(resolve => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", uploadUrl, true);
+    xhr.setRequestHeader("apikey", SUPABASE_KEY);
+    xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+    xhr.setRequestHeader("x-upsert", "false");
+    xhr.setRequestHeader("cache-control", "3600");
+    xhr.setRequestHeader("content-type", file.type || "image/jpeg");
+
+    xhr.upload.onprogress = event => {
+      if (!event.lengthComputable || !event.total) {
+        onProgress?.(18);
+        return;
+      }
+      onProgress?.(Math.max(3, Math.min(99, (event.loaded / event.total) * 100)));
+    };
+
+    xhr.onerror = () => {
+      resolve({
+        ok: false,
+        stage: "storage upload",
+        error: "Result photo upload failed."
+      });
+    };
+
+    xhr.ontimeout = () => {
+      resolve({
+        ok: false,
+        stage: "storage upload",
+        error: "Result photo upload timed out."
+      });
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(100);
+        resolve({
+          ok: true,
+          path,
+          fileName: file.name
+        });
+        return;
+      }
+
+      let message = "Result photo upload failed.";
+      try {
+        const parsed = JSON.parse(xhr.responseText || "{}");
+        message = parsed?.message || parsed?.error || message;
+      } catch {}
+
+      resolve({
+        ok: false,
+        stage: "storage upload",
+        error: message
+      });
+    };
+
+    xhr.timeout = 45000;
+    xhr.send(file);
+  });
+}
+
 async function uploadMatchResultPhoto(matchId, file) {
   if (!file) return { ok: true, skipped: true };
 
@@ -21097,45 +21461,36 @@ async function uploadMatchResultPhoto(matchId, file) {
     };
   }
 
-  const path = matchResultPhotoStoragePath(matchId, file);
-  if (!path) {
-    return {
-      ok: false,
-      error: "Could not prepare the result photo upload path."
-    };
-  }
-
-  const { error: uploadError } = await supabaseClient
-    .storage
-    .from(MATCH_RESULT_PHOTO_BUCKET)
-    .upload(path, file, {
-      upsert: false,
-      contentType: file.type,
-      cacheControl: "3600"
-    });
-
-  if (uploadError) {
-    return {
-      ok: false,
-      stage: "storage upload",
-      error: uploadError.message
-    };
-  }
-
-  return {
-    ok: true,
-    path,
-    fileName: file.name
-  };
+  return uploadMatchResultPhotoWithProgress(matchId, file);
 }
 
 async function saveMatchResultPhoto(match, file) {
   if (!match || !file) return { ok: true, skipped: true };
 
   const currentPath = matchResultPhotoPath(match);
-  const uploadResult = await uploadMatchResultPhoto(match.id, file);
+  setMatchPhotoUploadUiState({
+    visible: true,
+    percent: 12,
+    title: `Uploading ${file.name || "result photo"}`,
+    busy: true
+  });
+
+  const uploadResult = await uploadMatchResultPhotoWithProgress(match.id, file, percent => {
+    setMatchPhotoUploadUiState({
+      visible: true,
+      percent,
+      title: `Uploading ${file.name || "result photo"}`,
+      busy: true
+    });
+  });
 
   if (!uploadResult.ok) {
+    setMatchPhotoUploadUiState({
+      visible: true,
+      percent: 0,
+      title: "Upload failed",
+      busy: false
+    });
     return uploadResult;
   }
 
@@ -21179,6 +21534,13 @@ async function saveMatchResultPhoto(match, file) {
       console.warn("Could not remove previous match photo:", cleanupResult.error.message);
     }
   }
+
+  setMatchPhotoUploadUiState({
+    visible: true,
+    percent: 100,
+    title: "Upload complete",
+    busy: false
+  });
 
   return {
     ok: true,
@@ -22611,6 +22973,7 @@ if ($("matchForm")) {
   $("delete-game-btn")?.addEventListener("click", deleteSelectedGameFromResults);
 
   $("save-score-btn")?.addEventListener("click", saveScore);
+  $("score-result-photo")?.addEventListener("change", handleScoreResultPhotoSelection);
 
   document.querySelectorAll("#padel-score-section input").forEach(input => {
     input.addEventListener("input", () => {
