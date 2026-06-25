@@ -20037,15 +20037,29 @@ async function signUp(email, password) {
   });
 
   if (error) {
-    const message = error.message.toLowerCase();
+    const message = String(error.message || "").toLowerCase();
 
     if (
       message.includes("already registered") ||
       message.includes("already exists") ||
-      message.includes("user already registered") ||
-      message.includes("email")
+      message.includes("user already registered")
     ) {
       alert("This email is already registered. Please log in or use a different email.");
+      return;
+    }
+
+    if (message.includes("invalid email")) {
+      alert("Please enter a valid email address.");
+      return;
+    }
+
+    if (message.includes("password")) {
+      alert(error.message);
+      return;
+    }
+
+    if (message.includes("rate limit") || message.includes("too many requests")) {
+      alert("Too many signup attempts. Please wait a little and try again.");
       return;
     }
 
