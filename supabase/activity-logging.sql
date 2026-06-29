@@ -287,7 +287,7 @@ begin
             select 1
             from public.members m
             where m.auth_user_id = auth.uid()
-              and m.role = 'admin'
+              and m.role in ('owner', 'admin')
               and m.approval_status = 'approved'
           )
         )
@@ -328,7 +328,7 @@ begin
             select 1
             from public.members m
             where m.auth_user_id = auth.uid()
-              and m.role = 'admin'
+              and m.role in ('owner', 'admin')
               and m.approval_status = 'approved'
           )
         )

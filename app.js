@@ -1756,6 +1756,45 @@ const MEMBER_ACTIVITY_SELECT = `
   )
 `;
 
+function normalizeStorageObjectPath(bucketName, rawPath) {
+  const bucket = String(bucketName || "").trim();
+  const raw = String(rawPath || "").trim();
+  if (!bucket || !raw) return "";
+
+  const withoutQuery = raw.split("?")[0].trim();
+  if (!withoutQuery) return "";
+
+  const bucketPrefix = `${bucket}/`;
+  if (!withoutQuery.includes("/")) {
+    return withoutQuery;
+  }
+
+  if (withoutQuery.startsWith(bucketPrefix)) {
+    return withoutQuery.slice(bucketPrefix.length);
+  }
+
+  const storageMarkers = [
+    `/storage/v1/object/public/${bucket}/`,
+    `/storage/v1/object/sign/${bucket}/`,
+    `/storage/v1/object/${bucket}/`
+  ];
+
+  for (const marker of storageMarkers) {
+    const idx = withoutQuery.indexOf(marker);
+    if (idx >= 0) {
+      return withoutQuery.slice(idx + marker.length);
+    }
+  }
+
+  const publicBucketMarker = `/public/${bucket}/`;
+  const publicIdx = withoutQuery.indexOf(publicBucketMarker);
+  if (publicIdx >= 0) {
+    return withoutQuery.slice(publicIdx + publicBucketMarker.length);
+  }
+
+  return withoutQuery;
+}
+
 
 
 
@@ -9929,7 +9968,7 @@ function filteredMatches() {
     })
     .sort((a, b) =>
       matchFilterPriority(a) - matchFilterPriority(b) ||
-      new Date(a.start_time) - new Date(b.start_time)
+      new Date(b.start_time || 0) - new Date(a.start_time || 0)
     );
 }
 
@@ -18487,14 +18526,16 @@ async function openActivityProof(activityId) {
     return;
   }
 
-  if (!activity?.proof_path) {
+  const proofPath = normalizeStorageObjectPath(ACTIVITY_PROOF_BUCKET, activity?.proof_path);
+
+  if (!proofPath) {
     alert("Proof not found.");
     return;
   }
 
   const { data, error } = await supabaseClient.storage
     .from(ACTIVITY_PROOF_BUCKET)
-    .createSignedUrl(activity.proof_path, 600);
+    .createSignedUrl(proofPath, 600);
 
   if (error) {
     alert(error.message);
@@ -18742,7 +18783,7 @@ async function submitActivityLog(form) {
     return;
   }
 
-  let proofPath = existingActivity?.proof_path || "";
+  let proofPath = normalizeStorageObjectPath(ACTIVITY_PROOF_BUCKET, existingActivity?.proof_path) || "";
   let proofFileName = existingActivity?.proof_file_name || "";
   let uploadedReplacementPath = "";
 
@@ -18800,10 +18841,12 @@ async function submitActivityLog(form) {
     return;
   }
 
-  if (isEditing && uploadedReplacementPath && existingActivity.proof_path) {
+  const existingProofPath = normalizeStorageObjectPath(ACTIVITY_PROOF_BUCKET, existingActivity?.proof_path);
+
+  if (isEditing && uploadedReplacementPath && existingProofPath) {
     await supabaseClient.storage
       .from(ACTIVITY_PROOF_BUCKET)
-      .remove([existingActivity.proof_path]);
+      .remove([existingProofPath]);
   }
 
   form.reset();
@@ -18894,10 +18937,12 @@ async function deleteActivity(activityId) {
     return;
   }
 
-  if (activity.proof_path) {
+  const existingProofPath = normalizeStorageObjectPath(ACTIVITY_PROOF_BUCKET, activity?.proof_path);
+
+  if (existingProofPath) {
     const { error: storageError } = await supabaseClient.storage
       .from(ACTIVITY_PROOF_BUCKET)
-      .remove([activity.proof_path]);
+      .remove([existingProofPath]);
 
     if (storageError) {
       console.warn("Could not delete activity proof:", storageError.message);
