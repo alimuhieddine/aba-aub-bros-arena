@@ -753,7 +753,6 @@
     }
 
     #activities .linked-match-tag,
-    #activities .link-btn,
     #activities .small-btn {
       min-height: 24px;
       margin-top: 8px;
@@ -767,6 +766,50 @@
       font-weight: 700;
       line-height: 1;
       cursor: pointer;
+    }
+
+    #activities .link-btn {
+      display: inline-flex;
+      align-items: center;
+      max-width: min(100%, 240px);
+      min-height: 24px;
+      margin-top: 8px;
+      padding: 4px 10px;
+      border: 1px solid rgba(147, 167, 191, .34);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .04);
+      color: #d8e8f8;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      box-sizing: border-box;
+    }
+
+    #admin .link-btn {
+      display: inline-flex;
+      align-items: center;
+      max-width: min(100%, 240px);
+      min-height: 24px;
+      margin-top: 8px;
+      padding: 4px 10px;
+      border: 1px solid rgba(147, 167, 191, .34);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .04);
+      color: #d8e8f8;
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      box-sizing: border-box;
     }
 
     #activities .linked-match-tag {
@@ -5739,7 +5782,16 @@
           </p>
         </div>
 
-        <div class="section-head">
+        <div class="section-head" id="admin-strava-linked-points-section">
+          <div>
+            <h2>Strava-linked Points</h2>
+            <p class="hint">See where synced Strava activity points replaced estimated match activity points.</p>
+          </div>
+        </div>
+
+        <div id="adminStravaLinkedPointsList" class="stack"></div>
+
+        <div class="section-head" id="admin-activity-review-section">
           <div>
             <h2>Activity Review</h2>
             <p class="hint">Approve logged activities before points count.</p>

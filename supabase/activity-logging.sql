@@ -108,9 +108,9 @@ begin
     select 1 from pg_policies
     where schemaname = 'public'
       and tablename = 'member_activities'
-      and policyname = 'approved members can read own and approved activities'
+      and policyname = 'approved members can read all activities'
   ) then
-    create policy "approved members can read own and approved activities"
+    create policy "approved members can read all activities"
       on public.member_activities
       for select
       to authenticated
@@ -120,11 +120,6 @@ begin
           from public.members m
           where m.auth_user_id = auth.uid()
             and m.approval_status = 'approved'
-            and (
-              m.id = member_activities.member_id
-              or member_activities.status = 'approved'
-              or m.role = 'admin'
-            )
         )
       );
   end if;

@@ -113,7 +113,7 @@ const demoData = {
 
 async function loadSportsOptions(options = {}) {
   const { force = false } = options || {};
-  if (!isCurrentUserAdmin()) return;
+  if (!isApprovedCurrentUser()) return [];
 
   if (!force && appLoadState.sports.loaded) {
     renderSportsOptions();
@@ -123,20 +123,26 @@ async function loadSportsOptions(options = {}) {
   if (!force && appLoadState.sports.promise) return appLoadState.sports.promise;
 
   appLoadState.sports.promise = (async () => {
-    const { data, error } = await supabaseClient
-      .from("sports")
-      .select("id,name")
-      .order("name", { ascending: true });
+    const sports = force
+      ? await (async () => {
+          const { data, error } = await supabaseClient
+            .from("sports")
+            .select("id,name")
+            .order("name", { ascending: true });
 
-    if (error) {
-      alert(error.message);
-      return allSports;
-    }
+          if (error) {
+            console.warn("Could not load sports:", error.message);
+            return allSports;
+          }
 
-    allSports = data || [];
+          allSports = data || [];
+          return allSports;
+        })()
+      : await ensureSportsLoaded();
+
     appLoadState.sports.loaded = true;
     renderSportsOptions();
-    return allSports;
+    return sports;
   })();
 
   try {
@@ -148,6 +154,7 @@ async function loadSportsOptions(options = {}) {
 
 function renderSportsOptions() {
   const box = $("venue-sports-options");
+  updateRatingSportOptions();
   if (!box) return;
 
   if (allSports.length === 0) {
@@ -464,7 +471,11 @@ function isCurrentUserAdmin() {
 }
 
 function isCurrentUserCommittee() {
-  return isApprovedCurrentUser() && currentUserRole() === "committee";
+  if (!isApprovedCurrentUser()) return false;
+  const role = currentUserRole();
+  return role === "committee" ||
+    role.includes("committee") ||
+    currentMemberSportPermissionIds.size > 0;
 }
 
 function canManageSport(sportId) {
@@ -497,7 +508,23 @@ function matchCreatableSports() {
 }
 
 function canManageAnySport() {
-  return isCurrentUserAdmin() || (isCurrentUserCommittee() && currentMemberSportPermissionIds.size > 0);
+  return isCurrentUserAdmin() || currentMemberSportPermissionIds.size > 0 || isCurrentUserCommittee();
+}
+
+function canAccessAdminTab() {
+  return isCurrentUserAdmin() || isCurrentUserCommittee();
+}
+
+function allowedAdminPanelsForCurrentUser() {
+  if (isCurrentUserAdmin()) {
+    return ["Overview", "Members", "Notifications", "Sports", "Activities", "Soccer Formula", "Maintenance", "Venues"];
+  }
+
+  if (isCurrentUserCommittee()) {
+    return ["Sports"];
+  }
+
+  return [];
 }
 
 async function loadPendingMembers(options = {}) {
@@ -1341,6 +1368,7 @@ let adminNotificationMembers = [];
 function applyAccessUI() {
   const appTabs = ["dashboard", "leagues", "matches", "activities", "rankings"];
   const status = currentProfile?.approval_status;
+  organizeAdminSections();
 
   // Hide normal app tabs by default for logged-in users until approved.
   appTabs.forEach(viewId => {
@@ -1379,12 +1407,14 @@ function applyAccessUI() {
     matchCreateButton.style.display = canManageAnySport() ? "" : "none";
   }
 
-  // Approved admins can see the Admin tab.
-  if (isCurrentUserAdmin()) {
+  // Approved admins and sport committees with permissions can see the Admin tab.
+  if (canAccessAdminTab()) {
     document.querySelectorAll(".admin-only").forEach(el => {
       el.style.display = "";
     });
   }
+
+  syncAdminPanelAccess();
 }
 
 function resetAppTabsForLoggedOut() {
@@ -1401,11 +1431,11 @@ function resetAppTabsForLoggedOut() {
 function adminPanelNameForHeading(heading) {
   const text = String(heading || "").toLowerCase();
   if (text.includes("dashboard")) return "Overview";
+  if (text.includes("activity")) return "Activities";
   if (text.includes("match reminders")) return "Maintenance";
   if (text.includes("review") || text.includes("member roles")) return "Members";
   if (text.includes("notifications")) return "Notifications";
   if (text.includes("sport ratings")) return "Sports";
-  if (text.includes("activity")) return "Activities";
   if (text.includes("soccer rating formula")) return "Soccer Formula";
   if (text.includes("maintenance")) return "Maintenance";
   if (text.includes("venue")) return "Venues";
@@ -1433,7 +1463,10 @@ function adminTextMatchesQuery(textParts = [], query = "") {
 
 function activateAdminPanel(panelName, options = {}) {
   const { persist = true, savePosition = true } = options;
-  const cleanName = String(panelName || "Members");
+  const allowedPanels = allowedAdminPanelsForCurrentUser();
+  const fallbackName = allowedPanels[0] || "Members";
+  const requestedName = String(panelName || fallbackName);
+  const cleanName = allowedPanels.includes(requestedName) ? requestedName : fallbackName;
 
   document.querySelectorAll(".admin-subtab").forEach(button => {
     button.classList.toggle("active", button.dataset.adminPanel === cleanName);
@@ -1446,6 +1479,29 @@ function activateAdminPanel(panelName, options = {}) {
   if (persist) localStorage.setItem("aba_admin_panel", cleanName);
   if (savePosition) saveScrollState();
   renderDeferredAdminPanel(cleanName);
+}
+
+function syncAdminPanelAccess() {
+  const allowedPanels = new Set(allowedAdminPanelsForCurrentUser());
+  const buttons = Array.from(document.querySelectorAll(".admin-subtab"));
+  const panels = Array.from(document.querySelectorAll(".admin-panel"));
+
+  buttons.forEach(button => {
+    const visible = allowedPanels.has(button.dataset.adminPanel);
+    button.style.display = visible ? "" : "none";
+  });
+
+  panels.forEach(panel => {
+    const visible = allowedPanels.has(panel.dataset.adminPanel);
+    panel.style.display = visible ? "" : "none";
+  });
+
+  if (!allowedPanels.size) return;
+
+  const active = activeAdminPanelName();
+  if (!allowedPanels.has(active)) {
+    activateAdminPanel(Array.from(allowedPanels)[0], { savePosition: false });
+  }
 }
 
 function organizeAdminSections() {
@@ -1498,6 +1554,7 @@ function organizeAdminSections() {
   const saved = localStorage.getItem("aba_admin_panel");
   const firstPanel = panels.keys().next().value || "Members";
   activateAdminPanel(panels.has(saved) ? saved : firstPanel, { savePosition: false });
+  syncAdminPanelAccess();
 }
 
 function adminDashboardMetricCard(label, value, detail, targetPanel = "") {
@@ -1509,6 +1566,30 @@ function adminDashboardMetricCard(label, value, detail, targetPanel = "") {
       ${targetPanel ? `<button class="tiny-btn" type="button" onclick="activateAdminPanel('${escapeHtml(targetPanel)}')">Open</button>` : ""}
     </article>
   `;
+}
+
+function openAdminPanelTarget(panelName, targetId = "") {
+  activateAdminPanel(panelName);
+
+  const scrollToTarget = () => {
+    const target = $(targetId);
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    target.classList.add("route-focus-target");
+    setTimeout(() => target.classList.remove("route-focus-target"), 1800);
+  };
+
+  if (targetId) {
+    [60, 200, 500].forEach(delay => setTimeout(scrollToTarget, delay));
+  }
+}
+
+function openAdminActivityReview() {
+  openAdminPanelTarget("Activities", "admin-activity-review-section");
+}
+
+function openAdminStravaLinkedPoints() {
+  openAdminPanelTarget("Activities", "admin-strava-linked-points-section");
 }
 
 function renderAdminDashboard() {
@@ -1593,12 +1674,42 @@ function renderAdminActionQueue(counts = {}) {
 
   const cards = [
     counts.pendingMembers ? adminQueueCard("Approve new members", `${counts.pendingMembers} member profile${counts.pendingMembers === 1 ? "" : "s"} waiting.`, "Review", "Members") : "",
-    counts.pendingActivities ? adminQueueCard("Review activity proofs", `${counts.pendingActivities} manual or synced activit${counts.pendingActivities === 1 ? "y" : "ies"} pending.`, "Review", "Activities") : "",
+    counts.pendingActivities
+      ? `
+        <article class="card admin-queue-card">
+          <div>
+            <strong>Review activity proofs</strong>
+            <p>${counts.pendingActivities} manual or synced activit${counts.pendingActivities === 1 ? "y" : "ies"} pending.</p>
+          </div>
+          <button class="tiny-btn" type="button" onclick="openAdminActivityReview()">Review</button>
+        </article>
+      `
+      : "",
     counts.resultNeeded ? adminQueueCard("Finalize match results", `${counts.resultNeeded} completed match${counts.resultNeeded === 1 ? "" : "es"} need results.`, "Open", "Maintenance") : "",
     counts.soccerAssessmentsMissing ? adminQueueCard("Complete soccer assessments", `${counts.soccerAssessmentsMissing} finalized soccer match${counts.soccerAssessmentsMissing === 1 ? "" : "es"} still need assessment.`, "Open", "Sports") : "",
     reminderCandidates ? adminQueueCard("Send reminders", `${reminderCandidates} reminder candidate${reminderCandidates === 1 ? "" : "s"} for captains, admins, or players.`, "Open", "Overview") : "",
-    pendingStravaActivities ? adminQueueCard("Check Strava imports", `${pendingStravaActivities} Strava activit${pendingStravaActivities === 1 ? "y" : "ies"} pending fair-rule review.`, "Review", "Activities") : "",
-    stravaLinkedMatches ? adminQueueCard("Strava linked points", `${stravaLinkedMatches} player-match point replacement${stravaLinkedMatches === 1 ? "" : "s"} currently use Strava data.`, "Open", "Activities") : ""
+    pendingStravaActivities
+      ? `
+        <article class="card admin-queue-card">
+          <div>
+            <strong>Check Strava imports</strong>
+            <p>${pendingStravaActivities} Strava activit${pendingStravaActivities === 1 ? "y" : "ies"} pending fair-rule review.</p>
+          </div>
+          <button class="tiny-btn" type="button" onclick="openAdminActivityReview()">Review</button>
+        </article>
+      `
+      : "",
+    stravaLinkedMatches
+      ? `
+        <article class="card admin-queue-card">
+          <div>
+            <strong>Strava linked points</strong>
+            <p>${stravaLinkedMatches} player-match point replacement${stravaLinkedMatches === 1 ? "" : "s"} currently use Strava data.</p>
+          </div>
+          <button class="tiny-btn" type="button" onclick="openAdminStravaLinkedPoints()">Open</button>
+        </article>
+      `
+      : ""
   ].filter(Boolean);
 
   box.innerHTML = cards.length
@@ -2880,6 +2991,25 @@ function cachedProfileIdentity(sessionUser = null) {
   } catch {
     localStorage.removeItem(PROFILE_IDENTITY_CACHE_KEY);
     return null;
+  }
+}
+
+function cacheProfileAccess(profile) {
+  if (!profile || typeof profile !== "object") {
+    localStorage.removeItem("aba_user_access");
+    return;
+  }
+
+  try {
+    localStorage.setItem("aba_user_access", JSON.stringify({
+      id: profile.id || "",
+      role: String(profile.role || "member").toLowerCase(),
+      approval_status: profile.approval_status || "",
+      registration_status: profile.registration_status || "",
+      auth_user_id: profile.auth_user_id || ""
+    }));
+  } catch {
+    // Ignore storage quota/privacy errors; live access checks still work.
   }
 }
 
@@ -18215,12 +18345,7 @@ function renderActivities() {
 
   if (!$("activityList")) return;
   const loadedRows = (allMemberActivities || []).length ? allMemberActivities : state.activities;
-  const rows = isCurrentUserAdmin()
-    ? loadedRows
-    : loadedRows.filter(activity =>
-        !allMemberActivities.length ||
-        cleanUuidValue(activity.member_id) === cleanUuidValue(currentProfile?.id)
-      );
+  const rows = loadedRows;
 
   $("activityList").innerHTML = rows.length
     ? rows.map(a => activityCard(a)).join("")
@@ -18400,6 +18525,45 @@ function renderPendingActivities() {
   box.innerHTML = pending.length
     ? pending.map(activity => activityCard(activity)).join("")
     : `<article class="card">No pending activities.</article>`;
+}
+
+function renderAdminStravaLinkedPointsSummary() {
+  if (!shouldRenderView("admin")) return;
+  if (!shouldRenderAdminPanel("Activities")) return;
+
+  const box = $("adminStravaLinkedPointsList");
+  if (!box) return;
+
+  const rows = (allMatches || []).filter(match =>
+    !isCancelledMatch(match) &&
+    hasSubmittedScore(match) &&
+    stravaLinkedPointRowsForMatch(match).length
+  );
+
+  box.innerHTML = rows.length
+    ? rows.map(match => {
+        const linkedRows = stravaLinkedPointRowsForMatch(match);
+        return `
+          <article class="card">
+            <div class="section-head compact-section-head">
+              <div>
+                <h3>${escapeHtml(match.title || "Match")}</h3>
+                <p class="hint">${escapeHtml(match.sports?.name || "Sport")} • ${escapeHtml(fmtDate(match.start_time || match.created_at))}</p>
+              </div>
+              <button class="tiny-btn" type="button" onclick="openMatchDeepLink('${escapeHtml(match.id)}')">Open match</button>
+            </div>
+            <div class="match-insight-list">
+              ${linkedRows.map(row => `
+                <div class="match-insight-row">
+                  <span>${memberMiniIdentityHtml(row.member, row.memberId, memberDisplayName(row.member || memberById(row.memberId)) || "Player")}</span>
+                  <em>${escapeHtml(row.activity.title || "Strava activity")} • ${formatPointValue(row.points)} pts${row.bonusPoints ? ` • +${formatPointValue(row.bonusPoints)} bonus` : ""}</em>
+                </div>
+              `).join("")}
+            </div>
+          </article>
+        `;
+      }).join("")
+    : `<article class="card">No Strava-linked match point replacements yet.</article>`;
 }
 
 function updateActivitySportOptions() {
@@ -18645,10 +18809,6 @@ async function loadMemberActivities({ skipMatchRender = false, force = false } =
       .select(MEMBER_ACTIVITY_SELECT)
       .order("created_at", { ascending: false });
 
-    if (!isCurrentUserAdmin()) {
-      query = query.or(`member_id.eq.${currentProfile.id},status.eq.approved`);
-    }
-
     let { data, error } = await query;
 
     if (error) {
@@ -18679,10 +18839,6 @@ async function loadMemberActivities({ skipMatchRender = false, force = false } =
           created_at
         `)
         .order("created_at", { ascending: false });
-
-      if (!isCurrentUserAdmin()) {
-        fallbackQuery = fallbackQuery.or(`member_id.eq.${currentProfile.id},status.eq.approved`);
-      }
 
       const fallback = await fallbackQuery;
       data = fallback.data;
@@ -21776,9 +21932,23 @@ async function loadMyProfile() {
 
   setProfileStatusText(data);
   setProfileEditing(false);
-  await loadGarminConnection(consumeGarminReturnStatus());
-  await loadStravaConnection(consumeStravaReturnStatus());
-  await maybeRepairActivitySettingsAndPadelPoints();
+  try {
+    await loadGarminConnection(consumeGarminReturnStatus());
+  } catch (error) {
+    console.warn("Could not load Garmin connection during profile refresh:", error?.message || error);
+  }
+
+  try {
+    await loadStravaConnection(consumeStravaReturnStatus());
+  } catch (error) {
+    console.warn("Could not load Strava connection during profile refresh:", error?.message || error);
+  }
+
+  try {
+    await maybeRepairActivitySettingsAndPadelPoints();
+  } catch (error) {
+    console.warn("Could not run post-profile activity repair:", error?.message || error);
+  }
 
   if (data.approval_status === "rejected" || data.approval_status === "suspended") {
     profileFieldIds().forEach(id => {
@@ -21995,18 +22165,27 @@ function queuePostAuthDataLoad() {
 
       renderDeferredView(activeViewId());
 
-      if (isCurrentUserAdmin()) {
-        await Promise.allSettled([
-          loadSportsOptions(),
-          loadMatchFormOptions(),
-          loadAdminNotificationMembers(),
-          loadPendingMembers(),
-          loadMemberRoleManager(),
-          loadVenues()
-        ]);
+      if (canAccessAdminTab()) {
+        const adminLoads = [
+          loadSportsOptions()
+        ];
 
-        await loadActivitySportSettings();
-        renderActivitySettingsForm();
+        if (isCurrentUserAdmin()) {
+          adminLoads.push(
+            loadMatchFormOptions(),
+            loadAdminNotificationMembers(),
+            loadPendingMembers(),
+            loadMemberRoleManager(),
+            loadVenues()
+          );
+        }
+
+        await Promise.allSettled(adminLoads);
+
+        if (isCurrentUserAdmin()) {
+          await loadActivitySportSettings();
+          renderActivitySettingsForm();
+        }
 
         if (activeViewId() === "admin") {
           renderDeferredAdminPanel(activeAdminPanelName());
@@ -22224,6 +22403,7 @@ function renderDeferredAdminPanel(panelName) {
 
   if (panelName === "Activities") {
     renderActivitySettingsForm();
+    renderAdminStravaLinkedPointsSummary();
     renderPendingActivities();
     return;
   }
@@ -22451,21 +22631,28 @@ function setActiveTab(viewId, persist = true) {
 
   if (viewId === "admin") {
     organizeAdminSections();
-    loadSportsOptions();
-    loadMatchFormOptions().then(() => {
-      renderActivitySettingsForm();
+    syncAdminPanelAccess();
+    loadSportsOptions().then(() => {
+      updateRatingSportOptions();
+      renderSportRatingManager();
     });
     loadExternalMembers().then(renderSportRatingManager);
-    loadAdminNotificationMembers();
-    loadPendingMembers();
-    loadMemberRoleManager();
-    loadMemberActivities();
-    loadVenues();
     loadMatches();
-    loadActivitySportSettings().then(() => {
-      renderActivitySettingsForm();
-    });
-    loadSoccerRatingSettings(true).then(renderSoccerRatingSettingsForm);
+
+    if (isCurrentUserAdmin()) {
+      loadMatchFormOptions().then(() => {
+        renderActivitySettingsForm();
+      });
+      loadAdminNotificationMembers();
+      loadPendingMembers();
+      loadMemberRoleManager();
+      loadMemberActivities();
+      loadVenues();
+      loadActivitySportSettings().then(() => {
+        renderActivitySettingsForm();
+      });
+      loadSoccerRatingSettings(true).then(renderSoccerRatingSettingsForm);
+    }
   }
 
   renderDeferredView(viewId);
