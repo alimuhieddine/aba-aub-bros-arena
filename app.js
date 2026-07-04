@@ -2231,6 +2231,26 @@ function getMyCommitteeSportRatingNote(memberId, sportId) {
   return row?.notes || "";
 }
 
+function sportRatingNotesForMember(memberId, sportId) {
+  const key = committeeSportRatingNoteKey(memberId, sportId);
+  const rows = (allCommitteeSportRatingNotes || []).filter(note =>
+    committeeSportRatingNoteKey(note.member_id, note.sport_id) === key &&
+    String(note.notes || "").trim()
+  );
+
+  if (!rows.length) return "";
+
+  if (!isCurrentUserAdmin()) {
+    const currentProfileId = cleanUuidValue(currentProfile?.id);
+    return rows.find(note => cleanUuidValue(note.committee_member_id) === currentProfileId)?.notes || "";
+  }
+
+  return rows.map(note => {
+    const author = (allMembers || []).find(member => cleanUuidValue(member.id) === cleanUuidValue(note.committee_member_id));
+    return `${memberDisplayName(author || { display_name: "Committee" })}: ${String(note.notes || "").trim()}`;
+  }).join("\n");
+}
+
 async function loadCommitteePositionRatingVotes(sportId = "") {
   if (!currentProfile || currentProfile.approval_status !== "approved") {
     allCommitteePositionRatingVotes = [];
@@ -2529,7 +2549,7 @@ function renderSportRatingEditor(sportId) {
   const selectedMembers = approvedRatingMembers();
   const isAdmin = isCurrentUserAdmin();
   const editorMode = isAdmin ? "admin" : "committee";
-  const showNotesColumn = editorMode === "committee";
+  const showNotesColumn = true;
 
   return `
     <article class="card sport-rating-picker-card">
@@ -2582,7 +2602,8 @@ function renderSportRatingEditor(sportId) {
                     data-member-id="${member.id}"
                     data-sport-id="${sportId}"
                     placeholder="What to improve"
-                  >${escapeHtml(getMyCommitteeSportRatingNote(member.id, sportId))}</textarea>
+                    ${isAdmin ? "readonly" : ""}
+                  >${escapeHtml(sportRatingNotesForMember(member.id, sportId))}</textarea>
                 </div>
               ` : ""}
             </div>
