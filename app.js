@@ -2251,6 +2251,46 @@ function sportRatingNotesForMember(memberId, sportId) {
   }).join("\n");
 }
 
+function footballCommitteeNotesRows(memberId, sportId = "") {
+  const cleanMemberId = cleanUuidValue(memberId);
+  const cleanSportId = cleanUuidValue(sportId);
+
+  return (allCommitteeSportRatingNotes || [])
+    .filter(note => {
+      const sameMember = cleanUuidValue(note.member_id) === cleanMemberId;
+      const sameSport = !cleanSportId || cleanUuidValue(note.sport_id) === cleanSportId;
+      const hasNotes = Boolean(String(note.notes || "").trim());
+      return sameMember && sameSport && hasNotes;
+    })
+    .map(note => {
+      const author = (allMembers || []).find(member => cleanUuidValue(member.id) === cleanUuidValue(note.committee_member_id));
+      return {
+        authorName: memberFullName(author || {}, true) || "Committee",
+        notes: String(note.notes || "").trim()
+      };
+    })
+    .sort((a, b) => a.authorName.localeCompare(b.authorName));
+}
+
+function footballCommitteeNotesHtml(memberId, sportId = "") {
+  const rows = footballCommitteeNotesRows(memberId, sportId);
+  if (!rows.length) return "";
+
+  return `
+    <div class="profile-feedback-section">
+      <div class="profile-feedback-title">What to improve</div>
+      <div class="profile-feedback-list">
+        ${rows.map(row => `
+          <div class="profile-feedback-row">
+            <strong>${escapeHtml(row.authorName)}</strong>
+            <span>${escapeHtml(row.notes)}</span>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
 async function loadCommitteePositionRatingVotes(sportId = "") {
   if (!currentProfile || currentProfile.approval_status !== "approved") {
     allCommitteePositionRatingVotes = [];
@@ -3030,6 +3070,12 @@ function memberDisplayName(member) {
   }
 
   return display;
+}
+
+function memberFullName(member, fallbackToDisplay = true) {
+  const fullName = `${member?.first_name || ""} ${member?.last_name || ""}`.trim();
+  if (fullName) return fullName;
+  return fallbackToDisplay ? memberDisplayName(member) : "";
 }
 
 function memberInitials(member) {
@@ -19924,7 +19970,7 @@ function renderPlayerProfile(memberId) {
   ].filter(Boolean).join(" / ");
 
   if ($("player-profile-title")) {
-    $("player-profile-title").textContent = memberDisplayName(member);
+    $("player-profile-title").textContent = memberFullName(member);
   }
 
   const profileRoleLabel = member.is_external ? "External player" : memberRoleLabel(member.role);
@@ -19990,6 +20036,13 @@ function renderPlayerProfile(memberId) {
                           `).join("")}
                         </div>`
                       : `<div class="hint">No ratings yet.</div>`
+                  }
+
+                  ${
+                    String(summary.sport || "").toLowerCase().includes("football") ||
+                    String(summary.sport || "").toLowerCase().includes("soccer")
+                      ? footballCommitteeNotesHtml(cleanId, summary.sportId)
+                      : ""
                   }
                 </article>
               `;
