@@ -1433,6 +1433,53 @@
       grid-template-columns: minmax(0, 1fr);
     }
 
+    #admin .sport-rating-grid {
+      display: grid;
+      gap: 8px;
+      min-width: 640px;
+    }
+
+    #admin .sport-rating-picker-card {
+      overflow-x: auto;
+    }
+
+    #admin .sport-rating-grid-head,
+    #admin .sport-rating-player {
+      display: grid;
+      grid-template-columns: minmax(124px, 1.2fr) repeat(4, minmax(48px, .48fr));
+      gap: 8px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    #admin .sport-rating-grid-head-notes,
+    #admin .sport-rating-player-notes {
+      grid-template-columns: minmax(124px, 1.1fr) repeat(4, minmax(48px, .42fr)) minmax(160px, 1.15fr);
+    }
+
+    #admin .sport-rating-grid-head-general,
+    #admin .sport-rating-player-general {
+      grid-template-columns: minmax(124px, 1fr) minmax(72px, .5fr);
+    }
+
+    #admin .sport-rating-grid-head {
+      padding: 0 6px 4px;
+    }
+
+    #admin .sport-rating-grid-head > strong {
+      font-size: 10px;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    #admin .sport-rating-cell {
+      min-width: 0;
+    }
+
+    #admin .sport-rating-notes-cell {
+      align-self: stretch;
+    }
+
 #admin .activity-setting-row > strong,
 #admin .sport-rating-row > div > strong,
 #admin .sport-rating-picker-card strong {
@@ -1456,11 +1503,31 @@
 
 #admin .activity-setting-row input,
 #admin .sport-rating-row input,
+#admin .sport-rating-row textarea,
 #admin .sport-rating-row select,
 #admin .sport-rating-picker-card select {
       min-height: 26px;
       font-size: 10px;
 }
+
+    #admin .sport-rating-note-input {
+      width: 100%;
+      min-height: 56px;
+      padding: 8px 10px;
+      border: 1px solid rgba(49, 168, 255, .18);
+      border-radius: 8px;
+      background: rgba(4, 11, 20, .82);
+      color: #fff;
+      font-size: 10px;
+      font-family: inherit;
+      line-height: 1.35;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+
+    #admin .sport-rating-note-input::placeholder {
+      color: rgba(147, 167, 191, .76);
+    }
 
     #admin .sport-rating-row .mini-player-identity {
       display: inline-flex;
@@ -5802,8 +5869,8 @@
 
         <div class="section-head">
           <div>
-            <h2>Soccer Rating Formula</h2>
-            <p class="hint">Tune soccer position rating changes without editing code.</p>
+            <h2>Football Rating Formula</h2>
+            <p class="hint">Tune football position rating changes without editing code.</p>
           </div>
         </div>
 
@@ -5812,7 +5879,7 @@
             <label>
               <span class="rating-label-line">
                 Rolling average window
-                <small>Last N soccer matches used for expected total goals.</small>
+                <small>Last N football matches used for expected total goals.</small>
               </span>
               <input id="soccer-setting-rolling-window" type="number" step="1" min="1">
             </label>
@@ -5952,7 +6019,7 @@
 
           <div class="actions">
             <button id="save-soccer-settings-btn" class="primary-btn" type="button">
-              Save soccer formula
+              Save football formula
             </button>
 
             <button id="reset-soccer-settings-btn" class="secondary-btn" type="button">
@@ -5979,7 +6046,7 @@
             </button>
 
             <button id="recalc-all-soccer-ratings-btn" class="secondary-btn" type="button">
-              Recalculate all soccer ratings
+              Recalculate all football ratings
             </button>
 
             <button id="recalc-all-finalized-btn" class="primary-btn" type="button">

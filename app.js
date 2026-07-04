@@ -99,11 +99,11 @@ function futureDate(days, hour) {
 const demoData = {
   leagues: [
     { id: crypto.randomUUID(), name: "ABA Padel League", sport: "Padel", format: "Doubles race to 10", createdAt: Date.now() },
-    { id: crypto.randomUUID(), name: "Friday Football Table", sport: "Soccer", format: "5v5 weekly ranking", createdAt: Date.now() }
+    { id: crypto.randomUUID(), name: "Friday Football Table", sport: "Football", format: "5v5 weekly ranking", createdAt: Date.now() }
   ],
   matches: [
     { id: crypto.randomUUID(), sport: "Padel", title: "Wolf & Fox vs Green Pigs", type: "League", date: futureDate(2, 20), venue: "The Padict Club", address: "Beirut", comments: ["Revenge match loading 😂"] },
-    { id: crypto.randomUUID(), sport: "Soccer", title: "ABA Friday 5v5", type: "Friendly", date: futureDate(5, 21), venue: "AUB Green Field", address: "AUB, Beirut", comments: [] }
+    { id: crypto.randomUUID(), sport: "Football", title: "ABA Friday 5v5", type: "Friendly", date: futureDate(5, 21), venue: "AUB Green Field", address: "AUB, Beirut", comments: [] }
   ],
   activities: [
     { id: crypto.randomUUID(), player: "Ali", sport: "Padel", activity: "90 min padel session", proof: "Smartwatch screenshot", durationMinutes: 90, points: 3, approvals: ["Committee 1", "Committee 2"], createdAt: Date.now() - 86400000 },
@@ -478,6 +478,12 @@ function isCurrentUserCommittee() {
     currentMemberSportPermissionIds.size > 0;
 }
 
+function formatSportDisplayName(name = "") {
+  const raw = String(name || "").trim();
+  if (!raw) return "";
+  return raw.toLowerCase() === "soccer" ? "Football" : raw;
+}
+
 function canManageSport(sportId) {
   const cleanSportId = cleanUuidValue(sportId);
   if (!isApprovedCurrentUser() || !cleanSportId) return false;
@@ -517,7 +523,7 @@ function canAccessAdminTab() {
 
 function allowedAdminPanelsForCurrentUser() {
   if (isCurrentUserAdmin()) {
-    return ["Overview", "Members", "Notifications", "Sports", "Activities", "Soccer Formula", "Maintenance", "Venues"];
+    return ["Overview", "Members", "Notifications", "Sports", "Activities", "Football Formula", "Maintenance", "Venues"];
   }
 
   if (isCurrentUserCommittee()) {
@@ -1436,7 +1442,7 @@ function adminPanelNameForHeading(heading) {
   if (text.includes("review") || text.includes("member roles")) return "Members";
   if (text.includes("notifications")) return "Notifications";
   if (text.includes("sport ratings")) return "Sports";
-  if (text.includes("soccer rating formula")) return "Soccer Formula";
+  if (text.includes("football rating formula") || text.includes("soccer rating formula")) return "Football Formula";
   if (text.includes("maintenance")) return "Maintenance";
   if (text.includes("venue")) return "Venues";
   return "Other";
@@ -1625,7 +1631,7 @@ function renderAdminDashboard() {
     adminDashboardMetricCard("Pending approvals", pendingMembers, "Member profiles waiting for review.", "Members"),
     adminDashboardMetricCard("Proof queue", pendingActivities, "Activity logs waiting for admin review.", "Activities"),
     adminDashboardMetricCard("Results needed", resultNeeded, "Completed-time matches without a final result.", "Maintenance"),
-    adminDashboardMetricCard("Soccer assessments", soccerAssessmentsMissing, "Finalized soccer matches without assessments.", "Sports"),
+    adminDashboardMetricCard("Football assessments", soccerAssessmentsMissing, "Finalized football matches without assessments.", "Sports"),
     adminDashboardMetricCard("Lifecycle watch", maybeDeadlineMatches, "Open matches with future voting deadlines.", "Maintenance"),
     adminDashboardMetricCard("Unread inbox", unreadNotifications, "Notifications visible in Account inbox.", "Notifications")
   ].join("");
@@ -1785,6 +1791,7 @@ let currentMemberSportPermissionIds = new Set();
 let currentMemberRoleManagerId = "";
 let currentSportRatingMemberId = "";
 let allCommitteePositionRatingVotes = [];
+let allCommitteeSportRatingNotes = [];
 let activitySportSettingsCache = {};
 let activitySportSettingsLoadPromise = null;
 let homeHighlightSettingsCache = null;
@@ -2053,7 +2060,7 @@ function selectedRankingSportName() {
   const sportId = selectedRankingSport();
   const sport = (allSports || []).find(s => s.id === sportId);
 
-  return sport?.name || "";
+  return formatSportDisplayName(sport?.name || "");
 }
 
 function shouldShowSoccerPositionRankings() {
@@ -2071,7 +2078,7 @@ function renderPositionRankings() {
   if (!shouldShowSoccerPositionRankings()) return "";
 
   const sportId = selectedRankingSport();
-  const sportName = selectedRankingSportName() || "Soccer";
+  const sportName = selectedRankingSportName() || "Football";
 
   return `
     <article class="card position-rankings-card">
@@ -2208,6 +2215,22 @@ function getMyCommitteeVote(memberId, sportId, positionName) {
   return vote ? Number(vote.rating) : 5;
 }
 
+function committeeSportRatingNoteKey(memberId, sportId) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  const cleanSportId = cleanUuidValue(sportId);
+  return `${cleanMemberId}|${cleanSportId}`;
+}
+
+function getMyCommitteeSportRatingNote(memberId, sportId) {
+  const key = committeeSportRatingNoteKey(memberId, sportId);
+  const currentProfileId = cleanUuidValue(currentProfile?.id);
+  const row = (allCommitteeSportRatingNotes || []).find(note =>
+    committeeSportRatingNoteKey(note.member_id, note.sport_id) === key &&
+    cleanUuidValue(note.committee_member_id) === currentProfileId
+  );
+  return row?.notes || "";
+}
+
 async function loadCommitteePositionRatingVotes(sportId = "") {
   if (!currentProfile || currentProfile.approval_status !== "approved") {
     allCommitteePositionRatingVotes = [];
@@ -2234,6 +2257,34 @@ async function loadCommitteePositionRatingVotes(sportId = "") {
 
   allCommitteePositionRatingVotes = data || [];
   return allCommitteePositionRatingVotes;
+}
+
+async function loadCommitteeSportRatingNotes(sportId = "") {
+  if (!currentProfile || currentProfile.approval_status !== "approved") {
+    allCommitteeSportRatingNotes = [];
+    return [];
+  }
+
+  const query = supabaseClient
+    .from("member_sport_rating_notes")
+    .select("id, member_id, committee_member_id, sport_id, notes, updated_at");
+
+  if (sportId) query.eq("sport_id", sportId);
+
+  if (isCurrentUserCommittee()) {
+    query.eq("committee_member_id", currentProfile.id);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.warn("Could not load committee sport rating notes:", error.message);
+    allCommitteeSportRatingNotes = [];
+    return [];
+  }
+
+  allCommitteeSportRatingNotes = data || [];
+  return allCommitteeSportRatingNotes;
 }
 
 async function loadAllCommitteeVotesForSport(sportId) {
@@ -2478,6 +2529,7 @@ function renderSportRatingEditor(sportId) {
   const selectedMembers = approvedRatingMembers();
   const isAdmin = isCurrentUserAdmin();
   const editorMode = isAdmin ? "admin" : "committee";
+  const showNotesColumn = editorMode === "committee";
 
   return `
     <article class="card sport-rating-picker-card">
@@ -2486,17 +2538,18 @@ function renderSportRatingEditor(sportId) {
       </div>
 
       <div class="sport-rating-grid">
-        <div class="sport-rating-grid-head">
+        <div class="sport-rating-grid-head ${showNotesColumn ? "sport-rating-grid-head-notes" : ""}">
           <strong>Player</strong>
           <strong>GK</strong>
           <strong>DEF</strong>
           <strong>MID</strong>
           <strong>ATT</strong>
+          ${showNotesColumn ? "<strong>Notes</strong>" : ""}
         </div>
 
         ${selectedMembers.map(member => `
           <div class="sport-rating-row" data-member-id="${member.id}">
-            <div class="sport-rating-player">
+            <div class="sport-rating-player ${showNotesColumn ? "sport-rating-player-notes" : ""}">
               <div class="sport-rating-identity">
                 ${memberMiniIdentityHtml(member, member.id, memberDisplayName(member))}
                 ${member.is_external ? `<span class="mini-pill">External</span>` : ""}
@@ -2520,6 +2573,18 @@ function renderSportRatingEditor(sportId) {
                   >
                 </div>
               `).join("")}
+
+              ${showNotesColumn ? `
+                <div class="sport-rating-cell sport-rating-notes-cell">
+                  <textarea
+                    class="sport-rating-note-input"
+                    rows="2"
+                    data-member-id="${member.id}"
+                    data-sport-id="${sportId}"
+                    placeholder="What to improve"
+                  >${escapeHtml(getMyCommitteeSportRatingNote(member.id, sportId))}</textarea>
+                </div>
+              ` : ""}
             </div>
           </div>
         `).join("")}
@@ -2619,7 +2684,7 @@ function renderSportRatingManager() {
     ? renderSportRatingEditor(sportId)
     : isCurrentUserAdmin()
       ? renderGeneralSportRatingEditor(sportId)
-      : `<div class="hint">Committee ratings are available for soccer only.</div>`;
+      : `<div class="hint">Committee ratings are available for football only.</div>`;
 }
 
 async function saveMemberSportProfile(memberId) {
@@ -2645,7 +2710,7 @@ async function saveMemberSportProfile(memberId) {
 
   if (!isSoccer) {
     if (!isCurrentUserAdmin()) {
-      alert("Committee ratings are available for soccer matches only.");
+      alert("Committee ratings are available for football matches only.");
       return;
     }
 
@@ -2684,6 +2749,9 @@ async function saveMemberSportProfile(memberId) {
     ? ".sport-rating-position-input[data-member-id]"
     : `.sport-rating-row[data-member-id="${memberId}"] .sport-rating-position-input[data-position]`;
   const positionInputs = Array.from(document.querySelectorAll(positionInputSelector));
+  const noteInputs = isGridSave && !isAdmin
+    ? Array.from(document.querySelectorAll(".sport-rating-note-input[data-member-id]"))
+    : [];
 
   if (!isGridSave && !positionInputs.length) {
     alert("Missing player row. Reload and try again.");
@@ -2747,9 +2815,39 @@ async function saveMemberSportProfile(memberId) {
     }
   }
 
+  if (!isAdmin && noteInputs.length) {
+    const noteRows = noteInputs
+      .map(input => {
+        const targetMemberId = cleanUuidValue(input.dataset.memberId) || "";
+        const notes = String(input.value || "").trim();
+        if (!targetMemberId) return null;
+        return {
+          member_id: targetMemberId,
+          sport_id: sportId,
+          committee_member_id: currentProfile?.id,
+          notes
+        };
+      })
+      .filter(Boolean);
+
+    if (noteRows.length) {
+      const { error: notesError } = await supabaseClient
+        .from("member_sport_rating_notes")
+        .upsert(noteRows, {
+          onConflict: "member_id,sport_id,committee_member_id"
+        });
+
+      if (notesError) {
+        alert(notesError.message);
+        return;
+      }
+    }
+  }
+
   await loadPositionRatings();
   await loadSportProfiles();
   await loadCommitteePositionRatingVotes(sportId);
+  await loadCommitteeSportRatingNotes(sportId);
   renderSportRatingManager();
   renderRankings();
 }
@@ -3893,7 +3991,7 @@ function simulatedHomeUpcomingMatches() {
       title: "ABA 5v5 Night Match",
       start_time: makeDate(1, 21, 30),
       sport_id: "preview-soccer",
-      sports: { id: "preview-soccer", name: "Soccer" },
+      sports: { id: "preview-soccer", name: "Football" },
       leagues: { name: "Friendly" },
       venues: { name: "AUB Green Field" }
     },
@@ -4096,7 +4194,7 @@ function homeClubSportMeta(sportName = "") {
     return { key: "padel", label: "Padel", icon: "svg/racquetball.svg", color: "#2EE582" };
   }
   if (text.includes("soccer") || text.includes("football")) {
-    return { key: "soccer", label: "Soccer", icon: "svg/soccer-player.svg", color: "#31A8FF" };
+    return { key: "soccer", label: "Football", icon: "svg/soccer-player.svg", color: "#31A8FF" };
   }
   if (text.includes("tennis")) {
     return { key: "tennis", label: "Tennis", icon: "svg/tennis-player.svg", color: "#FFFD54" };
@@ -4159,7 +4257,7 @@ function homeClubPreviewStats(realStats) {
 
   const simulatedSeed = [
     { key: "padel", label: "Padel", icon: "svg/racquetball.svg", color: "#2EE582", count: 16 },
-    { key: "soccer", label: "Soccer", icon: "svg/soccer-player.svg", color: "#31A8FF", count: 11 },
+    { key: "soccer", label: "Football", icon: "svg/soccer-player.svg", color: "#31A8FF", count: 11 },
     { key: "tennis", label: "Tennis", icon: "svg/tennis-player.svg", color: "#FFFD54", count: 8 },
     { key: "basketball", label: "Basketball", icon: "svg/netball.svg", color: "#FF9F3A", count: 6 },
     { key: "volleyball", label: "Volleyball", icon: "svg/volleyball-player.svg", color: "#FF5F67", count: 4 }
@@ -5797,7 +5895,7 @@ function renderHomeSnapshot() {
       </div>
       <article class="aba-last-card">
         ${last7Row("⌾", "Padel Sessions", padelSessions, "green")}
-        ${last7Row("●", "Soccer Games", soccerGames, "blue")}
+        ${last7Row("●", "Football Games", soccerGames, "blue")}
         ${last7Row("◇", "Verified Proofs", verifiedProofs, "gold")}
         ${last7Row("◌", "Training Minutes", `${Math.round(activeMinutes)} min`, "purple", false)}
       </article>
@@ -6884,7 +6982,7 @@ function renderLeaguePositionLeaders(leagueId) {
 
   return `
     <div class="league-standings league-position-leaders">
-      <div class="league-standings-title">Soccer position leaders</div>
+      <div class="league-standings-title">Football position leaders</div>
 
       <div class="league-position-grid">
         ${SOCCER_POSITIONS.map(position => {
@@ -8183,9 +8281,9 @@ function buildMatchReminder(match) {
       type: "assessments",
       severity: "danger",
       audience: "managers",
-      title: "Soccer assessments needed",
+      title: "Football assessments needed",
       detail: `${title}: ${missingAssessments} player assessment${missingAssessments === 1 ? "" : "s"} still missing.`,
-      body: `${title} still needs soccer performance assessments before ratings are fully settled.`,
+      body: `${title} still needs football performance assessments before ratings are fully settled.`,
       url: matchReminderUrl(match)
     };
   }
@@ -12511,7 +12609,7 @@ function soccerBalanceSummaryText(suggestion) {
 
   const { profileA, profileB, gap } = suggestion.balance;
 
-  return `Soccer balance: GK ${profileA.totals.GK.toFixed(1)}-${profileB.totals.GK.toFixed(1)} • DEF ${profileA.totals.DEF.toFixed(1)}-${profileB.totals.DEF.toFixed(1)} • MID ${profileA.totals.MID.toFixed(1)}-${profileB.totals.MID.toFixed(1)} • ATT ${profileA.totals.ATT.toFixed(1)}-${profileB.totals.ATT.toFixed(1)} • Team DEF ${profileA.totals.TEAM_DEF.toFixed(1)}-${profileB.totals.TEAM_DEF.toFixed(1)} • Team ATT ${profileA.totals.TEAM_ATT.toFixed(1)}-${profileB.totals.TEAM_ATT.toFixed(1)} • Gap ${gap.toFixed(2)}`;
+  return `Football balance: GK ${profileA.totals.GK.toFixed(1)}-${profileB.totals.GK.toFixed(1)} • DEF ${profileA.totals.DEF.toFixed(1)}-${profileB.totals.DEF.toFixed(1)} • MID ${profileA.totals.MID.toFixed(1)}-${profileB.totals.MID.toFixed(1)} • ATT ${profileA.totals.ATT.toFixed(1)}-${profileB.totals.ATT.toFixed(1)} • Team DEF ${profileA.totals.TEAM_DEF.toFixed(1)}-${profileB.totals.TEAM_DEF.toFixed(1)} • Team ATT ${profileA.totals.TEAM_ATT.toFixed(1)}-${profileB.totals.TEAM_ATT.toFixed(1)} • Gap ${gap.toFixed(2)}`;
 }
 
 
@@ -13875,7 +13973,7 @@ async function recalculateMatchSoccerRatings(match, showAlert = true) {
   }
 
   if (!isSoccerMatch(match)) {
-    if (showAlert) alert("Soccer rating recalculation applies only to soccer/football matches.");
+    if (showAlert) alert("Football rating recalculation applies only to football/soccer matches.");
     return true;
   }
 
@@ -13956,7 +14054,7 @@ async function recalculateSoccerRatingsCascadeFromMatch(match, options = {}) {
 
     if (!saved) return false;
 
-    await logMatchEditEvent(cascadeMatch.id, "ratings_recalculated", "Soccer ratings recalculated.", {
+    await logMatchEditEvent(cascadeMatch.id, "ratings_recalculated", "Football ratings recalculated.", {
       recalculated: true,
       trigger,
       source_match_id: cleanUuidValue(match.id)
@@ -13974,7 +14072,7 @@ async function recalculateSoccerRatingsCascadeFromMatch(match, options = {}) {
   }
 
   if (showAlert) {
-    alert(`Soccer rating cascade recalculated ${cascadeMatches.length} finalized match${cascadeMatches.length === 1 ? "" : "es"}.`);
+    alert(`Football rating cascade recalculated ${cascadeMatches.length} finalized match${cascadeMatches.length === 1 ? "" : "es"}.`);
   }
 
   return {
@@ -16751,7 +16849,7 @@ function readSoccerSettingInput(id, fallback) {
 }
 
 function renderSoccerRatingSettingsForm() {
-  if (!shouldRenderAdminPanel("Soccer Formula")) return;
+  if (!shouldRenderAdminPanel("Football Formula")) return;
 
   const card = $("soccer-rating-settings-card");
   if (!card) return;
@@ -18188,7 +18286,7 @@ async function finalizeCurrentMatchResult() {
   }
 
   const finalMessage = isSoccerMatch(refreshedMatchForPoints)
-    ? "Match result finalized, points saved, and soccer position ratings updated."
+    ? "Match result finalized, points saved, and football position ratings updated."
     : isPadelMatch(refreshedMatchForPoints)
       ? "Match result finalized, points saved, and padel ratings updated."
       : "Match result finalized and points saved.";
@@ -19746,7 +19844,7 @@ function playerProfileSportStatsHtml(summary) {
 }
 
 function sportNameById(sportId) {
-  return (allSports || []).find(sport => sport.id === sportId)?.name || "";
+  return formatSportDisplayName((allSports || []).find(sport => sport.id === sportId)?.name || "");
 }
 
 function playerProfileRatingChanges(memberId) {
@@ -20304,6 +20402,7 @@ async function logout() {
   localStorage.removeItem(PROFILE_IDENTITY_CACHE_KEY);
   localStorage.removeItem(MATCH_SUMMARY_CACHE_KEY);
   currentProfile = null;
+  allCommitteeSportRatingNotes = [];
   clearProfileFields();
   await refreshAuthUI();
 }
@@ -22087,6 +22186,7 @@ async function refreshAuthUI() {
     await loadMyProfile();
     await loadCurrentMemberSportPermissions();
     await loadCommitteePositionRatingVotes();
+    await loadCommitteeSportRatingNotes();
     renderLoggedInIdentity(session.user);
     applyAccessUI();
     window.syncAbaShell?.();
@@ -22413,7 +22513,7 @@ function renderDeferredAdminPanel(panelName) {
     return;
   }
 
-  if (panelName === "Soccer Formula") {
+  if (panelName === "Football Formula") {
     renderSoccerRatingSettingsForm();
     return;
   }
@@ -22795,6 +22895,7 @@ function bindEvents() {
     currentSportRatingMemberId = "";
     const sportId = cleanUuidValue($("rating-sport-filter")?.value);
     await loadCommitteePositionRatingVotes(sportId);
+    await loadCommitteeSportRatingNotes(sportId);
     renderSportRatingManager();
   });
   $("rating-history-position-filter")?.addEventListener("change", renderRatingHistoryModal);
