@@ -20527,7 +20527,7 @@ async function loadPushNotificationSettings() {
 }
 
 async function pushServiceWorkerRegistration() {
-  const registration = await navigator.serviceWorker.register("sw.js");
+  const registration = await navigator.serviceWorker.register("sw.js?v=7");
   await navigator.serviceWorker.ready;
   registration.update?.();
   return registration;
