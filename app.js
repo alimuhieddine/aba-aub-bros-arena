@@ -20160,6 +20160,35 @@ function rankingRows() {
   const sportFilter = $("rank-sport-filter")?.value || "all";
   const leagueFilter = $("rank-league-filter")?.value || "all";
   const table = new Map();
+  const ensureRankingMemberRow = (member, embeddedMember = null) => {
+    const sourceMember = member || embeddedMember;
+    const memberId = cleanUuidValue(sourceMember?.id);
+    const resolvedMember = rankingMemberForId(memberId, sourceMember);
+    const isExternal = rankingMemberIsExternal(memberId, sourceMember);
+
+    if (!memberId || !resolvedMember) return null;
+    if (playerType === "members" && isExternal) return null;
+    if (playerType === "external" && !isExternal) return null;
+
+    const current = table.get(memberId) || {
+      memberId,
+      member: resolvedMember,
+      name: rankingMemberName(memberId, sourceMember),
+      isExternal,
+      totalPoints: 0,
+      basePoints: 0,
+      bonusPoints: 0,
+      matches: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      sports: new Set(),
+      leagues: new Set()
+    };
+
+    table.set(memberId, current);
+    return current;
+  };
 
   if ((allRankingPointRows || []).length) {
     filteredRankingPointRows().forEach(point => {
@@ -20173,21 +20202,8 @@ function rankingRows() {
       const teamInfo = teamResultForMember(match, memberId);
       const result = teamInfo.result || "participated";
 
-      const current = table.get(memberId) || {
-        memberId,
-        member: rankingMemberForId(memberId, point.member),
-        name: rankingMemberName(memberId, point.member),
-        isExternal,
-        totalPoints: 0,
-        basePoints: 0,
-        bonusPoints: 0,
-        matches: 0,
-        wins: 0,
-        draws: 0,
-        losses: 0,
-        sports: new Set(),
-        leagues: new Set()
-      };
+      const current = ensureRankingMemberRow(point.member || memberById(memberId), point.member);
+      if (!current) return;
 
       current.totalPoints += pointTotalPoints(point);
       current.basePoints += Number(point.activity_points ?? point.base_points ?? 0);
@@ -20212,27 +20228,14 @@ function rankingRows() {
 
         if (!memberId) return;
 
-        if (playerType === "members" && isExternal) return;
-        if (playerType === "external" && !isExternal) return;
+      if (playerType === "members" && isExternal) return;
+      if (playerType === "external" && !isExternal) return;
 
-        const current = table.get(memberId) || {
-          memberId,
-          member,
-          name: rankingMemberName(memberId, point.member),
-          isExternal,
-          totalPoints: 0,
-          basePoints: 0,
-          bonusPoints: 0,
-          matches: 0,
-          wins: 0,
-          draws: 0,
-          losses: 0,
-          sports: new Set(),
-          leagues: new Set()
-        };
+      const current = ensureRankingMemberRow(member, point.member);
+      if (!current) return;
 
-        const teamInfo = teamResultForMember(match, memberId);
-        const result = teamInfo.result || "participated";
+      const teamInfo = teamResultForMember(match, memberId);
+      const result = teamInfo.result || "participated";
 
         current.totalPoints += pointTotalPoints(point);
         current.basePoints += Number(point.activity_points ?? point.base_points ?? 0);
@@ -20262,21 +20265,8 @@ function rankingRows() {
       if (playerType === "members" && isExternal) return;
       if (playerType === "external" && !isExternal) return;
 
-      const current = table.get(memberId) || {
-        memberId,
-        member,
-        name: rankingMemberName(memberId, activity.members),
-        isExternal,
-        totalPoints: 0,
-        basePoints: 0,
-        bonusPoints: 0,
-        matches: 0,
-        wins: 0,
-        draws: 0,
-        losses: 0,
-        sports: new Set(),
-        leagues: new Set()
-      };
+      const current = ensureRankingMemberRow(member, activity.members);
+      if (!current) return;
 
       const points = standaloneActivityPoints(activity);
       current.totalPoints += points;
@@ -20286,6 +20276,10 @@ function rankingRows() {
       table.set(memberId, current);
     });
   }
+
+  approvedRatingMembers().forEach(member => {
+    ensureRankingMemberRow(member, member);
+  });
 
   return Array.from(table.values()).sort((a, b) =>
     b.totalPoints - a.totalPoints ||
