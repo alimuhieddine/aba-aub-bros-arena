@@ -19686,8 +19686,9 @@ function playerProfileSportKey(sportId, sportName) {
   return cleanUuidValue(sportId) || String(sportName || "Sport").toLowerCase();
 }
 
-function playerProfileSportSummaries(stats, ratings) {
+function playerProfileSportSummaries(stats, ratings, memberId = "") {
   const summaries = new Map();
+  const cleanMemberId = cleanUuidValue(memberId);
 
   (stats.sportDetails || new Map()).forEach(detail => {
     const key = playerProfileSportKey(detail.sportId, detail.sport);
@@ -19725,6 +19726,36 @@ function playerProfileSportSummaries(stats, ratings) {
     }
     summaries.set(key, summary);
   });
+
+  if (cleanMemberId) {
+    (allCommitteeSportRatingNotes || []).forEach(note => {
+      if (cleanUuidValue(note.member_id) !== cleanMemberId) return;
+      if (!String(note.notes || "").trim()) return;
+
+      const sportId = cleanUuidValue(note.sport_id);
+      const sportName = sportNameById(sportId) || "Football";
+      const key = playerProfileSportKey(sportId, sportName);
+
+      if (summaries.has(key)) return;
+
+      summaries.set(key, {
+        sportId,
+        sport: sportName,
+        games: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        totalPoints: 0,
+        activityPoints: 0,
+        scorePoints: 0,
+        activityMinutes: 0,
+        approvedActivities: 0,
+        pendingActivities: 0,
+        leagues: new Map(),
+        ratings: []
+      });
+    });
+  }
 
   return Array.from(summaries.values())
     .sort((a, b) => {
@@ -19968,7 +19999,7 @@ function renderPlayerProfile(memberId) {
 
   const stats = playerProfileStats(cleanId);
   const ratings = playerProfileRatings(cleanId);
-  const sportSummaries = playerProfileSportSummaries(stats, ratings);
+  const sportSummaries = playerProfileSportSummaries(stats, ratings, cleanId);
   const changes = playerProfileRatingChanges(cleanId).slice(0, 10);
   const allChanges = playerProfileRatingChanges(cleanId);
   const running = runningStatsFromActivities(stats.activities);
