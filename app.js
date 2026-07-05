@@ -19415,6 +19415,15 @@ function memberById(memberId) {
 
   if (fromMembers) return fromMembers;
 
+  const fromSportProfiles = (allSportProfiles || []).find(row => cleanUuidValue(row.member_id) === cleanId)?.members;
+  if (fromSportProfiles) return fromSportProfiles;
+
+  const fromRoleManager = (allMemberRoleManagerMembers || []).find(member => cleanUuidValue(member.id) === cleanId);
+  if (fromRoleManager) return fromRoleManager;
+
+  const fromPending = (allPendingMembers || []).find(member => cleanUuidValue(member.id) === cleanId);
+  if (fromPending) return fromPending;
+
   const fromRatings = (allPositionRatings || []).find(row => cleanUuidValue(row.member_id) === cleanId)?.members;
   if (fromRatings) return fromRatings;
 
