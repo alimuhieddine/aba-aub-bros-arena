@@ -2807,6 +2807,25 @@ async function refreshFootballCommitteeAveragesIfNeeded(sportId) {
   }
 }
 
+async function refreshManagedFootballCommitteeAverages() {
+  if (!isApprovedCurrentUser()) return;
+
+  await ensureSportsLoaded();
+
+  const footballSports = (allSports || []).filter(sport => {
+    const name = String(sport?.name || "").toLowerCase();
+    return cleanUuidValue(sport?.id) &&
+      (name.includes("soccer") || name.includes("football")) &&
+      canManageSport(sport.id);
+  });
+
+  if (!footballSports.length) return;
+
+  for (const sport of footballSports) {
+    await refreshFootballCommitteeAveragesIfNeeded(sport.id);
+  }
+}
+
 async function saveMemberSportProfile(memberId) {
   if (!isCurrentUserAdmin() && !isCurrentUserCommittee()) {
     alert("Only admins and committees can manage ratings.");
@@ -2962,6 +2981,10 @@ async function saveMemberSportProfile(memberId) {
         return;
       }
     }
+  }
+
+  if (isSoccer) {
+    await refreshFootballCommitteeAveragesIfNeeded(sportId);
   }
 
   await loadPositionRatings();
@@ -22419,6 +22442,8 @@ function queuePostAuthDataLoad() {
         loadSoccerRatingSettings(),
         loadActivitySportSettings()
       ]);
+
+      await refreshManagedFootballCommitteeAverages();
 
       await Promise.allSettled([
         loadMatches(),
