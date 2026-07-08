@@ -1792,6 +1792,7 @@ let currentMemberRoleManagerId = "";
 let currentSportRatingMemberId = "";
 let allCommitteePositionRatingVotes = [];
 let allCommitteeSportRatingNotes = [];
+let committeeMemberIdsBySport = new Map();
 let activitySportSettingsCache = {};
 let activitySportSettingsLoadPromise = null;
 let homeHighlightSettingsCache = null;
@@ -2004,6 +2005,9 @@ async function loadPositionRatings() {
 }
 
 function positionRatingForMember(memberId, sportId, positionName) {
+  const committeeAverage = committeeAveragePositionRatingForMember(memberId, sportId, positionName);
+  if (committeeAverage !== null) return committeeAverage;
+
   const cleanPosition = normalizeSoccerPosition(positionName);
 
   const ratingRow = (allPositionRatings || []).find(row =>
@@ -2017,6 +2021,39 @@ function positionRatingForMember(memberId, sportId, positionName) {
   if (Number.isFinite(rating) && rating > 0) return rating;
 
   return 5;
+}
+
+function committeeAveragePositionRatingForMember(memberId, sportId, positionName) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  const cleanSportId = cleanUuidValue(sportId);
+  const cleanPosition = normalizeSoccerPosition(positionName);
+
+  if (!cleanMemberId || !cleanSportId || !cleanPosition) return null;
+
+  const committeeMemberIds = committeeMemberIdsBySport.get(cleanSportId) || [];
+  if (!committeeMemberIds.length) return null;
+
+  const voteRows = (allCommitteePositionRatingVotes || []).filter(row =>
+    cleanUuidValue(row.member_id) === cleanMemberId &&
+    cleanUuidValue(row.sport_id) === cleanSportId &&
+    normalizeSoccerPosition(row.position_name) === cleanPosition
+  );
+
+  const voteByCommittee = new Map(
+    voteRows.map(row => [
+      cleanUuidValue(row.committee_member_id),
+      Number(row.rating)
+    ])
+  );
+
+  const values = committeeMemberIds.map(committeeMemberId => {
+    const rating = Number(voteByCommittee.get(cleanUuidValue(committeeMemberId)) ?? 5);
+    return Number.isFinite(rating) ? rating : 5;
+  });
+
+  if (!values.length) return null;
+
+  return Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2));
 }
 
 function soccerPositionRankingRows(sportId, positionName) {
@@ -2303,10 +2340,6 @@ async function loadCommitteePositionRatingVotes(sportId = "") {
 
   if (sportId) query.eq("sport_id", sportId);
 
-  if (isCurrentUserCommittee()) {
-    query.eq("committee_member_id", currentProfile.id);
-  }
-
   const { data, error } = await query;
 
   if (error) {
@@ -2387,7 +2420,7 @@ async function loadCommitteeMemberIdsForSport(sportId) {
     return [];
   }
 
-  return Array.from(new Set(
+  const committeeMemberIds = Array.from(new Set(
     (data || [])
       .filter(row =>
         cleanUuidValue(row.member_id) &&
@@ -2397,6 +2430,9 @@ async function loadCommitteeMemberIdsForSport(sportId) {
       .map(row => cleanUuidValue(row.member_id))
       .filter(Boolean)
   ));
+
+  committeeMemberIdsBySport.set(cleanSportId, committeeMemberIds);
+  return committeeMemberIds;
 }
 
 async function recomputePositionRatingsFromCommitteeVotes(sportId) {
