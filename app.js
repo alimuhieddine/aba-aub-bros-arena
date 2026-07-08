@@ -10926,9 +10926,7 @@ function renderFormationSection(match) {
 
   if (!content && !scoreSummary) return "";
 
-  const open = hasSubmittedScore(match)
-    ? isMatchFormationOpen(match.id)
-    : false;
+  const open = isMatchFormationOpen(match.id);
   const titleHtml = formationSectionTitleHtml(match, open);
   const bodyContent = [scoreSummary, content].filter(Boolean).join("");
 
