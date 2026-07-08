@@ -2005,8 +2005,10 @@ async function loadPositionRatings() {
 }
 
 function positionRatingForMember(memberId, sportId, positionName) {
-  const committeeAverage = committeeAveragePositionRatingForMember(memberId, sportId, positionName);
-  if (committeeAverage !== null) return committeeAverage;
+  if (isCurrentUserAdmin()) {
+    const committeeAverage = committeeAveragePositionRatingForMember(memberId, sportId, positionName);
+    if (committeeAverage !== null) return committeeAverage;
+  }
 
   const cleanPosition = normalizeSoccerPosition(positionName);
 
@@ -2832,7 +2834,7 @@ async function refreshFootballCommitteeAveragesIfNeeded(sportId) {
   const isFootball = String(selectedSport?.name || "").toLowerCase().includes("soccer") ||
     String(selectedSport?.name || "").toLowerCase().includes("football");
 
-  if (!cleanSportId || !isFootball || !canManageSport(cleanSportId)) return;
+  if (!cleanSportId || !isFootball || !isCurrentUserAdmin()) return;
 
   try {
     await recomputePositionRatingsFromCommitteeVotes(cleanSportId);
@@ -2983,9 +2985,6 @@ async function saveMemberSportProfile(memberId) {
         return;
       }
 
-      if (!isAdmin) {
-        await recomputePositionRatingsFromCommitteeVotes(sportId);
-      }
     }
   }
 
