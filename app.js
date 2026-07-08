@@ -2352,7 +2352,7 @@ async function loadAllCommitteeVotesForSport(sportId) {
 
   const { data, error } = await supabaseClient
     .from("member_sport_position_rating_votes")
-    .select("member_id, position_name, rating")
+    .select("member_id, committee_member_id, position_name, rating")
     .eq("sport_id", sportId);
 
   if (error) {
@@ -2363,35 +2363,78 @@ async function loadAllCommitteeVotesForSport(sportId) {
   return data || [];
 }
 
+async function loadCommitteeMemberIdsForSport(sportId) {
+  const cleanSportId = cleanUuidValue(sportId);
+  if (!cleanSportId || !isApprovedCurrentUser()) return [];
+
+  const { data, error } = await supabaseClient
+    .from("member_sport_permissions")
+    .select(`
+      member_id,
+      permission,
+      member:members!member_sport_permissions_member_id_fkey (
+        id,
+        role,
+        approval_status,
+        is_active
+      )
+    `)
+    .eq("sport_id", cleanSportId)
+    .eq("permission", "manage");
+
+  if (error) {
+    console.warn("Could not load committee members for sport ratings:", error.message);
+    return [];
+  }
+
+  return Array.from(new Set(
+    (data || [])
+      .filter(row =>
+        cleanUuidValue(row.member_id) &&
+        row.member?.approval_status === "approved" &&
+        row.member?.is_active !== false &&
+        String(row.member?.role || "").toLowerCase().includes("committee")
+      )
+      .map(row => cleanUuidValue(row.member_id))
+      .filter(Boolean)
+  ));
+}
+
 async function recomputePositionRatingsFromCommitteeVotes(sportId) {
   const cleanSportId = cleanUuidValue(sportId);
   if (!cleanSportId) return;
 
-  const votes = await loadAllCommitteeVotesForSport(cleanSportId);
+  const [votes, committeeMemberIds] = await Promise.all([
+    loadAllCommitteeVotesForSport(cleanSportId),
+    loadCommitteeMemberIdsForSport(cleanSportId)
+  ]);
   const grouped = new Map();
 
   for (const vote of votes || []) {
     const position = normalizeSoccerPosition(vote.position_name);
     if (!position) continue;
     const memberId = cleanUuidValue(vote.member_id);
+    const committeeMemberId = cleanUuidValue(vote.committee_member_id);
     const rating = Number(vote.rating);
 
-    if (!memberId || !Number.isFinite(rating)) continue;
+    if (!memberId || !committeeMemberId || !Number.isFinite(rating)) continue;
     const key = `${memberId}|${position}`;
-    const bucket = grouped.get(key) || { sum: 0, count: 0 };
-    bucket.sum += rating;
-    bucket.count += 1;
+    const bucket = grouped.get(key) || new Map();
+    bucket.set(committeeMemberId, rating);
     grouped.set(key, bucket);
   }
 
   const positionRows = SOCCER_POSITIONS.flatMap(positionName => {
     const cleanPosition = normalizeSoccerPosition(positionName);
-    const membersForSport = (allMembers || []).filter(member => member?.id);
+    const membersForSport = approvedRatingMembers();
     return membersForSport.map(member => {
       const key = `${member.id}|${cleanPosition}`;
-      const bucket = grouped.get(key);
-      const rating = bucket && bucket.count > 0
-        ? bucket.sum / bucket.count
+      const voteMap = grouped.get(key) || new Map();
+      const ratingSources = committeeMemberIds.length
+        ? committeeMemberIds.map(committeeMemberId => Number(voteMap.get(committeeMemberId) ?? 5))
+        : Array.from(voteMap.values());
+      const rating = ratingSources.length
+        ? ratingSources.reduce((sum, value) => sum + value, 0) / ratingSources.length
         : 5;
       return {
         member_id: member.id,
@@ -2746,6 +2789,22 @@ function renderSportRatingManager() {
     : isCurrentUserAdmin()
       ? renderGeneralSportRatingEditor(sportId)
       : `<div class="hint">Committee ratings are available for football only.</div>`;
+}
+
+async function refreshFootballCommitteeAveragesIfNeeded(sportId) {
+  const cleanSportId = cleanUuidValue(sportId);
+  const selectedSport = (allSports || []).find(sport => cleanUuidValue(sport.id) === cleanSportId);
+  const isFootball = String(selectedSport?.name || "").toLowerCase().includes("soccer") ||
+    String(selectedSport?.name || "").toLowerCase().includes("football");
+
+  if (!cleanSportId || !isFootball || !canManageSport(cleanSportId)) return;
+
+  try {
+    await recomputePositionRatingsFromCommitteeVotes(cleanSportId);
+    await loadPositionRatings();
+  } catch (error) {
+    console.warn("Could not refresh football committee averages:", error?.message || error);
+  }
 }
 
 async function saveMemberSportProfile(memberId) {
@@ -23004,6 +23063,7 @@ function bindEvents() {
     const sportId = cleanUuidValue($("rating-sport-filter")?.value);
     await loadCommitteePositionRatingVotes(sportId);
     await loadCommitteeSportRatingNotes(sportId);
+    await refreshFootballCommitteeAveragesIfNeeded(sportId);
     renderSportRatingManager();
   });
   $("rating-history-position-filter")?.addEventListener("change", renderRatingHistoryModal);
