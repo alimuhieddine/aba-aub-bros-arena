@@ -2392,8 +2392,7 @@ async function loadCommitteeMemberIdsForSport(sportId) {
       .filter(row =>
         cleanUuidValue(row.member_id) &&
         row.member?.approval_status === "approved" &&
-        row.member?.is_active !== false &&
-        String(row.member?.role || "").toLowerCase().includes("committee")
+        row.member?.is_active !== false
       )
       .map(row => cleanUuidValue(row.member_id))
       .filter(Boolean)
