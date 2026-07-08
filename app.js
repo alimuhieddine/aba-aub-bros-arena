@@ -2005,10 +2005,8 @@ async function loadPositionRatings() {
 }
 
 function positionRatingForMember(memberId, sportId, positionName) {
-  if (isCurrentUserAdmin()) {
-    const committeeAverage = committeeAveragePositionRatingForMember(memberId, sportId, positionName);
-    if (committeeAverage !== null) return committeeAverage;
-  }
+  const committeeAverage = committeeAveragePositionRatingForMember(memberId, sportId, positionName);
+  if (committeeAverage !== null) return committeeAverage;
 
   const cleanPosition = normalizeSoccerPosition(positionName);
 
@@ -2861,6 +2859,24 @@ async function refreshManagedFootballCommitteeAverages() {
   for (const sport of footballSports) {
     await refreshFootballCommitteeAveragesIfNeeded(sport.id);
   }
+}
+
+async function loadFootballCommitteeRatingDisplayContext() {
+  if (!isApprovedCurrentUser()) return;
+
+  await ensureSportsLoaded();
+
+  const footballSports = (allSports || []).filter(sport => {
+    const name = String(sport?.name || "").toLowerCase();
+    return cleanUuidValue(sport?.id) &&
+      (name.includes("soccer") || name.includes("football"));
+  });
+
+  if (!footballSports.length) return;
+
+  await Promise.allSettled(
+    footballSports.map(sport => loadCommitteeMemberIdsForSport(sport.id))
+  );
 }
 
 async function saveMemberSportProfile(memberId) {
@@ -22477,6 +22493,7 @@ function queuePostAuthDataLoad() {
         loadActivitySportSettings()
       ]);
 
+      await loadFootballCommitteeRatingDisplayContext();
       await refreshManagedFootballCommitteeAverages();
 
       await Promise.allSettled([
