@@ -9210,6 +9210,17 @@ function soccerAssessmentLabelForValue(value) {
   return SOCCER_ASSESSMENT_OPTIONS.find(option => option.value === value)?.label || "";
 }
 
+function soccerAssessmentSummaryTagHtml(summary) {
+  const count = Number(summary?.count || 0);
+  if (!count) return "";
+
+  const value = soccerAssessmentOptionForScore(summary.average);
+  const label = soccerAssessmentLabelForValue(value);
+  if (!label) return "";
+
+  return `<small class="soccer-performance-tag" title="Average of ${count} assessment${count === 1 ? "" : "s"}">Avg ${escapeHtml(label)} (${count})</small>`;
+}
+
 function currentUserSoccerAssessment(match, memberId) {
   return currentUserAssessmentForPlayer(match, memberId);
 }
@@ -9226,17 +9237,15 @@ function soccerAssessmentSelectHtml(match, player) {
   const assessment = currentUserSoccerAssessment(match, player.memberId);
   const summary = soccerAssessmentSummaryForMember(match, player.memberId);
   const selected = soccerAssessmentOptionForScore(assessment?.performance_score) || "";
-  const visibleValue = soccerAssessmentOptionForScore(summary.average);
-  const visibleLabel = soccerAssessmentLabelForValue(visibleValue);
+  const summaryTag = soccerAssessmentSummaryTagHtml(summary);
   const canEditAssessment = canAssessMatchPerformance(match) && soccerPerformanceAssessmentUnlocked(match);
 
   if (!canAssessMatchPerformance(match)) {
-    return visibleLabel
-      ? `<small class="soccer-performance-tag">${escapeHtml(visibleLabel)}</small>`
-      : "";
+    return summaryTag;
   }
 
   return `
+    ${summaryTag}
     <select
       class="soccer-inline-assessment"
       data-match-id="${match.id}"
