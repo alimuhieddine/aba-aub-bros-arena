@@ -1758,6 +1758,7 @@ let allLeagues = [];
 let editingLeagueId = null;
 let editingMatchId = null;
 let allMembers = [];
+let allRatingMembers = [];
 let allExternalMembers = [];
 let allSportProfiles = [];
 let allPositionRatings = [];
@@ -2002,6 +2003,25 @@ async function loadPositionRatings() {
 
   allPositionRatings = data || [];
   return allPositionRatings;
+}
+
+async function loadRatingMembers() {
+  if (!currentProfile || currentProfile.approval_status !== "approved") return [];
+
+  const { data, error } = await supabaseClient
+    .from("members")
+    .select("id,first_name,last_name,display_name,email,avatar_url,is_external,role,approval_status,is_active")
+    .eq("approval_status", "approved")
+    .eq("is_active", true)
+    .order("display_name", { ascending: true });
+
+  if (error) {
+    console.warn("Could not load rating members:", error.message);
+    return allRatingMembers || [];
+  }
+
+  allRatingMembers = data || [];
+  return allRatingMembers;
 }
 
 function positionRatingForMember(memberId, sportId, positionName) {
@@ -2495,6 +2515,10 @@ async function recomputePositionRatingsFromCommitteeVotes(sportId) {
 
 function approvedRatingMembers() {
   const byId = new Map();
+
+  (allRatingMembers || []).forEach(member => {
+    if (member?.id) byId.set(member.id, member);
+  });
 
   (allMembers || []).forEach(member => {
     if (member?.id) byId.set(member.id, member);
@@ -3124,6 +3148,7 @@ async function loadMatchFormOptions() {
   allSports = sportsData || [];
   matchFormVenues = venuesData || [];
   allLeagues = leaguesData || allLeagues || [];
+  allRatingMembers = membersData || allRatingMembers || [];
  allMembers = (membersData || []).filter(member =>
   member.id !== currentProfile?.id &&
   !member.is_external
@@ -22496,6 +22521,7 @@ function queuePostAuthDataLoad() {
     try {
       await Promise.allSettled([
         loadLeagues(),
+        loadRatingMembers(),
         loadSportProfiles(),
         loadPositionRatings(),
         loadSoccerRatingSettings(),
@@ -23144,6 +23170,7 @@ function bindEvents() {
   $("rating-sport-filter")?.addEventListener("change", async () => {
     currentSportRatingMemberId = "";
     const sportId = cleanUuidValue($("rating-sport-filter")?.value);
+    await loadRatingMembers();
     await loadCommitteePositionRatingVotes(sportId);
     await loadCommitteeSportRatingNotes(sportId);
     await refreshFootballCommitteeAveragesIfNeeded(sportId);
