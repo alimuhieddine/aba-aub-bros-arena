@@ -16545,10 +16545,13 @@ function finishedMatchesForStravaPointRefresh(memberId) {
 
 async function refreshStravaMatchedFinishedMatchPoints(memberId) {
   const matches = finishedMatchesForStravaPointRefresh(memberId);
+  const cleanMemberId = cleanUuidValue(memberId);
   let refreshed = 0;
 
   for (const match of matches) {
-    const saved = await saveMatchMemberPoints(match);
+    const saved = await saveMatchMemberPoints(match, {
+      memberIds: cleanMemberId ? [cleanMemberId] : []
+    });
     if (saved) refreshed += 1;
   }
 
@@ -16707,8 +16710,13 @@ function formatPointValue(value) {
   return Number.isInteger(n) ? String(n) : n.toFixed(2);
 }
 
-async function saveMatchMemberPoints(match) {
+async function saveMatchMemberPoints(match, options = {}) {
   if (!match?.id) return false;
+  const allowedMemberIds = new Set(
+    (options.memberIds || [])
+      .map(id => cleanUuidValue(id))
+      .filter(Boolean)
+  );
 
   const matchId = cleanUuidValue(match.id);
   if (isRacketRatingMatch(match)) {
@@ -16743,7 +16751,9 @@ async function saveMatchMemberPoints(match) {
     return true;
   }
 
-  const rows = uniqueInvitations.map(inv => {
+  const rows = uniqueInvitations
+    .filter(inv => !allowedMemberIds.size || allowedMemberIds.has(cleanUuidValue(inv.member_id)))
+    .map(inv => {
     const memberId = cleanUuidValue(inv.member_id);
     const playerTeam = teamResultForMember(match, memberId);
     const points = pointBreakdownForResult(playerTeam.result, match, memberId);
