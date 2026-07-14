@@ -4931,6 +4931,28 @@ function homePreviousWeekBounds() {
   };
 }
 
+function homeThisMonthBounds(now = new Date()) {
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  end.setMilliseconds(end.getMilliseconds() - 1);
+
+  return {
+    startMs: start.getTime(),
+    endMs: end.getTime()
+  };
+}
+
+function homePreviousMonthBounds(now = new Date()) {
+  const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const end = new Date(now.getFullYear(), now.getMonth(), 1);
+  end.setMilliseconds(end.getMilliseconds() - 1);
+
+  return {
+    startMs: start.getTime(),
+    endMs: end.getTime()
+  };
+}
+
 function memberPlayedMatch(match, memberId = currentProfile?.id) {
   const cleanMemberId = cleanUuidValue(memberId);
   if (!match || !cleanMemberId || isCancelledMatch(match)) return false;
@@ -5122,47 +5144,47 @@ function renderLegacyHomeMatchesCard() {
     return;
   }
 
-  const currentWeek = homeThisWeekBounds();
-  const previousWeek = homePreviousWeekBounds();
-  const currentWeekPlayed = homePlayedMatchesBetween(currentWeek.startMs, currentWeek.endMs, memberId);
-  const previousWeekPlayed = homePlayedMatchesBetween(previousWeek.startMs, previousWeek.endMs, memberId);
-  const currentWeekOutsideActivities = homeOwnApprovedActivitiesBetween(currentWeek.startMs, currentWeek.endMs)
+  const currentMonth = homeThisMonthBounds();
+  const previousMonth = homePreviousMonthBounds();
+  const currentMonthPlayed = homePlayedMatchesBetween(currentMonth.startMs, currentMonth.endMs, memberId);
+  const previousMonthPlayed = homePlayedMatchesBetween(previousMonth.startMs, previousMonth.endMs, memberId);
+  const currentMonthOutsideActivities = homeOwnApprovedActivitiesBetween(currentMonth.startMs, currentMonth.endMs)
     .filter(isOutsideAppMatchActivity);
-  const previousWeekOutsideActivities = homeOwnApprovedActivitiesBetween(previousWeek.startMs, previousWeek.endMs)
+  const previousMonthOutsideActivities = homeOwnApprovedActivitiesBetween(previousMonth.startMs, previousMonth.endMs)
     .filter(isOutsideAppMatchActivity);
 
-  const currentWeekPadelCount = homeSportMatchCount(currentWeekPlayed, ["padel"])
-    + homeSportMatchEquivalentActivityCount(currentWeekOutsideActivities, ["padel"]);
-  const currentWeekSoccerCount = homeSportMatchCount(currentWeekPlayed, ["soccer", "football"])
-    + homeSportMatchEquivalentActivityCount(currentWeekOutsideActivities, ["soccer", "football"]);
-  const currentWeekTennisCount = homeSportMatchCount(currentWeekPlayed, ["tennis"])
-    + homeSportMatchEquivalentActivityCount(currentWeekOutsideActivities, ["tennis"]);
-  const currentWeekBasketballCount = homeSportMatchCount(currentWeekPlayed, ["basketball"])
-    + homeSportMatchEquivalentActivityCount(currentWeekOutsideActivities, ["basketball"]);
-  const currentWeekVolleyballCount = homeSportMatchCount(currentWeekPlayed, ["volleyball"])
-    + homeSportMatchEquivalentActivityCount(currentWeekOutsideActivities, ["volleyball"]);
+  const currentMonthPadelCount = homeSportMatchCount(currentMonthPlayed, ["padel"])
+    + homeSportMatchEquivalentActivityCount(currentMonthOutsideActivities, ["padel"]);
+  const currentMonthSoccerCount = homeSportMatchCount(currentMonthPlayed, ["soccer", "football"])
+    + homeSportMatchEquivalentActivityCount(currentMonthOutsideActivities, ["soccer", "football"]);
+  const currentMonthTennisCount = homeSportMatchCount(currentMonthPlayed, ["tennis"])
+    + homeSportMatchEquivalentActivityCount(currentMonthOutsideActivities, ["tennis"]);
+  const currentMonthBasketballCount = homeSportMatchCount(currentMonthPlayed, ["basketball"])
+    + homeSportMatchEquivalentActivityCount(currentMonthOutsideActivities, ["basketball"]);
+  const currentMonthVolleyballCount = homeSportMatchCount(currentMonthPlayed, ["volleyball"])
+    + homeSportMatchEquivalentActivityCount(currentMonthOutsideActivities, ["volleyball"]);
 
-  const previousWeekPadelCount = homeSportMatchCount(previousWeekPlayed, ["padel"])
-    + homeSportMatchEquivalentActivityCount(previousWeekOutsideActivities, ["padel"]);
-  const previousWeekSoccerCount = homeSportMatchCount(previousWeekPlayed, ["soccer", "football"])
-    + homeSportMatchEquivalentActivityCount(previousWeekOutsideActivities, ["soccer", "football"]);
-  const previousWeekTennisCount = homeSportMatchCount(previousWeekPlayed, ["tennis"])
-    + homeSportMatchEquivalentActivityCount(previousWeekOutsideActivities, ["tennis"]);
-  const previousWeekBasketballCount = homeSportMatchCount(previousWeekPlayed, ["basketball"])
-    + homeSportMatchEquivalentActivityCount(previousWeekOutsideActivities, ["basketball"]);
-  const previousWeekVolleyballCount = homeSportMatchCount(previousWeekPlayed, ["volleyball"])
-    + homeSportMatchEquivalentActivityCount(previousWeekOutsideActivities, ["volleyball"]);
+  const previousMonthPadelCount = homeSportMatchCount(previousMonthPlayed, ["padel"])
+    + homeSportMatchEquivalentActivityCount(previousMonthOutsideActivities, ["padel"]);
+  const previousMonthSoccerCount = homeSportMatchCount(previousMonthPlayed, ["soccer", "football"])
+    + homeSportMatchEquivalentActivityCount(previousMonthOutsideActivities, ["soccer", "football"]);
+  const previousMonthTennisCount = homeSportMatchCount(previousMonthPlayed, ["tennis"])
+    + homeSportMatchEquivalentActivityCount(previousMonthOutsideActivities, ["tennis"]);
+  const previousMonthBasketballCount = homeSportMatchCount(previousMonthPlayed, ["basketball"])
+    + homeSportMatchEquivalentActivityCount(previousMonthOutsideActivities, ["basketball"]);
+  const previousMonthVolleyballCount = homeSportMatchCount(previousMonthPlayed, ["volleyball"])
+    + homeSportMatchEquivalentActivityCount(previousMonthOutsideActivities, ["volleyball"]);
 
-  const currentWeekCombined = currentWeekPadelCount + currentWeekSoccerCount + currentWeekTennisCount + currentWeekBasketballCount + currentWeekVolleyballCount;
-  const previousWeekCombined = previousWeekPadelCount + previousWeekSoccerCount + previousWeekTennisCount + previousWeekBasketballCount + previousWeekVolleyballCount;
+  const currentMonthCombined = currentMonthPadelCount + currentMonthSoccerCount + currentMonthTennisCount + currentMonthBasketballCount + currentMonthVolleyballCount;
+  const previousMonthCombined = previousMonthPadelCount + previousMonthSoccerCount + previousMonthTennisCount + previousMonthBasketballCount + previousMonthVolleyballCount;
 
-  padelNode.textContent = String(currentWeekPadelCount);
-  soccerNode.textContent = String(currentWeekSoccerCount);
-  tennisNode.textContent = String(currentWeekTennisCount);
-  basketballNode.textContent = String(currentWeekBasketballCount);
-  volleyballNode.textContent = String(currentWeekVolleyballCount);
-  totalNode.textContent = String(currentWeekCombined);
-  const delta = homeMatchesWeeklyDeltaMeta(currentWeekCombined, previousWeekCombined);
+  padelNode.textContent = String(currentMonthPadelCount);
+  soccerNode.textContent = String(currentMonthSoccerCount);
+  tennisNode.textContent = String(currentMonthTennisCount);
+  basketballNode.textContent = String(currentMonthBasketballCount);
+  volleyballNode.textContent = String(currentMonthVolleyballCount);
+  totalNode.textContent = String(currentMonthCombined);
+  const delta = homeMatchesWeeklyDeltaMeta(currentMonthCombined, previousMonthCombined);
   deltaNode.textContent = delta.text;
 
   if (delta.tone === "positive") {
@@ -5225,18 +5247,18 @@ function renderLegacyHomeActivitiesCard() {
     return;
   }
 
-  const currentWeek = homeThisWeekBounds();
-  const previousWeek = homePreviousWeekBounds();
-  const currentWeekActivities = homeOwnVerifiedActivitiesBetween(currentWeek.startMs, currentWeek.endMs);
-  const previousWeekActivities = homeOwnVerifiedActivitiesBetween(previousWeek.startMs, previousWeek.endMs);
+  const currentMonth = homeThisMonthBounds();
+  const previousMonth = homePreviousMonthBounds();
+  const currentMonthActivities = homeOwnVerifiedActivitiesBetween(currentMonth.startMs, currentMonth.endMs);
+  const previousMonthActivities = homeOwnVerifiedActivitiesBetween(previousMonth.startMs, previousMonth.endMs);
 
-  runNode.textContent = String(homeSportActivityCount(currentWeekActivities, ["run", "running"]));
-  swimNode.textContent = String(homeSportActivityCount(currentWeekActivities, ["swim", "swimming"]));
-  workoutNode.textContent = String(homeSportActivityCount(currentWeekActivities, ["gym", "workout", "fitness", "weightlifting"]));
-  walkNode.textContent = String(homeSportActivityCount(currentWeekActivities, ["walk", "walking"]));
-  totalNode.textContent = String(currentWeekActivities.length);
+  runNode.textContent = String(homeSportActivityCount(currentMonthActivities, ["run", "running"]));
+  swimNode.textContent = String(homeSportActivityCount(currentMonthActivities, ["swim", "swimming"]));
+  workoutNode.textContent = String(homeSportActivityCount(currentMonthActivities, ["gym", "workout", "fitness", "weightlifting"]));
+  walkNode.textContent = String(homeSportActivityCount(currentMonthActivities, ["walk", "walking"]));
+  totalNode.textContent = String(currentMonthActivities.length);
 
-  const delta = homeMatchesWeeklyDeltaMeta(currentWeekActivities.length, previousWeekActivities.length);
+  const delta = homeMatchesWeeklyDeltaMeta(currentMonthActivities.length, previousMonthActivities.length);
   deltaNode.textContent = delta.tone === "neutral" ? "no change" : delta.text;
 
   if (delta.tone === "positive") {
@@ -5313,8 +5335,8 @@ function renderLegacyHomeRankingCard() {
 
   const memberId = cleanUuidValue(currentProfile?.id);
   const currentRows = homeRankingRows();
-  const previousWeek = homePreviousWeekBounds();
-  const previousRows = homeRankingRowsAsOf(previousWeek.endMs);
+  const previousMonth = homePreviousMonthBounds();
+  const previousRows = homeRankingRowsAsOf(previousMonth.endMs);
 
   const currentRankIndex = currentRows.findIndex(row => cleanUuidValue(row.memberId) === memberId);
   const previousRankIndex = previousRows.findIndex(row => cleanUuidValue(row.memberId) === memberId);
@@ -5406,23 +5428,23 @@ function renderLegacyHomePointsCard() {
   }
 
   const current = playerProfileStats(memberId);
-  const previousWeek = homePreviousWeekBounds();
-  const previous = playerProfileStatsAsOf(memberId, previousWeek.endMs);
-  const weeklyDelta = Number(current.totalPoints || 0) - Number(previous.totalPoints || 0);
-  const weeklyPct = Number(current.totalPoints || 0) > 0
-    ? Math.round(Math.abs((weeklyDelta / Number(current.totalPoints || 0)) * 100))
+  const previousMonth = homePreviousMonthBounds();
+  const previous = playerProfileStatsAsOf(memberId, previousMonth.endMs);
+  const monthlyDelta = Number(current.totalPoints || 0) - Number(previous.totalPoints || 0);
+  const monthlyPct = Number(current.totalPoints || 0) > 0
+    ? Math.round(Math.abs((monthlyDelta / Number(current.totalPoints || 0)) * 100))
     : 0;
 
   totalNode.textContent = `${formatPointValue(current.totalPoints)} pts`;
   activityNode.textContent = `${formatPointValue(current.basePoints)} active pts`;
   scoreNode.textContent = `${formatPointValue(current.bonusPoints)} score pts`;
 
-  if (weeklyDelta > 0) {
-    deltaNode.textContent = `+${formatPointValue(weeklyDelta)} ↑${weeklyPct}%`;
+  if (monthlyDelta > 0) {
+    deltaNode.textContent = `+${formatPointValue(monthlyDelta)} ↑${monthlyPct}%`;
     deltaNode.style.color = "#2EE582";
     deltaNode.style.textShadow = "0 0 10px rgba(46, 229, 130, .14)";
-  } else if (weeklyDelta < 0) {
-    deltaNode.textContent = `-${formatPointValue(Math.abs(weeklyDelta))} ↓${weeklyPct}%`;
+  } else if (monthlyDelta < 0) {
+    deltaNode.textContent = `-${formatPointValue(Math.abs(monthlyDelta))} ↓${monthlyPct}%`;
     deltaNode.style.color = "#FF5F67";
     deltaNode.style.textShadow = "0 0 10px rgba(255, 95, 103, .14)";
   } else {
@@ -5614,17 +5636,6 @@ function homeActivitiesBetween(startMs, endMs, activities = homeApprovedActiviti
       const time = new Date(activity.activity_date || activity.created_at || 0).getTime();
       return Number.isFinite(time) && time >= startMs && time <= endMs;
     });
-}
-
-function homeThisMonthBounds() {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-
-  return {
-    startMs: start.getTime(),
-    endMs: end.getTime()
-  };
 }
 
 function homeMonthPoints(memberId) {
