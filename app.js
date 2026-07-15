@@ -88,6 +88,22 @@ const HOME_HIGHLIGHT_MEDIA_LOCAL_KEY = "aba_home_highlight_media";
 const HOME_HIGHLIGHT_BUCKET = "highlights";
 const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
 const MATCH_SUMMARY_CACHE_KEY = "aba_match_summary_cache";
+const APP_CACHE_VERSION_KEY = "aba_app_cache_version";
+const APP_CACHE_VERSION = "261";
+
+function invalidateVersionedAppCaches() {
+  try {
+    const savedVersion = localStorage.getItem(APP_CACHE_VERSION_KEY);
+    if (savedVersion === APP_CACHE_VERSION) return;
+
+    localStorage.removeItem(MATCH_SUMMARY_CACHE_KEY);
+    localStorage.setItem(APP_CACHE_VERSION_KEY, APP_CACHE_VERSION);
+  } catch {
+    // Storage can be blocked in some private/browser modes; live data still loads.
+  }
+}
+
+invalidateVersionedAppCaches();
 
 function futureDate(days, hour) {
   const d = new Date();
@@ -7948,6 +7964,7 @@ function readCachedMatchSummaries() {
   try {
     const cached = JSON.parse(localStorage.getItem(MATCH_SUMMARY_CACHE_KEY) || "null");
     if (!cached || typeof cached !== "object") return [];
+    if (cached.appVersion && cached.appVersion !== APP_CACHE_VERSION) return [];
     if (cached.profileId && cached.profileId !== cleanUuidValue(currentProfile?.id)) return [];
     if (!Array.isArray(cached.matches)) return [];
     return cached.matches;
@@ -7961,6 +7978,7 @@ function readCachedMatchSummaryMeta() {
   try {
     const cached = JSON.parse(localStorage.getItem(MATCH_SUMMARY_CACHE_KEY) || "null");
     if (!cached || typeof cached !== "object") return null;
+    if (cached.appVersion && cached.appVersion !== APP_CACHE_VERSION) return null;
     if (cached.profileId && cached.profileId !== cleanUuidValue(currentProfile?.id)) return null;
     return {
       savedAt: Number(cached.savedAt || 0),
@@ -7997,6 +8015,7 @@ function cacheMatchSummaries(matches = []) {
 
   try {
     localStorage.setItem(MATCH_SUMMARY_CACHE_KEY, JSON.stringify({
+      appVersion: APP_CACHE_VERSION,
       profileId: cleanUuidValue(currentProfile.id),
       savedAt: Date.now(),
       matches: matches.slice(0, 80)
@@ -21437,7 +21456,7 @@ async function loadPushNotificationSettings() {
 }
 
 async function pushServiceWorkerRegistration() {
-  const registration = await navigator.serviceWorker.register("sw.js?v=7");
+  const registration = await navigator.serviceWorker.register("sw.js?v=8");
   await navigator.serviceWorker.ready;
   registration.update?.();
   return registration;

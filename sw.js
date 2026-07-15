@@ -1,4 +1,4 @@
-const SHELL_CACHE = "aba-pwa-shell-v7";
+const SHELL_CACHE = "aba-pwa-shell-v8";
 const IMAGE_CACHE = "aba-image-cache-v6";
 const IMAGE_CACHE_LIMIT = 160;
 const SHELL_ASSETS = [
