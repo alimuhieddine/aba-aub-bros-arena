@@ -9427,7 +9427,12 @@ function padelGameRatingChangesHtml(match, timelineRow) {
 
             return `
               <span class="padel-game-rating-row">
-                ${escapeHtml(name)}
+                <span class="padel-game-rating-player">
+                  ${memberMiniIdentityHtml(member, change.memberId, name, "inline-player-identity")}
+                  <small class="rating-pill">R ${change.after.toFixed(1)}</small>
+                  ${stravaMatchBadgeHtml(match, change.memberId)}
+                  ${matchPointBadgeHtml(match, change.memberId)}
+                </span>
                 <small class="inline-rating-change ${change.delta >= 0 ? "positive" : "negative"}">
                   OVR ${change.before.toFixed(2)}→${change.after.toFixed(2)} (${deltaText})
                 </small>
@@ -9543,6 +9548,8 @@ function soccerAssessmentSelectHtml(match, player) {
 }
 
 function renderTeamsSummary(match) {
+  if (isPadelMatch(match)) return "";
+
   const teams = teamAssignments(match);
 
   if (!teams.length) return "";

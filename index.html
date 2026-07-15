@@ -3128,6 +3128,30 @@
       line-height: 1.2;
     }
 
+    #matches .padel-game-rating-player {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    #matches .padel-game-rating-player .mini-player-identity {
+      min-width: 0;
+    }
+
+    #matches .padel-game-rating-player .mini-player-link {
+      max-width: 92px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #matches .padel-game-rating-row > .inline-rating-change {
+      margin-left: auto;
+      white-space: nowrap;
+    }
+
     #matches .strava-match-badge {
       display: inline-flex;
       align-items: center;
@@ -6804,7 +6828,7 @@
   <script defer src="js/teams.js?v=1"></script>
   <script defer src="js/scoring.js?v=1"></script>
   <script defer src="js/utils.js?v=1"></script>
-  <script defer src="app.js?v=255"></script>
+  <script defer src="app.js?v=256"></script>
   <script defer src="js/utils-runtime-bridge.js?v=1"></script>
   <script defer src="js/auth-runtime-bridge.js?v=1"></script>
 
