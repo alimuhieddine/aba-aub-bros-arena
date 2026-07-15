@@ -1806,6 +1806,7 @@ let voteDeadlineManuallyEdited = false;
 const MATCH_STATUS_OPEN_KEY_PREFIX = "aba_match_status_open:";
 let matchRenderQueued = false;
 let matchListRenderToken = 0;
+let scrollRestoreToken = 0;
 let matchEnrichmentQueued = false;
 let matchFormationCollapsedResetDone = false;
 let deferredViewRenders = new Set();
@@ -11450,29 +11451,45 @@ function renderMatchesProgressively(visibleMatches) {
   if (!box) return;
 
   const token = ++matchListRenderToken;
-  const firstBatchSize = 8;
-  const nextBatchSize = 12;
-  let index = 0;
+  const anchor = captureMatchListScrollAnchor(box);
+  const nextHtml = visibleMatches.map(renderMatchCardHtml).join("");
 
-  box.innerHTML = "";
+  if (token !== matchListRenderToken) return;
 
-  function appendBatch(size) {
-    if (token !== matchListRenderToken) return;
+  box.innerHTML = nextHtml;
+  restoreMatchListScrollAnchor(anchor);
+}
 
-    const nextRows = visibleMatches
-      .slice(index, index + size)
-      .map(renderMatchCardHtml)
-      .join("");
+function captureMatchListScrollAnchor(box = $("matchList")) {
+  if (!box || activeViewId() !== "matches") return null;
 
-    if (nextRows) box.insertAdjacentHTML("beforeend", nextRows);
-    index += size;
+  const cards = Array.from(box.querySelectorAll(".match-card[data-match-id]"));
+  const viewportTop = 0;
+  const candidate = cards.find(card => card.getBoundingClientRect().bottom > viewportTop + 80) || cards[0];
 
-    if (index < visibleMatches.length) {
-      requestAnimationFrame(() => appendBatch(nextBatchSize));
+  if (!candidate) return null;
+
+  return {
+    matchId: candidate.dataset.matchId || "",
+    top: candidate.getBoundingClientRect().top
+  };
+}
+
+function restoreMatchListScrollAnchor(anchor) {
+  if (!anchor?.matchId || activeViewId() !== "matches") return;
+
+  requestAnimationFrame(() => {
+    const safeMatchId = cleanUuidValue(anchor.matchId);
+    const card = safeMatchId
+      ? document.querySelector(`.match-card[data-match-id="${safeMatchId}"]`)
+      : null;
+    if (!card) return;
+
+    const delta = card.getBoundingClientRect().top - Number(anchor.top || 0);
+    if (Math.abs(delta) > 1) {
+      window.scrollBy({ top: delta, left: 0, behavior: "auto" });
     }
-  }
-
-  appendBatch(firstBatchSize);
+  });
 }
 
 function normalizeVenueImageUrl(value) {
@@ -22946,9 +22963,11 @@ function restoreScrollPosition() {
   if (viewId === "admin" && state.adminPanel && state.adminPanel !== activeAdminPanelName()) return;
 
   const y = Math.max(0, Number(state.scrollY || 0));
+  const token = ++scrollRestoreToken;
 
   [0, 120, 350, 800, 1600, 2600].forEach(delay => {
     setTimeout(() => {
+      if (token !== scrollRestoreToken) return;
       window.scrollTo({
         top: y,
         left: 0,
@@ -22956,6 +22975,10 @@ function restoreScrollPosition() {
       });
     }, delay);
   });
+}
+
+function cancelPendingScrollRestore() {
+  scrollRestoreToken += 1;
 }
 
 function saveScrollStateNow() {
@@ -22972,6 +22995,8 @@ function bindMobileGestures() {
   bindMobileGestures.bound = true;
 
   document.addEventListener("touchstart", e => {
+    cancelPendingScrollRestore();
+
     if (e.touches.length !== 1 || shouldIgnoreAppGesture(e.target)) {
       mobileGestureState = null;
       return;
@@ -23146,6 +23171,12 @@ function restoreActiveTab() {
 
 function bindEvents() {
   bindMobileGestures();
+  window.addEventListener("wheel", cancelPendingScrollRestore, { passive: true });
+  window.addEventListener("pointerdown", cancelPendingScrollRestore, { passive: true });
+  window.addEventListener("keydown", event => {
+    const scrollKeys = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "]);
+    if (scrollKeys.has(event.key)) cancelPendingScrollRestore();
+  });
   organizeAdminSections();
   populateMatchTimeSelects();
   setDefaultMatchDateTimes();
