@@ -9108,8 +9108,29 @@ function sortTeamPlayers(players) {
   );
 }
 
+function uniqueMatchTeams(match) {
+  const selected = new Map();
+
+  (match?.match_teams || []).forEach((team, index) => {
+    const side = teamSideForTeam(match, team) || (index === 0 ? "A" : index === 1 ? "B" : "");
+    if (!side) return;
+
+    const existing = selected.get(side);
+    const playerCount = (team.match_team_players || []).length;
+    const existingPlayerCount = (existing?.match_team_players || []).length;
+
+    if (!existing || playerCount > existingPlayerCount) {
+      selected.set(side, team);
+    }
+  });
+
+  return ["A", "B"]
+    .map(side => selected.get(side))
+    .filter(Boolean);
+}
+
 function teamAssignments(match) {
-  const teams = match.match_teams || [];
+  const teams = uniqueMatchTeams(match);
 
   return teams.map(team => ({
     ...team,
@@ -14452,7 +14473,7 @@ async function saveTeams() {
 
 
 function getTwoMatchTeams(match) {
-  const teams = match.match_teams || [];
+  const teams = uniqueMatchTeams(match);
 
   return {
     teamA: teams[0] || null,
