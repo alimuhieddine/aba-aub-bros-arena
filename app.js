@@ -9344,11 +9344,13 @@ function padelRatingTimelineForMatch(match) {
   const teamAIds = teamPlayerMemberIds(teamA);
   const teamBIds = teamPlayerMemberIds(teamB);
   const memberIds = Array.from(new Set([...teamAIds, ...teamBIds]));
-  const ratingMap = new Map();
+  const ratingMap = padelRatingStateBeforeMatch(match);
 
   memberIds.forEach(memberId => {
-    const startingRating = matchStartingPlayerRating(match, memberId, match.sport_id);
-    ratingMap.set(memberId, Number.isFinite(startingRating) && startingRating > 0 ? startingRating : 5);
+    if (!ratingMap.has(memberId)) {
+      const startingRating = padelInitialRatingForMember(memberId, match.sport_id);
+      ratingMap.set(memberId, Number.isFinite(startingRating) && startingRating > 0 ? startingRating : 5);
+    }
   });
 
   return sortedPadelSessionGames(match)
@@ -9362,19 +9364,6 @@ function padelRatingTimelineForMatch(match) {
           game,
           index,
           changes: []
-        };
-      }
-
-      const savedChanges = padelSavedRatingChangesForGame(match, gameId);
-      if (savedChanges.length) {
-        savedChanges.forEach(change => {
-          ratingMap.set(change.memberId, change.after);
-        });
-
-        return {
-          game,
-          index,
-          changes: savedChanges
         };
       }
 
@@ -9403,47 +9392,110 @@ function padelRatingTimelineForMatch(match) {
     });
 }
 
-function padelSavedRatingChangesForGame(match, gameId) {
-  const cleanGameId = cleanUuidValue(gameId);
-  const completedGameIds = sortedPadelSessionGames(match)
-    .filter(game => String(game?.status || "").toLowerCase() === "completed")
-    .map(game => cleanUuidValue(game?.id))
-    .filter(Boolean);
+function padelInitialRatingForMember(memberId, sportId) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  const cleanSportId = cleanUuidValue(sportId);
+  const rows = [];
 
-  if (completedGameIds.length !== 1 || completedGameIds[0] !== cleanGameId) {
-    return [];
-  }
+  if (!cleanMemberId || !cleanSportId) return 5;
 
-  return (match?.match_position_rating_adjustments || [])
-    .filter(row => {
-      if (cleanUuidValue(row.member_id) === "") return false;
-      if (cleanUuidValue(row.sport_id) !== cleanUuidValue(match?.sport_id)) return false;
-      if (String(row.position_name || "").toUpperCase() !== PADEL_RATING_POSITION) return false;
+  (allMatches || []).forEach(match => {
+    (match.match_position_rating_adjustments || []).forEach(row => {
+      if (cleanUuidValue(row.member_id) !== cleanMemberId) return;
+      if (cleanUuidValue(row.sport_id) !== cleanSportId) return;
+      if (String(row.position_name || "").toUpperCase() !== PADEL_RATING_POSITION) return;
 
-      const rowGameId = cleanUuidValue(row.game_id);
-      return !rowGameId || rowGameId === cleanGameId;
-    })
-    .map(row => {
-      const memberId = cleanUuidValue(row.member_id);
       const before = Number(row.rating_before);
-      const after = Number(row.rating_after);
+      if (!Number.isFinite(before) || before <= 0) return;
 
-      if (!memberId || !Number.isFinite(before) || !Number.isFinite(after)) return null;
+      rows.push({
+        rating: before,
+        matchTime: new Date(match.start_time || 0).getTime(),
+        createdTime: new Date(row.created_at || match.created_at || 0).getTime()
+      });
+    });
+  });
 
-      return {
-        memberId,
-        side: matchTeamSideForMember(match, memberId),
-        before,
-        after,
-        delta: after - before,
-        persisted: true
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) =>
-      String(a.side || "").localeCompare(String(b.side || "")) ||
-      memberDisplayName(memberById(a.memberId)).localeCompare(memberDisplayName(memberById(b.memberId)))
-    );
+  rows.sort((a, b) =>
+    a.matchTime - b.matchTime ||
+    a.createdTime - b.createdTime
+  );
+
+  return rows[0]?.rating || memberSportRating(cleanMemberId, cleanSportId);
+}
+
+function padelMatchChronologyValue(match) {
+  return {
+    start: new Date(match?.start_time || 0).getTime(),
+    created: new Date(match?.created_at || 0).getTime()
+  };
+}
+
+function padelMatchIsBefore(match, targetMatch) {
+  const current = padelMatchChronologyValue(match);
+  const target = padelMatchChronologyValue(targetMatch);
+
+  if (!Number.isFinite(current.start) || !Number.isFinite(target.start)) return false;
+  if (current.start !== target.start) return current.start < target.start;
+
+  return Number(current.created || 0) < Number(target.created || 0);
+}
+
+function padelRatingStateBeforeMatch(targetMatch) {
+  const cleanTargetId = cleanUuidValue(targetMatch?.id);
+  const cleanSportId = cleanUuidValue(targetMatch?.sport_id);
+  const ratingMap = new Map();
+
+  if (!cleanTargetId || !cleanSportId) return ratingMap;
+
+  const previousMatches = (allMatches || [])
+    .filter(match =>
+      isPadelMatch(match) &&
+      cleanUuidValue(match.id) !== cleanTargetId &&
+      cleanUuidValue(match.sport_id) === cleanSportId &&
+      !isCancelledMatch(match) &&
+      padelMatchIsBefore(match, targetMatch)
+    )
+    .sort((a, b) => {
+      const aChronology = padelMatchChronologyValue(a);
+      const bChronology = padelMatchChronologyValue(b);
+      return aChronology.start - bChronology.start ||
+        Number(aChronology.created || 0) - Number(bChronology.created || 0);
+    });
+
+  previousMatches.forEach(match => {
+    const { teamA, teamB } = getTwoMatchTeams(match);
+    const memberIds = Array.from(new Set([
+      ...teamPlayerMemberIds(teamA),
+      ...teamPlayerMemberIds(teamB)
+    ]));
+
+    memberIds.forEach(memberId => {
+      if (!ratingMap.has(memberId)) {
+        ratingMap.set(memberId, padelInitialRatingForMember(memberId, cleanSportId));
+      }
+    });
+
+    sortedPadelSessionGames(match).forEach(game => {
+      const gameId = cleanUuidValue(game?.id);
+      const sets = padelSetEntriesForGame(match, gameId);
+      const summary = padelSetSummary(sets, game?.winner_team);
+
+      if (!gameId || !summary.winnerTeam || String(game?.status || "").toLowerCase() !== "completed") return;
+
+      padelRatingDeltasFromRatingMap(match, sets, summary.winnerTeam, gameId, ratingMap)
+        .forEach(row => {
+          const memberId = cleanUuidValue(row.member_id);
+          if (!memberId) return;
+
+          const before = Number(ratingMap.get(memberId) ?? padelInitialRatingForMember(memberId, cleanSportId));
+          const after = clampNumber(before + Number(row.adjustment || 0), 1, 10);
+          ratingMap.set(memberId, after);
+        });
+    });
+  });
+
+  return ratingMap;
 }
 
 function padelMatchFinalDisplayRating(match, memberId) {
