@@ -9365,6 +9365,19 @@ function padelRatingTimelineForMatch(match) {
         };
       }
 
+      const savedChanges = padelSavedRatingChangesForGame(match, gameId);
+      if (savedChanges.length) {
+        savedChanges.forEach(change => {
+          ratingMap.set(change.memberId, change.after);
+        });
+
+        return {
+          game,
+          index,
+          changes: savedChanges
+        };
+      }
+
       const changes = padelRatingDeltasFromRatingMap(match, sets, summary.winnerTeam, gameId, ratingMap)
         .map(row => {
           const memberId = cleanUuidValue(row.member_id);
@@ -9388,6 +9401,49 @@ function padelRatingTimelineForMatch(match) {
         changes
       };
     });
+}
+
+function padelSavedRatingChangesForGame(match, gameId) {
+  const cleanGameId = cleanUuidValue(gameId);
+  const completedGameIds = sortedPadelSessionGames(match)
+    .filter(game => String(game?.status || "").toLowerCase() === "completed")
+    .map(game => cleanUuidValue(game?.id))
+    .filter(Boolean);
+
+  if (completedGameIds.length !== 1 || completedGameIds[0] !== cleanGameId) {
+    return [];
+  }
+
+  return (match?.match_position_rating_adjustments || [])
+    .filter(row => {
+      if (cleanUuidValue(row.member_id) === "") return false;
+      if (cleanUuidValue(row.sport_id) !== cleanUuidValue(match?.sport_id)) return false;
+      if (String(row.position_name || "").toUpperCase() !== PADEL_RATING_POSITION) return false;
+
+      const rowGameId = cleanUuidValue(row.game_id);
+      return !rowGameId || rowGameId === cleanGameId;
+    })
+    .map(row => {
+      const memberId = cleanUuidValue(row.member_id);
+      const before = Number(row.rating_before);
+      const after = Number(row.rating_after);
+
+      if (!memberId || !Number.isFinite(before) || !Number.isFinite(after)) return null;
+
+      return {
+        memberId,
+        side: matchTeamSideForMember(match, memberId),
+        before,
+        after,
+        delta: after - before,
+        persisted: true
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) =>
+      String(a.side || "").localeCompare(String(b.side || "")) ||
+      memberDisplayName(memberById(a.memberId)).localeCompare(memberDisplayName(memberById(b.memberId)))
+    );
 }
 
 function padelMatchFinalDisplayRating(match, memberId) {
