@@ -14976,6 +14976,89 @@ async function recalculateAllSoccerRatings() {
   renderLeagues();
 }
 
+async function deletePadelRatingAdjustmentsForMatches(matchIds) {
+  const cleanIds = Array.from(new Set((matchIds || []).map(cleanUuidValue).filter(Boolean)));
+
+  if (!cleanIds.length) return true;
+
+  const { error } = await supabaseClient
+    .from("match_position_rating_adjustments")
+    .delete()
+    .in("match_id", cleanIds)
+    .eq("position_name", PADEL_RATING_POSITION);
+
+  if (error) {
+    alert(error.message);
+    return false;
+  }
+
+  return true;
+}
+
+async function recalculateAllPadelRatings() {
+  if (!isCurrentUserAdmin()) {
+    alert("Admin only.");
+    return;
+  }
+
+  const matches = finalizedRecalculableMatches()
+    .filter(match => isPadelMatch(match))
+    .sort((a, b) =>
+      new Date(a.start_time || 0) - new Date(b.start_time || 0) ||
+      new Date(a.created_at || 0) - new Date(b.created_at || 0)
+    );
+
+  if (!matches.length) {
+    alert("No finalized padel matches found.");
+    return;
+  }
+
+  const ok = confirm(
+    `Recalculate padel ratings for ${matches.length} finalized padel match(es)?\n\n` +
+    "Use this after resetting initial padel ratings. Old saved padel rating rows will be replaced."
+  );
+
+  if (!ok) return;
+
+  await loadSportProfiles();
+
+  const detailedMatches = [];
+
+  for (const match of matches) {
+    const detailedMatch = await ensureMatchDetails(match.id, { render: false }) || match;
+    detailedMatches.push(detailedMatch);
+  }
+
+  const deleted = await deletePadelRatingAdjustmentsForMatches(detailedMatches.map(match => match.id));
+  if (!deleted) return;
+
+  for (const detailedMatch of detailedMatches) {
+    const games = completedPadelGamesForMatch(detailedMatch);
+
+    for (const game of games) {
+      const saved = await savePadelGameRatingAdjustments(
+        detailedMatch,
+        game.id,
+        padelSetEntriesForGame(detailedMatch, game.id),
+        game.winner_team
+      );
+
+      if (!saved) return;
+    }
+
+    await logMatchEditEvent(detailedMatch.id, "ratings_recalculated", "Padel ratings recalculated from reset baselines.", {
+      recalculated: true,
+      trigger: "padel full replay"
+    });
+  }
+
+  alert("All finalized padel ratings recalculated.");
+  await loadSportProfiles();
+  await loadMatches({ force: true });
+  renderRankings();
+  renderLeagues();
+}
+
 async function recalculateAllFinalizedMatches() {
   if (!isCurrentUserAdmin()) {
     alert("Admin only.");
@@ -24144,6 +24227,7 @@ if ($("matchForm")) {
 
   $("recalc-all-points-btn")?.addEventListener("click", recalculateAllFinalizedPoints);
   $("recalc-all-soccer-ratings-btn")?.addEventListener("click", recalculateAllSoccerRatings);
+  $("recalc-all-padel-ratings-btn")?.addEventListener("click", recalculateAllPadelRatings);
   $("recalc-all-finalized-btn")?.addEventListener("click", recalculateAllFinalizedMatches);
 
   $("add-venue-btn")?.addEventListener("click", saveVenue);
