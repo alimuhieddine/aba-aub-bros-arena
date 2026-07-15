@@ -9206,7 +9206,71 @@ function matchPlayerDisplayRating(match, memberId, formationPosition = "", ratin
     return after;
   }
 
+  const historicalRating = historicalMatchPlayerRating(match, memberId, match?.sport_id, formationPosition);
+  if (Number.isFinite(historicalRating) && historicalRating > 0) {
+    return historicalRating;
+  }
+
   return currentMatchPlayerRating(memberId, match?.sport_id, formationPosition);
+}
+
+function historicalMatchPlayerRating(match, memberId, sportId, formationPosition = "") {
+  const cleanMemberId = cleanUuidValue(memberId);
+  const cleanSportId = cleanUuidValue(sportId);
+  const targetTime = new Date(match?.start_time || 0).getTime();
+
+  if (!cleanMemberId || !cleanSportId || !Number.isFinite(targetTime)) return null;
+
+  const position = isPadelMatch(match)
+    ? PADEL_RATING_POSITION
+    : normalizeSoccerPosition(formationPosition);
+  const rows = [];
+
+  (allMatches || []).forEach(sourceMatch => {
+    if (isCancelledMatch(sourceMatch)) return;
+
+    const matchTime = new Date(sourceMatch.start_time || 0).getTime();
+    if (!Number.isFinite(matchTime)) return;
+
+    (sourceMatch.match_position_rating_adjustments || []).forEach(row => {
+      if (cleanUuidValue(row.member_id) !== cleanMemberId) return;
+      if (cleanUuidValue(row.sport_id) !== cleanSportId) return;
+
+      const rowPosition = isPadelMatch(sourceMatch)
+        ? PADEL_RATING_POSITION
+        : normalizeSoccerPosition(row.position_name);
+
+      if (position && rowPosition !== position) return;
+
+      const before = Number(row.rating_before);
+      const after = Number(row.rating_after);
+      if (!Number.isFinite(before) || !Number.isFinite(after)) return;
+
+      rows.push({
+        matchId: cleanUuidValue(sourceMatch.id),
+        matchTime,
+        createdTime: new Date(row.created_at || sourceMatch.start_time || 0).getTime(),
+        before,
+        after
+      });
+    });
+  });
+
+  if (!rows.length) return null;
+
+  const previousRows = rows
+    .filter(row => row.matchId !== cleanUuidValue(match?.id) && row.matchTime < targetTime)
+    .sort((a, b) => b.matchTime - a.matchTime || b.createdTime - a.createdTime);
+
+  if (previousRows.length) {
+    return previousRows[0].after;
+  }
+
+  const firstFutureOrCurrent = rows
+    .filter(row => row.matchId !== cleanUuidValue(match?.id) && row.matchTime >= targetTime)
+    .sort((a, b) => a.matchTime - b.matchTime || a.createdTime - b.createdTime)[0];
+
+  return firstFutureOrCurrent?.before ?? null;
 }
 
 function currentMatchPlayerRating(memberId, sportId, formationPosition = "") {
