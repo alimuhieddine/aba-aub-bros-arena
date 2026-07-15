@@ -89,7 +89,7 @@ const HOME_HIGHLIGHT_BUCKET = "highlights";
 const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
 const MATCH_SUMMARY_CACHE_KEY = "aba_match_summary_cache";
 const APP_CACHE_VERSION_KEY = "aba_app_cache_version";
-const APP_CACHE_VERSION = "261";
+const APP_CACHE_VERSION = "262";
 
 function invalidateVersionedAppCaches() {
   try {
@@ -7808,6 +7808,35 @@ const MATCH_FALLBACK_SELECT = `
             avatar_url,
             is_external
           )
+        )
+      ),
+      match_score_entries (
+        id,
+        game_id,
+        entry_type,
+        game_number,
+        set_number,
+        team_a_score,
+        team_b_score,
+        is_completed,
+        notes
+      ),
+      match_game_sessions (
+        id,
+        game_id,
+        match_games (
+          id,
+          sport_id,
+          league_id,
+          title,
+          status,
+          team_a_name,
+          team_b_name,
+          team_a_score,
+          team_b_score,
+          winner_team,
+          created_by,
+          created_at
         )
       ),
       match_member_points (
