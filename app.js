@@ -11419,8 +11419,10 @@ function formationSectionTitleHtml(match, open = false) {
 function renderFormationSection(match) {
   const content = renderTeamsSummary(match);
   const scoreSummary = renderScoreSummary(match);
+  const hasTeams = matchHasTeamsAssigned(match);
+  const shouldShowEmptyPadelShell = isPadelMatch(match) && hasTeams;
 
-  if (!content && !scoreSummary) return "";
+  if (!content && !scoreSummary && !shouldShowEmptyPadelShell) return "";
 
   const open = isMatchFormationOpen(match.id);
   const titleHtml = formationSectionTitleHtml(match, open);
