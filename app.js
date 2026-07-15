@@ -9200,10 +9200,10 @@ function teamPlayerChips(team, match = null) {
 }
 
 function matchPlayerDisplayRating(match, memberId, formationPosition = "", ratingChange = null) {
-  const before = Number(ratingChange?.before);
+  const after = Number(ratingChange?.after);
 
-  if (Number.isFinite(before) && before > 0 && hasSubmittedScore(match)) {
-    return before;
+  if (Number.isFinite(after) && after > 0 && hasSubmittedScore(match)) {
+    return after;
   }
 
   return currentMatchPlayerRating(memberId, match?.sport_id, formationPosition);
