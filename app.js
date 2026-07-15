@@ -9177,8 +9177,8 @@ function teamPlayerChips(team, match = null) {
 
   return players.map(player => {
     const ratingChange = match ? ratingChangeForPlayer(match, player.memberId, player.formationPosition) : null;
-    const currentRating = match
-      ? currentMatchPlayerRating(player.memberId, match.sport_id, player.formationPosition)
+    const displayRating = match
+      ? matchPlayerDisplayRating(match, player.memberId, player.formationPosition, ratingChange)
       : null;
 
     return `
@@ -9186,7 +9186,7 @@ function teamPlayerChips(team, match = null) {
         <span class="team-player-main-line">
           ${player.formationPosition ? `<small class="position-chip">${escapeHtml(player.formationPosition)}</small>` : ""}
           ${player.memberId ? memberMiniIdentityHtml(player.member, player.memberId, player.name, "inline-player-identity") : escapeHtml(player.name)}
-          ${currentRating ? `<small class="rating-pill">R ${currentRating.toFixed(1)}</small>` : ""}
+          ${displayRating ? `<small class="rating-pill">R ${displayRating.toFixed(1)}</small>` : ""}
           ${player.isCaptain ? `<b>C</b>` : ""}
           ${player.isExternal ? `<em class="external-inline-tag">External</em>` : ""}
           ${stravaMatchBadgeHtml(match, player.memberId)}
@@ -9197,6 +9197,16 @@ function teamPlayerChips(team, match = null) {
       </span>
     `;
   }).join("");
+}
+
+function matchPlayerDisplayRating(match, memberId, formationPosition = "", ratingChange = null) {
+  const before = Number(ratingChange?.before);
+
+  if (Number.isFinite(before) && before > 0 && hasSubmittedScore(match)) {
+    return before;
+  }
+
+  return currentMatchPlayerRating(memberId, match?.sport_id, formationPosition);
 }
 
 function currentMatchPlayerRating(memberId, sportId, formationPosition = "") {
