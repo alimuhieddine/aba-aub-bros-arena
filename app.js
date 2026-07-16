@@ -89,7 +89,7 @@ const HOME_HIGHLIGHT_BUCKET = "highlights";
 const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
 const MATCH_SUMMARY_CACHE_KEY = "aba_match_summary_cache";
 const APP_CACHE_VERSION_KEY = "aba_app_cache_version";
-const APP_CACHE_VERSION = "267";
+const APP_CACHE_VERSION = "268";
 
 function invalidateVersionedAppCaches() {
   try {
@@ -20547,6 +20547,7 @@ function playerProfileStats(memberId) {
         activityPoints: 0,
         scorePoints: 0,
         activityMinutes: 0,
+        externalGames: 0,
         approvedActivities: 0,
         pendingActivities: 0,
         leagues: new Map()
@@ -20596,6 +20597,7 @@ function playerProfileStats(memberId) {
     .forEach(activity => {
       const approved = activity.status === "approved";
       const linkedMatch = linkedMatchForActivity(activity);
+      const externalMatchActivity = isOutsideAppMatchActivity(activity);
       const points = standaloneActivityPoints(activity);
       const minutes = Number(activity.duration_minutes || 0);
       const sportId = cleanUuidValue(activity.sport_id);
@@ -20612,6 +20614,7 @@ function playerProfileStats(memberId) {
         activityPoints: 0,
         scorePoints: 0,
         activityMinutes: 0,
+        externalGames: 0,
         approvedActivities: 0,
         pendingActivities: 0,
         leagues: new Map()
@@ -20637,6 +20640,10 @@ function playerProfileStats(memberId) {
         stats.activityMinutes += minutes;
         stats.loggedActivityPoints += points;
 
+        if (externalMatchActivity) {
+          sportDetail.games += 1;
+          sportDetail.externalGames = Number(sportDetail.externalGames || 0) + 1;
+        }
         sportDetail.totalPoints += points;
         sportDetail.activityPoints += points;
         sportDetail.activityMinutes += minutes;
@@ -20731,6 +20738,7 @@ function playerProfileSportSummaries(stats, ratings, memberId = "") {
       activityPoints: 0,
       scorePoints: 0,
       activityMinutes: 0,
+      externalGames: 0,
       approvedActivities: 0,
       pendingActivities: 0,
       leagues: new Map(),
@@ -20775,6 +20783,7 @@ function playerProfileSportSummaries(stats, ratings, memberId = "") {
         activityPoints: 0,
         scorePoints: 0,
         activityMinutes: 0,
+        externalGames: 0,
         approvedActivities: 0,
         pendingActivities: 0,
         leagues: new Map(),
@@ -20945,21 +20954,25 @@ function runningStatsHtml(running) {
 
 function playerProfileSportCountLabel(summary) {
   const games = Number(summary.games || 0);
+  const externalGames = Number(summary.externalGames || 0);
   const activities = Number(summary.approvedActivities || 0) + Number(summary.pendingActivities || 0);
+  const nonMatchActivities = Math.max(0, activities - externalGames);
   const labels = [];
 
   if (games) labels.push(`${games} game${games === 1 ? "" : "s"}`);
-  if (activities) labels.push(`${activities} activit${activities === 1 ? "y" : "ies"}`);
+  if (externalGames) labels.push(`${externalGames} external`);
+  if (nonMatchActivities) labels.push(`${nonMatchActivities} activit${nonMatchActivities === 1 ? "y" : "ies"}`);
 
   return labels.join(" / ") || "No games";
 }
 
 function playerProfileSportStatsHtml(summary) {
+  const games = Number(summary.games || 0);
   const approvedActivities = Number(summary.approvedActivities || 0);
   const pendingActivities = Number(summary.pendingActivities || 0);
   const hasActivities = approvedActivities + pendingActivities > 0;
 
-  if (hasActivities) {
+  if (hasActivities && !games) {
     return `
       <div class="profile-line"><span>Active time</span><b>${formatProfileDurationMinutes(summary.activityMinutes)}</b></div>
       <div class="profile-line"><span>Points</span><b>${formatPointValue(summary.activityPoints)} pts</b></div>
