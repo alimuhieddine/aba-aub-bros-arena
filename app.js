@@ -89,7 +89,7 @@ const HOME_HIGHLIGHT_BUCKET = "highlights";
 const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
 const MATCH_SUMMARY_CACHE_KEY = "aba_match_summary_cache";
 const APP_CACHE_VERSION_KEY = "aba_app_cache_version";
-const APP_CACHE_VERSION = "263";
+const APP_CACHE_VERSION = "264";
 
 function invalidateVersionedAppCaches() {
   try {
@@ -14860,7 +14860,7 @@ function padelSetEntriesForGame(match, gameId) {
 }
 
 function completedPadelGamesForMatch(match) {
-  return matchSessionGames(match).filter(game =>
+  return sortedPadelSessionGames(match).filter(game =>
     game?.id &&
     game.status === "completed" &&
     game.winner_team
@@ -15415,7 +15415,25 @@ function padelGameOrderValue(game, index = 0) {
 }
 
 function sortedPadelSessionGames(match) {
-  return matchSessionGames(match)
+  const gamesById = new Map();
+  const gamesWithoutId = [];
+
+  matchSessionGames(match).forEach(game => {
+    const id = cleanUuidValue(game?.id);
+    if (id) {
+      gamesById.set(id, {
+        ...(gamesById.get(id) || {}),
+        ...game
+      });
+    } else {
+      gamesWithoutId.push(game);
+    }
+  });
+
+  return [
+    ...Array.from(gamesById.values()),
+    ...gamesWithoutId
+  ]
     .map((game, index) => ({ game, index }))
     .sort((a, b) =>
       padelGameOrderValue(a.game, a.index) - padelGameOrderValue(b.game, b.index) ||
