@@ -89,7 +89,7 @@ const HOME_HIGHLIGHT_BUCKET = "highlights";
 const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
 const MATCH_SUMMARY_CACHE_KEY = "aba_match_summary_cache";
 const APP_CACHE_VERSION_KEY = "aba_app_cache_version";
-const APP_CACHE_VERSION = "264";
+const APP_CACHE_VERSION = "265";
 
 function invalidateVersionedAppCaches() {
   try {
@@ -6593,6 +6593,7 @@ function renderHomeLeagueHq() {
 function homeRecentRatingChanges(memberId) {
   const cleanId = cleanUuidValue(memberId);
   const changes = [];
+  const countedPadelGameIds = new Set();
 
   if (!cleanId) return changes;
 
@@ -6601,11 +6602,17 @@ function homeRecentRatingChanges(memberId) {
 
     if (isPadelMatch(match)) {
       padelRatingTimelineForMatch(match).forEach((gameRow, index) => {
+        const gameId = cleanUuidValue(gameRow.game?.id) || `${cleanUuidValue(match.id)}:${index}`;
+        if (countedPadelGameIds.has(gameId)) return;
+
+        let hasMemberChange = false;
+
         (gameRow.changes || []).forEach(row => {
           if (cleanUuidValue(row.memberId) !== cleanId) return;
 
           const before = Number(row.before ?? 0);
           const after = Number(row.after ?? 0);
+          hasMemberChange = true;
 
           changes.push({
             match,
@@ -6618,6 +6625,8 @@ function homeRecentRatingChanges(memberId) {
             gameIndex: index
           });
         });
+
+        if (hasMemberChange) countedPadelGameIds.add(gameId);
       });
       return;
     }
@@ -20373,6 +20382,7 @@ function playerProfileStats(memberId) {
 
   if (!cleanId) return stats;
   const countedMatchIds = new Set();
+  const countedPadelGameIds = new Set();
 
   (allMatches || [])
     .filter(match => !isCancelledMatch(match) && hasSubmittedScore(match))
@@ -20412,9 +20422,13 @@ function playerProfileStats(memberId) {
       const sportId = cleanUuidValue(match.sport_id);
       const sportName = match.sports?.name || sportNameById(match.sport_id) || "Sport";
       const sportKey = sportId || sportName.toLowerCase();
-      const completedPadelGameCount = isPadelMatch(match)
-        ? Math.max(1, completedPadelGamesForMatch(match).length)
-        : 1;
+      const completedPadelGameIds = isPadelMatch(match)
+        ? completedPadelGamesForMatch(match)
+          .map(game => cleanUuidValue(game?.id))
+          .filter(Boolean)
+          .filter(gameId => !countedPadelGameIds.has(gameId))
+        : [];
+      const sportGameCount = isPadelMatch(match) ? completedPadelGameIds.length : 1;
       const sportDetail = stats.sportDetails.get(sportKey) || {
         sportId,
         sport: sportName,
@@ -20432,7 +20446,8 @@ function playerProfileStats(memberId) {
       };
 
       if (!alreadyCounted) {
-        sportDetail.games += completedPadelGameCount;
+        sportDetail.games += sportGameCount;
+        completedPadelGameIds.forEach(gameId => countedPadelGameIds.add(gameId));
       }
       sportDetail.totalPoints += total;
       sportDetail.activityPoints += activity;
@@ -20861,6 +20876,7 @@ function sportNameById(sportId) {
 function playerProfileRatingChanges(memberId) {
   const cleanId = cleanUuidValue(memberId);
   const rows = [];
+  const countedPadelGameIds = new Set();
 
   if (!cleanId) return rows;
 
@@ -20869,11 +20885,17 @@ function playerProfileRatingChanges(memberId) {
 
     if (isPadelMatch(match)) {
       padelRatingTimelineForMatch(match).forEach((gameRow, index) => {
+        const gameId = cleanUuidValue(gameRow.game?.id) || `${cleanUuidValue(match.id)}:${index}`;
+        if (countedPadelGameIds.has(gameId)) return;
+
+        let hasMemberChange = false;
+
         (gameRow.changes || []).forEach(row => {
           if (cleanUuidValue(row.memberId) !== cleanId) return;
 
           const before = Number(row.before ?? 0);
           const after = Number(row.after ?? 0);
+          hasMemberChange = true;
 
           rows.push({
             match,
@@ -20886,6 +20908,8 @@ function playerProfileRatingChanges(memberId) {
             gameIndex: index
           });
         });
+
+        if (hasMemberChange) countedPadelGameIds.add(gameId);
       });
       return;
     }
