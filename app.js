@@ -89,7 +89,7 @@ const HOME_HIGHLIGHT_BUCKET = "highlights";
 const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
 const MATCH_SUMMARY_CACHE_KEY = "aba_match_summary_cache";
 const APP_CACHE_VERSION_KEY = "aba_app_cache_version";
-const APP_CACHE_VERSION = "265";
+const APP_CACHE_VERSION = "266";
 
 function invalidateVersionedAppCaches() {
   try {
@@ -1819,6 +1819,11 @@ let activitySportSettingsLoadPromise = null;
 let homeHighlightSettingsCache = null;
 let homeHighlightSettingsLoadPromise = null;
 let editingActivityId = null;
+const activityFilters = {
+  status: "all",
+  player: "",
+  sport: "all"
+};
 let currentGarminConnection = null;
 let currentStravaConnection = null;
 let stravaConnectedMemberIds = new Set();
@@ -19409,16 +19414,112 @@ function activityCard(a, compact = false) {
   `;
 }
 
+function activityStatusValue(activity) {
+  return String(activity?.status || "pending").toLowerCase();
+}
+
+function activitySportFilterValue(activity) {
+  return cleanUuidValue(activity?.sport_id) ||
+    String(activity?.sports?.name || activity?.sport || sportNameById(activity?.sport_id) || "").trim().toLowerCase();
+}
+
+function activityPlayerSearchText(activity) {
+  const member = activity?.members || memberById(activity?.member_id);
+  return [
+    memberDisplayName(member),
+    memberFullName(member),
+    member?.email,
+    activity?.player
+  ].filter(Boolean).join(" ").toLowerCase();
+}
+
+function activityMatchesFilters(activity) {
+  const status = activityStatusValue(activity);
+  const sportValue = activitySportFilterValue(activity);
+  const playerQuery = String(activityFilters.player || "").trim().toLowerCase();
+
+  if (activityFilters.status !== "all" && status !== activityFilters.status) return false;
+  if (activityFilters.sport !== "all" && sportValue !== activityFilters.sport) return false;
+  if (playerQuery && !activityPlayerSearchText(activity).includes(playerQuery)) return false;
+
+  return true;
+}
+
+function updateActivityFilterOptions(rows = []) {
+  const select = $("activity-filter-sport");
+  if (!select) return;
+
+  const currentValue = activityFilters.sport || "all";
+  const sports = new Map();
+
+  (rows || []).forEach(activity => {
+    const value = activitySportFilterValue(activity);
+    if (!value) return;
+
+    const label = activity?.sports?.name ||
+      activity?.sport ||
+      sportNameById(activity?.sport_id) ||
+      "Activity";
+
+    if (!sports.has(value)) sports.set(value, formatSportDisplayName(label));
+  });
+
+  select.innerHTML = [
+    `<option value="all">All activities</option>`,
+    ...Array.from(sports.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
+  ].join("");
+
+  if (currentValue !== "all" && !sports.has(currentValue)) {
+    activityFilters.sport = "all";
+  }
+
+  select.value = activityFilters.sport || "all";
+}
+
+function syncActivityFilterControls() {
+  if ($("activity-filter-status")) $("activity-filter-status").value = activityFilters.status || "all";
+  if ($("activity-filter-player") && $("activity-filter-player").value !== (activityFilters.player || "")) {
+    $("activity-filter-player").value = activityFilters.player || "";
+  }
+  if ($("activity-filter-sport")) $("activity-filter-sport").value = activityFilters.sport || "all";
+}
+
+function updateActivityFilterCount(filteredCount, totalCount) {
+  const count = $("activity-filter-count");
+  if (!count) return;
+
+  const hasFilters = activityFilters.status !== "all" ||
+    activityFilters.sport !== "all" ||
+    String(activityFilters.player || "").trim();
+
+  count.textContent = hasFilters
+    ? `${filteredCount} of ${totalCount} activit${totalCount === 1 ? "y" : "ies"}`
+    : `${totalCount} activit${totalCount === 1 ? "y" : "ies"}`;
+}
+
+function resetActivityFilters() {
+  activityFilters.status = "all";
+  activityFilters.player = "";
+  activityFilters.sport = "all";
+  renderActivities();
+}
+
 function renderActivities() {
   if (!shouldRenderView("activities")) return;
 
   if (!$("activityList")) return;
   const loadedRows = (allMemberActivities || []).length ? allMemberActivities : state.activities;
-  const rows = loadedRows;
+  updateActivityFilterOptions(loadedRows);
+  syncActivityFilterControls();
+
+  const rows = (loadedRows || []).filter(activityMatchesFilters);
+  updateActivityFilterCount(rows.length, (loadedRows || []).length);
 
   $("activityList").innerHTML = rows.length
     ? rows.map(a => activityCard(a)).join("")
-    : `<article class="card"><div class="hint">No activities logged yet.</div></article>`;
+    : `<article class="card"><div class="hint">${(loadedRows || []).length ? "No activities match the current filters." : "No activities logged yet."}</div></article>`;
 }
 
 function formatActivityLogDate(value) {
@@ -23979,6 +24080,19 @@ function bindEvents() {
   });
   $("rating-history-position-filter")?.addEventListener("change", renderRatingHistoryModal);
   $("rating-history-sort")?.addEventListener("change", renderRatingHistoryModal);
+  $("activity-filter-status")?.addEventListener("change", event => {
+    activityFilters.status = event.target.value || "all";
+    renderActivities();
+  });
+  $("activity-filter-player")?.addEventListener("input", event => {
+    activityFilters.player = event.target.value || "";
+    renderActivities();
+  });
+  $("activity-filter-sport")?.addEventListener("change", event => {
+    activityFilters.sport = event.target.value || "all";
+    renderActivities();
+  });
+  $("activity-filter-reset")?.addEventListener("click", resetActivityFilters);
   document.querySelectorAll(".tab").forEach(btn =>
     btn.addEventListener("click", () => {
       pageStateRestored = true;
