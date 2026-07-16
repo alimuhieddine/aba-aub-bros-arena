@@ -89,7 +89,7 @@ const HOME_HIGHLIGHT_BUCKET = "highlights";
 const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
 const MATCH_SUMMARY_CACHE_KEY = "aba_match_summary_cache";
 const APP_CACHE_VERSION_KEY = "aba_app_cache_version";
-const APP_CACHE_VERSION = "269";
+const APP_CACHE_VERSION = "270";
 
 function invalidateVersionedAppCaches() {
   try {
@@ -24066,6 +24066,13 @@ function bindEvents() {
       return;
     }
 
+    const memberName = e.target?.closest?.("#abaMemberName");
+    if (memberName && currentProfile?.id) {
+      e.preventDefault();
+      openPlayerProfile(currentProfile.id);
+      return;
+    }
+
     if (Date.now() < avatarViewerSuppressOpenUntil) return;
     const avatar = e.target?.closest?.(".avatar-view-trigger");
     if (!avatar) return;
@@ -24083,6 +24090,13 @@ function bindEvents() {
     if (homeCard?.dataset?.homeTarget && (e.key === "Enter" || e.key === " ")) {
       e.preventDefault();
       openHomeDashboardTarget(homeCard.dataset.homeTarget);
+      return;
+    }
+
+    const memberName = e.target?.closest?.("#abaMemberName");
+    if (memberName && currentProfile?.id && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      openPlayerProfile(currentProfile.id);
       return;
     }
 

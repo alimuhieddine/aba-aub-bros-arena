@@ -331,7 +331,14 @@
 
     .iphone-pro-max .welcome-row .text-wrapper-3 {
       margin-left: -6px;
+      cursor: pointer;
+      user-select: none;
+    }
 
+    .iphone-pro-max .welcome-row .text-wrapper-3:focus-visible {
+      outline: 2px solid rgba(49, 168, 255, .75);
+      outline-offset: 3px;
+      border-radius: 6px;
     }
 
     .iphone-pro-max.is-logged-out .avatar-frame,
@@ -6964,7 +6971,7 @@
   <script defer src="js/teams.js?v=1"></script>
   <script defer src="js/scoring.js?v=1"></script>
   <script defer src="js/utils.js?v=1"></script>
-  <script defer src="app.js?v=269"></script>
+  <script defer src="app.js?v=270"></script>
   <script defer src="js/utils-runtime-bridge.js?v=1"></script>
   <script defer src="js/auth-runtime-bridge.js?v=1"></script>
 
@@ -7009,6 +7016,17 @@
         const nextName = name || "";
         if (memberName && memberName.textContent !== nextName) {
           memberName.textContent = nextName;
+        }
+        if (memberName) {
+          if (nextName && !loggedOutVisible) {
+            memberName.setAttribute("role", "button");
+            memberName.setAttribute("tabindex", "0");
+            memberName.setAttribute("aria-label", `Open ${nextName} profile`);
+          } else {
+            memberName.removeAttribute("role");
+            memberName.removeAttribute("tabindex");
+            memberName.removeAttribute("aria-label");
+          }
         }
 
         const avatarImg = currentUser?.querySelector("img");
