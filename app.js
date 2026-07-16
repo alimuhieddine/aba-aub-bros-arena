@@ -89,7 +89,7 @@ const HOME_HIGHLIGHT_BUCKET = "highlights";
 const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
 const MATCH_SUMMARY_CACHE_KEY = "aba_match_summary_cache";
 const APP_CACHE_VERSION_KEY = "aba_app_cache_version";
-const APP_CACHE_VERSION = "262";
+const APP_CACHE_VERSION = "263";
 
 function invalidateVersionedAppCaches() {
   try {
@@ -498,6 +498,10 @@ function formatSportDisplayName(name = "") {
   const raw = String(name || "").trim();
   if (!raw) return "";
   return raw.toLowerCase() === "soccer" ? "Football" : raw;
+}
+
+function isPadelSportName(name = "") {
+  return String(name || "").toLowerCase().includes("padel");
 }
 
 function canManageSport(sportId) {
@@ -6594,6 +6598,29 @@ function homeRecentRatingChanges(memberId) {
 
   (allMatches || []).forEach(match => {
     if (isCancelledMatch(match)) return;
+
+    if (isPadelMatch(match)) {
+      padelRatingTimelineForMatch(match).forEach((gameRow, index) => {
+        (gameRow.changes || []).forEach(row => {
+          if (cleanUuidValue(row.memberId) !== cleanId) return;
+
+          const before = Number(row.before ?? 0);
+          const after = Number(row.after ?? 0);
+
+          changes.push({
+            match,
+            game: gameRow.game || null,
+            position: PADEL_RATING_POSITION,
+            before,
+            after,
+            delta: after - before,
+            createdAt: gameRow.game?.created_at || match.start_time,
+            gameIndex: index
+          });
+        });
+      });
+      return;
+    }
 
     (match.match_position_rating_adjustments || []).forEach(row => {
       if (cleanUuidValue(row.member_id) !== cleanId) return;
@@ -20367,6 +20394,9 @@ function playerProfileStats(memberId) {
       const sportId = cleanUuidValue(match.sport_id);
       const sportName = match.sports?.name || sportNameById(match.sport_id) || "Sport";
       const sportKey = sportId || sportName.toLowerCase();
+      const completedPadelGameCount = isPadelMatch(match)
+        ? Math.max(1, completedPadelGamesForMatch(match).length)
+        : 1;
       const sportDetail = stats.sportDetails.get(sportKey) || {
         sportId,
         sport: sportName,
@@ -20384,7 +20414,7 @@ function playerProfileStats(memberId) {
       };
 
       if (!alreadyCounted) {
-        sportDetail.games += 1;
+        sportDetail.games += completedPadelGameCount;
       }
       sportDetail.totalPoints += total;
       sportDetail.activityPoints += activity;
@@ -20568,10 +20598,16 @@ function playerProfileSportSummaries(stats, ratings, memberId = "") {
     };
 
     summary.ratings.push(rating);
+    if (isPadelSportName(summary.sport) && Number(summary.games || 0) > 0) {
+      summary.ratings = summary.ratings.map(row => ({
+        ...row,
+        gamesPlayed: Number(summary.games || 0)
+      }));
+    }
     // Match-derived activity should be authoritative for this card.
     // Fallback to rating/game-profile totals only when no match games were
     // actually collected from finalized match points.
-    if (Number(summary.games || 0) === 0) {
+    if (Number(summary.games || 0) === 0 && !isPadelSportName(summary.sport)) {
       summary.games = Number(rating.gamesPlayed || 0);
     }
     summaries.set(key, summary);
@@ -20812,6 +20848,29 @@ function playerProfileRatingChanges(memberId) {
 
   (allMatches || []).forEach(match => {
     if (isCancelledMatch(match)) return;
+
+    if (isPadelMatch(match)) {
+      padelRatingTimelineForMatch(match).forEach((gameRow, index) => {
+        (gameRow.changes || []).forEach(row => {
+          if (cleanUuidValue(row.memberId) !== cleanId) return;
+
+          const before = Number(row.before ?? 0);
+          const after = Number(row.after ?? 0);
+
+          rows.push({
+            match,
+            game: gameRow.game || null,
+            position: PADEL_RATING_POSITION,
+            before,
+            after,
+            delta: after - before,
+            createdAt: gameRow.game?.created_at || match.start_time,
+            gameIndex: index
+          });
+        });
+      });
+      return;
+    }
 
     (match.match_position_rating_adjustments || []).forEach(row => {
       if (cleanUuidValue(row.member_id) !== cleanId) return;
