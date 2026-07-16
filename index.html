@@ -509,7 +509,7 @@
 
     #activities .activity-filter-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 8px;
       align-items: end;
     }
@@ -5763,6 +5763,17 @@
                 <option value="all">All activities</option>
               </select>
             </label>
+
+            <label>
+              Type
+              <select id="activity-filter-type">
+                <option value="all">All types</option>
+                <option value="linked-match">Linked match</option>
+                <option value="external-match">External match</option>
+                <option value="training-workout">Training / workout</option>
+                <option value="standalone">Standalone</option>
+              </select>
+            </label>
           </div>
 
           <div class="activity-filter-actions">
@@ -6953,7 +6964,7 @@
   <script defer src="js/teams.js?v=1"></script>
   <script defer src="js/scoring.js?v=1"></script>
   <script defer src="js/utils.js?v=1"></script>
-  <script defer src="app.js?v=266"></script>
+  <script defer src="app.js?v=267"></script>
   <script defer src="js/utils-runtime-bridge.js?v=1"></script>
   <script defer src="js/auth-runtime-bridge.js?v=1"></script>
 

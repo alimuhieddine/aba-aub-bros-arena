@@ -89,7 +89,7 @@ const HOME_HIGHLIGHT_BUCKET = "highlights";
 const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
 const MATCH_SUMMARY_CACHE_KEY = "aba_match_summary_cache";
 const APP_CACHE_VERSION_KEY = "aba_app_cache_version";
-const APP_CACHE_VERSION = "266";
+const APP_CACHE_VERSION = "267";
 
 function invalidateVersionedAppCaches() {
   try {
@@ -1822,7 +1822,8 @@ let editingActivityId = null;
 const activityFilters = {
   status: "all",
   player: "",
-  sport: "all"
+  sport: "all",
+  type: "all"
 };
 let currentGarminConnection = null;
 let currentStravaConnection = null;
@@ -19436,10 +19437,12 @@ function activityPlayerSearchText(activity) {
 function activityMatchesFilters(activity) {
   const status = activityStatusValue(activity);
   const sportValue = activitySportFilterValue(activity);
+  const typeValue = classifyActivity(activity).bucket || "standalone";
   const playerQuery = String(activityFilters.player || "").trim().toLowerCase();
 
   if (activityFilters.status !== "all" && status !== activityFilters.status) return false;
   if (activityFilters.sport !== "all" && sportValue !== activityFilters.sport) return false;
+  if (activityFilters.type !== "all" && typeValue !== activityFilters.type) return false;
   if (playerQuery && !activityPlayerSearchText(activity).includes(playerQuery)) return false;
 
   return true;
@@ -19484,6 +19487,7 @@ function syncActivityFilterControls() {
     $("activity-filter-player").value = activityFilters.player || "";
   }
   if ($("activity-filter-sport")) $("activity-filter-sport").value = activityFilters.sport || "all";
+  if ($("activity-filter-type")) $("activity-filter-type").value = activityFilters.type || "all";
 }
 
 function updateActivityFilterCount(filteredCount, totalCount) {
@@ -19492,6 +19496,7 @@ function updateActivityFilterCount(filteredCount, totalCount) {
 
   const hasFilters = activityFilters.status !== "all" ||
     activityFilters.sport !== "all" ||
+    activityFilters.type !== "all" ||
     String(activityFilters.player || "").trim();
 
   count.textContent = hasFilters
@@ -19503,6 +19508,7 @@ function resetActivityFilters() {
   activityFilters.status = "all";
   activityFilters.player = "";
   activityFilters.sport = "all";
+  activityFilters.type = "all";
   renderActivities();
 }
 
@@ -24090,6 +24096,10 @@ function bindEvents() {
   });
   $("activity-filter-sport")?.addEventListener("change", event => {
     activityFilters.sport = event.target.value || "all";
+    renderActivities();
+  });
+  $("activity-filter-type")?.addEventListener("change", event => {
+    activityFilters.type = event.target.value || "all";
     renderActivities();
   });
   $("activity-filter-reset")?.addEventListener("click", resetActivityFilters);
