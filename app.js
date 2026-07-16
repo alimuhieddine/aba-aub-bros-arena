@@ -89,7 +89,7 @@ const HOME_HIGHLIGHT_BUCKET = "highlights";
 const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
 const MATCH_SUMMARY_CACHE_KEY = "aba_match_summary_cache";
 const APP_CACHE_VERSION_KEY = "aba_app_cache_version";
-const APP_CACHE_VERSION = "268";
+const APP_CACHE_VERSION = "269";
 
 function invalidateVersionedAppCaches() {
   try {
@@ -6607,6 +6607,9 @@ function homeRecentRatingChanges(memberId) {
     if (isCancelledMatch(match)) return;
 
     if (isPadelMatch(match)) {
+      if (!hasSubmittedScore(match)) return;
+      if (!(match.match_member_points || []).some(point => cleanUuidValue(point.member_id) === cleanId)) return;
+
       padelRatingTimelineForMatch(match).forEach((gameRow, index) => {
         const gameId = cleanUuidValue(gameRow.game?.id) || `${cleanUuidValue(match.id)}:${index}`;
         if (countedPadelGameIds.has(gameId)) return;
@@ -20463,6 +20466,31 @@ function memberById(memberId) {
   return null;
 }
 
+function padelRatedGameIdsForMember(match, memberId, countedGameIds = new Set()) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  const cleanMatchId = cleanUuidValue(match?.id);
+
+  if (!cleanMemberId || !isPadelMatch(match) || !hasSubmittedScore(match)) return [];
+
+  const hasPointsRow = (match.match_member_points || []).some(point =>
+    cleanUuidValue(point.member_id) === cleanMemberId
+  );
+
+  if (!hasPointsRow) return [];
+
+  return padelRatingTimelineForMatch(match)
+    .map((gameRow, index) => {
+      const gameId = cleanUuidValue(gameRow.game?.id) || `${cleanMatchId}:${index}`;
+      const hasMemberChange = (gameRow.changes || []).some(row =>
+        cleanUuidValue(row.memberId) === cleanMemberId
+      );
+
+      if (!gameId || !hasMemberChange || countedGameIds.has(gameId)) return "";
+      return gameId;
+    })
+    .filter(Boolean);
+}
+
 function playerProfileStats(memberId) {
   const cleanId = cleanUuidValue(memberId);
   const stats = {
@@ -20530,10 +20558,7 @@ function playerProfileStats(memberId) {
       const sportName = match.sports?.name || sportNameById(match.sport_id) || "Sport";
       const sportKey = sportId || sportName.toLowerCase();
       const completedPadelGameIds = isPadelMatch(match)
-        ? completedPadelGamesForMatch(match)
-          .map(game => cleanUuidValue(game?.id))
-          .filter(Boolean)
-          .filter(gameId => !countedPadelGameIds.has(gameId))
+        ? padelRatedGameIdsForMember(match, cleanId, countedPadelGameIds)
         : [];
       const sportGameCount = isPadelMatch(match) ? completedPadelGameIds.length : 1;
       const sportDetail = stats.sportDetails.get(sportKey) || {
@@ -21004,6 +21029,9 @@ function playerProfileRatingChanges(memberId) {
     if (isCancelledMatch(match)) return;
 
     if (isPadelMatch(match)) {
+      if (!hasSubmittedScore(match)) return;
+      if (!(match.match_member_points || []).some(point => cleanUuidValue(point.member_id) === cleanId)) return;
+
       padelRatingTimelineForMatch(match).forEach((gameRow, index) => {
         const gameId = cleanUuidValue(gameRow.game?.id) || `${cleanUuidValue(match.id)}:${index}`;
         if (countedPadelGameIds.has(gameId)) return;
