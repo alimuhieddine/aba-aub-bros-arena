@@ -89,7 +89,7 @@ const HOME_HIGHLIGHT_BUCKET = "highlights";
 const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
 const MATCH_SUMMARY_CACHE_KEY = "aba_match_summary_cache";
 const APP_CACHE_VERSION_KEY = "aba_app_cache_version";
-const APP_CACHE_VERSION = "270";
+const APP_CACHE_VERSION = "271";
 
 function invalidateVersionedAppCaches() {
   try {
@@ -2051,15 +2051,57 @@ async function loadRatingMembers() {
   return allRatingMembers;
 }
 
+function latestPositionRatingAfterMatches(memberId, sportId, positionName) {
+  const cleanMemberId = cleanUuidValue(memberId);
+  const cleanSportId = cleanUuidValue(sportId);
+  const cleanPosition = normalizeSoccerPosition(positionName);
+  const rows = [];
+
+  if (!cleanMemberId || !cleanSportId || !cleanPosition) return null;
+
+  (allMatches || []).forEach(match => {
+    if (isCancelledMatch(match)) return;
+
+    (match.match_position_rating_adjustments || []).forEach(row => {
+      if (cleanUuidValue(row.member_id) !== cleanMemberId) return;
+      if (cleanUuidValue(row.sport_id) !== cleanSportId) return;
+      if (normalizeSoccerPosition(row.position_name) !== cleanPosition) return;
+
+      const after = Number(row.rating_after);
+      if (!Number.isFinite(after) || after <= 0) return;
+
+      rows.push({
+        after,
+        matchTime: new Date(match.start_time || row.created_at || 0).getTime(),
+        createdTime: new Date(row.created_at || match.created_at || 0).getTime()
+      });
+    });
+  });
+
+  if (!rows.length) return null;
+
+  rows.sort((a, b) =>
+    (b.matchTime || 0) - (a.matchTime || 0) ||
+    (b.createdTime || 0) - (a.createdTime || 0)
+  );
+
+  return rows[0].after;
+}
+
 function positionRatingForMember(memberId, sportId, positionName) {
+  const latestMatchRating = latestPositionRatingAfterMatches(memberId, sportId, positionName);
+  if (latestMatchRating !== null) return latestMatchRating;
+
   const committeeAverage = committeeAveragePositionRatingForMember(memberId, sportId, positionName);
   if (committeeAverage !== null) return committeeAverage;
 
   const cleanPosition = normalizeSoccerPosition(positionName);
+  const cleanMemberId = cleanUuidValue(memberId);
+  const cleanSportId = cleanUuidValue(sportId);
 
   const ratingRow = (allPositionRatings || []).find(row =>
-    row.member_id === memberId &&
-    row.sport_id === sportId &&
+    cleanUuidValue(row.member_id) === cleanMemberId &&
+    cleanUuidValue(row.sport_id) === cleanSportId &&
     normalizeSoccerPosition(row.position_name) === cleanPosition
   );
 
@@ -20695,7 +20737,7 @@ function playerProfilePositionRatings(memberId) {
       sportId: cleanUuidValue(row.sport_id),
       sport: row.sports?.name || sportNameById(row.sport_id) || "Sport",
       position: normalizeSoccerPosition(row.position_name) || row.position_name || "-",
-      rating: Number(row.rating || 0),
+      rating: positionRatingForMember(cleanId, row.sport_id, row.position_name),
       gamesPlayed: Number(row.games_played || 0)
     }))
     .filter(row => row.rating > 0)
