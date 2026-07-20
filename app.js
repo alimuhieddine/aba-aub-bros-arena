@@ -89,7 +89,7 @@ const HOME_HIGHLIGHT_BUCKET = "highlights";
 const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
 const MATCH_SUMMARY_CACHE_KEY = "aba_match_summary_cache";
 const APP_CACHE_VERSION_KEY = "aba_app_cache_version";
-const APP_CACHE_VERSION = "271";
+const APP_CACHE_VERSION = "272";
 
 function invalidateVersionedAppCaches() {
   try {
@@ -9915,15 +9915,43 @@ function positionWeight(position, memberId, sportId) {
   return score;
 }
 
-function assignSoccerPositionsToTeam(memberIds, sportId, forcedGkMemberId = null) {
+function assignSoccerPositionsToTeam(memberIds, sportId, forcedGkMemberId = null, forcedPositions = new Map(), strictForcedPositions = false) {
   const template = soccerFormationTemplate(memberIds.length);
   const available = [...memberIds];
   const assignment = new Map();
   const cleanForcedGk = cleanUuidValue(forcedGkMemberId);
+  const lockedPositions = forcedPositions instanceof Map
+    ? forcedPositions
+    : new Map(Object.entries(forcedPositions || {}));
+
+  Array.from(lockedPositions.entries()).forEach(([memberId, position]) => {
+    const cleanMemberId = cleanUuidValue(memberId);
+    const cleanPosition = normalizeSoccerPosition(position);
+    const memberIndex = available.indexOf(cleanMemberId);
+    const positionIndex = template.indexOf(cleanPosition);
+
+    if (!cleanMemberId || !cleanPosition || memberIndex === -1) return;
+
+    if (positionIndex === -1) {
+      if (strictForcedPositions) {
+        assignment.set(cleanMemberId, "");
+        available.splice(memberIndex, 1);
+      }
+      return;
+    }
+
+    assignment.set(cleanMemberId, cleanPosition);
+    available.splice(memberIndex, 1);
+    template.splice(positionIndex, 1);
+  });
+
+  if (strictForcedPositions && Array.from(assignment.values()).some(position => !position)) {
+    return null;
+  }
 
   const gkIndex = template.indexOf("GK");
 
-  if (cleanForcedGk && available.includes(cleanForcedGk) && gkIndex !== -1) {
+  if (cleanForcedGk && available.includes(cleanForcedGk) && gkIndex !== -1 && !assignment.has(cleanForcedGk)) {
     assignment.set(cleanForcedGk, "GK");
     available.splice(available.indexOf(cleanForcedGk), 1);
     template.splice(gkIndex, 1);
@@ -13332,11 +13360,24 @@ function soccerTeamBalanceGap(teamA, teamB, positionsA, positionsB, sportId) {
 function normalizeTeamSuggestionConstraints(constraints = {}) {
   const lockedA = new Set(Array.from(constraints.lockedA || []).map(cleanUuidValue).filter(Boolean));
   const lockedB = new Set(Array.from(constraints.lockedB || []).map(cleanUuidValue).filter(Boolean));
+  const lockedPositions = new Map();
   const overlap = Array.from(lockedA).filter(memberId => lockedB.has(memberId));
+
+  const sourcePositions = constraints.lockedPositions instanceof Map
+    ? Array.from(constraints.lockedPositions.entries())
+    : Object.entries(constraints.lockedPositions || {});
+
+  sourcePositions.forEach(([memberId, position]) => {
+    const cleanMemberId = cleanUuidValue(memberId);
+    const cleanPosition = normalizeSoccerPosition(position);
+
+    if (cleanMemberId && cleanPosition) lockedPositions.set(cleanMemberId, cleanPosition);
+  });
 
   return {
     lockedA,
     lockedB,
+    lockedPositions,
     overlap
   };
 }
@@ -13351,6 +13392,10 @@ function bestSoccerTeamSuggestion(memberIds, sportId, constraints = {}) {
   const normalizedConstraints = normalizeTeamSuggestionConstraints(constraints);
   const lockedA = new Set(Array.from(normalizedConstraints.lockedA).filter(memberId => cleanIds.includes(memberId)));
   const lockedB = new Set(Array.from(normalizedConstraints.lockedB).filter(memberId => cleanIds.includes(memberId)));
+  const lockedPositions = new Map(
+    Array.from(normalizedConstraints.lockedPositions.entries())
+      .filter(([memberId]) => cleanIds.includes(memberId))
+  );
 
   if (
     teamBSize < 1 ||
@@ -13374,8 +13419,11 @@ function bestSoccerTeamSuggestion(memberIds, sportId, constraints = {}) {
 
     if (teamA.length !== teamASize || teamB.length !== teamBSize) return;
 
-    const positionsA = assignSoccerPositionsToTeam(teamA, sportId);
-    const positionsB = assignSoccerPositionsToTeam(teamB, sportId);
+    const positionsA = assignSoccerPositionsToTeam(teamA, sportId, null, lockedPositions, true);
+    const positionsB = assignSoccerPositionsToTeam(teamB, sportId, null, lockedPositions, true);
+
+    if (!positionsA || !positionsB) return;
+
     const balance = soccerTeamBalanceGap(teamA, teamB, positionsA, positionsB, sportId);
 
     if (!best || balance.gap < best.balance.gap) {
@@ -13392,7 +13440,8 @@ function bestSoccerTeamSuggestion(memberIds, sportId, constraints = {}) {
   if (best) {
     best.constraints = {
       lockedA: Array.from(lockedA),
-      lockedB: Array.from(lockedB)
+      lockedB: Array.from(lockedB),
+      lockedPositions: Object.fromEntries(lockedPositions)
     };
 
     return best;
@@ -13414,16 +13463,21 @@ function bestSoccerTeamSuggestion(memberIds, sportId, constraints = {}) {
     }
   });
 
+  const fallbackPositionsA = assignSoccerPositionsToTeam(teamA, sportId, null, lockedPositions, true);
+  const fallbackPositionsB = assignSoccerPositionsToTeam(teamB, sportId, null, lockedPositions, true);
+
+  if (!fallbackPositionsA || !fallbackPositionsB) return null;
+
   return {
     teamA,
     teamB,
-    positionsA: assignSoccerPositionsToTeam(teamA, sportId),
-    positionsB: assignSoccerPositionsToTeam(teamB, sportId),
+    positionsA: fallbackPositionsA,
+    positionsB: fallbackPositionsB,
     balance: soccerTeamBalanceGap(
       teamA,
       teamB,
-      assignSoccerPositionsToTeam(teamA, sportId),
-      assignSoccerPositionsToTeam(teamB, sportId),
+      fallbackPositionsA,
+      fallbackPositionsB,
       sportId
     )
   };
@@ -13565,10 +13619,17 @@ function clearSuggestedFormationSummary() {
 
 function currentManualTeamConstraints() {
   const assignments = collectTeamAssignments();
+  const lockedPositions = new Map();
+
+  (assignments.all || []).forEach(player => {
+    const position = normalizeSoccerPosition(player.position);
+    if (player.memberId && position) lockedPositions.set(player.memberId, position);
+  });
 
   return {
     lockedA: new Set(assignments.teamA),
-    lockedB: new Set(assignments.teamB)
+    lockedB: new Set(assignments.teamB),
+    lockedPositions
   };
 }
 
