@@ -299,6 +299,21 @@ async function importRecentForConnection(
       : "";
     const details = [distanceKm, calories, averageHeartRate].filter(Boolean).join(" - ");
     const verification = verificationForActivity(detailedActivity, minutes, connection);
+    const { data: existingActivity } = await adminClient
+      .from("member_activities")
+      .select("id,status,review_notes,reviewed_by,reviewed_at")
+      .eq("source", "strava")
+      .eq("external_source_id", externalId)
+      .maybeSingle();
+    const existingStatus = cleanText(existingActivity?.status).toLowerCase();
+    const preserveReviewedStatus = existingStatus === "approved" || existingStatus === "rejected";
+    const nextStatus = preserveReviewedStatus ? existingStatus : verification.status;
+    const nextReviewNotes = preserveReviewedStatus
+      ? existingActivity?.review_notes || verification.reviewNotes
+      : verification.reviewNotes;
+    const nextReviewedAt = preserveReviewedStatus
+      ? existingActivity?.reviewed_at || (nextStatus === "approved" ? new Date().toISOString() : null)
+      : nextStatus === "approved" ? new Date().toISOString() : null;
 
     const { data: row, error } = await adminClient
       .from("member_activities")
@@ -314,9 +329,10 @@ async function importRecentForConnection(
         proof_path: null,
         proof_file_name: "Strava",
         notes: details ? `Imported from Strava. ${details}.` : "Imported from Strava.",
-        status: verification.status,
-        review_notes: verification.reviewNotes,
-        reviewed_at: verification.status === "approved" ? new Date().toISOString() : null,
+        status: nextStatus,
+        review_notes: nextReviewNotes,
+        reviewed_by: preserveReviewedStatus ? existingActivity?.reviewed_by || null : null,
+        reviewed_at: nextReviewedAt,
         source: "strava",
         external_source_id: externalId,
         external_url: `https://www.strava.com/activities/${externalId}`,
