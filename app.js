@@ -89,7 +89,7 @@ const HOME_HIGHLIGHT_BUCKET = "highlights";
 const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
 const MATCH_SUMMARY_CACHE_KEY = "aba_match_summary_cache";
 const APP_CACHE_VERSION_KEY = "aba_app_cache_version";
-const APP_CACHE_VERSION = "273";
+const APP_CACHE_VERSION = "274";
 
 function invalidateVersionedAppCaches() {
   try {
@@ -15192,7 +15192,6 @@ async function recalculateAllSoccerRatings() {
   try {
     await Promise.all([
       loadRatingMembers(),
-      loadMembers(),
       loadExternalMembers(),
       loadSportProfiles()
     ]);
