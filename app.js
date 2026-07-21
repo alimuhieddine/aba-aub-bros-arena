@@ -89,7 +89,7 @@ const HOME_HIGHLIGHT_BUCKET = "highlights";
 const PROFILE_IDENTITY_CACHE_KEY = "aba_profile_identity";
 const MATCH_SUMMARY_CACHE_KEY = "aba_match_summary_cache";
 const APP_CACHE_VERSION_KEY = "aba_app_cache_version";
-const APP_CACHE_VERSION = "272";
+const APP_CACHE_VERSION = "273";
 
 function invalidateVersionedAppCaches() {
   try {
@@ -2564,7 +2564,9 @@ async function recomputePositionRatingsFromCommitteeVotes(sportId) {
         member_id: member.id,
         sport_id: cleanSportId,
         position_name: cleanPosition,
-        rating: Number(rating.toFixed(2))
+        rating: Number(rating.toFixed(2)),
+        games_played: 0,
+        updated_at: new Date().toISOString()
       };
     });
   });
@@ -14894,8 +14896,31 @@ function soccerCascadeMatchesFrom(match) {
     );
 }
 
+async function deleteSoccerRatingAdjustmentsForMatches(matchIds) {
+  const cleanIds = Array.from(new Set((matchIds || []).map(cleanUuidValue).filter(Boolean)));
+
+  if (!cleanIds.length) return true;
+
+  const { error } = await supabaseClient
+    .from("match_position_rating_adjustments")
+    .delete()
+    .in("match_id", cleanIds);
+
+  if (error) {
+    alert(error.message);
+    return false;
+  }
+
+  (allMatches || []).forEach(match => {
+    if (!cleanIds.includes(cleanUuidValue(match.id))) return;
+    match.match_position_rating_adjustments = [];
+  });
+
+  return true;
+}
+
 async function recalculateSoccerRatingsCascadeFromMatch(match, options = {}) {
-  const { showAlert = true, refresh = true, trigger = "manual" } = options || {};
+  const { showAlert = true, refresh = true, trigger = "manual", skipExistingRollback = false } = options || {};
 
   if (!match || !isSoccerMatch(match) || isCancelledMatch(match) || !hasSubmittedScore(match)) {
     if (showAlert) alert("Only finalized soccer matches can trigger a rating cascade.");
@@ -14916,9 +14941,16 @@ async function recalculateSoccerRatingsCascadeFromMatch(match, options = {}) {
 
   await loadPositionRatings();
 
-  for (const cascadeMatch of [...cascadeMatches].reverse()) {
-    const rollback = await rollbackPreviousSoccerRatingAdjustments(cascadeMatch.id);
-    if (!rollback?.ok) return false;
+  if (skipExistingRollback) {
+    const deleted = await deleteSoccerRatingAdjustmentsForMatches(
+      cascadeMatches.map(cascadeMatch => cascadeMatch.id)
+    );
+    if (!deleted) return false;
+  } else {
+    for (const cascadeMatch of [...cascadeMatches].reverse()) {
+      const rollback = await rollbackPreviousSoccerRatingAdjustments(cascadeMatch.id);
+      if (!rollback?.ok) return false;
+    }
   }
 
   for (const cascadeMatch of cascadeMatches) {
@@ -15150,8 +15182,30 @@ async function recalculateAllSoccerRatings() {
     return;
   }
 
-  const ok = confirm(`Recalculate soccer ratings for ${matches.length} finalized soccer match(es)?`);
+  const ok = confirm(`Recalculate football ratings for ${matches.length} finalized match(es)?\n\nThis will first reset every football position rating to the committee average, then replay each finalized match in date order.`);
   if (!ok) return;
+
+  const sportIds = Array.from(new Set(
+    matches.map(match => cleanUuidValue(match.sport_id || match.sports?.id)).filter(Boolean)
+  ));
+
+  try {
+    await Promise.all([
+      loadRatingMembers(),
+      loadMembers(),
+      loadExternalMembers(),
+      loadSportProfiles()
+    ]);
+
+    for (const sportId of sportIds) {
+      await recomputePositionRatingsFromCommitteeVotes(sportId);
+    }
+
+    await loadPositionRatings();
+  } catch (error) {
+    alert(error?.message || "Could not rebuild football baseline ratings from committee votes.");
+    return;
+  }
 
   const earliestMatch = [...matches].sort((a, b) =>
     new Date(a.start_time || 0) - new Date(b.start_time || 0) ||
@@ -15160,12 +15214,14 @@ async function recalculateAllSoccerRatings() {
 
   const saved = await recalculateSoccerRatingsCascadeFromMatch(earliestMatch, {
     showAlert: false,
-    refresh: false
+    refresh: false,
+    trigger: "full baseline rebuild",
+    skipExistingRollback: true
   });
 
   if (!saved) return;
 
-  alert("All finalized soccer ratings recalculated.");
+  alert("All finalized football ratings recalculated from committee baseline.");
   await loadPositionRatings();
   await loadMatches({ force: true });
   renderRankings();
